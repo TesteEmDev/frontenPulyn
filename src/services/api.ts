@@ -2,7 +2,8 @@
 import { useAuth } from '../hooks/useAuth';
 
 const API_PROTOCOL = window.location.protocol === 'https:' ? 'https' : 'http';
-const API_URL = `${API_PROTOCOL}://${window.location.hostname}:3001/api`;
+const FALLBACK_API_URL = `${API_PROTOCOL}://${window.location.hostname}:3001/api`;
+const API_URL = (import.meta.env.VITE_API_URL || FALLBACK_API_URL).replace(/\/+$/, '');
 
 // Helper para obter headers com autenticação
 function getAuthHeaders() {

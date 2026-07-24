@@ -27,8 +27,11 @@ export function useGameWebSocket(
 
   onEventRef.current = onEvent;
 
-  // Obter hostname dinâmico
+  // Usar a URL pública configurada no Render; manter fallback para desenvolvimento local.
   const getServerUrl = useCallback(() => {
+    const configuredUrl = import.meta.env.VITE_WS_URL?.trim();
+    if (configuredUrl) return configuredUrl.replace(/\/+$/, '');
+
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const hostname = window.location.hostname;
     const port = 3001;
