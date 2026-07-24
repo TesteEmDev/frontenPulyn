@@ -11,7 +11,7 @@ import Avatar from '../../components/ui/Avatar';
 import StatusDot from '../../components/ui/StatusDot';
 import Timer from '../../components/ui/Timer';
 import ScoreCounter from '../../components/ui/ScoreCounter';
-import { api } from '../../services/api';
+import { api, API_URL } from '../../services/api';
 
 const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
@@ -274,7 +274,7 @@ export default function GameMasterDashboard() {
     for (const cp of safeCheckpoints) {
       try {
         // Usar endpoint sem autenticação (público para Arduino)
-        const res = await fetch(`http://${window.location.hostname}:3001/api/checkpoints/${cp.id}/territory`);
+        const res = await fetch(`${API_URL}/checkpoints/${cp.id}/territory`);
         
         if (!res.ok) {
           console.warn(`⚠️ Status ${res.status} para checkpoint ${cp.id}`);
@@ -449,7 +449,7 @@ export default function GameMasterDashboard() {
 
     setActionLoading('reset');
     try {
-      const response = await fetch(`http://${window.location.hostname}:3001/api/debug/reset-scores/${selectedEventId}`, {
+      const response = await fetch(`${API_URL}/debug/reset-scores/${selectedEventId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });

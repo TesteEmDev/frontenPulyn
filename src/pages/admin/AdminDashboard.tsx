@@ -9,6 +9,7 @@ import {
   Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { usePulynStore } from '../../store/mockData';
+import { API_URL } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
 import TopBar from '../../components/layout/TopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -80,7 +81,7 @@ export default function AdminDashboard() {
       const status: Record<string, any> = {};
       for (const cp of safeCheckpoints) {
         try {
-          const res = await fetch(`http://${window.location.hostname}:3001/api/checkpoints/${cp.id}/territory`);
+          const res = await fetch(`${API_URL}/checkpoints/${cp.id}/territory`);
           const data = await res.json();
           status[cp.id] = data;
         } catch (err) {

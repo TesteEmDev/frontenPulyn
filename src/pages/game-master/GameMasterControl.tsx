@@ -5,7 +5,7 @@ import {
   Star, FileText, RefreshCw, Settings, Trophy, Clock, CheckCircle, XCircle, Play, Square
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
-import { api } from '../../services/api';
+import { api, API_URL } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
 import TopBar from '../../components/layout/TopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -61,7 +61,7 @@ export default function AdminDashboard() {
       
       // Buscar status do jogo
       try {
-        const response = await fetch(`http://${window.location.hostname}:3001/api/debug/game-status`);
+        const response = await fetch(`${API_URL}/debug/game-status`);
         const data = await response.json();
         setGameStatus(data.status);
       } catch (err) {

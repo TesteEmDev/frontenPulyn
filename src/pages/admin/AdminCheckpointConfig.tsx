@@ -5,6 +5,7 @@ import { Save, Plus, Trash2, Wifi, WifiOff, CheckCircle, XCircle } from 'lucide-
 // No topo do arquivo AdminCheckpointConfig.tsx
 import { usePulynStore } from '../../store/mockData'; // Note: são 2 níveis: ../../store/mockData
 import { useCheckpointSocket } from '../../hooks/useCheckpointSocket';
+import { API_URL } from '../../services/api';
 
 export default function AdminCheckpointConfig() {
   const { id } = useParams<{ id: string }>();
@@ -32,7 +33,7 @@ export default function AdminCheckpointConfig() {
   useEffect(() => {
     const checkServer = async () => {
       try {
-        const res = await fetch(`http://${window.location.hostname}:3001/api/checkpoints`);
+        const res = await fetch(`${API_URL}/checkpoints`);
         if (res.ok) setServerStatus('online');
         else setServerStatus('offline');
       } catch {
@@ -66,7 +67,7 @@ export default function AdminCheckpointConfig() {
     setSaveStatus('idle');
     
     try {
-      const res = await fetch(`http://${window.location.hostname}:3001/api/checkpoints/${id}/config`, {
+      const res = await fetch(`${API_URL}/checkpoints/${id}/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

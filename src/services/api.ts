@@ -1,9 +1,23 @@
 // src/services/api.ts
 import { useAuth } from '../hooks/useAuth';
 
-const API_PROTOCOL = window.location.protocol === 'https:' ? 'https' : 'http';
-const FALLBACK_API_URL = `${API_PROTOCOL}://${window.location.hostname}:3001/api`;
-const API_URL = (import.meta.env.VITE_API_URL || FALLBACK_API_URL).replace(/\/+$/, '');
+const LOCAL_API_URL = `${window.location.protocol === 'https:' ? 'https' : 'http'}://${window.location.hostname}:3001/api`;
+const PRODUCTION_API_URL = 'https://backendpulyn.onrender.com/api';
+const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
+const fallbackApiUrl = import.meta.env.PROD ? PRODUCTION_API_URL : LOCAL_API_URL;
+const isLocalConfiguredUrl = Boolean(
+  configuredApiUrl && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(configuredApiUrl)
+);
+
+// Nunca permitir HTTP no bundle publicado em uma página HTTPS.
+// Se a Vercel ainda tiver uma URL local antiga, usar o Render automaticamente.
+const configuredForProduction = configuredApiUrl && import.meta.env.PROD
+  ? (isLocalConfiguredUrl
+      ? PRODUCTION_API_URL
+      : configuredApiUrl.replace(/^http:\/\//i, 'https://'))
+  : configuredApiUrl;
+
+export const API_URL = (configuredForProduction || fallbackApiUrl).replace(/\/+$/, '');
 
 // Helper para obter headers com autenticação
 function getAuthHeaders() {
