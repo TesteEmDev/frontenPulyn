@@ -141,7 +141,6 @@ export default function GameMasterDashboard() {
         detail: payload.teamName ? `${payload.teamName} atualizou o progresso da etapa.` : 'O progresso do Caça ao Tesouro foi atualizado.',
         at: receivedAt,
       });
-      const payload = event.payload || {};
       setTreasureStatus(prev => {
         const hasProgress = payload.teamId && payload.scanned !== undefined && payload.total !== undefined;
         const progressTeam = hasProgress ? {
