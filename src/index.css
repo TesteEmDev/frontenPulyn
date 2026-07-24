@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+
+:root {
+  --pulyn-blue: #1E9BD7;
+  --pulyn-orange: #F5A623;
+  --pulyn-green: #4CAF50;
+  --pulyn-pink: #E91E8C;
+  --pulyn-red: #E53935;
+  --pulyn-light-blue: #29B6F6;
+  --pulyn-teal: #26C6DA;
+  --bg-dark: #0D1B2A;
+  --bg-card: #132338;
+  --bg-surface: #1A2F45;
+  --bg-hover: #1E3A54;
+  --text-primary: #FFFFFF;
+  --text-secondary: #B0C4D8;
+  --text-muted: #6B8BA4;
+  --gradient-pulyn: linear-gradient(135deg, #1E9BD7 0%, #29B6F6 25%, #4CAF50 50%, #F5A623 75%, #E91E8C 100%);
+  --gradient-blue: linear-gradient(135deg, #1E9BD7, #29B6F6);
+  --gradient-warm: linear-gradient(135deg, #F5A623, #E91E8C);
+  --gradient-cool: linear-gradient(135deg, #1E9BD7, #4CAF50);
+  --sidebar-bg: #0A1628;
+  --sidebar-active: #1E9BD7;
+  --sidebar-hover: #132338;
+}
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #1E3A54 #132338;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: #132338;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: #1E3A54;
+    border-radius: 3px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: #2A4A66;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: rgba(30, 155, 215, 0.4);
+    color: #FFFFFF;
+  }
+}
+
+@layer components {
+  .glow-primary {
+    box-shadow: 0 0 10px rgba(30, 155, 215, 0.3), 0 0 20px rgba(30, 155, 215, 0.1);
+  }
+
+  .glow-secondary {
+    box-shadow: 0 0 10px rgba(76, 175, 80, 0.3), 0 0 20px rgba(76, 175, 80, 0.1);
+  }
+
+  .glow-accent {
+    box-shadow: 0 0 10px rgba(245, 166, 35, 0.3), 0 0 20px rgba(245, 166, 35, 0.1);
+  }
+
+  .glow-success {
+    box-shadow: 0 0 10px rgba(76, 175, 80, 0.3), 0 0 20px rgba(76, 175, 80, 0.1);
+  }
+
+  .text-gradient-primary {
+    background: linear-gradient(135deg, #1E9BD7, #29B6F6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-pulyn {
+    background: linear-gradient(135deg, #1E9BD7 0%, #29B6F6 25%, #4CAF50 50%, #F5A623 75%, #E91E8C 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-accent {
+    background: linear-gradient(135deg, #F5A623, #E91E8C);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .bg-gradient-dark {
+    background: linear-gradient(180deg, #0D1B2A 0%, #132338 50%, #0D1B2A 100%);
+  }
+
+  .bg-gradient-pulyn {
+    background: linear-gradient(135deg, #1E9BD7 0%, #29B6F6 25%, #4CAF50 50%, #F5A623 75%, #E91E8C 100%);
+  }
+
+  .card-dark {
+    @apply bg-dark-card border border-dark-border rounded-xl;
+  }
+
+  .card-glow {
+    @apply bg-dark-card border border-primary-500/20 rounded-xl;
+    box-shadow: 0 4px 20px rgba(30, 155, 215, 0.08);
+  }
+
+  .input-dark {
+    @apply bg-dark border border-dark-border rounded-lg px-4 py-2.5 text-white placeholder-dark-hover/60 focus:outline-none focus:border-primary-500 transition-all;
+    box-shadow: none;
+  }
+
+  .input-dark:focus {
+    border-color: #1E9BD7;
+    box-shadow: 0 0 0 3px rgba(30, 155, 215, 0.15);
+  }
+
+  .skeleton {
+    @apply bg-dark-surface rounded animate-shimmer;
+    background-image: linear-gradient(90deg, #1A2F45 25%, #1E3A54 50%, #1A2F45 75%);
+    background-size: 200% 100%;
+  }
+
+  .btn-primary {
+    @apply px-4 py-2.5 rounded-lg text-white font-semibold transition-all;
+    background: linear-gradient(135deg, #1E9BD7, #29B6F6);
+  }
+
+  .btn-primary:hover {
+    background: linear-gradient(135deg, #1787BD, #1E9BD7);
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2.5 rounded-lg text-white font-semibold transition-all;
+    background: linear-gradient(135deg, #4CAF50, #66BB6A);
+  }
+
+  .btn-secondary:hover {
+    background: linear-gradient(135deg, #43A047, #4CAF50);
+  }
+
+  .btn-accent {
+    @apply px-4 py-2.5 rounded-lg text-white font-semibold transition-all;
+    background: linear-gradient(135deg, #F5A623, #FFB74D);
+  }
+
+  .btn-accent:hover {
+    background: linear-gradient(135deg, #E68600, #F5A623);
+  }
+
+  .btn-danger {
+    @apply px-4 py-2.5 rounded-lg text-white font-semibold transition-all;
+    background: linear-gradient(135deg, #E53935, #EF5350);
+  }
+
+  .btn-danger:hover {
+    background: linear-gradient(135deg, #C62828, #E53935);
+  }
+}
+
+@tailwind utilities;
