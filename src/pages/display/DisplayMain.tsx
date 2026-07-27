@@ -510,40 +510,39 @@ export default function DisplayMain() {
               }}
               aria-live="polite"
             >
-              <div className="flex w-full min-w-0 flex-col items-center gap-4">
-                <div
-                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-2xl"
-                  style={{ backgroundColor: `${treasureTeamColor}35`, color: treasureTeamColor }}
-                >
-                  🏆
-                </div>
-                <div className="w-full min-w-0">
-                  <p className="text-sm font-semibold uppercase tracking-wider text-gray-300">
-                    Caça ao Tesouro iniciado
-                  </p>
-                  <p className="mt-1 text-xs text-gray-400">Equipe sorteada para começar</p>
-                  <p className="truncate font-display text-3xl font-bold" style={{ color: treasureTeamColor }}>
-                    {treasureStatus.startingTeamName}
-                  </p>
-                  {treasureStatus.turnTeamName && (
-                    <p className="mt-1 text-sm text-gray-300">
-                      Vez da equipe: <strong>{treasureStatus.turnTeamName}</strong>
+              <div className="flex w-full flex-col items-center justify-center gap-5 md:flex-row md:items-center md:gap-8">
+                <div className="flex min-w-0 items-center gap-4 text-center md:text-left">
+                  <div
+                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-2xl"
+                    style={{ backgroundColor: `${treasureTeamColor}35`, color: treasureTeamColor }}
+                  >
+                    🏆
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold uppercase tracking-wider text-gray-300">
+                      Caça ao Tesouro iniciado
                     </p>
-                  )}
-                  {showTreasureTurnTimer && (
-                    <div className="mt-3 flex w-full max-w-md flex-col items-center rounded-xl border border-warning/60 bg-warning/10 px-6 py-4 text-center">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-warning">
-                        {treasureStatus.initialWait ? 'A equipe começa em' : 'Próxima equipe começa em'}
+                    <p className="mt-1 text-xs text-gray-400">Equipe sorteada para começar</p>
+                    <p className="truncate font-display text-3xl font-bold" style={{ color: treasureTeamColor }}>
+                      {treasureStatus.startingTeamName}
+                    </p>
+                    {treasureStatus.turnTeamName && (
+                      <p className="mt-1 text-sm text-gray-300">
+                        Vez da equipe: <strong>{treasureStatus.turnTeamName}</strong>
                       </p>
-                      <p className="mt-2 font-mono text-7xl font-bold leading-none text-white md:text-8xl">
-                        {liveTurnRemaining}s
-                      </p>
-                      {treasureStatus.turnTeamName && (
-                        <p className="text-xs text-gray-300">{treasureStatus.turnTeamName}</p>
-                      )}
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
+                {showTreasureTurnTimer && (
+                  <div className="flex w-full max-w-sm shrink-0 flex-col items-center rounded-xl border border-warning/60 bg-warning/10 px-6 py-4 text-center md:w-auto">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-warning">
+                      {treasureStatus.initialWait ? 'A equipe começa em' : 'Próxima equipe começa em'}
+                    </p>
+                    <p className="mt-2 font-mono text-7xl font-bold leading-none text-white md:text-8xl">
+                      {liveTurnRemaining}s
+                    </p>
+                  </div>
+                )}
               </div>
               <Badge variant="warning" className="shrink-0 px-3 py-2 text-xs">
                 Primeira equipe
