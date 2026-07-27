@@ -19,9 +19,12 @@ export function useNFCReader(
         return;
       }
 
+      const configuredUrl = import.meta.env.VITE_WS_URL?.trim();
       const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const fallbackUrl = `${protocol}://${window.location.hostname}:3001`;
+      const serverUrl = (configuredUrl || fallbackUrl).replace(/\/+$/, '');
       const eventQuery = eventoId ? `?evento_id=${encodeURIComponent(eventoId)}` : '';
-      const ws = new WebSocket(`${protocol}://${window.location.hostname}:3001${eventQuery}`);
+      const ws = new WebSocket(`${serverUrl}${eventQuery}`);
       socketRef.current = ws;
 
       ws.onopen = () => {
