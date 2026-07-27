@@ -21,6 +21,9 @@ interface TreasureDisplayStatus {
   startingTeamName?: string | null;
   turnTeamId?: string | null;
   turnTeamName?: string | null;
+  winningTeamId?: string | null;
+  winningTeamName?: string | null;
+  completed?: boolean;
   turnAvailableAt?: string | null;
   turnRemainingSeconds?: number;
   turnWaitSeconds?: number | null;
@@ -98,9 +101,10 @@ export default function DisplayMain() {
         try {
           const status = await api.getTreasureEventStatus(selectedEventId);
           setTreasureStatus(
-            status?.active && status?.gameType === 'treasure_hunt'
+            status?.gameType === 'treasure_hunt' && (status?.active || status?.completed)
               ? {
                   ...status,
+                  completed: Boolean(status.completed),
                   initialWait: status.initialWait ?? (
                     Number(status.roundNumber) === 1 && Number(status.turnRemainingSeconds) > 0
                   ),
@@ -147,9 +151,10 @@ export default function DisplayMain() {
           import('../../services/api').then(({ api }) => api.getTreasureEventStatus(selectedEventId))
             .then(status => {
               setTreasureStatus(
-                status?.active && status?.gameType === 'treasure_hunt'
+                status?.gameType === 'treasure_hunt' && (status?.active || status?.completed)
                   ? {
                       ...status,
+                      completed: Boolean(status.completed),
                       initialWait: status.initialWait ?? (
                         Number(status.roundNumber) === 1 && Number(status.turnRemainingSeconds) > 0
                       ),
@@ -165,6 +170,9 @@ export default function DisplayMain() {
         setTreasureStatus(prev => prev ? {
           ...prev,
           active: !event.payload?.finished,
+          completed: Boolean(event.payload?.finished),
+          winningTeamId: event.payload?.winningTeamId ?? prev.winningTeamId,
+          winningTeamName: event.payload?.winningTeamName ?? prev.winningTeamName,
           turnTeamName: event.payload?.turnTeamName || prev.turnTeamName,
           turnTeamId: Object.prototype.hasOwnProperty.call(event.payload || {}, 'turnTeamId')
             ? event.payload.turnTeamId
@@ -313,13 +321,20 @@ export default function DisplayMain() {
   const treasureStartingTeam = treasureStatus?.startingTeamId
     ? teams.find(team => String(team.id) === String(treasureStatus.startingTeamId))
     : teams.find(team => team.name === treasureStatus?.startingTeamName);
-  const treasureCurrentTeam = (
-    treasureStatus?.turnTeamId
-      ? teams.find(team => String(team.id) === String(treasureStatus.turnTeamId))
-      : teams.find(team => team.name === treasureStatus?.turnTeamName)
-  ) || treasureStartingTeam;
+  const treasureWinnerTeam = treasureStatus?.winningTeamId
+    ? teams.find(team => String(team.id) === String(treasureStatus.winningTeamId))
+    : teams.find(team => team.name === treasureStatus?.winningTeamName);
+  const treasureCurrentTeam = treasureStatus?.completed
+    ? treasureWinnerTeam
+    : (
+        treasureStatus?.turnTeamId
+          ? teams.find(team => String(team.id) === String(treasureStatus.turnTeamId))
+          : teams.find(team => team.name === treasureStatus?.turnTeamName)
+      ) || treasureStartingTeam;
   const treasureTeamColor = treasureCurrentTeam?.color || '#F5A623';
-  const treasureDisplayedTeamName = treasureStatus?.turnTeamName || treasureStatus?.startingTeamName;
+  const treasureDisplayedTeamName = treasureStatus?.completed
+    ? treasureStatus.winningTeamName
+    : treasureStatus?.turnTeamName || treasureStatus?.startingTeamName;
   const liveTurnRemaining = treasureStatus?.turnAvailableAt
     ? Math.max(0, Math.ceil((Date.parse(treasureStatus.turnAvailableAt) - currentTime.getTime()) / 1000))
     : 0;
@@ -511,7 +526,8 @@ export default function DisplayMain() {
             </button>
           </div>
 
-          {treasureStatus?.active && treasureStatus.startingTeamName && (
+          {treasureStatus?.gameType === 'treasure_hunt' &&
+            (treasureStatus.active ? treasureStatus.startingTeamName : treasureStatus.winningTeamName) && (
             <div
               className="mx-auto mb-6 flex max-w-3xl flex-col items-center justify-center gap-5 rounded-2xl border-2 px-6 py-5 text-center shadow-lg"
               style={{
@@ -531,9 +547,15 @@ export default function DisplayMain() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-wider text-gray-300">
-                      {treasureStatus.initialWait ? 'Equipe sorteada para começar' : 'Equipe da vez'}
+                      {treasureStatus.completed
+                        ? 'Caça ao Tesouro concluído'
+                        : treasureStatus.initialWait
+                          ? 'Equipe sorteada para começar'
+                          : 'Equipe da vez'}
                     </p>
-                    <p className="mt-1 text-xs text-gray-400">Equipe atual</p>
+                    <p className="mt-1 text-xs text-gray-400">
+                      {treasureStatus.completed ? 'Equipe vencedora' : 'Equipe atual'}
+                    </p>
                     <p className="truncate font-display text-3xl font-bold" style={{ color: treasureTeamColor }}>
                       {treasureDisplayedTeamName}
                     </p>
