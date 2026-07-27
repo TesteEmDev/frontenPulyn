@@ -124,6 +124,13 @@ export default function GameMasterDashboard() {
     console.log(`🎮 Evento do jogo recebido: ${event.type}`, event.payload);
     const payload = event.payload || {};
     const receivedAt = new Date().toISOString();
+    const payloadEventId = payload.eventoId ? String(payload.eventoId).trim().toLowerCase() : '';
+    const currentEventId = selectedEventId ? String(selectedEventId).trim().toLowerCase() : '';
+
+    // O backend é a fonte da verdade: não aplicar eventos de outro evento.
+    if (payloadEventId && currentEventId && payloadEventId !== currentEventId) {
+      return;
+    }
 
     if (event.type === 'TERRITORY_CONQUERED') {
       setLastGameEvent({
@@ -160,11 +167,22 @@ export default function GameMasterDashboard() {
 
         return {
           ...prev,
-          active: !payload.finished,
+          active: payload.finished ? false : true,
           gameType: 'treasure_hunt',
-          roundNumber: payload.finished ? prev.roundNumber : (payload.nextTargetCheckpointId ? (prev.roundNumber || 0) + (payload.roundComplete ? 1 : 0) : prev.roundNumber),
+          roundNumber: payload.roundNumber ?? prev.roundNumber,
+          startingTeamId: payload.startingTeamId ?? prev.startingTeamId,
+          startingTeamName: payload.startingTeamName ?? prev.startingTeamName,
+          turnTeamId: payload.turnTeamId ?? (payload.finished ? null : prev.turnTeamId),
+          turnTeamName: payload.turnTeamName ?? (payload.finished ? null : prev.turnTeamName),
+          turnAvailableAt: payload.turnAvailableAt ?? (payload.finished ? null : prev.turnAvailableAt),
+          turnRemainingSeconds: payload.turnRemainingSeconds ?? payload.turnWaitSeconds ?? prev.turnRemainingSeconds,
           targetCheckpointId: payload.nextTargetCheckpointId ?? (payload.finished ? null : prev.targetCheckpointId),
           completedCheckpointIds: payload.completedCheckpointIds || prev.completedCheckpointIds,
+          teamRaceTimes: payload.teamRaceTimes || prev.teamRaceTimes,
+          winningTeamId: payload.winningTeamId ?? prev.winningTeamId,
+          winningTeamName: payload.winningTeamName ?? prev.winningTeamName,
+          ownedCheckpoints: payload.ownedCheckpoints ?? prev.ownedCheckpoints,
+          totalCheckpoints: payload.totalCheckpoints ?? prev.totalCheckpoints,
           teamsProgress,
         };
       });
