@@ -580,6 +580,25 @@ export const api = {
     }
   },
 
+  async deleteCrianca(eventoId: string, criancaId: string) {
+    try {
+      const res = await fetch(`${API_URL}/criancas/eventos/${eventoId}/criancas/${criancaId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText);
+      }
+
+      return res.json();
+    } catch (err) {
+      console.error('❌ Erro ao excluir criança:', err);
+      throw err;
+    }
+  },
+
   async unassignBracelet(criancaId: string) {
     try {
       const res = await fetch(`${API_URL}/criancas/${criancaId}/unassign-bracelet`, {

@@ -89,7 +89,7 @@ export default function ReceptionParticipants() {
   const [teamsData, setTeamsData] = useState<Team[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalChild, setModalChild] = useState<string | null>(null);
-  const [modalAction, setModalAction] = useState<'unlink' | 'change' | 'edit-name' | null>(null);
+  const [modalAction, setModalAction] = useState<'unlink' | 'change' | 'edit-name' | 'delete' | null>(null);
   const [braceletInput, setBraceletInput] = useState('');
   const [nfcConnected, setNFCConnected] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -201,7 +201,7 @@ export default function ReceptionParticipants() {
     return result;
   }, [children, search, activeTab, selectedTeam]);
 
-  const handleOpenModal = useCallback((childId: string, action: 'unlink' | 'change' | 'edit-name') => {
+  const handleOpenModal = useCallback((childId: string, action: 'unlink' | 'change' | 'edit-name' | 'delete') => {
     setModalChild(childId);
     setModalAction(action);
     
@@ -223,7 +223,14 @@ export default function ReceptionParticipants() {
     try {
       setSaving(true);
 
-      if (modalAction === 'unlink') {
+      if (modalAction === 'delete') {
+        if (!selectedEventId) {
+          throw new Error('Evento não selecionado');
+        }
+
+        console.log(`🗑️ Excluindo participante ${modalChild}`);
+        await api.deleteCrianca(selectedEventId, modalChild);
+      } else if (modalAction === 'unlink') {
         // Desvincular pulseira
         console.log(`🔗 Desvinculando pulseira da criança ${modalChild}`);
         await api.unassignBracelet(modalChild);
@@ -590,6 +597,16 @@ export default function ReceptionParticipants() {
                                   </svg>
                                 </button>
                               )}
+                              {/* Delete participant */}
+                              <button
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-danger hover:bg-danger/10 transition-colors duration-200"
+                                title="Excluir participante"
+                                onClick={() => handleOpenModal(child.id, 'delete')}
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-9 0h10" />
+                                </svg>
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -630,6 +647,8 @@ export default function ReceptionParticipants() {
             ? `Trocar pulseira de ${getChildName(modalChild || '')}`
             : modalAction === 'edit-name'
             ? `Editar ${getChildName(modalChild || '')}`
+            : modalAction === 'delete'
+            ? `Excluir ${getChildName(modalChild || '')}`
             : `Desvincular pulseira de ${getChildName(modalChild || '')}`
         }
       >
@@ -700,6 +719,17 @@ export default function ReceptionParticipants() {
             </p>
           )}
 
+          {modalAction === 'delete' && (
+            <div className="space-y-2">
+              <p className="text-sm text-gray-200 font-body">
+                Deseja excluir este participante do evento?
+              </p>
+              <p className="text-xs text-red-300 font-body">
+                Essa ação remove o cadastro e o histórico de pontuação dele. A pulseira será liberada para uso novamente.
+              </p>
+            </div>
+          )}
+
           <div className="flex gap-3 justify-end mt-4">
             <Button 
               variant="ghost" 
@@ -713,11 +743,11 @@ export default function ReceptionParticipants() {
               Cancelar
             </Button>
             <Button 
-              variant={modalAction === 'unlink' ? 'danger' : 'primary'} 
+              variant={modalAction === 'unlink' || modalAction === 'delete' ? 'danger' : 'primary'} 
               onClick={handleConfirmModal}
               disabled={saving || (modalAction === 'change' && !braceletInput.trim()) || (modalAction === 'edit-name' && !editingName.trim())}
             >
-              {saving ? 'Processando...' : modalAction === 'change' ? 'Confirmar Troca' : modalAction === 'edit-name' ? 'Salvar' : 'Desvincular'}
+              {saving ? 'Processando...' : modalAction === 'change' ? 'Confirmar Troca' : modalAction === 'edit-name' ? 'Salvar' : modalAction === 'delete' ? 'Excluir participante' : 'Desvincular'}
             </Button>
           </div>
         </div>
