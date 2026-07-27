@@ -502,7 +502,7 @@ export default function DisplayMain() {
 
           {treasureStatus?.active && treasureStatus.startingTeamName && (
             <div
-              className="mx-auto mb-6 flex max-w-3xl items-center justify-between gap-4 rounded-2xl border-2 px-6 py-4 text-left shadow-lg"
+              className="mx-auto mb-6 flex max-w-3xl flex-col items-center justify-center gap-5 rounded-2xl border-2 px-6 py-5 text-center shadow-lg"
               style={{
                 borderColor: `${treasureTeamColor}99`,
                 backgroundColor: `${treasureTeamColor}18`,
@@ -510,14 +510,14 @@ export default function DisplayMain() {
               }}
               aria-live="polite"
             >
-              <div className="flex min-w-0 items-center gap-4">
+              <div className="flex w-full min-w-0 flex-col items-center gap-4">
                 <div
                   className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-2xl"
                   style={{ backgroundColor: `${treasureTeamColor}35`, color: treasureTeamColor }}
                 >
                   🏆
                 </div>
-                <div className="min-w-0">
+                <div className="w-full min-w-0">
                   <p className="text-sm font-semibold uppercase tracking-wider text-gray-300">
                     Caça ao Tesouro iniciado
                   </p>
@@ -531,7 +531,7 @@ export default function DisplayMain() {
                     </p>
                   )}
                   {showTreasureTurnTimer && (
-                    <div className="mt-3 rounded-xl border border-warning/60 bg-warning/10 px-4 py-3 text-center">
+                    <div className="mt-3 flex w-full max-w-md flex-col items-center rounded-xl border border-warning/60 bg-warning/10 px-6 py-4 text-center">
                       <p className="text-xs font-semibold uppercase tracking-wider text-warning">
                         {treasureStatus.initialWait ? 'A equipe começa em' : 'Próxima equipe começa em'}
                       </p>
