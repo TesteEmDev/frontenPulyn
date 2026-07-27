@@ -165,7 +165,7 @@ export default function DisplayMain() {
             .catch(err => console.error('Erro ao carregar equipe sorteada no telão:', err));
         }
       } else if (event.type === 'GAME_STOPPED' && event.payload?.eventoId === selectedEventId) {
-        setTreasureStatus(null);
+        setTreasureStatus(prev => prev?.completed ? prev : null);
       } else if (event.type === 'TREASURE_PROGRESS' || event.type === 'TREASURE_ROUND_COMPLETED') {
         setTreasureStatus(prev => prev ? {
           ...prev,
