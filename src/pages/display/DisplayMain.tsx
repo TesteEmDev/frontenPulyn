@@ -320,9 +320,6 @@ export default function DisplayMain() {
       treasureStatus.turnWaitSeconds === null ||
       treasureStatus.turnWaitSeconds > 0)
   );
-  const treasureTargetName = checkpoints.find(
-    checkpoint => String(checkpoint.id) === String(treasureStatus?.targetCheckpointId)
-  )?.name;
 
   // Se não houver evento selecionado, mostrar tela de seleção
   if (!selectedEventId) {
@@ -538,16 +535,13 @@ export default function DisplayMain() {
                       <p className="text-xs font-semibold uppercase tracking-wider text-warning">
                         {treasureStatus.initialWait ? 'A equipe começa em' : 'Próxima equipe começa em'}
                       </p>
-                      <p className="mt-1 font-mono text-4xl font-bold text-white">
+                      <p className="mt-2 font-mono text-7xl font-bold leading-none text-white md:text-8xl">
                         {liveTurnRemaining}s
                       </p>
                       {treasureStatus.turnTeamName && (
                         <p className="text-xs text-gray-300">{treasureStatus.turnTeamName}</p>
                       )}
                     </div>
-                  )}
-                  {treasureTargetName && (
-                    <p className="mt-1 text-xs text-gray-400">Primeiro alvo: {treasureTargetName}</p>
                   )}
                 </div>
               </div>
