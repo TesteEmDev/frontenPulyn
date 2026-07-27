@@ -20,6 +20,9 @@ interface TreasureDisplayStatus {
   startingTeamId?: string | null;
   startingTeamName?: string | null;
   turnTeamName?: string | null;
+  turnAvailableAt?: string | null;
+  turnRemainingSeconds?: number;
+  turnWaitSeconds?: number | null;
   targetCheckpointId?: string | null;
 }
 
@@ -126,6 +129,9 @@ export default function DisplayMain() {
             startingTeamId: treasure.startingTeamId || null,
             startingTeamName: treasure.startingTeamName,
             turnTeamName: treasure.turnTeamName || treasure.startingTeamName,
+            turnAvailableAt: treasure.turnAvailableAt || null,
+            turnRemainingSeconds: treasure.turnRemainingSeconds ?? 0,
+            turnWaitSeconds: treasure.turnWaitSeconds ?? 0,
             targetCheckpointId: treasure.targetCheckpointId || null,
           });
         } else if (event.payload?.gameType === 'treasure_hunt') {
@@ -142,6 +148,15 @@ export default function DisplayMain() {
           ...prev,
           active: !event.payload?.finished,
           turnTeamName: event.payload?.turnTeamName || prev.turnTeamName,
+          turnAvailableAt: Object.prototype.hasOwnProperty.call(event.payload || {}, 'turnAvailableAt')
+            ? event.payload.turnAvailableAt
+            : prev.turnAvailableAt,
+          turnRemainingSeconds: Object.prototype.hasOwnProperty.call(event.payload || {}, 'turnRemainingSeconds')
+            ? event.payload.turnRemainingSeconds
+            : prev.turnRemainingSeconds,
+          turnWaitSeconds: Object.prototype.hasOwnProperty.call(event.payload || {}, 'turnWaitSeconds')
+            ? event.payload.turnWaitSeconds
+            : prev.turnWaitSeconds,
           targetCheckpointId: event.payload?.nextTargetCheckpointId ?? prev.targetCheckpointId,
         } : prev);
       } else if (event.type === 'TERRITORY_CONQUERED') {
@@ -275,6 +290,16 @@ export default function DisplayMain() {
     ? teams.find(team => String(team.id) === String(treasureStatus.startingTeamId))
     : teams.find(team => team.name === treasureStatus?.startingTeamName);
   const treasureTeamColor = treasureStartingTeam?.color || '#F5A623';
+  const liveTurnRemaining = treasureStatus?.turnAvailableAt
+    ? Math.max(0, Math.ceil((Date.parse(treasureStatus.turnAvailableAt) - currentTime.getTime()) / 1000))
+    : 0;
+  const showTreasureTurnTimer = Boolean(
+    treasureStatus?.active &&
+    liveTurnRemaining > 0 &&
+    (treasureStatus.turnWaitSeconds === undefined ||
+      treasureStatus.turnWaitSeconds === null ||
+      treasureStatus.turnWaitSeconds > 0)
+  );
   const treasureTargetName = checkpoints.find(
     checkpoint => String(checkpoint.id) === String(treasureStatus?.targetCheckpointId)
   )?.name;
@@ -487,6 +512,19 @@ export default function DisplayMain() {
                     <p className="mt-1 text-sm text-gray-300">
                       Vez da equipe: <strong>{treasureStatus.turnTeamName}</strong>
                     </p>
+                  )}
+                  {showTreasureTurnTimer && (
+                    <div className="mt-3 rounded-xl border border-warning/60 bg-warning/10 px-4 py-3 text-center">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-warning">
+                        Próxima equipe começa em
+                      </p>
+                      <p className="mt-1 font-mono text-4xl font-bold text-white">
+                        {liveTurnRemaining}s
+                      </p>
+                      {treasureStatus.turnTeamName && (
+                        <p className="text-xs text-gray-300">{treasureStatus.turnTeamName}</p>
+                      )}
+                    </div>
                   )}
                   {treasureTargetName && (
                     <p className="mt-1 text-xs text-gray-400">Primeiro alvo: {treasureTargetName}</p>
