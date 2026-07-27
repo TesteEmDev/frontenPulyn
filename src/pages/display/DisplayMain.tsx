@@ -19,6 +19,7 @@ interface TreasureDisplayStatus {
   gameType?: string;
   startingTeamId?: string | null;
   startingTeamName?: string | null;
+  turnTeamId?: string | null;
   turnTeamName?: string | null;
   turnAvailableAt?: string | null;
   turnRemainingSeconds?: number;
@@ -134,6 +135,7 @@ export default function DisplayMain() {
             gameType: 'treasure_hunt',
             startingTeamId: treasure.startingTeamId || null,
             startingTeamName: treasure.startingTeamName,
+            turnTeamId: treasure.turnTeamId || treasure.startingTeamId || null,
             turnTeamName: treasure.turnTeamName || treasure.startingTeamName,
             turnAvailableAt: treasure.turnAvailableAt || null,
             turnRemainingSeconds: treasure.turnRemainingSeconds ?? 0,
@@ -164,6 +166,9 @@ export default function DisplayMain() {
           ...prev,
           active: !event.payload?.finished,
           turnTeamName: event.payload?.turnTeamName || prev.turnTeamName,
+          turnTeamId: Object.prototype.hasOwnProperty.call(event.payload || {}, 'turnTeamId')
+            ? event.payload.turnTeamId
+            : prev.turnTeamId,
           turnAvailableAt: Object.prototype.hasOwnProperty.call(event.payload || {}, 'turnAvailableAt')
             ? event.payload.turnAvailableAt
             : prev.turnAvailableAt,
@@ -308,7 +313,13 @@ export default function DisplayMain() {
   const treasureStartingTeam = treasureStatus?.startingTeamId
     ? teams.find(team => String(team.id) === String(treasureStatus.startingTeamId))
     : teams.find(team => team.name === treasureStatus?.startingTeamName);
-  const treasureTeamColor = treasureStartingTeam?.color || '#F5A623';
+  const treasureCurrentTeam = (
+    treasureStatus?.turnTeamId
+      ? teams.find(team => String(team.id) === String(treasureStatus.turnTeamId))
+      : teams.find(team => team.name === treasureStatus?.turnTeamName)
+  ) || treasureStartingTeam;
+  const treasureTeamColor = treasureCurrentTeam?.color || '#F5A623';
+  const treasureDisplayedTeamName = treasureStatus?.turnTeamName || treasureStatus?.startingTeamName;
   const liveTurnRemaining = treasureStatus?.turnAvailableAt
     ? Math.max(0, Math.ceil((Date.parse(treasureStatus.turnAvailableAt) - currentTime.getTime()) / 1000))
     : 0;
@@ -519,18 +530,13 @@ export default function DisplayMain() {
                     🏆
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold uppercase tracking-wider text-gray-300">
-                      Caça ao Tesouro iniciado
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-300">
+                      {treasureStatus.initialWait ? 'Equipe sorteada para começar' : 'Equipe da vez'}
                     </p>
-                    <p className="mt-1 text-xs text-gray-400">Equipe sorteada para começar</p>
+                    <p className="mt-1 text-xs text-gray-400">Equipe atual</p>
                     <p className="truncate font-display text-3xl font-bold" style={{ color: treasureTeamColor }}>
-                      {treasureStatus.startingTeamName}
+                      {treasureDisplayedTeamName}
                     </p>
-                    {treasureStatus.turnTeamName && (
-                      <p className="mt-1 text-sm text-gray-300">
-                        Vez da equipe: <strong>{treasureStatus.turnTeamName}</strong>
-                      </p>
-                    )}
                   </div>
                 </div>
                 {showTreasureTurnTimer && (
@@ -544,9 +550,11 @@ export default function DisplayMain() {
                   </div>
                 )}
               </div>
-              <Badge variant="warning" className="shrink-0 px-3 py-2 text-xs">
-                Primeira equipe
-              </Badge>
+              {treasureStatus.initialWait && (
+                <Badge variant="warning" className="shrink-0 px-3 py-2 text-xs">
+                  Primeira equipe
+                </Badge>
+              )}
             </div>
           )}
 
