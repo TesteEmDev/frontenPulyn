@@ -23,6 +23,7 @@ interface TreasureDisplayStatus {
   turnAvailableAt?: string | null;
   turnRemainingSeconds?: number;
   turnWaitSeconds?: number | null;
+  initialWait?: boolean;
   targetCheckpointId?: string | null;
 }
 
@@ -97,7 +98,12 @@ export default function DisplayMain() {
           const status = await api.getTreasureEventStatus(selectedEventId);
           setTreasureStatus(
             status?.active && status?.gameType === 'treasure_hunt'
-              ? status
+              ? {
+                  ...status,
+                  initialWait: status.initialWait ?? (
+                    Number(status.roundNumber) === 1 && Number(status.turnRemainingSeconds) > 0
+                  ),
+                }
               : null
           );
         } catch (err) {
@@ -132,12 +138,22 @@ export default function DisplayMain() {
             turnAvailableAt: treasure.turnAvailableAt || null,
             turnRemainingSeconds: treasure.turnRemainingSeconds ?? 0,
             turnWaitSeconds: treasure.turnWaitSeconds ?? 0,
+            initialWait: treasure.initialWait ?? false,
             targetCheckpointId: treasure.targetCheckpointId || null,
           });
         } else if (event.payload?.gameType === 'treasure_hunt') {
           import('../../services/api').then(({ api }) => api.getTreasureEventStatus(selectedEventId))
             .then(status => {
-              setTreasureStatus(status?.active && status?.gameType === 'treasure_hunt' ? status : null);
+              setTreasureStatus(
+                status?.active && status?.gameType === 'treasure_hunt'
+                  ? {
+                      ...status,
+                      initialWait: status.initialWait ?? (
+                        Number(status.roundNumber) === 1 && Number(status.turnRemainingSeconds) > 0
+                      ),
+                    }
+                  : null
+              );
             })
             .catch(err => console.error('Erro ao carregar equipe sorteada no telão:', err));
         }
@@ -157,6 +173,9 @@ export default function DisplayMain() {
           turnWaitSeconds: Object.prototype.hasOwnProperty.call(event.payload || {}, 'turnWaitSeconds')
             ? event.payload.turnWaitSeconds
             : prev.turnWaitSeconds,
+          initialWait: event.type === 'TREASURE_ROUND_COMPLETED'
+            ? false
+            : prev.initialWait,
           targetCheckpointId: event.payload?.nextTargetCheckpointId ?? prev.targetCheckpointId,
         } : prev);
       } else if (event.type === 'TERRITORY_CONQUERED') {
@@ -296,7 +315,8 @@ export default function DisplayMain() {
   const showTreasureTurnTimer = Boolean(
     treasureStatus?.active &&
     liveTurnRemaining > 0 &&
-    (treasureStatus.turnWaitSeconds === undefined ||
+    (treasureStatus.initialWait ||
+      treasureStatus.turnWaitSeconds === undefined ||
       treasureStatus.turnWaitSeconds === null ||
       treasureStatus.turnWaitSeconds > 0)
   );
@@ -516,7 +536,7 @@ export default function DisplayMain() {
                   {showTreasureTurnTimer && (
                     <div className="mt-3 rounded-xl border border-warning/60 bg-warning/10 px-4 py-3 text-center">
                       <p className="text-xs font-semibold uppercase tracking-wider text-warning">
-                        Próxima equipe começa em
+                        {treasureStatus.initialWait ? 'A equipe começa em' : 'Próxima equipe começa em'}
                       </p>
                       <p className="mt-1 font-mono text-4xl font-bold text-white">
                         {liveTurnRemaining}s
