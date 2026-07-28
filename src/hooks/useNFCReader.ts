@@ -1,5 +1,6 @@
 // hooks/useNFCReader.ts
 import { useEffect, useRef, useState } from 'react';
+import { API_URL } from '../services/api';
 
 export function useNFCReader(
   onBraceletDetected: (code: string) => void,
@@ -8,33 +9,50 @@ export function useNFCReader(
 ) {
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onBraceletDetectedRef = useRef(onBraceletDetected);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectAttemptsRef = useRef(0);
+
+  useEffect(() => {
+    onBraceletDetectedRef.current = onBraceletDetected;
+  }, [onBraceletDetected]);
 
   useEffect(() => {
     let disposed = false;
 
     const connect = () => {
-      if (disposed || socketRef.current?.readyState === WebSocket.OPEN) {
+      if (disposed || !eventoId || socketRef.current?.readyState === WebSocket.OPEN) {
         return;
       }
 
       const configuredUrl = import.meta.env.VITE_WS_URL?.trim();
-      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      const fallbackUrl = `${protocol}://${window.location.hostname}:3001`;
-      const serverUrl = (configuredUrl || fallbackUrl).replace(/\/+$/, '');
-      const eventQuery = eventoId ? `?evento_id=${encodeURIComponent(eventoId)}` : '';
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      let serverUrl = configuredUrl;
+
+      if (!serverUrl) {
+        try {
+          const apiUrl = new URL(API_URL);
+          serverUrl = `${apiUrl.protocol === 'https:' ? 'wss:' : 'ws:'}//${apiUrl.host}`;
+        } catch {
+          serverUrl = `${protocol}//${window.location.hostname}:3001`;
+        }
+      }
+
+      serverUrl = serverUrl.replace(/\/+$/, '');
+      const eventQuery = `?evento_id=${encodeURIComponent(eventoId)}`;
       const ws = new WebSocket(`${serverUrl}${eventQuery}`);
       socketRef.current = ws;
+
+      console.log(`🔗 Conectando WebSocket NFC ao evento ${eventoId}: ${serverUrl}`);
 
       ws.onopen = () => {
         if (disposed || socketRef.current !== ws) return;
 
-        console.log('✅ WebSocket NFC conectado com sucesso');
+        console.log(`✅ WebSocket NFC conectado com sucesso (evento: ${eventoId})`);
         setIsConnected(true);
         reconnectAttemptsRef.current = 0;
         ws.send(JSON.stringify({ type: 'SET_MODE', mode }));
-        console.log(`📡 Modo enviado: ${mode}${eventoId ? ` (evento: ${eventoId})` : ''}`);
+        console.log(`📡 Modo enviado: ${mode} (evento: ${eventoId})`);
       };
 
       ws.onmessage = (event) => {
@@ -47,7 +65,7 @@ export function useNFCReader(
           if (msg.type === 'NFC_READING_DETECTED' || msg.type === 'BRACELET_DETECTED') {
             const code = msg.payload?.braceletCode || msg.payload?.code;
             console.log('📱 NFC detectado:', code);
-            if (code) onBraceletDetected(code);
+            if (code) onBraceletDetectedRef.current(code);
           }
         } catch (e) {
           console.error('❌ Erro ao processar mensagem NFC:', e);
@@ -73,7 +91,12 @@ export function useNFCReader(
       };
     };
 
-    connect();
+    if (eventoId) {
+      connect();
+    } else {
+      setIsConnected(false);
+      console.log('⚠️ WebSocket NFC aguardando evento selecionado');
+    }
 
     return () => {
       disposed = true;
@@ -86,7 +109,7 @@ export function useNFCReader(
       setIsConnected(false);
       if (socket && socket.readyState !== WebSocket.CLOSED) socket.close();
     };
-  }, [onBraceletDetected, mode, eventoId]);
+  }, [mode, eventoId]);
 
   return { isConnected };
 }

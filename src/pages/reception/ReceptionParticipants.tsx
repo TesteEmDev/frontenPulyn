@@ -79,7 +79,7 @@ interface Team {
 
 export default function ReceptionParticipants() {
   const location = useLocation();
-  const { setEventoAtual } = usePulynStore();
+  const { eventoAtualId, setEventoAtual } = usePulynStore();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [search, setSearch] = useState('');
@@ -121,11 +121,27 @@ export default function ReceptionParticipants() {
         const eventosData = await api.getEventos();
         setEvents(eventosData || []);
         
-        // Selecionar somente um evento em andamento; eventos antigos não são usados automaticamente.
+        // Selecionar o evento ativo, reaproveitar o evento global ainda aberto
+        // ou usar o único evento aberto. Eventos históricos nunca são escolhidos.
+        const isOpenEvent = (event: any) => ![
+          'completed',
+          'cancelled',
+          'canceled',
+          'finished',
+        ].includes(String(event.status || '').toLowerCase());
         const activeEvent = eventosData?.find(e => e.status === 'active' || e.status === 'ongoing');
-        if (activeEvent) {
-          setSelectedEventId(activeEvent.id);
-          setEventoAtual(activeEvent.id);
+        const storedEvent = eventoAtualId
+          ? eventosData?.find(e => e.id === eventoAtualId && isOpenEvent(e))
+          : null;
+        const openEvents = (eventosData || []).filter(isOpenEvent);
+        const eventToSelect = activeEvent || storedEvent || (openEvents.length === 1 ? openEvents[0] : null);
+
+        setSelectedEventId(currentId => {
+          if (currentId && eventosData?.some(event => event.id === currentId)) return currentId;
+          return eventToSelect?.id || null;
+        });
+        if (eventToSelect) {
+          setEventoAtual(eventToSelect.id);
         }
       } catch (err) {
         console.error('❌ Erro ao carregar eventos:', err);
@@ -134,7 +150,7 @@ export default function ReceptionParticipants() {
     };
     
     loadEvents();
-  }, [setEventoAtual]);
+  }, [eventoAtualId, setEventoAtual]);
 
   // Carregar crianças e times quando evento muda
   useEffect(() => {

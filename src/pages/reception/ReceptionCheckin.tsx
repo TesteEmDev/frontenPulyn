@@ -60,7 +60,14 @@ const normalizeUid = (value: string) =>
 
 export default function ReceptionCheckin() {
   const location = useLocation();
-  const { teams = [], loadTeams, loadChildren, loadEventos, setEventoAtual } = usePulynStore();
+  const {
+    teams = [],
+    loadTeams,
+    loadChildren,
+    loadEventos,
+    eventoAtualId,
+    setEventoAtual,
+  } = usePulynStore();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
@@ -141,11 +148,27 @@ export default function ReceptionCheckin() {
         const eventosData = await loadEventos();
         setEvents(eventosData || []);
         
-        // 2. Selecionar automaticamente o evento ativo
+        // 2. Reutilizar o evento já escolhido, priorizar um evento ativo e,
+        // quando houver somente um evento ainda aberto, selecioná-lo.
+        const isOpenEvent = (event: any) => ![
+          'completed',
+          'cancelled',
+          'canceled',
+          'finished',
+        ].includes(String(event.status || '').toLowerCase());
         const activeEvent = eventosData?.find(e => e.status === 'active' || e.status === 'ongoing');
-        if (activeEvent) {
-          setSelectedEventId(activeEvent.id);
-          setEventoAtual(activeEvent.id);
+        const storedEvent = eventoAtualId
+          ? eventosData?.find(e => e.id === eventoAtualId && isOpenEvent(e))
+          : null;
+        const openEvents = (eventosData || []).filter(isOpenEvent);
+        const eventToSelect = activeEvent || storedEvent || (openEvents.length === 1 ? openEvents[0] : null);
+
+        setSelectedEventId(currentId => {
+          if (currentId && eventosData?.some(event => event.id === currentId)) return currentId;
+          return eventToSelect?.id || null;
+        });
+        if (eventToSelect) {
+          setEventoAtual(eventToSelect.id);
         }
       } catch (error) {
         console.error('❌ Erro ao carregar eventos:', error);
@@ -154,7 +177,7 @@ export default function ReceptionCheckin() {
       }
     };
     loadData();
-  }, [loadEventos, setEventoAtual]);
+  }, [eventoAtualId, loadEventos, setEventoAtual]);
 
   // Carregar times quando o evento for selecionado
   useEffect(() => {
