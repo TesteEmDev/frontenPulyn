@@ -1,4 +1,4 @@
-import { usePulynStore } from '../../store/mockData';
+import { useFamilyData } from '../../hooks/useFamilyData';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import BottomNav from '../../components/layout/BottomNav';
@@ -14,7 +14,7 @@ const navItems = [
 ];
 
 export default function FamilyAchievements() {
-  const { children } = usePulynStore();
+  const { children } = useFamilyData();
   const achievements = children.flatMap((child) =>
     (child.achievements || []).map((name, index) => ({
       id: `${child.id}-${index}`,

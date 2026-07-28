@@ -1,4 +1,6 @@
-import { usePulynStore } from '../../store/mockData';
+import { useEffect, useState } from 'react';
+import { api } from '../../services/api';
+import { useFamilyData } from '../../hooks/useFamilyData';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Avatar from '../../components/ui/Avatar';
@@ -40,11 +42,24 @@ const statusLabel: Record<string, string> = {
 
 
 export default function FamilyHome() {
-  const { children, teams, events, scoreLog } = usePulynStore();
+  const { children, loading, error } = useFamilyData();
+  const [recentScores, setRecentScores] = useState<any[]>([]);
 
-  const activeEvent = events.find((e) => e.status === 'active' || e.status === 'ongoing');
-  const familyChildren = children.filter((c) => c.status === 'active');
-  const latestScores = scoreLog.slice(0, 3);
+  useEffect(() => {
+    Promise.all(children.map((child) => api.getFamilyChildScores(child.id).catch(() => ({ scores: [] }))))
+      .then((results) => setRecentScores(results.flatMap((result, index) => (result.scores || []).map((score: any) => ({
+        ...score,
+        childName: children[index]?.nickname || children[index]?.name,
+        checkpoint: score.checkpoint_name || 'Checkpoint',
+        timestamp: score.created_at ? new Date(score.created_at).toLocaleString('pt-BR') : '',
+      }))).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 10)))
+      .catch(() => setRecentScores([]));
+  }, [children]);
+
+  const activeChild = children.find((child) => child.evento_status === 'active');
+  const activeEvent = activeChild ? { name: activeChild.evento_name, time: '', duration: 0 } : null;
+  const familyChildren = children.filter((child) => child.status === 'active');
+  const latestScores = recentScores.slice(0, 3);
   const recentNotifications = latestScores.map((log) => ({
     id: log.id,
     text: `${log.childName} marcou ${log.points} pontos em ${log.checkpoint}.`,
@@ -88,7 +103,7 @@ export default function FamilyHome() {
                 </div>
                 <p className="text-xs text-gray-400 flex items-center gap-1">
                   <Clock size={12} />
-                  {activeEvent.time} - {activeEvent.duration} min
+                  {activeChild?.evento_date ? new Date(activeChild.evento_date).toLocaleDateString('pt-BR') : 'Data não informada'}
                 </p>
               </div>
             </div>
@@ -100,12 +115,11 @@ export default function FamilyHome() {
           Crianças
         </h2>
         <div className="space-y-3 mb-6">
-          {familyChildren.slice(0, 5).map((child) => {
-            const teamId = child.teamId ?? child.team_id ?? child.time_id ?? child.team;
-            const team = teams.find((t) => t.id === teamId);
+          {loading ? <Card><p className="text-gray-400">Carregando crianças vinculadas...</p></Card> : error ? <Card><p className="text-danger-500">{error}</p></Card> : familyChildren.length === 0 ? <Card><p className="text-gray-400">Nenhuma criança aprovada ainda.</p></Card> : familyChildren.slice(0, 5).map((child) => {
+            const team = child.time_id ? { id: child.time_id, name: child.time_name, color: child.time_color || '#1E9BD7', icon: '👥' } : null;
             return (
               <Card key={child.id} className="flex items-center gap-3">
-                <Avatar emoji={child.avatar} bgColor={team ? `${team.color}30` : 'bg-primary/30'} size="md" />
+                <Avatar emoji={child.avatar || '👤'} bgColor={team ? `${team.color}30` : 'bg-primary/30'} size="md" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-white font-body font-semibold truncate">
@@ -121,7 +135,7 @@ export default function FamilyHome() {
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-white font-mono font-bold text-lg">{Number(child.scores ?? child.score ?? 0)}</p>
+                  <p className="text-white font-mono font-bold text-lg">{Number(child.scores || 0)}</p>
                   <p className="text-xs text-gray-400">pts</p>
                 </div>
                 <ChevronRight size={16} className="text-gray-500 shrink-0" />

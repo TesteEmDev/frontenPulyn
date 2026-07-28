@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { usePulynStore } from '../../store/mockData';
+import { useFamilyData } from '../../hooks/useFamilyData';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Avatar from '../../components/ui/Avatar';
@@ -13,7 +13,6 @@ import {
   Gamepad2,
   Clock,
   RefreshCw,
-  ArrowRight,
   Activity,
 } from 'lucide-react';
 
@@ -38,7 +37,8 @@ interface ZoneInfo {
 const zoneColors = ['#1E9BD7', '#22C55E', '#F59E0B', '#E91E8C'];
 
 export default function FamilyLocation() {
-  const { children, teams, checkpoints } = usePulynStore();
+  const { children } = useFamilyData();
+  const checkpoints: any[] = [];
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
   const zones = checkpoints.reduce<ZoneInfo[]>((items, checkpoint) => {
     const name = checkpoint.zone || checkpoint.name;
@@ -134,11 +134,10 @@ export default function FamilyLocation() {
         </h3>
         <div className="space-y-2 mb-6">
           {activeChildren.map((child) => {
-            const teamId = child.teamId ?? child.team_id ?? child.time_id ?? child.team;
-            const team = teams.find((t) => t.id === teamId);
+            const team = child.time_id ? { color: child.time_color || '#1E9BD7' } : null;
             return (
               <Card key={child.id} className="flex items-center gap-3 py-2.5">
-                <Avatar emoji={child.avatar} size="sm" bgColor={team ? `${team.color}30` : 'bg-primary/30'} />
+                <Avatar emoji={child.avatar || '👤'} size="sm" bgColor={team ? `${team.color}30` : 'bg-primary/30'} />
                 <div className="flex-1 min-w-0">
                   <p className="text-white text-sm font-body font-semibold truncate">{child.nickname || child.name}</p>
                   <p className="text-xs text-gray-400">Localização não informada pelo dispositivo</p>

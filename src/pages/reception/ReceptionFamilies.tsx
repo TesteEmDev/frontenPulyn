@@ -1,0 +1,144 @@
+import { useEffect, useState } from 'react';
+import { Copy, Link as LinkIcon, Check, Users, UserCheck, UserX } from 'lucide-react';
+import { api } from '../../services/api';
+import Sidebar from '../../components/layout/Sidebar';
+import TopBar from '../../components/layout/TopBar';
+import PageHeader from '../../components/layout/PageHeader';
+import Card from '../../components/ui/Card';
+import Button from '../../components/ui/Button';
+import Badge from '../../components/ui/Badge';
+
+const navItems = [
+  { icon: <span>▦</span>, label: 'Dashboard', path: '/reception' },
+  { icon: <span>＋</span>, label: 'Check-in', path: '/reception/checkin' },
+  { icon: <span>♟</span>, label: 'Participantes', path: '/reception/participants' },
+  { icon: <span>⌁</span>, label: 'Pulseiras', path: '/reception/bracelets' },
+  { icon: <Users size={18} />, label: 'Famílias', path: '/reception/families' },
+];
+
+export default function ReceptionFamilies() {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [events, setEvents] = useState<any[]>([]);
+  const [eventId, setEventId] = useState('');
+  const [pending, setPending] = useState<any[]>([]);
+  const [inviteUrl, setInviteUrl] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const loadPending = async (selectedEvent = eventId) => {
+    try {
+      setPending(await api.getPendingFamilyLinks(selectedEvent || undefined));
+    } catch (err: any) {
+      setError(err.message || 'Não foi possível carregar as solicitações.');
+    }
+  };
+
+  useEffect(() => {
+    Promise.all([api.getEventos(), api.getPendingFamilyLinks()])
+      .then(([eventData, pendingData]) => {
+        setEvents(eventData || []);
+        setPending(pendingData || []);
+        const active = (eventData || []).find((item: any) => item.status === 'active') || eventData?.[0];
+        if (active) setEventId(active.id);
+      })
+      .catch((err) => setError(err.message || 'Não foi possível carregar os dados.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const createInvite = async () => {
+    if (!eventId) return setError('Selecione um evento.');
+    try {
+      setError('');
+      const result = await api.createFamilyInvite({ eventoId: eventId });
+      setInviteUrl(`${window.location.origin}/family/invite/${result.token}`);
+      setCopied(false);
+    } catch (err: any) {
+      setError(err.message || 'Não foi possível criar o convite.');
+    }
+  };
+
+  const copyInvite = async () => {
+    if (!inviteUrl) return;
+    await navigator.clipboard?.writeText(inviteUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const decide = async (linkId: string, action: 'approve' | 'reject') => {
+    try {
+      setWorking(linkId);
+      if (action === 'approve') await api.approveFamilyLink(linkId);
+      else await api.rejectFamilyLink(linkId);
+      await loadPending();
+    } catch (err: any) {
+      setError(err.message || 'Não foi possível atualizar a solicitação.');
+    } finally {
+      setWorking(null);
+    }
+  };
+  return (
+    <div className="flex h-screen bg-dark">
+      <Sidebar items={navItems} activePath="/reception/families" collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((value) => !value)} accentColor="#F59E0B" />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <TopBar title="Famílias" subtitle="Convites e aprovações" />
+        <main className="flex-1 overflow-y-auto p-6 space-y-6">
+          <PageHeader title="Famílias" description="Cadastre responsáveis por convite e aprove os vínculos" icon={<Users size={24} />} />
+          {error && <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-red-300">{error}</div>}
+
+          <Card variant="glow">
+            <div className="flex items-start gap-3 mb-4">
+              <LinkIcon className="text-primary mt-1" size={20} />
+              <div>
+                <h2 className="text-white font-semibold">Gerar convite</h2>
+                <p className="text-sm text-gray-400">Compartilhe este link com o responsável. Ele poderá cadastrar a criança sem escolher time ou pulseira.</p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <select value={eventId} onChange={(event) => { setEventId(event.target.value); loadPending(event.target.value); }} className="flex-1 rounded-lg border border-border bg-dark-surface px-3 py-2 text-white">
+                <option value="">Selecione o evento</option>
+                {events.map((event) => <option key={event.id} value={event.id}>{event.name}</option>)}
+              </select>
+              <Button onClick={createInvite} disabled={!eventId}>Gerar link</Button>
+            </div>
+            {inviteUrl && (
+              <div className="mt-4 flex gap-2">
+                <input readOnly value={inviteUrl} className="min-w-0 flex-1 rounded-lg border border-border bg-dark-surface px-3 py-2 text-sm text-gray-300" />
+                <Button variant="secondary" onClick={copyInvite}>{copied ? <Check size={17} /> : <Copy size={17} />}<span className="ml-2">{copied ? 'Copiado' : 'Copiar'}</span></Button>
+              </div>
+            )}
+          </Card>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-white font-display text-lg font-semibold">Solicitações pendentes</h2>
+              <p className="text-sm text-gray-400">A aprovação libera o login e ativa a participação.</p>
+            </div>
+            <Badge variant={pending.length ? 'warning' : 'muted'}>{pending.length} pendente{pending.length === 1 ? '' : 's'}</Badge>
+          </div>
+
+          {loading ? <Card><p className="text-gray-400">Carregando...</p></Card> : pending.length === 0 ? (
+            <Card className="text-center py-10"><Users className="mx-auto mb-3 text-gray-500" size={32} /><p className="text-gray-400">Nenhuma solicitação pendente.</p></Card>
+          ) : (
+            <div className="space-y-3">
+              {pending.map((item) => (
+                <Card key={item.link_id} className="flex flex-col md:flex-row md:items-center gap-4">
+                  <div className="flex-1">
+                    <p className="text-white font-semibold">{item.family_name || item.email}</p>
+                    <p className="text-sm text-gray-300">Criança: {item.crianca_name} {item.age ? `(${item.age} anos)` : ''}</p>
+                    <p className="text-xs text-gray-500">{item.evento_name} · {item.email}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" size="sm" disabled={working === item.link_id} onClick={() => decide(item.link_id, 'approve')}><UserCheck size={16} className="mr-1" /> Aprovar</Button>
+                    <Button variant="danger" size="sm" disabled={working === item.link_id} onClick={() => decide(item.link_id, 'reject')}><UserX size={16} className="mr-1" /> Rejeitar</Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}

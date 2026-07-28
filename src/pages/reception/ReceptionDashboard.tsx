@@ -48,6 +48,11 @@ const navItems = [
     label: 'Pulseiras',
     path: '/reception/bracelets',
   },
+  {
+    icon: <span>👪</span>,
+    label: 'Famílias',
+    path: '/reception/families',
+  },
 ];
 
 export default function ReceptionDashboard() {

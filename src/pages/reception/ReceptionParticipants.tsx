@@ -52,6 +52,11 @@ const navItems = [
     label: 'Pulseiras',
     path: '/reception/bracelets',
   },
+  {
+    icon: <span>👪</span>,
+    label: 'Famílias',
+    path: '/reception/families',
+  },
 ];
 
 type FilterTab = 'all' | 'with-bracelet' | 'without-bracelet' | 'by-team';
@@ -63,7 +68,7 @@ interface Child {
   age: number;
   bracelet_code?: string | null;
   team_id?: string | null;
-  status?: 'active' | 'inactive';
+  status?: 'active' | 'inactive' | 'pending';
   avatar?: string;
 }
 
@@ -559,8 +564,8 @@ export default function ReceptionParticipants() {
                             )}
                           </td>
                           <td className="px-4 py-3">
-                            <Badge variant={child.status === 'active' ? 'success' : 'danger'}>
-                              {child.status === 'active' ? 'Ativo' : 'Inativo'}
+                            <Badge variant={child.status === 'active' ? 'success' : child.status === 'pending' ? 'warning' : 'danger'}>
+                              {child.status === 'active' ? 'Ativo' : child.status === 'pending' ? 'Aguardando aprovação' : 'Inativo'}
                             </Badge>
                           </td>
                           <td className="px-4 py-3">

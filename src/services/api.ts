@@ -56,6 +56,75 @@ export const api = {
     return res.json();
   },
 
+  // ==================== FAMÍLIAS E CONVITES ====================
+  async getFamilyInvite(token: string) {
+    const res = await fetch(`${API_URL}/familias/invites/${encodeURIComponent(token)}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao validar convite (${res.status})`);
+    return data;
+  },
+
+  async registerFamily(token: string, data: any) {
+    const res = await fetch(`${API_URL}/familias/invites/${encodeURIComponent(token)}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const response = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(response.error || `Erro ao cadastrar família (${res.status})`);
+    return response;
+  },
+
+  async createFamilyInvite(data: { eventoId: string; criancaId?: string; email?: string }) {
+    const res = await fetch(`${API_URL}/familias/invites`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const response = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(response.error || `Erro ao criar convite (${res.status})`);
+    return response;
+  },
+
+  async getPendingFamilyLinks(eventoId?: string) {
+    const query = eventoId ? `?evento_id=${encodeURIComponent(eventoId)}` : '';
+    const res = await fetch(`${API_URL}/familias/pending${query}`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(`Erro ao carregar aprovações familiares (${res.status})`);
+    return res.json();
+  },
+
+  async approveFamilyLink(linkId: string) {
+    const res = await fetch(`${API_URL}/familias/links/${linkId}/approve`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro ao aprovar família');
+    return data;
+  },
+
+  async rejectFamilyLink(linkId: string) {
+    const res = await fetch(`${API_URL}/familias/links/${linkId}/reject`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro ao rejeitar família');
+    return data;
+  },
+
+  async getFamilyMe() {
+    const res = await fetch(`${API_URL}/familias/me`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(`Erro ao carregar perfil familiar (${res.status})`);
+    return res.json();
+  },
+
+  async getFamilyChildren() {
+    const res = await fetch(`${API_URL}/familias/children`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(`Erro ao carregar crianças da família (${res.status})`);
+    return res.json();
+  },
+
+  async getFamilyChildScores(childId: string) {
+    const res = await fetch(`${API_URL}/familias/children/${encodeURIComponent(childId)}/scores`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(`Erro ao carregar pontuação da criança (${res.status})`);
+    return res.json();
+  },
+
   // ==================== CLIENTES ====================
   async getClientes() {
     const res = await fetch(`${API_URL}/clientes`, {

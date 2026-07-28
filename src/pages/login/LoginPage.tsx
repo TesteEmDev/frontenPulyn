@@ -72,12 +72,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(false);
+    setError(null);
 
     try {
       // Autenticar com API
@@ -90,11 +90,11 @@ export default function LoginPage() {
           navigate(user.redirect);
         }
       } else {
-        setError(true);
+        setError(result.error || 'E-mail ou senha incorretos.');
       }
     } catch (err) {
       console.error('Erro:', err);
-      setError(true);
+      setError('Não foi possível conectar ao servidor. Tente novamente.');
       setLoading(false);
     }
   };
@@ -135,7 +135,7 @@ export default function LoginPage() {
           {/* Error message */}
           {error && (
             <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm animate-fade-in">
-              E-mail ou senha incorretos. Tente novamente.
+              {error}
             </div>
           )}
 
@@ -151,7 +151,7 @@ export default function LoginPage() {
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => { setEmail(e.target.value); setError(false); }}
+                  onChange={(e) => { setEmail(e.target.value); setError(null); }}
                   placeholder="seu@email.com.br"
                   className="input-dark w-full pl-11 pr-4 py-3 rounded-lg text-white placeholder-[#6B8BA4]/60 outline-none transition-all duration-200"
                   autoComplete="email"
@@ -169,7 +169,7 @@ export default function LoginPage() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
-                  onChange={(e) => { setPassword(e.target.value); setError(false); }}
+                  onChange={(e) => { setPassword(e.target.value); setError(null); }}
                   placeholder="••••••••"
                   className="input-dark w-full pl-11 pr-12 py-3 rounded-lg text-white placeholder-[#6B8BA4]/60 outline-none transition-all duration-200"
                   autoComplete="current-password"

@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
-import { usePulynStore } from '../../store/mockData';
+import { useState, useMemo, useEffect } from 'react';
+import { api } from '../../services/api';
+import { useFamilyData } from '../../hooks/useFamilyData';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Avatar from '../../components/ui/Avatar';
@@ -40,34 +41,36 @@ const navItems = [
 type ViewMode = 'individual' | 'team';
 
 export default function FamilyScores() {
-  const { children, teams, scoreLog } = usePulynStore();
+  const { children } = useFamilyData();
   const [viewMode, setViewMode] = useState<ViewMode>('individual');
+  const [scoreLog, setScoreLog] = useState<any[]>([]);
 
-  const sortedTeams = useMemo(
-    () => [...teams].sort((a, b) => Number(b.points ?? b.score ?? 0) - Number(a.points ?? a.score ?? 0)),
-    [teams]
-  );
+  useEffect(() => {
+    Promise.all(children.map((child) => api.getFamilyChildScores(child.id).catch(() => ({ scores: [] }))))
+      .then((results) => setScoreLog(results.flatMap((result, index) => (result.scores || []).map((score: any) => ({
+        ...score,
+        childName: children[index]?.nickname || children[index]?.name,
+        checkpoint: score.checkpoint_name || 'Checkpoint',
+        timestamp: score.created_at ? new Date(score.created_at).toLocaleString('pt-BR') : '',
+      })))))
+      .catch(() => setScoreLog([]));
+  }, [children]);
+
+  const sortedTeams = useMemo(() => {
+    const teams = new Map<string, any>();
+    children.forEach((child) => {
+      if (child.time_id) teams.set(child.time_id, { id: child.time_id, name: child.time_name || 'Time', color: child.time_color || '#1E9BD7', points: Number(child.time_points || 0), icon: '👥' });
+    });
+    return [...teams.values()].sort((a, b) => b.points - a.points);
+  }, [children]);
 
   const sortedChildren = useMemo(
-    () =>
-      [...children]
-        .filter((c) => c.status === 'active' && (c.teamId || c.team_id || c.time_id || c.team))
-        .sort((a, b) => Number(b.scores ?? b.score ?? 0) - Number(a.scores ?? a.score ?? 0)),
+    () => [...children].filter((child) => child.status === 'active').sort((a, b) => Number(b.scores || 0) - Number(a.scores || 0)),
     [children]
   );
 
-  const scoreEvolutionData = useMemo(() => {
-    if (!scoreLog.length || !sortedTeams.length) return [];
-    return [{
-      time: 'Atual',
-      ...Object.fromEntries(sortedTeams.map((team) => [team.name, Number(team.points ?? team.score ?? 0)])),
-    }];
-  }, [scoreLog.length, sortedTeams]);
-
-  const teamColors = useMemo(
-    () => Object.fromEntries(sortedTeams.map((team) => [team.name, team.color || '#1E9BD7'])),
-    [sortedTeams]
-  );
+  const scoreEvolutionData = useMemo(() => scoreLog.length && sortedTeams.length ? [{ time: 'Atual', ...Object.fromEntries(sortedTeams.map((team) => [team.name, team.points])) }] : [], [scoreLog.length, sortedTeams]);
+  const teamColors = useMemo(() => Object.fromEntries(sortedTeams.map((team) => [team.name, team.color])), [sortedTeams]);
 
   return (
     <div className="min-h-screen bg-dark pb-24">
@@ -106,8 +109,7 @@ export default function FamilyScores() {
         {viewMode === 'individual' && (
           <div className="space-y-3 mb-6">
             {sortedChildren.map((child, index) => {
-              const teamId = child.teamId ?? child.team_id ?? child.time_id ?? child.team;
-              const team = teams.find((t) => t.id === teamId);
+              const team = child.time_id ? { id: child.time_id, name: child.time_name, color: child.time_color || '#1E9BD7', icon: '👥' } : null;
               const position = index + 1;
               const medalColor =
                 position === 1
@@ -129,7 +131,7 @@ export default function FamilyScores() {
                     )}
                   </div>
                   <Avatar
-                    emoji={child.avatar}
+                    emoji={child.avatar || '👤'}
                     size="sm"
                     bgColor={team ? `${team.color}30` : 'bg-primary/30'}
                   />
@@ -142,7 +144,7 @@ export default function FamilyScores() {
                     </Badge>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-white font-mono font-bold">{Number(child.scores ?? child.score ?? 0)}</p>
+                    <p className="text-white font-mono font-bold">{Number(child.scores || 0)}</p>
                     <p className="text-xs text-gray-400">pts</p>
                   </div>
                 </Card>
@@ -189,7 +191,7 @@ export default function FamilyScores() {
                       {team.name}
                     </p>
                     <p className="text-xs text-gray-400">
-                      {children.filter((child) => (child.teamId ?? child.team_id ?? child.time_id ?? child.team) === team.id).length} criança{children.filter((child) => (child.teamId ?? child.team_id ?? child.time_id ?? child.team) === team.id).length !== 1 ? 's' : ''}
+                      {children.filter((child) => child.time_id === team.id).length} criança{children.filter((child) => child.time_id === team.id).length !== 1 ? 's' : ''}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
@@ -240,7 +242,7 @@ export default function FamilyScores() {
                     key={name}
                     type="monotone"
                     dataKey={name}
-                    stroke={color}
+                    stroke={String(color)}
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 4 }}

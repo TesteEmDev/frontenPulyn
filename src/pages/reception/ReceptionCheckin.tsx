@@ -49,6 +49,11 @@ const navItems = [
     label: 'Pulseiras',
     path: '/reception/bracelets',
   },
+  {
+    icon: <span>👪</span>,
+    label: 'Famílias',
+    path: '/reception/families',
+  },
 ];
 
 const normalizeUid = (value: string) =>

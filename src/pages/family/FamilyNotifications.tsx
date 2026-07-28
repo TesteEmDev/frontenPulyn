@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { usePulynStore } from '../../store/mockData';
+import { useEffect, useState } from 'react';
+import { api } from '../../services/api';
+import { useFamilyData } from '../../hooks/useFamilyData';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import BottomNav from '../../components/layout/BottomNav';
@@ -16,7 +17,6 @@ import {
   Gamepad2 as GamepadIcon,
   MapPin as MapPinIcon,
   AlertTriangle,
-  Shield,
   Gift,
   Users,
 } from 'lucide-react';
@@ -84,18 +84,25 @@ const typeConfig: Record<
 type FilterMode = 'all' | 'unread';
 
 export default function FamilyNotifications() {
-  const { scoreLog } = usePulynStore();
-  const notifications: Notification[] = scoreLog.map((log) => ({
-    id: log.id,
-    type: 'score',
-    text: `${log.childName} marcou ${log.points} pontos em ${log.checkpoint}.`,
-    timestamp: log.timestamp,
-    read: false,
-  }));
+  const { children } = useFamilyData();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState<FilterMode>('all');
-  const [readState, setReadState] = useState<Record<string, boolean>>(
-    Object.fromEntries(notifications.map((n) => [n.id, n.read]))
-  );
+  const [readState, setReadState] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    Promise.all(children.map((child) => api.getFamilyChildScores(child.id).catch(() => ({ scores: [] }))))
+      .then((results) => {
+        const items = results.flatMap((result, index) => (result.scores || []).map((score: any) => ({
+          id: score.id,
+          type: 'score' as NotificationType,
+          text: `${children[index]?.nickname || children[index]?.name} marcou ${score.points} pontos em ${score.checkpoint_name || 'um checkpoint'}.`,
+          timestamp: score.created_at ? new Date(score.created_at).toLocaleString('pt-BR') : '',
+          read: false,
+        })));
+        setNotifications(items);
+        setReadState(Object.fromEntries(items.map((item) => [item.id, false])));
+      });
+  }, [children]);
 
   const filteredNotifications = notifications.filter((n) => {
     if (filter === 'unread') return !readState[n.id];

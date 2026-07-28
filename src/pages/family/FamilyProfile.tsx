@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { usePulynStore } from '../../store/mockData';
+import { useFamilyData } from '../../hooks/useFamilyData';
 import { useAuth } from '../../hooks/useAuth';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -8,7 +8,7 @@ import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import BottomNav from '../../components/layout/BottomNav';
 import PageHeader from '../../components/layout/PageHeader';
-import { Home, MapPin, Trophy, Star, Gamepad2, User, Users, Shield, Lock, LogOut, ChevronRight, CreditCard as Edit3, CheckCircle, XCircle, Phone, Mail } from 'lucide-react';
+import { Home, MapPin, Trophy, Star, Gamepad2, User, Shield, Lock, LogOut, CreditCard as Edit3, Phone, Mail } from 'lucide-react';
 
 const navItems = [
   { icon: <Home size={20} />, label: 'Home', path: '/family' },
@@ -19,7 +19,7 @@ const navItems = [
 ];
 
 export default function FamilyProfile() {
-  const { children, teams } = usePulynStore();
+  const { children } = useFamilyData();
   const { user, logout } = useAuth();
   const [editChildModal, setEditChildModal] = useState<string | null>(null);
   const [logoutModal, setLogoutModal] = useState(false);
@@ -27,8 +27,8 @@ export default function FamilyProfile() {
   const familyChildren = children.filter((c) => c.status === 'active');
 
   const editingChild = children.find((c) => c.id === editChildModal);
-  const editingTeam = editingChild
-    ? teams.find((t) => t.id === (editingChild.teamId ?? editingChild.team_id ?? editingChild.time_id ?? editingChild.team))
+  const editingTeam = editingChild?.time_id
+    ? { id: editingChild.time_id, name: editingChild.time_name, color: editingChild.time_color || '#1E9BD7', icon: '👥' }
     : null;
 
 
@@ -73,8 +73,7 @@ export default function FamilyProfile() {
         </h3>
         <div className="space-y-2 mb-6">
           {familyChildren.map((child) => {
-            const teamId = child.teamId ?? child.team_id ?? child.time_id ?? child.team;
-            const team = teams.find((t) => t.id === teamId);
+            const team = child.time_id ? { id: child.time_id, name: child.time_name, color: child.time_color || '#1E9BD7', icon: '👥' } : null;
             return (
               <Card
                 key={child.id}
@@ -82,7 +81,7 @@ export default function FamilyProfile() {
                 onClick={() => setEditChildModal(child.id)}
               >
                 <Avatar
-                  emoji={child.avatar}
+                  emoji={child.avatar || '👤'}
                   size="md"
                   bgColor={team ? `${team.color}30` : 'bg-primary/30'}
                 />
@@ -137,7 +136,7 @@ export default function FamilyProfile() {
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <Avatar
-                emoji={editingChild.avatar}
+                emoji={editingChild.avatar || '👤'}
                 size="lg"
                 bgColor={editingTeam ? `${editingTeam.color}30` : 'bg-primary/30'}
               />
@@ -156,13 +155,13 @@ export default function FamilyProfile() {
             <div className="flex items-center justify-between py-2 border-b border-border">
               <span className="text-sm text-gray-400">Pulseira</span>
               <span className="text-sm text-white font-mono">
-                {editingChild.bracelet || 'Nenhuma'}
+                {editingChild.bracelet_code || 'Nenhuma'}
               </span>
             </div>
             <div className="flex items-center justify-between py-2 border-b border-border">
               <span className="text-sm text-gray-400">Pontuação</span>
               <span className="text-sm text-white font-mono font-bold">
-                {Number(editingChild.scores ?? editingChild.score ?? 0)} pts
+                {Number(editingChild.scores || 0)} pts
               </span>
             </div>
             <div className="flex items-center justify-between py-2">

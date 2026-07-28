@@ -16,6 +16,7 @@ import ReceptionDashboard from './pages/reception/ReceptionDashboard';
 import ReceptionCheckin from './pages/reception/ReceptionCheckin';
 import ReceptionParticipants from './pages/reception/ReceptionParticipants';
 import ReceptionBracelets from './pages/reception/ReceptionBracelets';
+import ReceptionFamilies from './pages/reception/ReceptionFamilies';
 import GameMasterDashboard from './pages/game-master/GameMasterDashboard';
 import GameMasterTeams from './pages/game-master/GameMasterTeams';
 import GameMasterCheckpoints from './pages/game-master/GameMasterCheckpoints';
@@ -51,6 +52,7 @@ import FamilyAchievements from './pages/family/FamilyAchievements';
 import FamilyQuiz from './pages/family/FamilyQuiz';
 import FamilyProfile from './pages/family/FamilyProfile';
 import FamilyNotifications from './pages/family/FamilyNotifications';
+import FamilyInviteRegister from './pages/family/FamilyInviteRegister';
 
 function App() {
   const { 
@@ -80,14 +82,15 @@ function App() {
   useEffect(() => {
     if (!isAuthenticated || !user) return;
     
-    // Carregar dados que não dependem de evento
-    loadBrincadeiras().catch(err => console.error('❌ Erro ao carregar jogos:', err));
     // Clientes são dados administrativos e a API permite acesso somente ao master.
-    // Não fazer essa chamada para os demais perfis evita um 403 esperado no console.
     if (user.role === 'master') {
       loadClientes().catch(err => console.error('❌ Erro ao carregar clientes:', err));
     }
-    loadEventos().catch(err => console.error('❌ Erro ao carregar eventos:', err));
+    // A área familiar usa somente os endpoints de vínculos aprovados.
+    if (user.role !== 'family') {
+      loadBrincadeiras().catch(err => console.error('❌ Erro ao carregar jogos:', err));
+      loadEventos().catch(err => console.error('❌ Erro ao carregar eventos:', err));
+    }
   }, [isAuthenticated, user]);
 
   // Sincronizar com a API quando um evento está selecionado
@@ -149,6 +152,7 @@ function App() {
           <Route path="/reception/checkin" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionCheckin /></ProtectedRoute>} />
           <Route path="/reception/participants" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionParticipants /></ProtectedRoute>} />
           <Route path="/reception/bracelets" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionBracelets /></ProtectedRoute>} />
+          <Route path="/reception/families" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionFamilies /></ProtectedRoute>} />
 
           {/* Recreacionista */}
           <Route path="/game-master" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterDashboard /></ProtectedRoute>} />
@@ -190,6 +194,7 @@ function App() {
           <Route path="/master/analytics" element={<ProtectedRoute allowedRoles={['master']}><MasterAnalytics /></ProtectedRoute>} />
 
           {/* App Família */}
+          <Route path="/family/invite/:token" element={<FamilyInviteRegister />} />
           <Route path="/family" element={<ProtectedRoute allowedRoles={['family']}><FamilyHome /></ProtectedRoute>} />
           <Route path="/family/location" element={<ProtectedRoute allowedRoles={['family']}><FamilyLocation /></ProtectedRoute>} />
           <Route path="/family/scores" element={<ProtectedRoute allowedRoles={['family']}><FamilyScores /></ProtectedRoute>} />
