@@ -33,106 +33,6 @@ const masterNavItems = [
   { icon: <BarChart3 size={20} />, label: 'Analytics', path: '/master/analytics' },
 ];
 
-interface Plan {
-  id: string;
-  name: string;
-  price: number;
-  icon: React.ReactNode;
-  color: string;
-  features: string[];
-  checkpointLimit: number;
-  eventsPerMonth: number;
-  clientCount: number;
-}
-
-const plans: Plan[] = [
-  {
-    id: 'starter',
-    name: 'Starter',
-    price: 497,
-    icon: <Rocket size={32} />,
-    color: '#F59E0B',
-    features: [
-      'Até 3 checkpoints simultâneos',
-      'Até 4 eventos por mês',
-      'Dashboard básico',
-      'Suporte por e-mail',
-      'Relatórios mensais',
-    ],
-    checkpointLimit: 3,
-    eventsPerMonth: 4,
-    clientCount: 4,
-  },
-  {
-    id: 'professional',
-    name: 'Professional',
-    price: 997,
-    icon: <Zap size={32} />,
-    color: '#29B6F6',
-    features: [
-      'Até 8 checkpoints simultâneos',
-      'Até 12 eventos por mês',
-      'Dashboard completo',
-      'Suporte prioritário',
-      'Relatórios semanais',
-      'Jogos cooperativos',
-      'Customização de branding',
-    ],
-    checkpointLimit: 8,
-    eventsPerMonth: 12,
-    clientCount: 4,
-  },
-  {
-    id: 'enterprise',
-    name: 'Enterprise',
-    price: 2497,
-    icon: <Crown size={32} />,
-    color: '#1E9BD7',
-    features: [
-      'Checkpoints ilimitados',
-      'Eventos ilimitados',
-      'Dashboard completo + analytics',
-      'Suporte 24/7 dedicado',
-      'Relatórios em tempo real',
-      'Todos os tipos de jogos',
-      'Customização total de branding',
-      'API de integração',
-      'Gerente de conta dedicado',
-    ],
-    checkpointLimit: -1,
-    eventsPerMonth: -1,
-    clientCount: 2,
-  },
-];
-
-interface PlanClient {
-  id: string;
-  name: string;
-  city: string;
-  plan: 'starter' | 'professional' | 'enterprise';
-  status: 'active' | 'blocked' | 'trial';
-  since: string;
-}
-
-const planClients: PlanClient[] = [
-  { id: 'c1', name: 'Buffet Festa Mágica', city: 'São Paulo', plan: 'professional', status: 'active', since: '2025-03' },
-  { id: 'c2', name: 'Espaço Kids Divertido', city: 'Rio de Janeiro', plan: 'enterprise', status: 'active', since: '2024-11' },
-  { id: 'c3', name: 'Buffet Alegria', city: 'Belo Horizonte', plan: 'starter', status: 'active', since: '2025-08' },
-  { id: 'c4', name: 'Mundo Encantado', city: 'Curitiba', plan: 'starter', status: 'trial', since: '2026-04' },
-  { id: 'c5', name: 'Festas & Cia', city: 'Salvador', plan: 'professional', status: 'active', since: '2025-06' },
-  { id: 'c6', name: 'Buffet Aventura', city: 'Recife', plan: 'starter', status: 'blocked', since: '2025-01' },
-  { id: 'c7', name: 'Pulyn Norte', city: 'Manaus', plan: 'professional', status: 'active', since: '2025-05' },
-  { id: 'c8', name: 'Buffet Brasília', city: 'Brasília', plan: 'enterprise', status: 'active', since: '2024-06' },
-  { id: 'c9', name: 'Espaço Lúdico', city: 'Porto Alegre', plan: 'professional', status: 'active', since: '2025-07' },
-  { id: 'c10', name: 'Festas Goianas', city: 'Goiânia', plan: 'starter', status: 'trial', since: '2026-05' },
-];
-
-const planBadgeVariant: Record<string, 'primary' | 'secondary' | 'muted'> = {
-  enterprise: 'primary',
-  professional: 'secondary',
-  starter: 'muted',
-};
-
 export default function MasterPlans() {
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -144,27 +44,17 @@ export default function MasterPlans() {
     const loadData = async () => {
       try {
         const plansData = await api.getPlanos();
-        setPlans(plansData);
+        setPlans(Array.isArray(plansData) ? plansData : []);
+        const clientsByPlan = await Promise.all(
+          (Array.isArray(plansData) ? plansData : []).map((plan) => api.getClientesByPlano(plan.id))
+        );
+        setPlanClients(clientsByPlan.flat().filter(Boolean));
       } catch (error) {
-        console.error('Erro ao buscar planos:', error);
+        console.error('Erro ao buscar dados de planos:', error);
       }
     };
     loadData();
   }, []);
-
-  React.useEffect(() => {
-    const loadClients = async () => {
-      if (selectedPlan) {
-        try {
-          const clients = await api.getClientesByPlano(selectedPlan);
-          setPlanClients(clients);
-        } catch (error) {
-          console.error('Erro ao buscar clientes por plano:', error);
-        }
-      }
-    };
-    loadClients();
-  }, [selectedPlan]);
 
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">
@@ -186,7 +76,7 @@ export default function MasterPlans() {
               <div className="text-right">
                 <p className="text-xs text-gray-500">MRR Total</p>
                 <p className="font-display text-xl text-primary font-bold">
-                  R$ {(plans.reduce((sum, plan) => sum + plan.price * (planClients.filter(c => c.plan === plan.id).length || 0), 0)).toLocaleString('pt-BR')}
+                  R$ {plans.reduce((sum, plan) => sum + Number(plan.revenue || 0), 0).toLocaleString('pt-BR')}
                 </p>
               </div>
             }
@@ -210,7 +100,9 @@ export default function MasterPlans() {
                     className="w-16 h-16 rounded-xl mx-auto mb-4 flex items-center justify-center"
                     style={{ backgroundColor: plan.color + '20' }}
                   >
-                    <span style={{ color: plan.color }}>{plan.icon}</span>
+                    <span style={{ color: plan.color }}>
+                      {plan.id === 'enterprise' ? <Crown size={32} /> : plan.id === 'professional' ? <Zap size={32} /> : <Rocket size={32} />}
+                    </span>
                   </div>
                   <h3 className="font-display text-xl text-white">{plan.name}</h3>
                   <div className="mt-2">
@@ -250,7 +142,7 @@ export default function MasterPlans() {
                 {/* Client count */}
                 <div className="text-center pt-4 border-t border-border">
                   <p className="text-sm text-gray-500">
-                    <span className="font-semibold text-white">{planClients.filter(c => c.plan === plan.id).length}</span> clientes ativos
+                    <span className="font-semibold text-white">{plan.activeClientCount ?? 0}</span> clientes ativos
                   </p>
                 </div>
               </Card>

@@ -11,10 +11,15 @@ export interface Child {
   age: number;
   parentId: string;
   teamId?: string;
+  team_id?: string | null;
+  team?: string | null;
   scores: number;
+  score?: number;
   status: 'active' | 'inactive';
   achievements: string[];
   bracelet_code?: string;
+  bracelet?: string | null;
+  time_id?: string | null;
 }
 
 export interface Team {
@@ -22,7 +27,9 @@ export interface Team {
   name: string;
   color: string;
   points: number;
+  score?: number;
   members: string[];
+  icon?: string;
 }
 
 export interface Checkpoint {
@@ -100,7 +107,6 @@ interface PulynStore {
   gameTimer: number;
   gameRunning: boolean;
   gameRound: number;
-  displayMessages: DisplayMessage[];
   eventoAtualId: string | null;
   clientes: any[];
   brincadeiras: any[];
@@ -137,9 +143,6 @@ interface PulynStore {
   setGameRunning: (running: boolean) => void;
   setActiveGame: (game: Game | null) => void;
   nextRound: () => void;
-  simulateScore: () => void;
-  addDisplayMessage: (text: string, type: 'preset' | 'custom') => void;
-  clearDisplayMessages: () => void;
   
   // Sincronização
   syncAll: () => Promise<void>;
@@ -183,7 +186,6 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
   gameTimer: 0,
   gameRunning: false,
   gameRound: 1,
-  displayMessages: [],
   eventoAtualId: null,
   clientes: [],
   brincadeiras: [],
@@ -208,7 +210,14 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
         return;
       }
       const teams = await api.getTimes(state.eventoAtualId);
-      set({ teams });
+      const normalizedTeams = (Array.isArray(teams) ? teams : []).map((team: any) => ({
+        ...team,
+        points: Number(team.points ?? team.score ?? 0),
+        score: Number(team.score ?? team.points ?? 0),
+        members: Array.isArray(team.members) ? team.members : state.children.filter((child) => (child.teamId ?? child.team_id ?? child.time_id) === team.id).map((child) => child.id),
+        icon: team.icon || '🏆',
+      }));
+      set({ teams: normalizedTeams });
     } catch (error) {
       // Erro silencioso
     }
@@ -221,7 +230,24 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
         return;
       }
       const children = await api.getCriancas(state.eventoAtualId);
-      set({ children });
+      const normalizedChildren = (Array.isArray(children) ? children : []).map((child: any) => ({
+        ...child,
+        teamId: child.teamId ?? child.team_id ?? child.time_id ?? null,
+        team_id: child.team_id ?? child.teamId ?? child.time_id ?? null,
+        time_id: child.time_id ?? child.team_id ?? child.teamId ?? null,
+        team: child.team ?? child.team_id ?? child.teamId ?? child.time_id ?? null,
+        scores: Number(child.scores ?? child.score ?? 0),
+        score: Number(child.score ?? child.scores ?? 0),
+        bracelet: child.bracelet ?? child.bracelet_code ?? null,
+        achievements: child.achievements || [],
+      }));
+      set((state) => ({
+        children: normalizedChildren,
+        teams: state.teams.map((team) => ({
+          ...team,
+          members: normalizedChildren.filter((child) => child.teamId === team.id).map((child) => child.id),
+        })),
+      }));
     } catch (error) {
       // Erro silencioso
     }
@@ -234,7 +260,7 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
         return;
       }
       const checkpoints = await api.getCheckpoints(state.eventoAtualId);
-      set({ checkpoints });
+      set({ checkpoints: Array.isArray(checkpoints) ? checkpoints : [] });
     } catch (error) {
       // Erro silencioso
     }
@@ -243,7 +269,7 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
   loadReadings: async () => {
     try {
       const readings = await api.getLogs(50);
-      set({ readingsLog: readings });
+      set({ readingsLog: Array.isArray(readings) ? readings : [] });
     } catch (error) {
       // Erro silencioso
     }
@@ -363,11 +389,24 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
   },
 
   updateChild: async (id, data) => {
-    // Placeholder
+    const state = get();
+    if (!state.eventoAtualId) return;
+    await api.updateCrianca(state.eventoAtualId, id, {
+      name: data.name,
+      nickname: data.nickname,
+      age: data.age,
+      avatar: data.avatar,
+      braceletCode: data.bracelet_code ?? data.bracelet,
+      timeId: data.teamId ?? data.team_id ?? data.time_id,
+    });
+    await Promise.all([get().loadChildren(), get().loadTeams()]);
   },
 
   deleteChild: async (id) => {
-    // Placeholder
+    const state = get();
+    if (!state.eventoAtualId) return;
+    await api.deleteCrianca(state.eventoAtualId, id);
+    await Promise.all([get().loadChildren(), get().loadTeams()]);
   },
 
   // ==================== CHECKPOINTS ====================
@@ -508,28 +547,6 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
     gameRound: Math.min(state.gameRound + 1, 3) 
   })),
   
-  simulateScore: () => {
-    const state = get();
-    if (!state.gameRunning || state.children.length === 0) return;
-    
-    const randomChild = state.children[Math.floor(Math.random() * state.children.length)];
-    const randomCheckpoint = state.checkpoints[Math.floor(Math.random() * state.checkpoints.length)];
-    const randomPoints = Math.floor(Math.random() * 20) + 5;
-    
-    state.addScore(randomChild.id, randomCheckpoint.id, randomPoints);
-  },
-
-  // ==================== DISPLAY MESSAGES ====================
-  
-  addDisplayMessage: (text, type) => set((state) => ({
-    displayMessages: [
-      { id: Date.now().toString(), text, type, timestamp: new Date().toLocaleTimeString() }, 
-      ...state.displayMessages
-    ].slice(0, 50)
-  })),
-  
-  clearDisplayMessages: () => set({ displayMessages: [] }),
-
   // ==================== SETTINGS ====================
   
   loadSettings: async () => {

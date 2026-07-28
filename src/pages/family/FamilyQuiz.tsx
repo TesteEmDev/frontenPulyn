@@ -44,54 +44,7 @@ interface QuizData {
   questions: QuizQuestion[];
 }
 
-const quizzes: QuizData[] = [
-  {
-    id: 'q1',
-    title: 'Quiz da Natureza',
-    description: 'Teste seus conhecimentos sobre animais e plantas!',
-    bonusPoints: 50,
-    questions: [
-      {
-        id: 'q1-1',
-        text: 'Qual é o maior animal terrestre?',
-        options: ['Girafa', 'Elefante', 'Rinoceronte', 'Hipopótamo'],
-        correctIndex: 1,
-      },
-      {
-        id: 'q1-2',
-        text: 'Quantas patas tem uma aranha?',
-        options: ['6', '8', '10', '4'],
-        correctIndex: 1,
-      },
-      {
-        id: 'q1-3',
-        text: 'Qual planta é conhecida por se fechar ao toque?',
-        options: ['Rosa', 'Girassol', 'Samambaia', 'Mimosa-pudica'],
-        correctIndex: 3,
-      },
-    ],
-  },
-  {
-    id: 'q2',
-    title: 'Desafio Espacial',
-    description: 'Descubra os segredos do universo!',
-    bonusPoints: 75,
-    questions: [
-      {
-        id: 'q2-1',
-        text: 'Qual é o planeta mais próximo do Sol?',
-        options: ['Vênus', 'Mercúrio', 'Marte', 'Terra'],
-        correctIndex: 1,
-      },
-      {
-        id: 'q2-2',
-        text: 'Quantos planetas existem no sistema solar?',
-        options: ['7', '8', '9', '10'],
-        correctIndex: 1,
-      },
-    ],
-  },
-];
+const quizzes: QuizData[] = [];
 
 type QuizState = 'select' | 'playing' | 'feedback' | 'result';
 
@@ -187,6 +140,11 @@ export default function FamilyQuiz() {
           <h3 className="text-white font-display font-semibold text-lg mb-3">
             Quizzes disponíveis
           </h3>
+          {quizzes.length === 0 ? (
+            <Card className="mb-6">
+              <p className="text-sm text-gray-500 text-center">Nenhum quiz configurado para este evento.</p>
+            </Card>
+          ) : (
           <div className="space-y-3 mb-6">
             {quizzes.map((quiz) => (
               <Card
@@ -225,6 +183,7 @@ export default function FamilyQuiz() {
               </Card>
             ))}
           </div>
+          )}
 
           {!selectedChild && (
             <p className="text-center text-sm text-accent font-body">

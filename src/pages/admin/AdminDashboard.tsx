@@ -123,10 +123,11 @@ export default function AdminDashboard() {
     })
     .slice(0, 5);
 
-  // Dados para gráficos (mockados ou reais)
+  // Dados reais de participantes por evento. Quando a API não traz childrenCount,
+  // contar apenas crianças explicitamente vinculadas ao evento; nunca gerar valores fictícios.
   const participantByEventData = safeEvents.slice(0, 5).map(e => ({
     name: e.name?.substring(0, 15) || 'Evento',
-    participantes: e.childrenCount || Math.floor(Math.random() * 50) + 10,
+    participantes: Number(e.childrenCount ?? safeChildren.filter(child => child.evento_id === e.id || child.event_id === e.id).length),
   }));
 
   // Dados de engajamento por hora (últimas 24h)

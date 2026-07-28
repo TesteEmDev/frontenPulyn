@@ -53,7 +53,7 @@ function PodiumPosition({
 
   useEffect(() => {
     if (!child) return;
-    const target = child.score;
+                    const target = Number(child.scores ?? child.score ?? 0);
     const steps = 40;
     const increment = target / steps;
     let current = 0;
@@ -135,8 +135,8 @@ export default function DisplayRanking() {
   const rankedChildren = useMemo(
     () =>
       [...children]
-        .filter((c) => c.status === 'active' && c.team)
-        .sort((a, b) => b.score - a.score),
+        .filter((c) => c.status === 'active' && (c.teamId || c.team_id || c.time_id || c.team))
+        .sort((a, b) => Number(b.scores ?? b.score ?? 0) - Number(a.scores ?? a.score ?? 0)),
     [children]
   );
 
@@ -179,7 +179,7 @@ export default function DisplayRanking() {
               key={position}
               child={child}
               position={position}
-              team={child ? getTeam(child.team) : null}
+              team={child ? getTeam(child.teamId ?? child.team_id ?? child.time_id ?? child.team) : null}
               height={podiumHeights[position]}
             />
           ))}
@@ -199,8 +199,8 @@ export default function DisplayRanking() {
                   </span>
                   <span className="text-2xl">{child.avatar}</span>
                   <span className="font-display text-lg text-slate-200 flex-1">{child.nickname}</span>
-                  {child.team && (() => {
-                    const t = getTeam(child.team);
+                  {child.teamId || child.team_id || child.time_id || child.team && (() => {
+                    const t = getTeam(child.teamId ?? child.team_id ?? child.time_id ?? child.team);
                     return t ? (
                       <span
                         className="text-xs font-bold px-2 py-0.5 rounded-full"
@@ -211,7 +211,7 @@ export default function DisplayRanking() {
                     ) : null;
                   })()}
                   <span className="font-mono text-lg font-bold tabular-nums text-slate-400">
-                    {child.score}
+                    {Number(child.scores ?? child.score ?? 0)}
                     <span className="text-xs text-slate-600 ml-1">pts</span>
                   </span>
                 </div>

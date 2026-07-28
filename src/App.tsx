@@ -154,8 +154,9 @@ function App() {
           <Route path="/game-master" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterDashboard /></ProtectedRoute>} />
           <Route path="/game-master/teams" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterTeams /></ProtectedRoute>} />
           <Route path="/game-master/checkpoints" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterCheckpoints /></ProtectedRoute>} />
-          {/* O painel principal contém o controle real de jogos; a rota antiga aponta para ele. */}
-          <Route path="/game-master/control" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterDashboard /></ProtectedRoute>} />
+          // Compatibilidade com links antigos.
+  <Route path="/game-master/dashboard" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterDashboard /></ProtectedRoute>} />
+  <Route path="/game-master/control" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterDashboard /></ProtectedRoute>} />
           <Route path="/game-master/messages" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterMessages /></ProtectedRoute>} />
           <Route path="/game-master/ranking" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterRanking /></ProtectedRoute>} />
           <Route path="/game-master/zone-setup" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterZoneSetup /></ProtectedRoute>} />

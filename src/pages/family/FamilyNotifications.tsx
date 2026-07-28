@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { usePulynStore } from '../../store/mockData';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import BottomNav from '../../components/layout/BottomNav';
@@ -38,18 +39,6 @@ interface Notification {
   read: boolean;
 }
 
-const notifications: Notification[] = [
-  { id: '1', type: 'score', text: 'Pedro marcou 20 pontos no Escorregador Gigante!', timestamp: '14:32', read: false },
-  { id: '2', type: 'game', text: 'O jogo Caça ao Tesouro está ativo! Participe agora.', timestamp: '14:30', read: false },
-  { id: '3', type: 'location', text: 'Sofia chegou ao checkpoint Teia de Aranha.', timestamp: '14:28', read: false },
-  { id: '4', type: 'team', text: 'Time Dragões lidera com 1240 pontos!', timestamp: '14:25', read: true },
-  { id: '5', type: 'achievement', text: 'Ana Júlia desbloqueou a conquista "Melhor do Time"!', timestamp: '14:20', read: true },
-  { id: '6', type: 'score', text: 'Lucas ganhou 50 pontos no checkpoint Teia de Aranha.', timestamp: '14:18', read: true },
-  { id: '7', type: 'alert', text: 'Checkpoint Piscina de Bolinhas está offline.', timestamp: '14:15', read: true },
-  { id: '8', type: 'reward', text: 'Quiz Disponível! Responda e ganhe até 50 pontos extras.', timestamp: '14:10', read: false },
-  { id: '9', type: 'location', text: 'Mateus entrou na Área Verde.', timestamp: '14:05', read: true },
-  { id: '10', type: 'team', text: 'Gabriel entrou para o time Trovões.', timestamp: '14:00', read: true },
-];
 
 const typeConfig: Record<
   NotificationType,
@@ -95,6 +84,14 @@ const typeConfig: Record<
 type FilterMode = 'all' | 'unread';
 
 export default function FamilyNotifications() {
+  const { scoreLog } = usePulynStore();
+  const notifications: Notification[] = scoreLog.map((log) => ({
+    id: log.id,
+    type: 'score',
+    text: `${log.childName} marcou ${log.points} pontos em ${log.checkpoint}.`,
+    timestamp: log.timestamp,
+    read: false,
+  }));
   const [filter, setFilter] = useState<FilterMode>('all');
   const [readState, setReadState] = useState<Record<string, boolean>>(
     Object.fromEntries(notifications.map((n) => [n.id, n.read]))

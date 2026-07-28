@@ -59,6 +59,7 @@ export default function DisplayMain() {
   const [teams, setTeams] = useState<any[]>([]);
   const [checkpoints, setCheckpoints] = useState<any[]>([]);
   const [scoreLog, setScoreLog] = useState<any[]>([]);
+  const [displayMessages, setDisplayMessages] = useState<any[]>([]);
   const [treasureStatus, setTreasureStatus] = useState<TreasureDisplayStatus | null>(null);
 
   // Carregar eventos ao montar
@@ -97,6 +98,13 @@ export default function DisplayMain() {
         setTeams(teamsData || []);
         setCheckpoints(checkpointsData || []);
         setScoreLog([]);
+        try {
+          const messagesData = await api.getDisplayMessages(selectedEventId);
+          setDisplayMessages(Array.isArray(messagesData) ? messagesData : []);
+        } catch (messageError) {
+          console.error('Erro ao carregar mensagens do display:', messageError);
+          setDisplayMessages([]);
+        }
 
         try {
           const status = await api.getTreasureEventStatus(selectedEventId);
@@ -130,7 +138,9 @@ export default function DisplayMain() {
     selectedEventId || null,
     (event) => {
       // Processar eventos do WebSocket
-      if (event.type === 'GAME_STARTED' && event.payload?.eventoId === selectedEventId) {
+      if (event.type === 'DISPLAY_MESSAGE' && String(event.payload?.evento_id) === String(selectedEventId)) {
+        setDisplayMessages((previous) => [event.payload, ...previous].slice(0, 50));
+      } else if (event.type === 'GAME_STARTED' && event.payload?.eventoId === selectedEventId) {
         const treasure = event.payload?.treasure;
 
         if (event.payload?.gameType === 'treasure_hunt' && treasure?.startingTeamName) {
@@ -716,6 +726,19 @@ export default function DisplayMain() {
               )}
             </div>
           </Card>
+
+          {displayMessages.length > 0 && (
+            <Card variant="secondary" className="lg:col-span-2">
+              <div className="flex items-center gap-2 mb-4">
+                <Zap size={24} className="text-accent" />
+                <h2 className="font-display text-xl text-white">Mensagem do recreacionista</h2>
+              </div>
+              <div className="rounded-xl border border-accent/40 bg-accent/10 px-6 py-5 text-center">
+                <p className="font-display text-3xl font-bold text-white">{displayMessages[0].text}</p>
+                <p className="mt-2 text-xs text-gray-400">{displayMessages[0].timestamp ? new Date(displayMessages[0].timestamp).toLocaleTimeString('pt-BR') : ''}</p>
+              </div>
+            </Card>
+          )}
 
           {/* Atividades Recentes */}
           <Card variant="glow" className="lg:col-span-2">

@@ -43,51 +43,6 @@ const masterNavItems = [
   { icon: <BarChart3 size={20} />, label: 'Analytics', path: '/master/analytics' },
 ];
 
-const clientGrowthData = [
-  { month: 'Jun 25', clients: 2 },
-  { month: 'Jul 25', clients: 3 },
-  { month: 'Ago 25', clients: 3 },
-  { month: 'Set 25', clients: 4 },
-  { month: 'Out 25', clients: 5 },
-  { month: 'Nov 25', clients: 6 },
-  { month: 'Dez 25', clients: 6 },
-  { month: 'Jan 26', clients: 7 },
-  { month: 'Fev 26', clients: 7 },
-  { month: 'Mar 26', clients: 8 },
-  { month: 'Abr 26', clients: 9 },
-  { month: 'Mai 26', clients: 10 },
-];
-
-const eventsPerMonthData = [
-  { month: 'Jun 25', events: 8 },
-  { month: 'Jul 25', events: 15 },
-  { month: 'Ago 25', events: 12 },
-  { month: 'Set 25', events: 22 },
-  { month: 'Out 25', events: 28 },
-  { month: 'Nov 25', events: 35 },
-  { month: 'Dez 25', events: 42 },
-  { month: 'Jan 26', events: 38 },
-  { month: 'Fev 26', events: 45 },
-  { month: 'Mar 26', events: 52 },
-  { month: 'Abr 26', events: 48 },
-  { month: 'Mai 26', events: 55 },
-];
-
-const checkpointsOverTimeData = [
-  { month: 'Jun 25', checkpoints: 6 },
-  { month: 'Jul 25', checkpoints: 9 },
-  { month: 'Ago 25', checkpoints: 9 },
-  { month: 'Set 25', checkpoints: 14 },
-  { month: 'Out 25', checkpoints: 18 },
-  { month: 'Nov 25', checkpoints: 22 },
-  { month: 'Dez 25', checkpoints: 24 },
-  { month: 'Jan 26', checkpoints: 28 },
-  { month: 'Fev 26', checkpoints: 30 },
-  { month: 'Mar 26', checkpoints: 34 },
-  { month: 'Abr 26', checkpoints: 38 },
-  { month: 'Mai 26', checkpoints: 41 },
-];
-
 const tooltipStyle = {
   backgroundColor: '#1E1B2E',
   border: '1px solid rgba(30,155,215,0.3)',
@@ -124,11 +79,11 @@ export default function MasterAnalytics() {
       
       const revenueData = await api.getRevenueByPlan();
       
-      const mrrData = api.getMRR ? await api.getMRR() : { mrr: 45000 };
+      const mrrData = api.getMRR ? await api.getMRR() : { mrr: 0 };
       
       setMetrics({
         ...metricsData,
-        mrr: mrrData?.mrr || 45000,
+        mrr: Number(mrrData?.mrr || 0),
       });
       setRevenueByPlan(revenueData || []);
       setClientGrowthData(growthData || []);
@@ -137,7 +92,7 @@ export default function MasterAnalytics() {
     } catch (error) {
       console.error('❌ Error loading analytics:', error);
       setMetrics({
-        mrr: 45000,
+        mrr: 0,
         activeClients: 0,
         totalClients: 0,
         totalEvents: 0,
@@ -161,7 +116,7 @@ export default function MasterAnalytics() {
     );
   }
 
-  const mrr = metrics?.mrr || 45000;
+  const mrr = Number(metrics?.mrr || 0);
   const activeClients = metrics?.activeClients || 0;
   const avgRevenuePerClient = metrics?.mrr && metrics?.activeClients ? Math.round(metrics.mrr / metrics.activeClients) : 0;
   const totalEvents = metrics?.totalEvents || 0;
@@ -172,7 +127,7 @@ export default function MasterAnalytics() {
   const engagementKpis = [
     { label: 'MRR', value: `R$ ${mrr.toLocaleString('pt-BR')}`, icon: <DollarSign size={20} />, color: 'text-primary' },
     { label: 'Clientes ativos', value: activeClients, icon: <Users size={20} />, color: 'text-secondary' },
-    { label: 'Crescimento YoY', value: '+400%', icon: <TrendingUp size={20} />, color: 'text-success' },
+    { label: 'Crescimento YoY', value: metrics?.growthYoY || '—', icon: <TrendingUp size={20} />, color: 'text-success' },
     { label: 'Eventos total', value: totalEvents, icon: <Zap size={20} />, color: 'text-accent' },
     { label: 'Checkpoints ativos', value: totalCheckpoints, icon: <MapPin size={20} />, color: 'text-primary' },
     { label: 'Média por cliente', value: `R$ ${avgRevenuePerClient.toLocaleString('pt-BR')}`, icon: <CreditCard size={20} />, color: 'text-secondary' },
@@ -228,7 +183,7 @@ export default function MasterAnalytics() {
                   <TrendingUp size={20} className="text-primary" />
                   <h3 className="font-display text-lg text-white">Crescimento de Clientes</h3>
                 </div>
-                <Badge variant="success">+400% YoY</Badge>
+                <Badge variant="muted">Dados reais</Badge>
               </div>
               <ResponsiveContainer width="100%" height={250}>
                 <AreaChart data={clientGrowthData && clientGrowthData.length > 0 ? clientGrowthData : []}>
@@ -261,7 +216,7 @@ export default function MasterAnalytics() {
                   <Zap size={20} className="text-secondary" />
                   <h3 className="font-display text-lg text-white">Eventos por Mês</h3>
                 </div>
-                <Badge variant="secondary">+350% YoY</Badge>
+                <Badge variant="muted">Dados reais</Badge>
               </div>
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={eventsPerMonthData && eventsPerMonthData.length > 0 ? eventsPerMonthData : []}>
@@ -340,50 +295,7 @@ export default function MasterAnalytics() {
                     })}
                   </>
                 ) : (
-                  <>
-                    {/* Enterprise */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full bg-primary" />
-                          <span className="text-sm text-white font-semibold">Enterprise</span>
-                          <span className="text-xs text-gray-500">2 clientes</span>
-                        </div>
-                        <span className="text-sm font-mono text-primary">R$ 4,994</span>
-                      </div>
-                      <div className="w-full bg-surface rounded-full h-2">
-                        <div className="bg-primary rounded-full h-2" style={{ width: '55%' }} />
-                      </div>
-                    </div>
-                    {/* Professional */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full bg-secondary" />
-                          <span className="text-sm text-white font-semibold">Professional</span>
-                          <span className="text-xs text-gray-500">4 clientes</span>
-                        </div>
-                        <span className="text-sm font-mono text-secondary">R$ 3,988</span>
-                      </div>
-                      <div className="w-full bg-surface rounded-full h-2">
-                        <div className="bg-secondary rounded-full h-2" style={{ width: '44%' }} />
-                      </div>
-                    </div>
-                    {/* Starter */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full bg-gray-500" />
-                          <span className="text-sm text-white font-semibold">Starter</span>
-                          <span className="text-xs text-gray-500">4 clientes</span>
-                        </div>
-                        <span className="text-sm font-mono text-gray-400">R$ 1,988</span>
-                      </div>
-                      <div className="w-full bg-surface rounded-full h-2">
-                        <div className="bg-gray-500 rounded-full h-2" style={{ width: '22%' }} />
-                      </div>
-                    </div>
-                  </>
+                  <p className="text-sm text-gray-500 py-8 text-center">Nenhuma receita registrada.</p>
                 )}
                 {/* Total */}
                 <div className="pt-4 border-t border-dark-border">

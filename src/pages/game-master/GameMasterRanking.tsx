@@ -39,7 +39,6 @@ export default function GameMasterRanking() {
   const {
     children,
     teams,
-    simulateScore,
     gameRunning,
   } = usePulynStore();
 
@@ -51,16 +50,18 @@ export default function GameMasterRanking() {
 
   const buildIndividualRanking = useCallback(() => {
     return children
-      .filter(c => c.status === 'active' && c.score > 0)  // ✅ Mostrar apenas quem fez pontos
-      .sort((a, b) => b.score - a.score)
+      .filter(c => c.status === 'active' && Number(c.scores ?? c.score ?? 0) > 0)
+      .sort((a, b) => Number(b.scores ?? b.score ?? 0) - Number(a.scores ?? a.score ?? 0))
       .map(c => {
-        const team = c.team ? teams.find(t => t.id === c.team) : null;
+        const teamId = c.teamId ?? c.team_id ?? c.time_id ?? c.team;
+        const team = teamId ? teams.find(t => t.id === teamId) : null;
+        const score = Number(c.scores ?? c.score ?? 0);
         return {
           id: c.id,
           name: c.nickname,
           avatar: c.avatar,
-          score: c.score,
-          previousScore: prevScoresRef.current.get(c.id) ?? c.score,
+          score,
+          previousScore: prevScoresRef.current.get(c.id) ?? score,
           teamColor: team?.color,
           teamName: team?.name,
         };
@@ -69,14 +70,14 @@ export default function GameMasterRanking() {
 
   const buildTeamRanking = useCallback(() => {
     return [...teams]
-      .filter(t => t.score > 0)  // ✅ Mostrar apenas times que fizeram pontos
-      .sort((a, b) => b.score - a.score)
+      .filter(t => Number(t.points ?? t.score ?? 0) > 0)
+      .sort((a, b) => Number(b.points ?? b.score ?? 0) - Number(a.points ?? a.score ?? 0))
       .map(t => ({
         id: t.id,
         name: t.name,
         avatar: t.icon,
-        score: t.score,
-        previousScore: prevScoresRef.current.get(`team-${t.id}`) ?? t.score,
+        score: Number(t.points ?? t.score ?? 0),
+        previousScore: prevScoresRef.current.get(`team-${t.id}`) ?? Number(t.points ?? t.score ?? 0),
         teamColor: t.color,
         teamName: t.name,
       }));
@@ -91,12 +92,12 @@ export default function GameMasterRanking() {
     // Store current scores as previous
     const scoreMap = new Map<string, number>();
     if (viewMode === 'individual') {
-      children.filter(c => c.status === 'active' && c.score > 0).forEach(c => {
-        scoreMap.set(c.id, c.score);
+      children.filter(c => c.status === 'active' && Number(c.scores ?? c.score ?? 0) > 0).forEach(c => {
+        scoreMap.set(c.id, Number(c.scores ?? c.score ?? 0));
       });
     } else {
-      teams.filter(t => t.score > 0).forEach(t => {
-        scoreMap.set(`team-${t.id}`, t.score);
+      teams.filter(t => Number(t.points ?? t.score ?? 0) > 0).forEach(t => {
+        scoreMap.set(`team-${t.id}`, Number(t.points ?? t.score ?? 0));
       });
     }
     prevScoresRef.current = scoreMap;
@@ -108,12 +109,12 @@ export default function GameMasterRanking() {
       // Store current scores before update
       const scoreMap = new Map<string, number>();
       if (viewMode === 'individual') {
-        children.filter(c => c.status === 'active' && c.score > 0).forEach(c => {
-          scoreMap.set(c.id, c.score);
+        children.filter(c => c.status === 'active' && Number(c.scores ?? c.score ?? 0) > 0).forEach(c => {
+          scoreMap.set(c.id, Number(c.scores ?? c.score ?? 0));
         });
       } else {
-        teams.filter(t => t.score > 0).forEach(t => {
-          scoreMap.set(`team-${t.id}`, t.score);
+        teams.filter(t => Number(t.points ?? t.score ?? 0) > 0).forEach(t => {
+          scoreMap.set(`team-${t.id}`, Number(t.points ?? t.score ?? 0));
         });
       }
       prevScoresRef.current = scoreMap;
@@ -128,7 +129,7 @@ export default function GameMasterRanking() {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [viewMode, gameRunning, children, teams, simulateScore, rankingEntries, buildIndividualRanking, buildTeamRanking]);
+  }, [viewMode, gameRunning, children, teams, rankingEntries, buildIndividualRanking, buildTeamRanking]);
 
   // Get position change from previous ranking
   const getPositionChange = (entryId: string, currentIndex: number): number => {

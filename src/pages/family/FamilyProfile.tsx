@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { usePulynStore } from '../../store/mockData';
+import { useAuth } from '../../hooks/useAuth';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Avatar from '../../components/ui/Avatar';
@@ -17,73 +18,20 @@ const navItems = [
   { icon: <Gamepad2 size={20} />, label: 'Perfil', path: '/family/profile' },
 ];
 
-interface Guardian {
-  id: string;
-  name: string;
-  phone: string;
-  email: string;
-  role: 'main' | 'other';
-}
-
-const guardians: Guardian[] = [
-  {
-    id: 'g1',
-    name: 'Carlos Silva',
-    phone: '(11) 99999-0001',
-    email: 'carlos@email.com',
-    role: 'main',
-  },
-  {
-    id: 'g2',
-    name: 'Ana Silva',
-    phone: '(11) 99999-0002',
-    email: 'ana@email.com',
-    role: 'other',
-  },
-];
-
-interface ConsentItem {
-  id: string;
-  label: string;
-  granted: boolean;
-  date: string;
-}
-
-const consents: ConsentItem[] = [
-  { id: 'c1', label: 'Coleta de dados de localização', granted: true, date: '15/05/2026' },
-  { id: 'c2', label: 'Uso de imagem para marketing', granted: false, date: '-' },
-  { id: 'c3', label: 'Compartilhamento com parceiros', granted: false, date: '-' },
-  { id: 'c4', label: 'Notificações por push', granted: true, date: '15/05/2026' },
-];
-
-interface PermissionItem {
-  id: string;
-  label: string;
-  enabled: boolean;
-}
-
-const permissions: PermissionItem[] = [
-  { id: 'p1', label: 'Localização em tempo real', enabled: true },
-  { id: 'p2', label: 'Notificações de segurança', enabled: true },
-  { id: 'p3', label: 'Alertas de pontuação', enabled: true },
-  { id: 'p4', label: 'Convites de eventos', enabled: false },
-];
-
 export default function FamilyProfile() {
   const { children, teams } = usePulynStore();
+  const { user, logout } = useAuth();
   const [editChildModal, setEditChildModal] = useState<string | null>(null);
   const [logoutModal, setLogoutModal] = useState(false);
 
-  const familyChildren = children.filter((c) =>
-    ['1', '3', '9'].includes(c.id)
-  );
+  const familyChildren = children.filter((c) => c.status === 'active');
 
   const editingChild = children.find((c) => c.id === editChildModal);
   const editingTeam = editingChild
-    ? teams.find((t) => t.id === editingChild.team)
+    ? teams.find((t) => t.id === (editingChild.teamId ?? editingChild.team_id ?? editingChild.time_id ?? editingChild.team))
     : null;
 
-  const grantedConsents = consents.filter((c) => c.granted).length;
+
 
   return (
     <div className="min-h-screen bg-dark pb-24">
@@ -103,44 +51,21 @@ export default function FamilyProfile() {
             <div>
               <p className="text-xs text-gray-400 font-body">Responsável principal</p>
               <p className="text-white font-display font-semibold">
-                {guardians.find((g) => g.role === 'main')?.name}
+                {user?.name || 'Responsável'}
               </p>
             </div>
           </div>
           <div className="space-y-2 ml-11">
             <div className="flex items-center gap-2 text-sm text-gray-400">
               <Phone size={14} />
-              <span>{guardians.find((g) => g.role === 'main')?.phone}</span>
+              <span>Telefone não informado</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-400">
               <Mail size={14} />
-              <span>{guardians.find((g) => g.role === 'main')?.email}</span>
+              <span>{user?.email || 'E-mail não informado'}</span>
             </div>
           </div>
         </Card>
-
-        {/* Other Guardians */}
-        <h3 className="text-white font-display font-semibold text-lg mb-3">
-          Outros responsáveis
-        </h3>
-        <div className="space-y-2 mb-6">
-          {guardians
-            .filter((g) => g.role === 'other')
-            .map((g) => (
-              <Card key={g.id} className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-surface">
-                  <Users size={18} className="text-gray-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-body font-semibold truncate">
-                    {g.name}
-                  </p>
-                  <p className="text-xs text-gray-400">{g.phone}</p>
-                </div>
-                <ChevronRight size={16} className="text-gray-500" />
-              </Card>
-            ))}
-        </div>
 
         {/* Children */}
         <h3 className="text-white font-display font-semibold text-lg mb-3">
@@ -148,7 +73,8 @@ export default function FamilyProfile() {
         </h3>
         <div className="space-y-2 mb-6">
           {familyChildren.map((child) => {
-            const team = teams.find((t) => t.id === child.team);
+            const teamId = child.teamId ?? child.team_id ?? child.time_id ?? child.team;
+            const team = teams.find((t) => t.id === teamId);
             return (
               <Card
                 key={child.id}
@@ -179,68 +105,16 @@ export default function FamilyProfile() {
           })}
         </div>
 
-        {/* LGPD Consent */}
         <Card className="mb-6">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-2">
             <Lock size={18} className="text-primary" />
-            <h3 className="text-white font-display font-semibold">
-              Consentimentos LGPD
-            </h3>
-            <Badge variant={grantedConsents === consents.length ? 'success' : 'warning'}>
-              {grantedConsents}/{consents.length}
-            </Badge>
+            <h3 className="text-white font-display font-semibold">Privacidade e permissões</h3>
           </div>
-          <div className="space-y-2.5">
-            {consents.map((consent) => (
-              <div
-                key={consent.id}
-                className="flex items-center justify-between py-2 border-b border-border last:border-0"
-              >
-                <p className="text-sm text-gray-300 font-body pr-2">
-                  {consent.label}
-                </p>
-                <div className="flex items-center gap-2 shrink-0">
-                  {consent.granted ? (
-                    <CheckCircle size={18} className="text-success" />
-                  ) : (
-                    <XCircle size={18} className="text-gray-500" />
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+          <p className="text-sm text-gray-400">
+            As preferências de privacidade serão exibidas quando forem configuradas para esta conta.
+          </p>
         </Card>
 
-        {/* Permissions */}
-        <Card className="mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <Shield size={18} className="text-secondary" />
-            <h3 className="text-white font-display font-semibold">
-              Permissões
-            </h3>
-          </div>
-          <div className="space-y-2.5">
-            {permissions.map((perm) => (
-              <div
-                key={perm.id}
-                className="flex items-center justify-between py-2 border-b border-border last:border-0"
-              >
-                <p className="text-sm text-gray-300 font-body">{perm.label}</p>
-                <div
-                  className={`w-10 h-6 rounded-full relative cursor-pointer transition-colors ${
-                    perm.enabled ? 'bg-primary' : 'bg-surface'
-                  }`}
-                >
-                  <div
-                    className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-all ${
-                      perm.enabled ? 'left-5' : 'left-1'
-                    }`}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
 
         {/* Logout */}
         <Button
@@ -288,7 +162,7 @@ export default function FamilyProfile() {
             <div className="flex items-center justify-between py-2 border-b border-border">
               <span className="text-sm text-gray-400">Pontuação</span>
               <span className="text-sm text-white font-mono font-bold">
-                {editingChild.score} pts
+                {Number(editingChild.scores ?? editingChild.score ?? 0)} pts
               </span>
             </div>
             <div className="flex items-center justify-between py-2">
@@ -333,7 +207,7 @@ export default function FamilyProfile() {
             </Button>
             <Button
               variant="danger"
-              onClick={() => setLogoutModal(false)}
+              onClick={() => { setLogoutModal(false); logout(); }}
               className="flex-1"
             >
               Sair

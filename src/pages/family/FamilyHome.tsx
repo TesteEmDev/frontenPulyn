@@ -36,31 +36,33 @@ const statusLabel: Record<string, string> = {
   inactive: 'Inativo',
 };
 
-const recentNotifications = [
-  { id: '1', text: 'Pedro marcou 20 pontos no Escorregador Gigante!', time: '14:32', icon: <Star size={16} className="text-accent" /> },
-  { id: '2', text: 'O jogo Caça ao Tesouro está ativo!', time: '14:30', icon: <Gamepad2 size={16} className="text-primary" /> },
-  { id: '3', text: 'Sofia alcançou o checkpoint Teia de Aranha', time: '14:28', icon: <MapPin size={16} className="text-secondary" /> },
-  { id: '4', text: 'Time Dragões lidera com 1240 pontos!', time: '14:25', icon: <Trophy size={16} className="text-accent" /> },
-];
+
+
 
 export default function FamilyHome() {
   const { children, teams, events, scoreLog } = usePulynStore();
 
-  const activeEvent = events.find((e) => e.status === 'active');
-  const familyChildren = children.filter((c) => c.team !== null);
+  const activeEvent = events.find((e) => e.status === 'active' || e.status === 'ongoing');
+  const familyChildren = children.filter((c) => c.status === 'active');
   const latestScores = scoreLog.slice(0, 3);
+  const recentNotifications = latestScores.map((log) => ({
+    id: log.id,
+    text: `${log.childName} marcou ${log.points} pontos em ${log.checkpoint}.`,
+    time: log.timestamp,
+    icon: <Star size={16} className="text-accent" />,
+  }));
 
   return (
     <div className="min-h-screen bg-dark pb-24">
       <div className="max-w-md mx-auto px-4 pt-6">
         <PageHeader
-          title="Olá, Família Silva!"
+          title="Família"
           description="Acompanhe suas crianças em tempo real"
           action={
             <button className="relative p-2 rounded-lg bg-surface border border-border hover:border-primary/50 transition-colors">
               <Bell size={20} className="text-gray-300" />
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-danger text-[10px] text-white flex items-center justify-center font-bold">
-                3
+                {latestScores.length}
               </span>
             </button>
           }
@@ -99,7 +101,8 @@ export default function FamilyHome() {
         </h2>
         <div className="space-y-3 mb-6">
           {familyChildren.slice(0, 5).map((child) => {
-            const team = teams.find((t) => t.id === child.team);
+            const teamId = child.teamId ?? child.team_id ?? child.time_id ?? child.team;
+            const team = teams.find((t) => t.id === teamId);
             return (
               <Card key={child.id} className="flex items-center gap-3">
                 <Avatar emoji={child.avatar} bgColor={team ? `${team.color}30` : 'bg-primary/30'} size="md" />
@@ -118,7 +121,7 @@ export default function FamilyHome() {
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-white font-mono font-bold text-lg">{child.score}</p>
+                  <p className="text-white font-mono font-bold text-lg">{Number(child.scores ?? child.score ?? 0)}</p>
                   <p className="text-xs text-gray-400">pts</p>
                 </div>
                 <ChevronRight size={16} className="text-gray-500 shrink-0" />

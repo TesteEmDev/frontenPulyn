@@ -34,28 +34,8 @@ const navItems = [
   { icon: <Gamepad2 size={20} />, label: 'Perfil', path: '/family/profile' },
 ];
 
-// Simulated score evolution data during the event
-const scoreEvolutionData = [
-  { time: '14:30', Dragões: 0, 'Fênix': 0, Trovões: 0, Tempestade: 0 },
-  { time: '14:31', Dragões: 60, 'Fênix': 40, Trovões: 30, Tempestade: 20 },
-  { time: '14:32', Dragões: 120, 'Fênix': 90, Trovões: 80, Tempestade: 50 },
-  { time: '14:33', Dragões: 200, 'Fênix': 160, Trovões: 150, Tempestade: 90 },
-  { time: '14:34', Dragões: 310, 'Fênix': 240, Trovões: 220, Tempestade: 130 },
-  { time: '14:35', Dragões: 440, 'Fênix': 350, Trovões: 310, Tempestade: 190 },
-  { time: '14:36', Dragões: 580, 'Fênix': 470, Trovões: 400, Tempestade: 260 },
-  { time: '14:37', Dragões: 720, 'Fênix': 600, Trovões: 510, Tempestade: 340 },
-  { time: '14:38', Dragões: 870, 'Fênix': 740, Trovões: 640, Tempestade: 430 },
-  { time: '14:39', Dragões: 1020, 'Fênix': 880, Trovões: 780, Tempestade: 530 },
-  { time: '14:40', Dragões: 1180, 'Fênix': 1000, Trovões: 920, Tempestade: 640 },
-  { time: '14:41', Dragões: 1240, 'Fênix': 980, Trovões: 1100, Tempestade: 760 },
-];
+// Dados de evolução são derivados das pontuações carregadas; não há série simulada.
 
-const teamColors: Record<string, string> = {
-  Dragões: '#E53935',
-  'Fênix': '#F5A623',
-  Trovões: '#1E9BD7',
-  Tempestade: '#4CAF50',
-};
 
 type ViewMode = 'individual' | 'team';
 
@@ -63,17 +43,30 @@ export default function FamilyScores() {
   const { children, teams, scoreLog } = usePulynStore();
   const [viewMode, setViewMode] = useState<ViewMode>('individual');
 
+  const sortedTeams = useMemo(
+    () => [...teams].sort((a, b) => Number(b.points ?? b.score ?? 0) - Number(a.points ?? a.score ?? 0)),
+    [teams]
+  );
+
   const sortedChildren = useMemo(
     () =>
       [...children]
-        .filter((c) => c.status === 'active' && c.team)
-        .sort((a, b) => b.score - a.score),
+        .filter((c) => c.status === 'active' && (c.teamId || c.team_id || c.time_id || c.team))
+        .sort((a, b) => Number(b.scores ?? b.score ?? 0) - Number(a.scores ?? a.score ?? 0)),
     [children]
   );
 
-  const sortedTeams = useMemo(
-    () => [...teams].sort((a, b) => b.score - a.score),
-    [teams]
+  const scoreEvolutionData = useMemo(() => {
+    if (!scoreLog.length || !sortedTeams.length) return [];
+    return [{
+      time: 'Atual',
+      ...Object.fromEntries(sortedTeams.map((team) => [team.name, Number(team.points ?? team.score ?? 0)])),
+    }];
+  }, [scoreLog.length, sortedTeams]);
+
+  const teamColors = useMemo(
+    () => Object.fromEntries(sortedTeams.map((team) => [team.name, team.color || '#1E9BD7'])),
+    [sortedTeams]
   );
 
   return (
@@ -113,7 +106,8 @@ export default function FamilyScores() {
         {viewMode === 'individual' && (
           <div className="space-y-3 mb-6">
             {sortedChildren.map((child, index) => {
-              const team = teams.find((t) => t.id === child.team);
+              const teamId = child.teamId ?? child.team_id ?? child.time_id ?? child.team;
+              const team = teams.find((t) => t.id === teamId);
               const position = index + 1;
               const medalColor =
                 position === 1
@@ -148,7 +142,7 @@ export default function FamilyScores() {
                     </Badge>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-white font-mono font-bold">{child.score}</p>
+                    <p className="text-white font-mono font-bold">{Number(child.scores ?? child.score ?? 0)}</p>
                     <p className="text-xs text-gray-400">pts</p>
                   </div>
                 </Card>
@@ -195,11 +189,11 @@ export default function FamilyScores() {
                       {team.name}
                     </p>
                     <p className="text-xs text-gray-400">
-                      {team.children.length} criança{team.children.length !== 1 ? 's' : ''}
+                      {children.filter((child) => (child.teamId ?? child.team_id ?? child.time_id ?? child.team) === team.id).length} criança{children.filter((child) => (child.teamId ?? child.team_id ?? child.time_id ?? child.team) === team.id).length !== 1 ? 's' : ''}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-white font-mono font-bold">{team.score}</p>
+                    <p className="text-white font-mono font-bold">{Number(team.points ?? team.score ?? 0)}</p>
                     <p className="text-xs text-gray-400">pts</p>
                   </div>
                 </Card>

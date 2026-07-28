@@ -128,17 +128,20 @@ export const api = {
 
   // ==================== PLANOS ====================
   async getPlanos() {
-    const res = await fetch(`${API_URL}/planos`);
+    const res = await fetch(`${API_URL}/planos`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(`Erro ao carregar planos (${res.status})`);
     return res.json();
   },
 
   async getClientesByPlano(plano: string) {
-    const res = await fetch(`${API_URL}/planos/${plano}/clients`);
+    const res = await fetch(`${API_URL}/planos/${plano}/clients`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(`Erro ao carregar clientes do plano (${res.status})`);
     return res.json();
   },
 
   async getTotalRevenue() {
-    const res = await fetch(`${API_URL}/planos/revenue`);
+    const res = await fetch(`${API_URL}/planos/revenue`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(`Erro ao carregar receita (${res.status})`);
     return res.json();
   },
 
@@ -301,51 +304,77 @@ export const api = {
 
   // ==================== MONITORAMENTO ====================
   async getMonitoringUnits() {
-    const res = await fetch(`${API_URL}/monitoring/units`);
+    const res = await fetch(`${API_URL}/monitoring/units`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(`Erro ao carregar monitoramento (${res.status})`);
     return res.json();
   },
 
   async getMonitoringUnitById(id: string) {
-    const res = await fetch(`${API_URL}/monitoring/units/${id}`);
+    const res = await fetch(`${API_URL}/monitoring/units/${id}`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(`Erro ao carregar unidade (${res.status})`);
     return res.json();
   },
 
   async getSystemStatus() {
-    const res = await fetch(`${API_URL}/monitoring/status`);
+    const res = await fetch(`${API_URL}/monitoring/status`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(`Erro ao carregar status do sistema (${res.status})`);
     return res.json();
   },
 
   // ==================== SUPORTE ====================
   async getTickets(limit = 100) {
-    const res = await fetch(`${API_URL}/support?limit=${limit}`);
+    const res = await fetch(`${API_URL}/support?limit=${limit}`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(`Erro ao carregar tickets (${res.status})`);
     return res.json();
   },
 
   async createTicket(data: any) {
     const res = await fetch(`${API_URL}/support`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
+    if (!res.ok) throw new Error(`Erro ao criar ticket (${res.status})`);
     return res.json();
   },
 
   async updateTicketStatus(id: string, status: string) {
     const res = await fetch(`${API_URL}/support/${id}/status`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     });
+    if (!res.ok) throw new Error(`Erro ao atualizar ticket (${res.status})`);
     return res.json();
   },
 
   async getTicketStats() {
-    const res = await fetch(`${API_URL}/support/stats`);
+    const res = await fetch(`${API_URL}/support/stats`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(`Erro ao carregar estatísticas de suporte (${res.status})`);
+    return res.json();
+  },
+
+  // ==================== MENSAGENS DO DISPLAY ====================
+  async getDisplayMessages(eventoId: string, limit = 50) {
+    const res = await fetch(`${API_URL}/messages/eventos/${eventoId}?limit=${limit}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error(`Erro ao carregar mensagens (${res.status})`);
+    return res.json();
+  },
+
+  async createDisplayMessage(eventoId: string, data: { text: string; type: 'preset' | 'custom' }) {
+    const res = await fetch(`${API_URL}/messages/eventos/${eventoId}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(`Erro ao enviar mensagem (${res.status})`);
     return res.json();
   },
 
   // ==================== EVENTOS ====================
-  async getEventos(cliente_id?: string) {
+  async getEventos() {
     try {
       const res = await fetch(`${API_URL}/eventos`, {
         headers: getAuthHeaders()
@@ -493,12 +522,16 @@ export const api = {
     }
   },
 
-  async createTime(data: any) {
+  async createTime(eventoIdOrData: string | any, maybeData?: any) {
+    const data = maybeData
+      ? { ...maybeData, evento_id: eventoIdOrData }
+      : eventoIdOrData;
     const res = await fetch(`${API_URL}/times`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
+    if (!res.ok) throw new Error(`Erro ao criar time (${res.status})`);
     return res.json();
   },
 

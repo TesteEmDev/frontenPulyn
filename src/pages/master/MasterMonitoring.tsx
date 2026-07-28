@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -23,7 +23,6 @@ import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
-import Button from '../../components/ui/Button';
 import StatusDot from '../../components/ui/StatusDot';
 
 const masterNavItems = [
@@ -36,44 +35,8 @@ const masterNavItems = [
   { icon: <BarChart3 size={20} />, label: 'Analytics', path: '/master/analytics' },
 ];
 
-interface Unit {
-  id: string;
-  name: string;
-  city: string;
-  status: 'online' | 'offline';
-  checkpointsActive: number;
-  checkpointsTotal: number;
-  lastEvent: string;
-  latency: number;
-  uptime: number;
-  alerts: string[];
-}
-
-const units: Unit[] = [
-  { id: 'u1', name: 'Buffet Festa Mágica', city: 'São Paulo', status: 'online', checkpointsActive: 4, checkpointsTotal: 5, lastEvent: 'Festa do João - 14:32', latency: 12, uptime: 99.8, alerts: [] },
-  { id: 'u2', name: 'Espaço Kids Divertido', city: 'Rio de Janeiro', status: 'online', checkpointsActive: 5, checkpointsTotal: 5, lastEvent: 'Aniversário Maria - 14:15', latency: 28, uptime: 99.5, alerts: ['Latência alta'] },
-  { id: 'u3', name: 'Buffet Alegria', city: 'Belo Horizonte', status: 'online', checkpointsActive: 2, checkpointsTotal: 3, lastEvent: 'Festa Escolar - 12:00', latency: 15, uptime: 95.2, alerts: ['CP03 offline há 45min'] },
-  { id: 'u4', name: 'Mundo Encantado', city: 'Curitiba', status: 'online', checkpointsActive: 1, checkpointsTotal: 3, lastEvent: 'Nenhum evento hoje', latency: 8, uptime: 99.9, alerts: [] },
-  { id: 'u5', name: 'Festas & Cia', city: 'Salvador', status: 'online', checkpointsActive: 3, checkpointsTotal: 4, lastEvent: 'Festa Escolar - 12:30', latency: 45, uptime: 98.1, alerts: ['CPU acima de 90%', 'Latência alta'] },
-  { id: 'u6', name: 'Buffet Aventura', city: 'Recife', status: 'offline', checkpointsActive: 0, checkpointsTotal: 3, lastEvent: '20/04/2026', latency: 0, uptime: 72.3, alerts: ['Unidade offline', 'Sem heartbeat'] },
-  { id: 'u7', name: 'Pulyn Norte', city: 'Manaus', status: 'online', checkpointsActive: 2, checkpointsTotal: 4, lastEvent: 'Evento Manhã - 08:15', latency: 35, uptime: 97.5, alerts: ['Latência alta'] },
-  { id: 'u8', name: 'Buffet Brasília', city: 'Brasília', status: 'online', checkpointsActive: 5, checkpointsTotal: 5, lastEvent: 'Colônia Férias - 14:50', latency: 10, uptime: 99.9, alerts: [] },
-  { id: 'u9', name: 'Espaço Lúdico', city: 'Porto Alegre', status: 'online', checkpointsActive: 3, checkpointsTotal: 4, lastEvent: 'Festa Escolar - 22:10', latency: 18, uptime: 99.3, alerts: [] },
-  { id: 'u10', name: 'Festas Goianas', city: 'Goiânia', status: 'online', checkpointsActive: 1, checkpointsTotal: 3, lastEvent: 'Nenhum evento hoje', latency: 22, uptime: 99.1, alerts: [] },
-];
-
 function generateUptimeData(uptime: number) {
-  const data = [];
-  const now = new Date();
-  for (let i = 23; i >= 0; i--) {
-    const hour = new Date(now.getTime() - i * 3600000);
-    const variance = (100 - uptime) * Math.random();
-    data.push({
-      time: `${hour.getHours().toString().padStart(2, '0')}:00`,
-      uptime: Math.min(100, uptime + variance * 0.5 - (Math.random() > 0.9 ? 2 : 0)),
-    });
-  }
-  return data;
+  return [{ time: 'Atual', uptime }];
 }
 
 export default function MasterMonitoring() {
@@ -166,7 +129,7 @@ export default function MasterMonitoring() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {units.filter(u => u.alerts.length > 0).map(unit => (
-                  unit.alerts.map((alert, i) => (
+                  unit.alerts.map((alert: string, i: number) => (
                     <div
                       key={`${unit.id}-${i}`}
                       className="flex items-center gap-3 p-3 rounded-lg bg-danger/10 border border-danger/20"
@@ -213,7 +176,7 @@ export default function MasterMonitoring() {
                       <div className="flex items-center gap-1">
                         <Clock size={12} className="text-gray-500" />
                         <span className="text-gray-400">Latência:</span>
-                        <span className={`font-mono ${unit.latency > 30 ? 'text-accent' : 'text-white'}`}>{unit.latency}ms</span>
+                        <span className={`font-mono ${Number(unit.latency) > 30 ? 'text-accent' : 'text-white'}`}>{unit.latency == null ? '—' : `${unit.latency}ms`}</span>
                       </div>
                       <div className="flex items-center gap-1 col-span-2">
                         <Zap size={12} className="text-gray-500" />
@@ -235,7 +198,7 @@ export default function MasterMonitoring() {
                         <span className="text-xs text-gray-400">Uptime:</span>
                       </div>
                       <span className={`text-xs font-mono font-bold ${parseFloat(unit.uptime) >= 99 ? 'text-success' : parseFloat(unit.uptime) >= 95 ? 'text-accent' : 'text-danger'}`}>
-                        {unit.uptime}%
+                        {unit.uptime == null ? '—' : `${unit.uptime}%`}
                       </span>
                     </div>
                   </Card>
@@ -251,7 +214,9 @@ export default function MasterMonitoring() {
                   Uptime - {selectedUnit ? selectedUnit.name : 'Selecione uma unidade'}
                 </h3>
               </div>
-              {selectedUnit ? (
+              {loading ? (
+                <div className="flex items-center justify-center h-[300px] text-gray-500 text-sm">Carregando monitoramento...</div>
+              ) : selectedUnit && Number.isFinite(Number(selectedUnit.uptime)) ? (
                 <div>
                   <ResponsiveContainer width="100%" height={300}>
                     <LineChart data={generateUptimeData(parseFloat(selectedUnit.uptime))}>
@@ -265,7 +230,7 @@ export default function MasterMonitoring() {
                           borderRadius: '8px',
                           color: '#fff',
                         }}
-                        formatter={(value: number) => [`${value.toFixed(1)}%`, 'Uptime']}
+                        formatter={(value: unknown) => [`${Number(value).toFixed(1)}%`, 'Uptime']}
                       />
                       <Line
                         type="monotone"
@@ -280,11 +245,11 @@ export default function MasterMonitoring() {
                   <div className="mt-4 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">Uptime médio</span>
-                      <span className="font-mono text-white">{selectedUnit.uptime}%</span>
+                      <span className="font-mono text-white">{selectedUnit.uptime == null ? '—' : `${selectedUnit.uptime}%`}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">Latência atual</span>
-                      <span className="font-mono text-white">{selectedUnit.latency}ms</span>
+                      <span className="font-mono text-white">{selectedUnit.latency == null ? '—' : `${selectedUnit.latency}ms`}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">Checkpoints</span>

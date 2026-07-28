@@ -19,16 +19,6 @@ interface AuthStore {
   logout: () => void;
 }
 
-// Usuários de demo (fallback se banco não tiver dados)
-const DEMO_USERS = [
-  { id: '1', empresa_id: 'demo-master', name: 'Admin Master', email: 'admin@pulyn.com.br', password: 'pulyn2026', role: 'master', redirect: '/master' },
-  { id: '2', empresa_id: 'demo-buffet', name: 'Pulyn Admin', email: 'admin@buffet.com.br', password: 'buffet123', role: 'admin', redirect: '/admin' },
-  { id: '3', empresa_id: 'demo-buffet', name: 'Recepção', email: 'recepcao@buffet.com.br', password: 'recepcao', role: 'reception', redirect: '/reception' },
-  { id: '4', empresa_id: 'demo-buffet', name: 'Recreacionista', email: 'gm@buffet.com.br', password: 'recreacao', role: 'game_master', redirect: '/game-master' },
-  { id: '5', empresa_id: 'demo-family', name: 'Família Silva', email: 'familia@email.com', password: 'familia123', role: 'family', redirect: '/family' },
-  { id: '6', empresa_id: 'demo-buffet', name: 'Telão', email: 'display@buffet.com.br', password: 'telaon', role: 'display', redirect: '/display' },
-];
-
 export const roleLabels: Record<string, string> = {
   master: 'Master Pulyn',
   admin: 'Gestão do Buffet',
@@ -38,7 +28,7 @@ export const roleLabels: Record<string, string> = {
   display: 'Telão',
 };
 
-export const useAuth = create<AuthStore>((set, get) => {
+export const useAuth = create<AuthStore>((set) => {
   // Helper para decodificar JWT (sem validação, apenas para recuperar dados)
   function decodeToken(token: string): any {
     try {
@@ -55,39 +45,31 @@ export const useAuth = create<AuthStore>((set, get) => {
   let initialUser: User | null = null;
   let isInitiallyAuthenticated = false;
 
-  if (savedToken) {
-    if (savedToken === 'demo-token') {
-      // Para demo token, usar usuário de demo
-      const demoUser = DEMO_USERS.find(u => u.password === 'demo-token') || DEMO_USERS[1];
-      const { password: _, ...user } = demoUser;
-      initialUser = user as User;
+  if (savedToken && savedToken !== 'demo-token') {
+    // Decodificar JWT real
+    const decoded = decodeToken(savedToken);
+    if (decoded && decoded.email && (!decoded.exp || decoded.exp * 1000 > Date.now())) {
+      initialUser = {
+        id: decoded.id || decoded.empresa_id,
+        empresa_id: decoded.empresa_id,
+        name: decoded.empresa_nome || decoded.email,
+        email: decoded.email,
+        role: decoded.role || 'admin',
+        redirect: decoded.role === 'reception' ? '/reception'
+                : decoded.role === 'game_master' ? '/game-master'
+                : decoded.role === 'display' ? '/display'
+                : decoded.role === 'family' ? '/family'
+                : decoded.role === 'master' ? '/master'
+                : '/admin',
+        plan: decoded.plan
+      };
       isInitiallyAuthenticated = true;
-    } else {
-      // Decodificar JWT real
-      const decoded = decodeToken(savedToken);
-      if (decoded && decoded.email) {
-        initialUser = {
-          id: decoded.empresa_id,
-          empresa_id: decoded.empresa_id,
-          name: decoded.empresa_nome,
-          email: decoded.email,
-          role: decoded.role || 'admin',
-          redirect: decoded.role === 'reception' ? '/reception' 
-                  : decoded.role === 'game_master' ? '/game-master'
-                  : decoded.role === 'display' ? '/display'
-                  : decoded.role === 'family' ? '/family'
-                  : decoded.role === 'master' ? '/master'
-                  : '/admin',
-          plan: decoded.plan
-        };
-        isInitiallyAuthenticated = true;
-      }
     }
   }
   
   return {
     user: initialUser,
-    token: savedToken,
+    token: isInitiallyAuthenticated ? savedToken : null,
     isAuthenticated: isInitiallyAuthenticated,
 
     login: async (email, password) => {
@@ -106,41 +88,10 @@ export const useAuth = create<AuthStore>((set, get) => {
           return { success: true };
         }
 
-        // Se falhar, tentar com usuários de demo
-        const demoUser = DEMO_USERS.find(
-          u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-        );
-
-        if (demoUser) {
-          const { password: _, ...user } = demoUser;
-          set({ 
-            user: user as User,
-            token: 'demo-token',
-            isAuthenticated: true 
-          });
-          localStorage.setItem('authToken', 'demo-token');
-          console.warn('⚠️ Login com usuário de demo (banco pode não ter dados)');
-          return { success: true };
-        }
-
-        return { success: false, error: 'Email ou senha incorretos' };
+        return { success: false, error: response.error || 'E-mail ou senha incorretos' };
       } catch (err) {
         console.error('Erro ao fazer login:', err);
-        // Fallback: tentar com usuários de demo
-        const demoUser = DEMO_USERS.find(
-          u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-        );
-        if (demoUser) {
-          const { password: _, ...user } = demoUser;
-          set({ 
-            user: user as User,
-            token: 'demo-token',
-            isAuthenticated: true 
-          });
-          localStorage.setItem('authToken', 'demo-token');
-          return { success: true };
-        }
-        return { success: false, error: 'Erro ao conectar. Tente novamente.' };
+        return { success: false, error: 'Não foi possível conectar ao servidor. Tente novamente.' };
       }
     },
 
@@ -151,5 +102,3 @@ export const useAuth = create<AuthStore>((set, get) => {
     },
   };
 });
-
-export { DEMO_USERS as USERS };

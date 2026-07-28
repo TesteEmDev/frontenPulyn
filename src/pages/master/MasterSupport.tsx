@@ -48,17 +48,6 @@ interface Ticket {
   description: string;
 }
 
-const initialTickets: Ticket[] = [
-  { id: 'TK-001', client: 'Buffet Alegria', subject: 'Checkpoint CP03 offline', status: 'em_andamento', priority: 'alta', date: '2026-05-13 14:32', assignee: 'Carlos S.', description: 'Checkpoint CP03 na Área Azul está offline desde 14:10. Já tentamos reiniciar remotamente sem sucesso.' },
-  { id: 'TK-002', client: 'Espaço Kids Divertido', subject: 'Erro de sincronização', status: 'aberto', priority: 'alta', date: '2026-05-13 14:15', assignee: 'Atribuir', description: 'Erro 503 ao sincronizar dados. Batch #1286 falhou. Necessário investigar endpoint.' },
-  { id: 'TK-003', client: 'Festas & Cia', subject: 'CPU alta no servidor', status: 'em_andamento', priority: 'media', date: '2026-05-13 14:28', assignee: 'Maria L.', description: 'Uso de CPU persistindo acima de 90%. Verificar processos e escalabilidade.' },
-  { id: 'TK-004', client: 'Buffet Aventura', subject: 'Unidade completamente offline', status: 'aberto', priority: 'alta', date: '2026-05-13 13:50', assignee: 'Atribuir', description: 'Sem heartbeat desde 13:50. Tentativas de reconexão esgotadas. Possível problema de hardware.' },
-  { id: 'TK-005', client: 'Mundo Encantado', subject: 'Dúvida sobre migração de plano', status: 'aberto', priority: 'baixa', date: '2026-05-13 11:00', assignee: 'Atribuir', description: 'Cliente deseja migrar de Starter para Professional. Precisa de orçamento e prazos.' },
-  { id: 'TK-006', client: 'Buffet Festa Mágica', subject: 'Configuração de novo checkpoint', status: 'resolvido', priority: 'media', date: '2026-05-12 16:00', assignee: 'Carlos S.', description: 'Checkpoint CP06 configurado e testado com sucesso. NFC+UHF funcionando.' },
-  { id: 'TK-007', client: 'Buffet Brasília', subject: 'Relatório personalizado', status: 'resolvido', priority: 'baixa', date: '2026-05-11 09:30', assignee: 'Maria L.', description: 'Relatório de engajamento por faixa etária gerado e enviado ao cliente.' },
-  { id: 'TK-008', client: 'Espaço Lúdico', subject: 'Customização de branding', status: 'em_andamento', priority: 'media', date: '2026-05-10 14:00', assignee: 'Ana P.', description: 'Aplicar logo e cores personalizadas do cliente no dashboard.' },
-];
-
 const statusBadgeVariant: Record<TicketStatus, 'accent' | 'secondary' | 'success'> = {
   aberto: 'accent',
   em_andamento: 'secondary',
@@ -87,6 +76,7 @@ export default function MasterSupport() {
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [tickets, setTickets] = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
@@ -102,8 +92,12 @@ export default function MasterSupport() {
   useEffect(() => {
     const loadTickets = async () => {
       try {
-        const data = await api.getTickets();
-        setTickets(data);
+        const [ticketsData, clientsData] = await Promise.all([
+          api.getTickets(),
+          api.getMasterClients(),
+        ]);
+        setTickets(Array.isArray(ticketsData) ? ticketsData : []);
+        setClients(Array.isArray(clientsData) ? clientsData : []);
       } catch (error) {
         console.error('Erro ao buscar tickets:', error);
       } finally {
@@ -346,16 +340,7 @@ export default function MasterSupport() {
                 label="Cliente"
                 options={[
                   { value: '', label: 'Selecione o cliente' },
-                  { value: 'Buffet Festa Mágica', label: 'Buffet Festa Mágica' },
-                  { value: 'Espaço Kids Divertido', label: 'Espaço Kids Divertido' },
-                  { value: 'Buffet Alegria', label: 'Buffet Alegria' },
-                  { value: 'Mundo Encantado', label: 'Mundo Encantado' },
-                  { value: 'Festas & Cia', label: 'Festas & Cia' },
-                  { value: 'Buffet Aventura', label: 'Buffet Aventura' },
-                  { value: 'Pulyn Norte', label: 'Pulyn Norte' },
-                  { value: 'Buffet Brasília', label: 'Buffet Brasília' },
-                  { value: 'Espaço Lúdico', label: 'Espaço Lúdico' },
-                  { value: 'Festas Goianas', label: 'Festas Goianas' },
+                  ...clients.map((client) => ({ value: client.name, label: client.name })),
                 ]}
                 value={newClient}
                 onChange={e => setNewClient(e.target.value)}

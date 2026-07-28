@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
-import { useAuth, USERS, roleLabels } from '../../hooks/useAuth';
+import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
 import PulynLogo from '../../components/ui/PulynLogo';
 
 function FloatingShapes() {
@@ -73,7 +73,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  const [showDemo, setShowDemo] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -204,48 +203,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Demo credentials */}
-          <div className="mt-8">
-            <button
-              type="button"
-              onClick={() => setShowDemo(!showDemo)}
-              className="flex items-center gap-2 text-[#6B8BA4] hover:text-white transition-colors duration-200 text-sm font-medium"
-            >
-              Ver acessos de demonstração
-              {showDemo ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
-
-            {showDemo && (
-              <div className="mt-3 bg-[#0D1B2A]/80 border border-[#1E9BD7]/20 rounded-lg overflow-hidden animate-fade-in">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-[#1E9BD7]/20 text-[#6B8BA4]">
-                      <th className="text-left px-4 py-2 font-medium">E-mail</th>
-                      <th className="text-left px-4 py-2 font-medium">Senha</th>
-                      <th className="text-left px-4 py-2 font-medium">Perfil</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {USERS.map((u) => (
-                      <tr
-                        key={u.id}
-                        className="border-b border-[#1E9BD7]/10 last:border-0 hover:bg-[#1E9BD7]/5 cursor-pointer transition-colors duration-150"
-                        onClick={() => {
-                          setEmail(u.email);
-                          setPassword(u.password);
-                          setError(false);
-                        }}
-                      >
-                        <td className="px-4 py-2.5 text-white/80">{u.email}</td>
-                        <td className="px-4 py-2.5 text-white/80">{u.password}</td>
-                        <td className="px-4 py-2.5 text-[#29B6F6]">{roleLabels[u.role] || u.role}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>

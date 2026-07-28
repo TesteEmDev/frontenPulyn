@@ -47,24 +47,6 @@ interface LogEntry {
   details: string;
 }
 
-const logEntries: LogEntry[] = [
-  { id: 'l1', timestamp: '2026-05-13 14:32:05', client: 'Buffet Alegria', type: 'error', message: 'Checkpoint CP03 offline - sem conexão', details: 'Timeout de conexão após 3 tentativas. IP: 192.168.1.103. Último heartbeat: 14:10:22' },
-  { id: 'l2', timestamp: '2026-05-13 14:31:58', client: 'Buffet Festa Mágica', type: 'info', message: 'Score registrado: Pedro +20pts CP02', details: 'Caça ao Tesouro | Time Dragões | Bracelet PUL-001' },
-  { id: 'l3', timestamp: '2026-05-13 14:31:45', client: 'Espaço Kids Divertido', type: 'sync', message: 'Sincronização concluída - 45 registros', details: 'Sync batch #1287 | 45 score logs | 0 errors | Duração: 1.2s' },
-  { id: 'l4', timestamp: '2026-05-13 14:31:30', client: 'Buffet Festa Mágica', type: 'info', message: 'Score registrado: Mateus +10pts CP01', details: 'Caça ao Tesouro | Time Dragões | Bracelet PUL-003' },
-  { id: 'l5', timestamp: '2026-05-13 14:28:15', client: 'Festas & Cia', type: 'warning', message: 'CPU usage acima de 90%', details: 'CPU: 92.3% | Memória: 78% | Processos ativos: 47 | Threshold: 90%' },
-  { id: 'l6', timestamp: '2026-05-13 14:25:00', client: 'Espaço Kids Divertido', type: 'sync', message: 'Sync iniciado - batch #1287', details: 'Registros pendentes: 45 | Último sync: 14:20:00' },
-  { id: 'l7', timestamp: '2026-05-13 14:20:30', client: 'Buffet Aventura', type: 'error', message: 'Unidade offline - sem heartbeat', details: 'Último heartbeat: 13:50:00 | Tentativas de reconexão: 5/5 | Status: CRITICAL' },
-  { id: 'l8', timestamp: '2026-05-13 14:15:00', client: 'Espaço Kids Divertido', type: 'error', message: 'Erro de sincronização - dados não enviados', details: 'HTTP 503 | Endpoint: /api/v1/sync | Retry em 5min | Batch #1286' },
-  { id: 'l9', timestamp: '2026-05-13 14:10:22', client: 'Buffet Alegria', type: 'warning', message: 'Checkpoint CP03 última leitura há 22min', details: 'IP: 192.168.1.103 | Zone: Área Azul | Tipo: UHF | Status: stale' },
-  { id: 'l10', timestamp: '2026-05-13 14:05:00', client: 'Buffet Brasília', type: 'info', message: 'Evento iniciado: Colônia Férias', details: '32 crianças | 5 checkpoints | Duração: 240min | Game: Caça ao Tesouro' },
-  { id: 'l11', timestamp: '2026-05-13 14:00:00', client: 'Pulyn Norte', type: 'sync', message: 'Sincronização concluída - 12 registros', details: 'Sync batch #892 | 12 score logs | 0 errors | Duração: 0.8s' },
-  { id: 'l12', timestamp: '2026-05-13 13:55:00', client: 'Espaço Lúdico', type: 'info', message: 'Evento finalizado: Festa Escolar', details: '40 crianças | Duração: 180min | Total de scores: 850 | Checkpoints: 3/4' },
-  { id: 'l13', timestamp: '2026-05-13 13:50:00', client: 'Buffet Aventura', type: 'error', message: 'Heartbeat timeout - unidade não responde', details: 'IP: 192.168.2.50 | Tentativa 1/5 | Próximo retry: 13:55:00' },
-  { id: 'l14', timestamp: '2026-05-13 13:45:00', client: 'Mundo Encantado', type: 'warning', message: 'Trial expira em 3 dias', details: 'Expiração: 2026-05-16 | Plano: Starter | Contato: contato@mundoencantado.com.br' },
-  { id: 'l15', timestamp: '2026-05-13 13:40:00', client: 'Buffet Brasília', type: 'info', message: 'Novo checkpoint registrado: CP06', details: 'Nome: Tobogã | Tipo: NFC+UHF | Zone: Área Externa | IP: 192.168.3.106' },
-];
-
 const typeBadgeVariant: Record<LogType, 'danger' | 'primary' | 'accent' | 'secondary'> = {
   error: 'danger',
   info: 'primary',
@@ -78,20 +60,6 @@ const typeLabel: Record<LogType, string> = {
   warning: 'Warning',
   sync: 'Sync',
 };
-
-const clientOptions = [
-  { value: 'all', label: 'Todos os clientes' },
-  { value: 'Buffet Festa Mágica', label: 'Buffet Festa Mágica' },
-  { value: 'Espaço Kids Divertido', label: 'Espaço Kids Divertido' },
-  { value: 'Buffet Alegria', label: 'Buffet Alegria' },
-  { value: 'Mundo Encantado', label: 'Mundo Encantado' },
-  { value: 'Festas & Cia', label: 'Festas & Cia' },
-  { value: 'Buffet Aventura', label: 'Buffet Aventura' },
-  { value: 'Pulyn Norte', label: 'Pulyn Norte' },
-  { value: 'Buffet Brasília', label: 'Buffet Brasília' },
-  { value: 'Espaço Lúdico', label: 'Espaço Lúdico' },
-  { value: 'Festas Goianas', label: 'Festas Goianas' },
-];
 
 const typeOptions = [
   { value: 'all', label: 'Todos os tipos' },
@@ -107,7 +75,7 @@ export default function MasterLogs() {
   const [search, setSearch] = useState('');
   const [filterClient, setFilterClient] = useState('all');
   const [filterType, setFilterType] = useState('all');
-  const [filterDate, setFilterDate] = useState('2026-05-13');
+  const [filterDate, setFilterDate] = useState('');
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
   const [logEntries, setLogEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,7 +84,14 @@ export default function MasterLogs() {
     const loadLogs = async () => {
       try {
         const logs = await api.getLogs(100);
-        setLogEntries(logs);
+        setLogEntries((Array.isArray(logs) ? logs : []).map((log: any) => ({
+          ...log,
+          timestamp: log.timestamp || log.created_at || '—',
+          client: log.client || log.empresa_nome || log.cliente_nome || '—',
+          type: log.type || log.tipo || 'info',
+          message: log.message || 'Log registrado',
+          details: log.details || '',
+        })));
       } catch (error) {
         console.error('Erro ao buscar logs:', error);
       } finally {
@@ -125,6 +100,14 @@ export default function MasterLogs() {
     };
     loadLogs();
   }, []);
+
+  const clientOptions = [
+    { value: 'all', label: 'Todos os clientes' },
+    ...Array.from(new Set(logEntries.map((log) => log.client).filter(Boolean))).map((client) => ({
+      value: client,
+      label: client,
+    })),
+  ];
 
   const filteredLogs = logEntries.filter(log => {
     const matchSearch = log.message.toLowerCase().includes(search.toLowerCase()) ||

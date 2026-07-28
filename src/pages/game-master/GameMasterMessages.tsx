@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MessageSquare, Send, Eye, Gamepad2, Users, Play, MapPin, Trophy } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
+import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
@@ -26,42 +27,63 @@ const presetMessages = [
 ];
 
 export default function GameMasterMessages() {
-  // CORREÇÃO: Adicionar valor padrão = [] para displayMessages
-  const { displayMessages = [], addDisplayMessage } = usePulynStore();
+  const {
+    events,
+    eventoAtualId,
+    setEventoAtual,
+    loadEventos,
+  } = usePulynStore();
+  const [displayMessages, setDisplayMessages] = useState<any[]>([]);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [customMessage, setCustomMessage] = useState('');
   const [previewMessage, setPreviewMessage] = useState<string | null>(null);
 
-  // Garantir que displayMessages é um array
+  useEffect(() => {
+    if (events.length === 0) loadEventos();
+  }, [events.length, loadEventos]);
+
+  useEffect(() => {
+    if (!eventoAtualId && events[0]?.id) setEventoAtual(events[0].id);
+  }, [eventoAtualId, events, setEventoAtual]);
+
+  useEffect(() => {
+    if (!eventoAtualId) {
+      setDisplayMessages([]);
+      return;
+    }
+    api.getDisplayMessages(eventoAtualId)
+      .then((messages) => setDisplayMessages(Array.isArray(messages) ? messages : []))
+      .catch((error) => {
+        console.error('Erro ao carregar mensagens do display:', error);
+        setDisplayMessages([]);
+      });
+  }, [eventoAtualId]);
+
   const safeDisplayMessages = Array.isArray(displayMessages) ? displayMessages : [];
+  const selectedEvent = events.find((event) => event.id === eventoAtualId);
+
+  const publishMessage = async (text: string, type: 'preset' | 'custom') => {
+    if (!eventoAtualId) return;
+    try {
+      const message = await api.createDisplayMessage(eventoAtualId, { text, type });
+      setDisplayMessages((previous) => [message, ...previous].slice(0, 50));
+      setPreviewMessage(text);
+      window.setTimeout(() => setPreviewMessage((current) => current === text ? null : current), 5000);
+    } catch (error) {
+      console.error('Erro ao enviar mensagem para o display:', error);
+    }
+  };
 
   const handleSendPreset = (text: string) => {
-    if (addDisplayMessage) {
-      addDisplayMessage(text, 'preset');
-    }
-    setPreviewMessage(text);
-    // Limpar preview após 3 segundos
-    setTimeout(() => {
-      if (previewMessage === text) {
-        setPreviewMessage(null);
-      }
-    }, 5000);
+    publishMessage(text, 'preset');
   };
 
   const handleSendCustom = () => {
-    if (!customMessage.trim()) return;
-    if (addDisplayMessage) {
-      addDisplayMessage(customMessage.trim(), 'custom');
-    }
-    setPreviewMessage(customMessage.trim());
+    const text = customMessage.trim();
+    if (!text) return;
+    publishMessage(text, 'custom');
     setCustomMessage('');
-    // Limpar preview após 5 segundos
-    setTimeout(() => {
-      if (previewMessage === customMessage.trim()) {
-        setPreviewMessage(null);
-      }
-    }, 5000);
   };
 
   return (
@@ -82,6 +104,21 @@ export default function GameMasterMessages() {
             icon={<MessageSquare size={28} />}
           />
 
+          <Card className="mb-6">
+            <label className="block text-sm font-semibold text-gray-300 mb-2">Evento</label>
+            <select
+              value={eventoAtualId || ''}
+              onChange={(event) => setEventoAtual(event.target.value || null)}
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-white focus:border-primary focus:outline-none"
+            >
+              <option value="">Selecione um evento</option>
+              {events.map((event) => (
+                <option key={event.id} value={event.id}>{event.name}</option>
+              ))}
+            </select>
+            {selectedEvent && <p className="mt-2 text-xs text-gray-500">Mensagens vinculadas a: {selectedEvent.name}</p>}
+          </Card>
+
           {/* Preset Messages Grid */}
           <Card variant="glow" className="mb-6">
             <h3 className="font-display text-lg text-white mb-4">Mensagens Rápidas</h3>
@@ -90,9 +127,10 @@ export default function GameMasterMessages() {
                 <button
                   key={msg.text}
                   onClick={() => handleSendPreset(msg.text)}
+                  disabled={!eventoAtualId}
                   className={`
                     p-4 rounded-xl border text-center transition-all duration-200
-                    hover:scale-[1.02] hover:shadow-lg
+                    hover:scale-[1.02] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40
                     ${msg.bg}
                   `}
                 >
@@ -125,7 +163,7 @@ export default function GameMasterMessages() {
                 variant="primary"
                 size="md"
                 onClick={handleSendCustom}
-                disabled={!customMessage.trim()}
+                disabled={!customMessage.trim() || !eventoAtualId}
               >
                 <Send size={18} className="mr-2" />
                 Enviar
