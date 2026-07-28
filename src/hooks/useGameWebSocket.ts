@@ -1,5 +1,6 @@
 // hooks/useGameWebSocket.ts - WebSocket genérico para eventos do jogo
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { API_URL } from '../services/api';
 
 export interface GameEvent {
   type: string;
@@ -32,10 +33,13 @@ export function useGameWebSocket(
     const configuredUrl = import.meta.env.VITE_WS_URL?.trim();
     if (configuredUrl) return configuredUrl.replace(/\/+$/, '');
 
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const hostname = window.location.hostname;
-    const port = 3001;
-    return `${protocol}://${hostname}:${port}`;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    try {
+      const apiUrl = new URL(API_URL);
+      return `${apiUrl.protocol === 'https:' ? 'wss:' : 'ws:'}//${apiUrl.host}`;
+    } catch {
+      return `${protocol}//${window.location.hostname}:3001`;
+    }
   }, []);
 
   const connect = useCallback(() => {

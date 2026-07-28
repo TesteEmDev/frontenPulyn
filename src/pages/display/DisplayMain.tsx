@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Trophy, Medal, Star, Zap, Target, Clock, MapPin, Users, ArrowLeft } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useGameWebSocket } from '../../hooks/useGameWebSocket';
@@ -31,6 +31,10 @@ interface TreasureDisplayStatus {
   targetCheckpointId?: string | null;
 }
 
+const sameEventId = (left: unknown, right: unknown) => (
+  String(left || '').trim().toLowerCase() === String(right || '').trim().toLowerCase()
+);
+
 export default function DisplayMain() {
   const { 
     loadTeams,
@@ -61,6 +65,32 @@ export default function DisplayMain() {
   const [scoreLog, setScoreLog] = useState<any[]>([]);
   const [displayMessages, setDisplayMessages] = useState<any[]>([]);
   const [treasureStatus, setTreasureStatus] = useState<TreasureDisplayStatus | null>(null);
+
+  const refreshTreasureStatus = useCallback(async () => {
+    if (!selectedEventId) {
+      setTreasureStatus(null);
+      return;
+    }
+
+    try {
+      const { api } = await import('../../services/api');
+      const status = await api.getTreasureEventStatus(selectedEventId);
+      setTreasureStatus(
+        status?.gameType === 'treasure_hunt' && (status?.active || status?.completed)
+          ? {
+              ...status,
+              completed: Boolean(status.completed),
+              initialWait: status.initialWait ?? (
+                Number(status.roundNumber) === 1 && Number(status.turnRemainingSeconds) > 0
+              ),
+            }
+          : null
+      );
+    } catch (err) {
+      console.error('Erro ao atualizar status do Caça ao Tesouro no telão:', err);
+      setTreasureStatus(null);
+    }
+  }, [selectedEventId]);
 
   // Carregar eventos ao montar
   useEffect(() => {
@@ -106,23 +136,7 @@ export default function DisplayMain() {
           setDisplayMessages([]);
         }
 
-        try {
-          const status = await api.getTreasureEventStatus(selectedEventId);
-          setTreasureStatus(
-            status?.gameType === 'treasure_hunt' && (status?.active || status?.completed)
-              ? {
-                  ...status,
-                  completed: Boolean(status.completed),
-                  initialWait: status.initialWait ?? (
-                    Number(status.roundNumber) === 1 && Number(status.turnRemainingSeconds) > 0
-                  ),
-                }
-              : null
-          );
-        } catch (err) {
-          // O telão continua funcionando mesmo se o evento não tiver Caça ao Tesouro.
-          setTreasureStatus(null);
-        }
+        await refreshTreasureStatus();
       } catch (err) {
         console.error('Erro ao carregar dados do evento:', err);
       } finally {
@@ -131,7 +145,17 @@ export default function DisplayMain() {
     };
     
     loadEventData();
-  }, [selectedEventId]);
+  }, [refreshTreasureStatus, selectedEventId]);
+
+  // Reconsultar o status persistido evita perder o timer quando o telão
+  // conecta depois do GAME_STARTED ou quando o WebSocket reconecta.
+  useEffect(() => {
+    if (!selectedEventId) return;
+
+    refreshTreasureStatus();
+    const interval = window.setInterval(refreshTreasureStatus, 2000);
+    return () => window.clearInterval(interval);
+  }, [selectedEventId, refreshTreasureStatus]);
 
   // WebSocket para eventos em tempo real
   const { connectionStatus, lastMessageAt } = useGameWebSocket(
@@ -140,7 +164,7 @@ export default function DisplayMain() {
       // Processar eventos do WebSocket
       if (event.type === 'DISPLAY_MESSAGE' && String(event.payload?.evento_id) === String(selectedEventId)) {
         setDisplayMessages((previous) => [event.payload, ...previous].slice(0, 50));
-      } else if (event.type === 'GAME_STARTED' && event.payload?.eventoId === selectedEventId) {
+      } else if (event.type === 'GAME_STARTED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const treasure = event.payload?.treasure;
 
         if (event.payload?.gameType === 'treasure_hunt' && treasure?.startingTeamName) {
@@ -157,22 +181,10 @@ export default function DisplayMain() {
             initialWait: treasure.initialWait ?? false,
             targetCheckpointId: treasure.targetCheckpointId || null,
           });
-        } else if (event.payload?.gameType === 'treasure_hunt') {
-          import('../../services/api').then(({ api }) => api.getTreasureEventStatus(selectedEventId))
-            .then(status => {
-              setTreasureStatus(
-                status?.gameType === 'treasure_hunt' && (status?.active || status?.completed)
-                  ? {
-                      ...status,
-                      completed: Boolean(status.completed),
-                      initialWait: status.initialWait ?? (
-                        Number(status.roundNumber) === 1 && Number(status.turnRemainingSeconds) > 0
-                      ),
-                    }
-                  : null
-              );
-            })
-            .catch(err => console.error('Erro ao carregar equipe sorteada no telão:', err));
+        }
+
+        if (event.payload?.gameType === 'treasure_hunt') {
+          refreshTreasureStatus();
         }
       } else if (event.type === 'GAME_STOPPED' && event.payload?.eventoId === selectedEventId) {
         setTreasureStatus(prev => prev?.completed ? prev : null);
