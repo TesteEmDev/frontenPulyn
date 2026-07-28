@@ -106,8 +106,9 @@ export default function ReceptionParticipants() {
     setBraceletInput(code.toUpperCase());
   }, []);
 
-  // Hook WebSocket para ouvir leituras NFC do Arduino
-  const { isConnected } = useNFCReader(handleBraceletDetected, 'participants', selectedEventId);
+  // O checkpoint já está validado no modo checkin; reutilizamos esse modo
+  // durante cadastro/troca para manter o mesmo comportamento do fluxo que funciona.
+  const { isConnected } = useNFCReader(handleBraceletDetected, 'checkin', selectedEventId);
 
   useEffect(() => {
     setNFCConnected(isConnected);
