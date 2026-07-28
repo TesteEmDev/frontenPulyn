@@ -15,6 +15,7 @@ interface SidebarProps {
   activePath: string;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  title?: string;
   accentColor?: string;
 }
 

@@ -9,7 +9,6 @@ import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
-import Badge from '../../components/ui/Badge';
 import StatusDot from '../../components/ui/StatusDot';
 
 const navItems = [
@@ -61,7 +60,7 @@ const normalizeUid = (value: string) =>
 
 export default function ReceptionCheckin() {
   const location = useLocation();
-  const { teams = [], addChild, loadTeams, loadChildren, loadEventos, setEventoAtual, eventoAtualId } = usePulynStore();
+  const { teams = [], loadTeams, loadChildren, loadEventos, setEventoAtual } = usePulynStore();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
@@ -147,10 +146,6 @@ export default function ReceptionCheckin() {
         if (activeEvent) {
           setSelectedEventId(activeEvent.id);
           setEventoAtual(activeEvent.id);
-        } else if (eventosData && eventosData.length > 0) {
-          // Se não houver evento ativo, seleciona o primeiro
-          setSelectedEventId(eventosData[0].id);
-          setEventoAtual(eventosData[0].id);
         }
       } catch (error) {
         console.error('❌ Erro ao carregar eventos:', error);
@@ -254,17 +249,6 @@ export default function ReceptionCheckin() {
       setSaving(false);
     }
   }, [form, selectedTeam, braceletCode, selectedEventId, showToast, loadTeams, loadChildren, teams]);
-
-  const handleSwapBracelet = useCallback(() => {
-    if (!braceletCode.trim()) {
-      showToast('Leia a nova pulseira primeiro', 'error');
-      return;
-    }
-    showToast(`Pulseira trocada para ${braceletCode}`, 'success');
-    setBraceletCode('');
-    setBraceletStatus('idle');
-    setLastReadAt(null);
-  }, [braceletCode, showToast]);
 
   const safeTeams = Array.isArray(teams) ? teams : [];
 
@@ -449,7 +433,7 @@ export default function ReceptionCheckin() {
               <div className="flex-1 w-full">
                 <Input
                   label="Código da pulseira"
-                  placeholder="Aproxime a pulseira do Arduino..."
+                  placeholder={nfcConnected ? 'Aproxime a pulseira ou digite...' : 'Digite o código da pulseira'}
                   value={braceletCode}
                   onChange={e => {
                     braceletCheckIdRef.current += 1;
@@ -462,7 +446,6 @@ export default function ReceptionCheckin() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
                     </svg>
                   }
-                  disabled={!nfcConnected}
                 />
               </div>
             </div>

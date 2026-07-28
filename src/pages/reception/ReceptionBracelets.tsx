@@ -18,8 +18,9 @@ type BraceletStatus = 'disponivel' | 'em uso' | 'perdida' | 'bloqueada';
 interface Bracelet {
   code: string;
   status: BraceletStatus;
-  crianca_id: string | null;  // 🔴 NOVO: ID da criança (quando em uso)
-  crianca_name: string | null; // 🔴 NOVO: Nome da criança
+  crianca_id: string | null;
+  crianca_name: string | null;
+  childId?: string | null;
 }
 
 const navItems = [
@@ -77,7 +78,7 @@ const STATUS_LABEL: Record<BraceletStatus, string> = {
 
 export default function ReceptionBracelets() {
   const location = useLocation();
-  const { children = [], loadChildren, loadPulseiras } = usePulynStore();
+  const { loadChildren, loadPulseiras, eventoAtualId } = usePulynStore();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [statusFilter, setStatusFilter] = useState<BraceletStatus | 'all'>('all');
@@ -120,8 +121,9 @@ export default function ReceptionBracelets() {
     }
   }, [cadastrarModalOpen, bracelets]);
 
-  // Hook WebSocket para ouvir leituras NFC do Arduino
-  const { isConnected } = useNFCReader(handleBraceletDetected, 'bracelets');
+  // Usa o evento global selecionado quando existir. Sem evento, mantém o
+  // canal global para permitir o cadastro de pulseiras fora de uma festa ativa.
+  const { isConnected } = useNFCReader(handleBraceletDetected, 'bracelets', eventoAtualId);
 
   useEffect(() => {
     setNFCConnected(isConnected);
@@ -137,9 +139,10 @@ export default function ReceptionBracelets() {
       // Mapear para o formato esperado
       const mapped = Array.isArray(data) ? data.map(p => ({
         code: p.code,
-        status: (p.status || 'disponivel') as BraceletStatus,
+        status: (p.status === 'em_uso' ? 'em uso' : p.status || 'disponivel') as BraceletStatus,
         crianca_id: p.crianca_id || null,
-        crianca_name: p.crianca_name || null
+        crianca_name: p.crianca_name || null,
+        childId: p.crianca_id || null
       })) : [];
       
       console.log(`✅ ${mapped.length} pulseiras mapeadas:`, mapped);
@@ -203,7 +206,7 @@ export default function ReceptionBracelets() {
       await loadBracelets();
       await loadChildren();
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erro ao executar ação:', error);
       alert(`Erro ao executar ação: ${error.message || 'Tente novamente.'}`);
     }

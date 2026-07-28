@@ -54,7 +54,7 @@ export default function ReceptionFamilies() {
       try {
         const eventData = await api.getEventos();
         setEvents(eventData || []);
-        const active = (eventData || []).find((item: any) => item.status === 'active') || eventData?.[0];
+        const active = (eventData || []).find((item: any) => item.status === 'active' || item.status === 'ongoing');
         const nextEventId = active?.id || '';
         setEventId(nextEventId);
         await loadFamilyData(nextEventId);

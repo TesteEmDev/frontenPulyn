@@ -588,15 +588,13 @@ export const api = {
       });
       
       if (!res.ok) {
-        const errorText = await res.text();
-        console.error(`❌ Erro na API (${res.status}):`, errorText);
-        return [];
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Erro ao carregar times (${res.status})`);
       }
-      
       return await res.json();
     } catch (err) {
       console.error('❌ Erro ao buscar times:', err);
-      return [];
+      throw err;
     }
   },
 
@@ -636,11 +634,14 @@ export const api = {
       const res = await fetch(`${API_URL}/criancas/eventos/${eventoId}/criancas`, {
         headers: getAuthHeaders()
       });
-      if (!res.ok) return [];
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Erro ao carregar crianças (${res.status})`);
+      }
       return res.json();
     } catch (err) {
       console.error('Erro ao carregar crianças:', err);
-      return [];
+      throw err;
     }
   },
 

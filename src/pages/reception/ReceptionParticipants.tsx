@@ -1,7 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { usePulynStore } from '../../store/mockData';
-import { useAuth } from '../../hooks/useAuth';
 import { useNFCReader } from '../../hooks/useNFCReader';
 import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
@@ -67,7 +66,7 @@ interface Child {
   nickname: string;
   age: number;
   bracelet_code?: string | null;
-  team_id?: string | null;
+  time_id?: string | null;
   status?: 'active' | 'inactive' | 'pending';
   avatar?: string;
 }
@@ -80,7 +79,6 @@ interface Team {
 
 export default function ReceptionParticipants() {
   const location = useLocation();
-  const { user } = useAuth();
   const { setEventoAtual } = usePulynStore();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -107,7 +105,7 @@ export default function ReceptionParticipants() {
   }, []);
 
   // Hook WebSocket para ouvir leituras NFC do Arduino
-  const { isConnected } = useNFCReader(handleBraceletDetected, 'participants');
+  const { isConnected } = useNFCReader(handleBraceletDetected, 'participants', selectedEventId);
 
   useEffect(() => {
     setNFCConnected(isConnected);
@@ -120,14 +118,11 @@ export default function ReceptionParticipants() {
         const eventosData = await api.getEventos();
         setEvents(eventosData || []);
         
-        // Selecionar evento ativo ou o primeiro
+        // Selecionar somente um evento em andamento; eventos antigos não são usados automaticamente.
         const activeEvent = eventosData?.find(e => e.status === 'active' || e.status === 'ongoing');
         if (activeEvent) {
           setSelectedEventId(activeEvent.id);
           setEventoAtual(activeEvent.id);
-        } else if (eventosData && eventosData.length > 0) {
-          setSelectedEventId(eventosData[0].id);
-          setEventoAtual(eventosData[0].id);
         }
       } catch (err) {
         console.error('❌ Erro ao carregar eventos:', err);
@@ -199,7 +194,7 @@ export default function ReceptionParticipants() {
         result = result.filter(c => !c.bracelet_code);
         break;
       case 'by-team':
-        result = result.filter(c => c.team_id === selectedTeam);
+        result = result.filter(c => c.time_id === selectedTeam);
         break;
     }
 
@@ -262,7 +257,7 @@ export default function ReceptionParticipants() {
           age: child.age,
           avatar: child.avatar,
           braceletCode: child.bracelet_code,
-          timeId: child.team_id
+          timeId: child.time_id
         });
 
         console.log(`✅ Criança ${editingName} atualizada com sucesso`);
@@ -333,7 +328,7 @@ export default function ReceptionParticipants() {
           age: child.age,
           avatar: child.avatar,
           braceletCode: normalizedInput,
-          timeId: child.team_id
+          timeId: child.time_id
         });
         
         console.log(`✅ Pulseira ${normalizedInput} vinculada a ${child.name}`);
@@ -345,7 +340,7 @@ export default function ReceptionParticipants() {
         const criancasData = await api.getCriancas(selectedEventId);
         console.log(`📋 Crianças recarregadas:`, criancasData);
         
-        const updatedChild = criancasData?.find(c => c.id === modalChild);
+        const updatedChild = criancasData?.find((c: Child) => c.id === modalChild);
         if (updatedChild) {
           console.log(`✅ Criança ${updatedChild.name} atualizada:`, {
             id: updatedChild.id,
@@ -381,14 +376,14 @@ export default function ReceptionParticipants() {
       // Primeiro tenta usar time_name que vem do backend
       if ((child as any).time_name) {
         return {
-          id: child.team_id,
+          id: child.time_id,
           name: (child as any).time_name,
           color: (child as any).time_color || '#999999'
         };
       }
       // Fallback: busca na array de times
-      if (child.team_id) {
-        return teamsData.find(t => t.id === child.team_id);
+      if (child.time_id) {
+        return teamsData.find(t => t.id === child.time_id);
       }
       return null;
     },

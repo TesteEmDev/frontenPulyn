@@ -75,14 +75,11 @@ export default function ReceptionDashboard() {
         const eventosData = await api.getEventos();
         setEvents(eventosData || []);
         
-        // Selecionar evento ativo ou o primeiro
+        // Selecionar somente um evento em andamento; eventos antigos não são usados automaticamente.
         const activeEvent = eventosData?.find(e => e.status === 'active' || e.status === 'ongoing');
         if (activeEvent) {
           setSelectedEventId(activeEvent.id);
           setEventoAtual(activeEvent.id);
-        } else if (eventosData && eventosData.length > 0) {
-          setSelectedEventId(eventosData[0].id);
-          setEventoAtual(eventosData[0].id);
         }
       } catch (err) {
         console.error('❌ Erro ao carregar eventos:', err);
@@ -135,7 +132,6 @@ export default function ReceptionDashboard() {
   const totalBracelets = bracelets.length;
 
   const recentChildren = [...children].slice(-5).reverse();
-  const activeEvent = events.find(e => e.status === 'active' || e.status === 'ongoing');
 
   const kpis = [
     { label: 'Crianças cadastradas', value: totalChildren, color: 'text-primary' },
