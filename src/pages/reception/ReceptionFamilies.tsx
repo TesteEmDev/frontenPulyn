@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Copy, Link as LinkIcon, Check, Users, UserCheck, UserX, Save } from 'lucide-react';
+import { Copy, Link as LinkIcon, Check, Users, UserCheck, UserX } from 'lucide-react';
 import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
 import TopBar from '../../components/layout/TopBar';
@@ -22,8 +22,6 @@ export default function ReceptionFamilies() {
   const [eventId, setEventId] = useState('');
   const [pending, setPending] = useState<any[]>([]);
   const [approved, setApproved] = useState<any[]>([]);
-  const [teams, setTeams] = useState<any[]>([]);
-  const [selectedTeams, setSelectedTeams] = useState<Record<string, string>>({});
   const [inviteUrl, setInviteUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -33,15 +31,12 @@ export default function ReceptionFamilies() {
   const loadFamilyData = async (selectedEvent = eventId) => {
     try {
       setLoading(true);
-      const [pendingData, approvedData, teamData] = await Promise.all([
+      const [pendingData, approvedData] = await Promise.all([
         api.getPendingFamilyLinks(selectedEvent || undefined),
         api.getApprovedFamilyLinks(selectedEvent || undefined),
-        selectedEvent ? api.getTimes(selectedEvent) : Promise.resolve([]),
       ]);
       setPending(pendingData || []);
       setApproved(approvedData || []);
-      setTeams(teamData || []);
-      setSelectedTeams(Object.fromEntries((approvedData || []).map((item: any) => [item.crianca_id, item.time_id || ''])));
     } catch (err: any) {
       setError(err.message || 'Não foi possível carregar as famílias.');
     } finally {
@@ -98,24 +93,6 @@ export default function ReceptionFamilies() {
     }
   };
 
-  const saveChildTeam = async (item: any) => {
-    try {
-      setWorking(`team-${item.crianca_id}`);
-      await api.updateCrianca(item.evento_id, item.crianca_id, {
-        name: item.crianca_name,
-        nickname: item.nickname || item.crianca_name,
-        age: item.age,
-        avatar: item.avatar || '👤',
-        braceletCode: item.bracelet_code || null,
-        timeId: selectedTeams[item.crianca_id] || null,
-      });
-      await loadFamilyData();
-    } catch (err: any) {
-      setError(err.message || 'Não foi possível atualizar o time da criança.');
-    } finally {
-      setWorking(null);
-    }
-  };
   return (
     <div className="flex h-screen bg-dark">
       <Sidebar items={navItems} activePath="/reception/families" collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((value) => !value)} accentColor="#F59E0B" />
@@ -179,7 +156,7 @@ export default function ReceptionFamilies() {
           <div className="flex items-center justify-between pt-4">
             <div>
               <h2 className="text-white font-display text-lg font-semibold">Crianças aprovadas</h2>
-              <p className="text-sm text-gray-400">Defina o time de cada criança depois da aprovação.</p>
+              <p className="text-sm text-gray-400">Depois da aprovação, defina o time da criança na tela de Participantes.</p>
             </div>
             <Badge variant={approved.length ? 'success' : 'muted'}>{approved.length} aprovada{approved.length === 1 ? '' : 's'}</Badge>
           </div>
@@ -194,24 +171,6 @@ export default function ReceptionFamilies() {
                     <p className="text-white font-semibold">{item.crianca_name}</p>
                     <p className="text-sm text-gray-300">Responsável: {item.family_name || item.email}</p>
                     <p className="text-xs text-gray-500">{item.evento_name} · {item.email}</p>
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                    <select
-                      value={selectedTeams[item.crianca_id] || ''}
-                      onChange={(event) => setSelectedTeams((current) => ({ ...current, [item.crianca_id]: event.target.value }))}
-                      className="rounded-lg border border-border bg-dark-surface px-3 py-2 text-white"
-                    >
-                      <option value="">Sem time</option>
-                      {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
-                    </select>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={working === `team-${item.crianca_id}`}
-                      onClick={() => saveChildTeam(item)}
-                    >
-                      <Save size={16} className="mr-1" /> Salvar time
-                    </Button>
                   </div>
                 </Card>
               ))}

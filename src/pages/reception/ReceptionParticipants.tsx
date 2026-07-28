@@ -96,6 +96,8 @@ export default function ReceptionParticipants() {
   const [braceletInput, setBraceletInput] = useState('');
   const [nfcConnected, setNFCConnected] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingTeamId, setSavingTeamId] = useState<string | null>(null);
+  const [teamSelections, setTeamSelections] = useState<Record<string, string>>({});
   const [editingName, setEditingName] = useState('');
   const [editingNickname, setEditingNickname] = useState('');
 
@@ -148,6 +150,9 @@ export default function ReceptionParticipants() {
           api.getTimes(selectedEventId),
         ]);
         setChildren(criancasData || []);
+        setTeamSelections(Object.fromEntries(
+          (criancasData || []).map((child: Child) => [child.id, child.time_id || ''])
+        ));
         setTeamsData(timesData || []);
         if (timesData?.length > 0) {
           setSelectedTeam(timesData[0].id);
@@ -156,6 +161,7 @@ export default function ReceptionParticipants() {
         console.error('❌ Erro ao carregar dados:', err);
         setChildren([]);
         setTeamsData([]);
+        setTeamSelections({});
       } finally {
         setLoading(false);
       }
@@ -279,19 +285,17 @@ export default function ReceptionParticipants() {
         const pulseiras = await api.getPulseiras();
         console.log(`📋 Pulseiras carregadas: ${pulseiras.length}`);
         
-        const pulseira = pulseiras.find(p => 
+        let pulseira = pulseiras.find(p =>
           p.code.trim().toUpperCase() === normalizedInput
         );
 
         if (!pulseira) {
-          console.error(`❌ Pulseira não encontrada: ${normalizedInput}`);
-          console.log(`   Códigos disponíveis:`, pulseiras.map(p => p.code.toUpperCase()));
-          alert('Pulseira não encontrada. Cadastre-a primeiro.');
-          setSaving(false);
-          return;
+          console.log(`📝 Pulseira não cadastrada. Cadastrando ${normalizedInput}...`);
+          await api.createPulseira(normalizedInput);
+          pulseira = { code: normalizedInput, status: 'disponivel' };
         }
 
-        console.log(`✅ Pulseira encontrada:`, pulseira);
+        console.log(`✅ Pulseira disponível para vínculo:`, pulseira);
 
         if (pulseira.status !== 'disponivel') {
           console.error(`❌ Pulseira indisponível: ${pulseira.status}`);
@@ -370,6 +374,40 @@ export default function ReceptionParticipants() {
       setSaving(false);
     }
   }, [modalChild, modalAction, braceletInput, editingName, editingNickname, selectedEventId, children]);
+
+  const handleTeamChange = useCallback(async (child: Child, timeId: string) => {
+    if (!selectedEventId) {
+      alert('Selecione um evento antes de definir o time');
+      return;
+    }
+
+    const previousTimeId = teamSelections[child.id] || child.time_id || '';
+    setTeamSelections((current) => ({ ...current, [child.id]: timeId }));
+    setSavingTeamId(child.id);
+
+    try {
+      await api.updateCrianca(selectedEventId, child.id, {
+        name: child.name,
+        nickname: child.nickname,
+        age: child.age,
+        avatar: child.avatar,
+        braceletCode: child.bracelet_code || null,
+        timeId: timeId || null,
+      });
+
+      const updatedChildren = await api.getCriancas(selectedEventId);
+      setChildren(updatedChildren || []);
+      setTeamSelections(Object.fromEntries(
+        (updatedChildren || []).map((item: Child) => [item.id, item.time_id || ''])
+      ));
+    } catch (error: any) {
+      setTeamSelections((current) => ({ ...current, [child.id]: previousTimeId }));
+      console.error('❌ Erro ao atualizar time da criança:', error);
+      alert(`Não foi possível atualizar o time: ${error.message || 'Tente novamente.'}`);
+    } finally {
+      setSavingTeamId(null);
+    }
+  }, [selectedEventId, teamSelections]);
 
   const getTeamName = useCallback(
     (child: Child) => {
@@ -540,16 +578,30 @@ export default function ReceptionParticipants() {
                             <span className="font-body text-gray-300 text-sm">{child.age}</span>
                           </td>
                           <td className="px-4 py-3">
-                            {team ? (
-                              <span
-                                className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-body font-semibold"
-                                style={{ backgroundColor: team.color + '20', color: team.color }}
+                            <div className="flex min-w-[170px] flex-col gap-1.5">
+                              <select
+                                value={teamSelections[child.id] ?? child.time_id ?? ''}
+                                onChange={(event) => handleTeamChange(child, event.target.value)}
+                                disabled={savingTeamId === child.id || teamsData.length === 0}
+                                className="rounded-lg border border-dark-border bg-dark-surface px-2.5 py-1.5 text-xs text-white focus:border-primary focus:outline-none disabled:cursor-wait disabled:opacity-60"
+                                aria-label={`Selecionar time de ${child.name}`}
                               >
-                                {team.name}
-                              </span>
-                            ) : (
-                              <Badge variant="muted">Sem time</Badge>
-                            )}
+                                <option value="">Sem time</option>
+                                {teamsData.map((teamOption) => (
+                                  <option key={teamOption.id} value={teamOption.id}>
+                                    {teamOption.name}
+                                  </option>
+                                ))}
+                              </select>
+                              {team && (
+                                <span
+                                  className="inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-body font-semibold"
+                                  style={{ backgroundColor: team.color + '20', color: team.color }}
+                                >
+                                  {team.name}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-3">
                             {child.bracelet_code ? (
@@ -578,7 +630,7 @@ export default function ReceptionParticipants() {
                               {/* Change bracelet */}
                               <button
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-secondary hover:bg-dark-surface transition-colors duration-200"
-                                title="Trocar pulseira"
+                                title={child.bracelet_code ? 'Trocar pulseira' : 'Cadastrar pulseira'}
                                 onClick={() => handleOpenModal(child.id, 'change')}
                               >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -644,7 +696,7 @@ export default function ReceptionParticipants() {
         }}
         title={
           modalAction === 'change'
-            ? `Trocar pulseira de ${getChildName(modalChild || '')}`
+            ? `${children.find((child) => child.id === modalChild)?.bracelet_code ? 'Trocar' : 'Cadastrar'} pulseira de ${getChildName(modalChild || '')}`
             : modalAction === 'edit-name'
             ? `Editar ${getChildName(modalChild || '')}`
             : modalAction === 'delete'
@@ -747,7 +799,7 @@ export default function ReceptionParticipants() {
               onClick={handleConfirmModal}
               disabled={saving || (modalAction === 'change' && !braceletInput.trim()) || (modalAction === 'edit-name' && !editingName.trim())}
             >
-              {saving ? 'Processando...' : modalAction === 'change' ? 'Confirmar Troca' : modalAction === 'edit-name' ? 'Salvar' : modalAction === 'delete' ? 'Excluir participante' : 'Desvincular'}
+              {saving ? 'Processando...' : modalAction === 'change' ? 'Cadastrar e vincular' : modalAction === 'edit-name' ? 'Salvar' : modalAction === 'delete' ? 'Excluir participante' : 'Desvincular'}
             </Button>
           </div>
         </div>
