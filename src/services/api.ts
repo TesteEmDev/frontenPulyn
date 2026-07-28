@@ -89,8 +89,17 @@ export const api = {
   async getPendingFamilyLinks(eventoId?: string) {
     const query = eventoId ? `?evento_id=${encodeURIComponent(eventoId)}` : '';
     const res = await fetch(`${API_URL}/familias/pending${query}`, { headers: getAuthHeaders() });
-    if (!res.ok) throw new Error(`Erro ao carregar aprovações familiares (${res.status})`);
-    return res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar aprovações familiares (${res.status})`);
+    return data;
+  },
+
+  async getApprovedFamilyLinks(eventoId?: string) {
+    const query = eventoId ? `?evento_id=${encodeURIComponent(eventoId)}` : '';
+    const res = await fetch(`${API_URL}/familias/approved${query}`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar famílias aprovadas (${res.status})`);
+    return data;
   },
 
   async approveFamilyLink(linkId: string) {
