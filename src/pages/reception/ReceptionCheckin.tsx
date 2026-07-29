@@ -119,7 +119,7 @@ export default function ReceptionCheckin() {
           showToast(`Pulseira ${normalizedCode} detectada e disponível!`, 'success');
         } else {
           setBraceletStatus('detected');
-          showToast(`Pulseira ${normalizedCode} detectada. Cadastre-a em Pulseiras antes de vincular.`, 'error');
+          showToast(`Pulseira ${normalizedCode} detectada. Clique em “Cadastrar e Vincular” para cadastrá-la.`, 'success');
         }
       } catch (err) {
         if (checkId !== braceletCheckIdRef.current) return;
@@ -219,13 +219,11 @@ export default function ReceptionCheckin() {
     try {
       // 1. Verificar se a pulseira existe
       const pulseiras = await api.getPulseiras();
-      const pulseira = pulseiras.find(p => normalizeUid(String(p.code || '')) === normalizedBraceletCode);
+      let pulseira = pulseiras.find(p => normalizeUid(String(p.code || '')) === normalizedBraceletCode);
       
       if (!pulseira) {
-        showToast('❌ Pulseira não encontrada. Cadastre-a primeiro na seção "Pulseiras".', 'error');
-        setBraceletStatus('error');
-        setSaving(false);
-        return;
+        showToast(`Pulseira ${normalizedBraceletCode} detectada. Será cadastrada ao confirmar.`, 'success');
+        pulseira = await api.createPulseira(normalizedBraceletCode);
       }
 
       if (pulseira.status !== 'disponivel') {
