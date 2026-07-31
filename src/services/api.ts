@@ -792,7 +792,10 @@ export const api = {
         headers: getAuthHeaders()
       });
       if (!res.ok) return [];
-      return res.json();
+      const data = await res.json();
+      return Array.isArray(data)
+        ? data.filter(checkpoint => String(checkpoint?.checkpoint_purpose || 'game').toLowerCase() !== 'reception')
+        : [];
     } catch (err) {
       console.error('Erro ao carregar checkpoints:', err);
       return [];
