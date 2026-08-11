@@ -9,17 +9,19 @@ export interface Child {
   nickname: string;
   avatar: string;
   age: number;
-  parentId: string;
-  teamId?: string;
+  parentId?: string;
+  teamId?: string | null;
   team_id?: string | null;
+  time_id?: string | null;
   team?: string | null;
   scores: number;
   score?: number;
-  status: 'active' | 'inactive';
+  status: 'active' | 'inactive' | 'pending';
   achievements: string[];
   bracelet_code?: string;
   bracelet?: string | null;
-  time_id?: string | null;
+  evento_id?: string;
+  event_id?: string;
 }
 
 export interface Team {
@@ -29,7 +31,7 @@ export interface Team {
   points: number;
   score?: number;
   members: string[];
-  icon?: string;
+  icon: string;
 }
 
 export interface Checkpoint {
@@ -40,7 +42,7 @@ export interface Checkpoint {
   zone: string;
   led: string;
   status: 'online' | 'offline' | 'configured';
-  points?: number;
+  points: number;
   authorizedTags?: string[];
 }
 
@@ -48,10 +50,11 @@ export interface Game {
   id: string;
   name: string;
   description: string;
-  type: 'team' | 'individual' | 'cooperative' | 'treasure_hunt';
+  type: 'team' | 'individual' | 'cooperative' | 'treasure_hunt' | 'monster_hunt';
   duration: number;
   checkpoints: string[];
-  status: 'active' | 'paused' | 'finished';
+  status: 'active' | 'paused' | 'finished' | 'inactive';
+  evento_id?: string;
 }
 
 export interface ReadingLog {
@@ -67,11 +70,17 @@ export interface ReadingLog {
 export interface ScoreLog {
   id: string;
   childId: string;
+  child_id?: string;
   childName: string;
   checkpointId: string;
+  checkpoint_id?: string;
   checkpoint: string;
+  checkpoint_name?: string;
+  game?: string;
+  game_id?: string;
   points: number;
   timestamp: string;
+  created_at?: string;
   justification?: string;
 }
 
@@ -79,8 +88,11 @@ export interface Event {
   id: string;
   name: string;
   date: string;
+  time?: string;
   location: string;
-  status: 'upcoming' | 'ongoing' | 'completed';
+  duration?: number;
+  childrenCount?: number;
+  status: 'active' | 'scheduled' | 'finished' | 'upcoming' | 'ongoing' | 'completed';
 }
 
 export interface DisplayMessage {
@@ -151,7 +163,10 @@ interface PulynStore {
   loadCheckpoints: () => Promise<void>;
   loadReadings: () => Promise<void>;
   loadEventos: () => Promise<any[]>;
+  loadEvents: () => Promise<Event[]>;
   loadBrincadeiras: () => Promise<any[]>;
+  loadGames: () => Promise<Game[]>;
+  loadScoreLog: () => Promise<void>;
   loadClientes: () => Promise<any[]>;
   loadTimes: () => Promise<void>;
   loadPulseiras: () => Promise<any[]>;
@@ -218,7 +233,7 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
         icon: team.icon || '🏆',
       }));
       set({ teams: normalizedTeams });
-    } catch (error) {
+    } catch {
       // Erro silencioso
     }
   },
@@ -248,7 +263,7 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
           members: normalizedChildren.filter((child) => child.teamId === team.id).map((child) => child.id),
         })),
       }));
-    } catch (error) {
+    } catch {
       // Erro silencioso
     }
   },
@@ -260,8 +275,14 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
         return;
       }
       const checkpoints = await api.getCheckpoints(state.eventoAtualId);
-      set({ checkpoints: Array.isArray(checkpoints) ? checkpoints : [] });
-    } catch (error) {
+      const normalizedCheckpoints = (Array.isArray(checkpoints) ? checkpoints : []).map((checkpoint: any) => ({
+        ...checkpoint,
+        points: Number(checkpoint.points ?? 0),
+        zone: checkpoint.zone || checkpoint.location || 'Sem zona',
+        status: checkpoint.status || 'offline',
+      }));
+      set({ checkpoints: normalizedCheckpoints });
+    } catch {
       // Erro silencioso
     }
   },
@@ -271,8 +292,15 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
       const readings = await api.getLogs(50);
       set({ readingsLog: Array.isArray(readings) ? readings : [] });
     } catch (error) {
-      // Erro silencioso
+      console.error('❌ Erro ao carregar leituras:', error);
     }
+  },
+
+  // O histórico de pontuações é mantido pelo backend e atualizado pelos
+  // rankings/eventos; não inventar dados locais quando não houver endpoint.
+  loadScoreLog: async () => {
+    // Não há endpoint administrativo de pontuações neste contrato; preservar
+    // o estado atual evita apagar dados recebidos em tempo real.
   },
 
   loadEventos: async () => {
@@ -281,18 +309,38 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
       set({ events: eventos });
       return eventos;
     } catch (error) {
+      console.error('❌ Erro ao carregar eventos:', error);
       return [];
     }
   },
 
+  loadEvents: async () => {
+    const eventos = await get().loadEventos();
+    return Array.isArray(eventos) ? eventos as Event[] : [];
+  },
+
   loadBrincadeiras: async () => {
     try {
-      const brincadeiras = await api.getBrincadeiras();
+      const brincadeiras = await api.getBrincadeiras(get().eventoAtualId || undefined);
       set({ brincadeiras });
       return brincadeiras;
     } catch (error) {
+      console.error('❌ Erro ao carregar jogos:', error);
       return [];
     }
+  },
+
+  loadGames: async () => {
+    const brincadeiras = await get().loadBrincadeiras();
+    const games = (Array.isArray(brincadeiras) ? brincadeiras : []).map((game: any) => ({
+      ...game,
+      description: game.description || game.descricao || '',
+      duration: Number(game.duration ?? game.duracao ?? 0),
+      checkpoints: Array.isArray(game.checkpoints) ? game.checkpoints : [],
+      status: game.status || 'active',
+    })) as Game[];
+    set({ games });
+    return games;
   },
 
   loadClientes: async () => {
@@ -300,7 +348,7 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
       const clientes = await api.getClientes();
       set({ clientes });
       return clientes;
-    } catch (error) {
+    } catch {
       return [];
     }
   },

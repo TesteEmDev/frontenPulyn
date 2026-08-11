@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Trophy, Medal, Star, Zap, Target, Clock, MapPin, Users, ArrowLeft } from 'lucide-react';
-import { usePulynStore } from '../../store/mockData';
 import { useGameWebSocket } from '../../hooks/useGameWebSocket';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -31,16 +30,31 @@ interface TreasureDisplayStatus {
   targetCheckpointId?: string | null;
 }
 
+interface MonsterDisplayStatus {
+  active: boolean;
+  completed?: boolean;
+  gameType?: string;
+  monsterHp?: number;
+  monsterMaxHp?: number;
+  monsterDefeated?: boolean;
+  monsterSpecialCheckpointId?: string | null;
+  winnerTeamName?: string | null;
+  winnerTeamColor?: string | null;
+  progress?: Array<{
+    teamId: string;
+    teamName: string;
+    teamColor: string;
+    scanned: number;
+    total: number;
+    complete: boolean;
+  }>;
+}
+
 const sameEventId = (left: unknown, right: unknown) => (
   String(left || '').trim().toLowerCase() === String(right || '').trim().toLowerCase()
 );
 
 export default function DisplayMain() {
-  const { 
-    loadTeams,
-    loadChildren,
-    loadCheckpoints,
-  } = usePulynStore();
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [topParticipants, setTopParticipants] = useState<any[]>([]);
@@ -65,6 +79,7 @@ export default function DisplayMain() {
   const [scoreLog, setScoreLog] = useState<any[]>([]);
   const [displayMessages, setDisplayMessages] = useState<any[]>([]);
   const [treasureStatus, setTreasureStatus] = useState<TreasureDisplayStatus | null>(null);
+  const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
 
   const refreshTreasureStatus = useCallback(async () => {
     if (!selectedEventId) {
@@ -89,6 +104,25 @@ export default function DisplayMain() {
     } catch (err) {
       console.error('Erro ao atualizar status do Caça ao Tesouro no telão:', err);
       setTreasureStatus(null);
+    }
+  }, [selectedEventId]);
+
+  const refreshMonsterStatus = useCallback(async () => {
+    if (!selectedEventId) {
+      setMonsterStatus(null);
+      return;
+    }
+    try {
+      const { api } = await import('../../services/api');
+      const status = await api.getMonsterEventStatus(selectedEventId);
+      setMonsterStatus(
+        status?.gameType === 'monster_hunt' && (status?.active || status?.monsterDefeated || status?.completed)
+          ? status
+          : null
+      );
+    } catch (err) {
+      console.error('Erro ao atualizar status do Caça ao Monstro no telão:', err);
+      setMonsterStatus(null);
     }
   }, [selectedEventId]);
 
@@ -137,6 +171,7 @@ export default function DisplayMain() {
         }
 
         await refreshTreasureStatus();
+        await refreshMonsterStatus();
       } catch (err) {
         console.error('Erro ao carregar dados do evento:', err);
       } finally {
@@ -145,7 +180,7 @@ export default function DisplayMain() {
     };
     
     loadEventData();
-  }, [refreshTreasureStatus, selectedEventId]);
+  }, [refreshTreasureStatus, refreshMonsterStatus, selectedEventId]);
 
   // Reconsultar o status persistido evita perder o timer quando o telão
   // conecta depois do GAME_STARTED ou quando o WebSocket reconecta.
@@ -153,9 +188,13 @@ export default function DisplayMain() {
     if (!selectedEventId) return;
 
     refreshTreasureStatus();
-    const interval = window.setInterval(refreshTreasureStatus, 2000);
+    refreshMonsterStatus();
+    const interval = window.setInterval(() => {
+      refreshTreasureStatus();
+      refreshMonsterStatus();
+    }, 2000);
     return () => window.clearInterval(interval);
-  }, [selectedEventId, refreshTreasureStatus]);
+  }, [selectedEventId, refreshTreasureStatus, refreshMonsterStatus]);
 
   // WebSocket para eventos em tempo real
   const { connectionStatus, lastMessageAt } = useGameWebSocket(
@@ -164,6 +203,21 @@ export default function DisplayMain() {
       // Processar eventos do WebSocket
       if (event.type === 'DISPLAY_MESSAGE' && String(event.payload?.evento_id) === String(selectedEventId)) {
         setDisplayMessages((previous) => [event.payload, ...previous].slice(0, 50));
+      } else if ((event.type === 'MONSTER_PROGRESS' || event.type === 'MONSTER_SPECIAL_ATTACK' || event.type === 'MONSTER_DEFEATED') && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        const payload = event.payload || {};
+        setMonsterStatus(prev => ({
+          ...(prev || { active: true, gameType: 'monster_hunt' }),
+          active: event.type !== 'MONSTER_DEFEATED',
+          completed: event.type === 'MONSTER_DEFEATED' || Boolean(payload.monsterDefeated),
+          gameType: 'monster_hunt',
+          monsterHp: payload.monsterHp ?? prev?.monsterHp,
+          monsterMaxHp: payload.monsterMaxHp ?? prev?.monsterMaxHp,
+          monsterDefeated: payload.monsterDefeated ?? prev?.monsterDefeated,
+          winnerTeamName: payload.winnerTeamName ?? (event.type === 'MONSTER_DEFEATED' ? payload.teamName : prev?.winnerTeamName),
+          winnerTeamColor: payload.winnerTeamColor ?? (event.type === 'MONSTER_DEFEATED' ? payload.teamColor : prev?.winnerTeamColor),
+          progress: payload.progress || payload.teamsProgress || prev?.progress || [],
+        }));
+        refreshMonsterStatus();
       } else if (event.type === 'GAME_STARTED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const treasure = event.payload?.treasure;
 
@@ -185,9 +239,12 @@ export default function DisplayMain() {
 
         if (event.payload?.gameType === 'treasure_hunt') {
           refreshTreasureStatus();
+        } else if (event.payload?.gameType === 'monster_hunt') {
+          refreshMonsterStatus();
         }
       } else if (event.type === 'GAME_STOPPED' && event.payload?.eventoId === selectedEventId) {
         setTreasureStatus(prev => prev?.completed ? prev : null);
+        setMonsterStatus(prev => prev?.completed ? prev : null);
       } else if (event.type === 'TREASURE_PROGRESS' || event.type === 'TREASURE_ROUND_COMPLETED') {
         setTreasureStatus(prev => prev ? {
           ...prev,
@@ -547,6 +604,48 @@ export default function DisplayMain() {
               Trocar
             </button>
           </div>
+
+          {monsterStatus?.gameType === 'monster_hunt' && (
+            <div className="mx-auto mb-6 max-w-5xl rounded-3xl border-2 border-danger/70 bg-gradient-to-br from-red-950/80 via-dark-surface/90 to-purple-950/70 p-6 text-center shadow-2xl shadow-danger/20" aria-live="polite">
+              <div className="mb-4 flex items-center justify-center gap-3">
+                <span className="animate-pulse text-5xl">👹</span>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-danger">Caça ao Monstro</p>
+                  <h2 className="font-display text-4xl font-bold text-white">Derrote o monstro!</h2>
+                </div>
+              </div>
+              <div className="mx-auto max-w-3xl">
+                <div className="mb-2 flex items-center justify-between text-sm font-semibold text-gray-200">
+                  <span>Energia do monstro</span>
+                  <span>{monsterStatus.monsterHp ?? 0}/{monsterStatus.monsterMaxHp ?? 100} HP</span>
+                </div>
+                <div className="h-8 overflow-hidden rounded-full border border-danger/60 bg-black/50 p-1">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-danger via-orange-500 to-yellow-300 transition-all duration-700"
+                    style={{ width: `${Math.max(0, Math.min(100, ((monsterStatus.monsterHp ?? 0) / (monsterStatus.monsterMaxHp || 100)) * 100))}%` }}
+                  />
+                </div>
+              </div>
+              {monsterStatus.monsterDefeated || monsterStatus.completed ? (
+                <p className="mt-5 animate-bounce font-display text-3xl font-bold text-success">🏆 {monsterStatus.winnerTeamName || 'Monstro derrotado'} venceu!</p>
+              ) : (
+                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {(monsterStatus.progress || []).map(team => (
+                    <div key={team.teamId} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-left">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-white">{team.teamName}</span>
+                        <span style={{ color: team.teamColor }}>{team.scanned}/{team.total}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-400">{team.complete ? '⚡ Ataque especial!' : 'Ataques individuais em andamento'}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {monsterStatus.monsterSpecialCheckpointId && (
+                <p className="mt-4 text-xs text-accent">Checkpoint especial ativo: {checkpoints.find(cp => String(cp.id) === String(monsterStatus.monsterSpecialCheckpointId))?.name || monsterStatus.monsterSpecialCheckpointId} (-30 HP)</p>
+              )}
+            </div>
+          )}
 
           {treasureStatus?.gameType === 'treasure_hunt' &&
             (treasureStatus.active ? treasureStatus.startingTeamName : treasureStatus.winningTeamName) && (

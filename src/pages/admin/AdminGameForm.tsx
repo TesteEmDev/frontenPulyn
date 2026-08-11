@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  Star, FileText, RefreshCw, Settings, Save, Check, MessageSquare
+  FileText, RefreshCw, Settings, Save, Check, MessageSquare
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useEvento } from '../../contexts/EventoContext';
@@ -33,6 +33,7 @@ interface CheckpointConfig {
   enabled: boolean;
   points: number;
   cooldown: number;
+  special?: boolean;
 }
 
 interface AutoMessage {
@@ -49,14 +50,12 @@ export default function AdminGameForm() {
   const [saving, setSaving] = useState(false);
   const [loadingCheckpoints, setLoadingCheckpoints] = useState(true);
   const [loadingEventos, setLoadingEventos] = useState(true);
-  const [loadingGame, setLoadingGame] = useState(id ? true : false);
   const [selectedEventoId, setSelectedEventoId] = useState<string>(eventoAtualId || '');
   const [existingGame, setExistingGame] = useState<any>(null);
 
   // Carregar o jogo existente se estamos em modo edição
   useEffect(() => {
     if (id && brincadeiras.length > 0) {
-      setLoadingGame(true);
       const game = brincadeiras.find(g => g.id === id);
       if (game) {
         setExistingGame(game);
@@ -78,12 +77,12 @@ export default function AdminGameForm() {
               enabled: true,
               points: cp.points || 10,
               cooldown: cp.cooldown || 30,
+              special: Boolean(cp.special),
             }))
           );
           setCheckpointsInitialized(true);
         }
       }
-      setLoadingGame(false);
     }
   }, [id, brincadeiras]);
 
@@ -119,6 +118,7 @@ export default function AdminGameForm() {
                   enabled: false,
                   points: cp.points || 10,
                   cooldown: 30,
+                  special: false,
                 }))
               );
             }
@@ -164,6 +164,7 @@ export default function AdminGameForm() {
             enabled: !!savedConfig, // enabled se encontrou no saved
             points: savedConfig?.points || cp.points || 10,
             cooldown: savedConfig?.cooldown || 30,
+            special: Boolean(savedConfig?.special),
           };
         });
         setCheckpointConfigs(updatedConfigs);
@@ -175,6 +176,7 @@ export default function AdminGameForm() {
             enabled: false,
             points: cp.points || 10,
             cooldown: 30,
+            special: false,
           }))
         );
       }
@@ -200,7 +202,7 @@ export default function AdminGameForm() {
     );
   };
 
-  const updateCheckpointConfig = (cpId: string, field: 'points' | 'cooldown', value: number) => {
+  const updateCheckpointConfig = (cpId: string, field: 'points' | 'cooldown' | 'special', value: number | boolean) => {
     setCheckpointConfigs(prev =>
       prev.map(cp =>
         cp.id === cpId ? { ...cp, [field]: value } : cp
@@ -245,6 +247,7 @@ export default function AdminGameForm() {
           id: cp.id,
           points: cp.points,
           cooldown: cp.cooldown,
+          special: formData.type === 'monster_hunt' && Boolean(cp.special),
         })),
       };
 
@@ -336,6 +339,7 @@ export default function AdminGameForm() {
                       { value: 'individual', label: 'Individual' },
                       { value: 'cooperative', label: 'Cooperativo' },
                       { value: 'treasure_hunt', label: 'Caça ao Tesouro' },
+                      { value: 'monster_hunt', label: 'Caça ao Monstro' },
                     ]}
                     value={formData.type}
                     onChange={e => updateField('type', e.target.value)}
@@ -406,6 +410,16 @@ export default function AdminGameForm() {
                           </div>
                           {cp.enabled && (
                             <div className="grid grid-cols-2 gap-3 ml-8 mt-2">
+                              <div className="col-span-2 flex items-center gap-2 text-xs text-gray-300">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(cp.special)}
+                                  onChange={e => updateCheckpointConfig(cp.id, 'special', e.target.checked)}
+                                  disabled={formData.type !== 'monster_hunt'}
+                                  className="h-4 w-4 accent-primary"
+                                />
+                                <span>Checkpoint especial do monstro (-30 HP)</span>
+                              </div>
                               <div>
                                 <label className="mb-1.5 block text-sm font-body font-medium text-gray-300">
                                   Pontos

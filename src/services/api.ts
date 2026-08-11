@@ -554,6 +554,16 @@ export const api = {
     return res.json();
   },
 
+  async getMonsterEventStatus(eventoId: string) {
+    const res = await fetch(`${API_URL}/monster/eventos/${eventoId}/status`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      throw new Error(`Erro ao consultar Caça ao Monstro (${res.status})`);
+    }
+    return res.json();
+  },
+
   async startGame(gameId: string, gameName: string, eventoId: string) {
     const res = await fetch(`${API_URL}/debug/start-game`, {
       method: 'POST',
