@@ -866,18 +866,18 @@ export default function GameMasterDashboard() {
                       {monsterStatus.completed || monsterStatus.monsterDefeated
                         ? `Monstro derrotado por ${monsterStatus.winnerTeamName || 'uma equipe'}.`
                         : monsterStatus.active
-                          ? 'Cada criança ataca uma vez. O último integrante ativa o ataque especial.'
+                          ? 'Cada criança pode atacar em checkpoints diferentes. O último integrante único ativa o ataque especial.'
                           : 'Inicie o jogo para liberar o monstro.'}
                     </p>
                   </div>
                   <Badge variant={monsterStatus.monsterDefeated ? 'success' : 'danger'}>
-                    {monsterStatus.monsterHp ?? 100}/{monsterStatus.monsterMaxHp ?? 100} HP
+                    {monsterStatus.monsterHp ?? 500}/{monsterStatus.monsterMaxHp ?? 500} HP
                   </Badge>
                 </div>
                 <div className="h-5 overflow-hidden rounded-full bg-dark-surface">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-danger via-warning to-accent transition-all duration-500"
-                    style={{ width: `${Math.max(0, Math.min(100, ((monsterStatus.monsterHp ?? 0) / (monsterStatus.monsterMaxHp || 100)) * 100))}%` }}
+                    style={{ width: `${Math.max(0, Math.min(100, ((monsterStatus.monsterHp ?? 0) / (monsterStatus.monsterMaxHp || 500)) * 100))}%` }}
                   />
                 </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

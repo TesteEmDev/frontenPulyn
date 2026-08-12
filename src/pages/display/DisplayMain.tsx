@@ -618,7 +618,7 @@ export default function DisplayMain() {
                 <div className="mt-4 min-h-[360px] w-full">
                   <Monster3D
                     hp={monsterStatus.monsterHp ?? 0}
-                    maxHp={monsterStatus.monsterMaxHp ?? 100}
+                    maxHp={monsterStatus.monsterMaxHp ?? 500}
                     defeated={Boolean(monsterStatus.monsterDefeated || monsterStatus.completed)}
                     winnerTeamName={monsterStatus.winnerTeamName}
                     winnerTeamColor={monsterStatus.winnerTeamColor}
@@ -628,12 +628,12 @@ export default function DisplayMain() {
               <div className="mx-auto max-w-3xl">
                 <div className="mb-2 flex items-center justify-between text-sm font-semibold text-gray-200">
                   <span>Energia do monstro</span>
-                  <span>{monsterStatus.monsterHp ?? 0}/{monsterStatus.monsterMaxHp ?? 100} HP</span>
+                  <span>{monsterStatus.monsterHp ?? 0}/{monsterStatus.monsterMaxHp ?? 500} HP</span>
                 </div>
                 <div className="h-8 overflow-hidden rounded-full border border-danger/60 bg-black/50 p-1">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-danger via-orange-500 to-yellow-300 transition-all duration-700"
-                    style={{ width: `${Math.max(0, Math.min(100, ((monsterStatus.monsterHp ?? 0) / (monsterStatus.monsterMaxHp || 100)) * 100))}%` }}
+                    style={{ width: `${Math.max(0, Math.min(100, ((monsterStatus.monsterHp ?? 0) / (monsterStatus.monsterMaxHp || 500)) * 100))}%` }}
                   />
                 </div>
               </div>

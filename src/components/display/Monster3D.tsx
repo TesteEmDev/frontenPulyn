@@ -492,7 +492,7 @@ export default function Monster3D({
     };
   }, []);
 
-  const safeMaxHp = Math.max(1, maxHp || 100);
+  const safeMaxHp = Math.max(1, maxHp || 500);
   const safeHp = Math.max(0, Math.min(safeMaxHp, hp || 0));
   const hpPercent = Math.round((safeHp / safeMaxHp) * 100);
   const winnerStyle = { '--winner-color': winnerTeamColor || '#86efac' } as CSSProperties;

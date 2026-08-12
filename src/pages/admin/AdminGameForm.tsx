@@ -76,7 +76,7 @@ export default function AdminGameForm() {
               id: cp.id,
               enabled: true,
               points: cp.points || 10,
-              cooldown: cp.cooldown || 30,
+              cooldown: game.type === 'monster_hunt' ? 15 : (cp.cooldown || 30),
               special: Boolean(cp.special),
             }))
           );
@@ -117,7 +117,7 @@ export default function AdminGameForm() {
                   id: cp.id,
                   enabled: false,
                   points: cp.points || 10,
-                  cooldown: 30,
+                  cooldown: formData.type === 'monster_hunt' ? 15 : 30,
                   special: false,
                 }))
               );
@@ -163,7 +163,7 @@ export default function AdminGameForm() {
             id: cp.id,
             enabled: !!savedConfig, // enabled se encontrou no saved
             points: savedConfig?.points || cp.points || 10,
-            cooldown: savedConfig?.cooldown || 30,
+            cooldown: existingGame.type === 'monster_hunt' ? 15 : (savedConfig?.cooldown || 30),
             special: Boolean(savedConfig?.special),
           };
         });
@@ -175,7 +175,7 @@ export default function AdminGameForm() {
             id: cp.id,
             enabled: false,
             points: cp.points || 10,
-            cooldown: 30,
+            cooldown: formData.type === 'monster_hunt' ? 15 : 30,
             special: false,
           }))
         );
@@ -246,7 +246,7 @@ export default function AdminGameForm() {
         checkpoints: selectedCheckpoints.map(cp => ({
           id: cp.id,
           points: cp.points,
-          cooldown: cp.cooldown,
+          cooldown: formData.type === 'monster_hunt' ? 15 : cp.cooldown,
           special: formData.type === 'monster_hunt' && Boolean(cp.special),
         })),
       };
@@ -433,13 +433,14 @@ export default function AdminGameForm() {
                               </div>
                               <div>
                                 <label className="mb-1.5 block text-sm font-body font-medium text-gray-300">
-                                  Cooldown (seg)
+                                  {formData.type === 'monster_hunt' ? 'Bloqueio do checkpoint (seg)' : 'Cooldown (seg)'}
                                 </label>
                                 <input
                                   type="number"
-                                  value={cp.cooldown}
+                                  value={formData.type === 'monster_hunt' ? 15 : cp.cooldown}
                                   onChange={e => updateCheckpointConfig(cp.id, 'cooldown', Number(e.target.value))}
-                                  className="w-full rounded-lg border border-gray-500 bg-gray-800 px-3 py-2 text-white placeholder-gray-400 font-body text-sm transition-colors duration-200 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                  disabled={formData.type === 'monster_hunt'}
+                                  className="w-full rounded-lg border border-gray-500 bg-gray-800 px-3 py-2 text-white placeholder-gray-400 font-body text-sm transition-colors duration-200 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-60"
                                 />
                               </div>
                             </div>
