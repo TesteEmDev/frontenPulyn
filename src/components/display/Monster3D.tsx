@@ -24,110 +24,215 @@ const monsterStyles = `
 
 function createMonster(scene: THREE.Scene) {
   const monster = new THREE.Group();
-  monster.position.y = -0.25;
+  monster.position.y = -0.35;
+  monster.rotation.y = -0.02;
 
   const bodyMaterial = new THREE.MeshStandardMaterial({
-    color: 0xa21caf,
-    roughness: 0.62,
-    metalness: 0.08,
-    emissive: 0x28002f,
-    emissiveIntensity: 0.35,
+    color: 0x9d1bb8,
+    roughness: 0.58,
+    metalness: 0.1,
+    emissive: 0x27002f,
+    emissiveIntensity: 0.32,
   });
   const headMaterial = new THREE.MeshStandardMaterial({
     color: 0xd946ef,
-    roughness: 0.52,
-    metalness: 0.05,
-    emissive: 0x3b073f,
-    emissiveIntensity: 0.3,
+    roughness: 0.48,
+    metalness: 0.06,
+    emissive: 0x42004b,
+    emissiveIntensity: 0.28,
   });
-  const bellyMaterial = new THREE.MeshStandardMaterial({ color: 0xfb7185, roughness: 0.7 });
+  const bellyMaterial = new THREE.MeshStandardMaterial({ color: 0xfb7185, roughness: 0.68 });
   const hornMaterial = new THREE.MeshStandardMaterial({
     color: 0xfacc15,
-    roughness: 0.35,
-    metalness: 0.2,
+    roughness: 0.3,
+    metalness: 0.18,
     emissive: 0x7c3f00,
-    emissiveIntensity: 0.25,
+    emissiveIntensity: 0.3,
   });
-  const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x190017, roughness: 0.8 });
+  const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x160014, roughness: 0.84 });
   const eyeMaterial = new THREE.MeshStandardMaterial({
     color: 0xfef08a,
     emissive: 0xfde047,
-    emissiveIntensity: 1.5,
-    roughness: 0.25,
+    emissiveIntensity: 1.65,
+    roughness: 0.22,
   });
-  const pupilMaterial = new THREE.MeshStandardMaterial({ color: 0x31002f, roughness: 0.45 });
-  const toothMaterial = new THREE.MeshStandardMaterial({ color: 0xfff7ed, roughness: 0.4 });
+  const pupilMaterial = new THREE.MeshStandardMaterial({ color: 0x250022, roughness: 0.4 });
+  const toothMaterial = new THREE.MeshStandardMaterial({ color: 0xfff7ed, roughness: 0.32 });
+  const innerEarMaterial = new THREE.MeshStandardMaterial({ color: 0xfda4af, roughness: 0.55 });
+  const crystalMaterial = new THREE.MeshStandardMaterial({
+    color: 0x67e8f9,
+    emissive: 0x0891b2,
+    emissiveIntensity: 1.8,
+    roughness: 0.2,
+    metalness: 0.25,
+  });
 
-  const body = new THREE.Mesh(new THREE.SphereGeometry(1.35, 32, 24), bodyMaterial);
-  body.scale.set(1, 1.12, 0.82);
-  body.position.y = -0.2;
+  const body = new THREE.Mesh(new THREE.SphereGeometry(1.36, 32, 24), bodyMaterial);
+  body.scale.set(1, 1.18, 0.84);
+  body.position.y = -0.22;
   monster.add(body);
 
-  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.72, 24, 16), bellyMaterial);
-  belly.scale.set(1, 1.05, 0.25);
-  belly.position.set(0, -0.25, 1.02);
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.76, 28, 18), bellyMaterial);
+  belly.scale.set(1, 1.08, 0.28);
+  belly.position.set(0, -0.22, 1.08);
   monster.add(belly);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(1.35, 32, 24), headMaterial);
-  head.scale.set(1.12, 0.88, 0.82);
-  head.position.set(0, 1.45, 0.1);
+  const chestRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.43, 0.055, 8, 24),
+    crystalMaterial
+  );
+  chestRing.position.set(0, 0.18, 1.08);
+  monster.add(chestRing);
+
+  const chestCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.18, 1), crystalMaterial);
+  chestCrystal.position.set(0, 0.18, 1.17);
+  chestCrystal.rotation.set(0.25, 0.2, 0.15);
+  monster.add(chestCrystal);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(1.34, 32, 24), headMaterial);
+  head.scale.set(1.14, 0.9, 0.86);
+  head.position.set(0, 1.5, 0.12);
   monster.add(head);
 
-  const eyeGeometry = new THREE.SphereGeometry(0.28, 20, 16);
-  const pupilGeometry = new THREE.SphereGeometry(0.1, 16, 12);
-  for (const x of [-0.48, 0.48]) {
+  const earGeometry = new THREE.SphereGeometry(0.46, 20, 14);
+  const innerEarGeometry = new THREE.SphereGeometry(0.28, 16, 12);
+  for (const x of [-1.06, 1.06]) {
+    const ear = new THREE.Mesh(earGeometry, headMaterial);
+    ear.scale.set(0.78, 1.05, 0.48);
+    ear.position.set(x, 1.56, 0.02);
+    monster.add(ear);
+
+    const innerEar = new THREE.Mesh(innerEarGeometry, innerEarMaterial);
+    innerEar.scale.set(0.8, 1.15, 0.28);
+    innerEar.position.set(x, 1.56, 0.38);
+    monster.add(innerEar);
+  }
+
+  const eyeGeometry = new THREE.SphereGeometry(0.3, 24, 18);
+  const pupilGeometry = new THREE.SphereGeometry(0.105, 16, 12);
+  const eyes: THREE.Mesh[] = [];
+  for (const x of [-0.5, 0.5]) {
     const eye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    eye.scale.set(0.85, 1.25, 0.45);
-    eye.position.set(x, 1.55, 1.0);
+    eye.scale.set(0.86, 1.32, 0.48);
+    eye.position.set(x, 1.61, 1.08);
     monster.add(eye);
+    eyes.push(eye);
 
     const pupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
-    pupil.scale.set(0.8, 1.35, 0.45);
-    pupil.position.set(x, 1.56, 1.27);
+    pupil.scale.set(0.82, 1.42, 0.45);
+    pupil.position.set(x, 1.62, 1.37);
     monster.add(pupil);
   }
 
-  const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.52, 24, 16), darkMaterial);
-  mouth.scale.set(1.15, 0.48, 0.28);
-  mouth.position.set(0, 0.98, 1.03);
+  const browGeometry = new THREE.CapsuleGeometry(0.08, 0.34, 5, 10);
+  for (const x of [-0.5, 0.5]) {
+    const brow = new THREE.Mesh(browGeometry, bodyMaterial);
+    brow.position.set(x, 1.98, 1.03);
+    brow.rotation.z = x < 0 ? -0.22 : 0.22;
+    monster.add(brow);
+  }
+
+  const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.56, 24, 16), darkMaterial);
+  mouth.scale.set(1.18, 0.5, 0.3);
+  mouth.position.set(0, 1.02, 1.1);
   monster.add(mouth);
 
+  const jaw = new THREE.Mesh(new THREE.SphereGeometry(0.47, 24, 16), headMaterial);
+  jaw.scale.set(1.16, 0.3, 0.28);
+  jaw.position.set(0, 0.83, 1.12);
+  monster.add(jaw);
+
   const toothGeometry = new THREE.ConeGeometry(0.1, 0.3, 8);
-  for (const x of [-0.27, 0, 0.27]) {
+  for (const x of [-0.36, -0.12, 0.12, 0.36]) {
     const tooth = new THREE.Mesh(toothGeometry, toothMaterial);
-    tooth.position.set(x, 1.1, 1.3);
+    tooth.position.set(x, 1.13, 1.38);
     tooth.rotation.x = Math.PI;
     monster.add(tooth);
   }
 
-  const hornGeometry = new THREE.ConeGeometry(0.3, 1.15, 10);
+  const hornGeometry = new THREE.ConeGeometry(0.32, 1.2, 12);
   for (const x of [-0.72, 0.72]) {
     const horn = new THREE.Mesh(hornGeometry, hornMaterial);
-    horn.position.set(x, 2.75, 0.05);
+    horn.position.set(x, 2.84, 0.08);
     horn.rotation.z = x < 0 ? -0.22 : 0.22;
     monster.add(horn);
+
+    const hornBase = new THREE.Mesh(new THREE.SphereGeometry(0.34, 18, 12), hornMaterial);
+    hornBase.scale.set(1, 0.5, 0.8);
+    hornBase.position.set(x, 2.38, 0.08);
+    monster.add(hornBase);
   }
 
-  const armGeometry = new THREE.CapsuleGeometry(0.28, 0.95, 8, 16);
-  for (const x of [-1.45, 1.45]) {
+  const spikeGeometry = new THREE.ConeGeometry(0.22, 0.62, 8);
+  for (const y of [-0.7, -0.05, 0.6, 1.2]) {
+    const spike = new THREE.Mesh(spikeGeometry, bodyMaterial);
+    spike.position.set(0, y, -0.76);
+    spike.rotation.x = -Math.PI / 2;
+    monster.add(spike);
+  }
+
+  const armGeometry = new THREE.CapsuleGeometry(0.29, 1.02, 8, 16);
+  const arms: THREE.Mesh[] = [];
+  for (const x of [-1.48, 1.48]) {
     const arm = new THREE.Mesh(armGeometry, bodyMaterial);
-    arm.position.set(x, -0.2, 0);
+    arm.position.set(x, -0.14, 0.02);
     arm.rotation.z = x < 0 ? -0.62 : 0.62;
     monster.add(arm);
+    arms.push(arm);
 
-    const claw = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 12), hornMaterial);
-    claw.scale.set(1.15, 0.7, 0.9);
-    claw.position.set(x + (x < 0 ? -0.28 : 0.28), -0.9, 0.02);
-    monster.add(claw);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.36, 18, 14), hornMaterial);
+    hand.scale.set(1.15, 0.72, 0.92);
+    hand.position.set(x + (x < 0 ? -0.3 : 0.3), -0.87, 0.18);
+    monster.add(hand);
+
+    for (const clawOffset of [-0.14, 0, 0.14]) {
+      const claw = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.28, 7), toothMaterial);
+      claw.position.set(hand.position.x + clawOffset, -1.07, 0.3);
+      claw.rotation.x = -0.45;
+      monster.add(claw);
+    }
   }
 
+  const legGeometry = new THREE.CapsuleGeometry(0.34, 0.55, 8, 14);
+  const legs: THREE.Mesh[] = [];
+  for (const x of [-0.58, 0.58]) {
+    const leg = new THREE.Mesh(legGeometry, bodyMaterial);
+    leg.position.set(x, -1.18, 0.08);
+    monster.add(leg);
+    legs.push(leg);
+
+    const foot = new THREE.Mesh(new THREE.SphereGeometry(0.48, 20, 14), hornMaterial);
+    foot.scale.set(1.25, 0.52, 1.15);
+    foot.position.set(x, -1.56, 0.36);
+    monster.add(foot);
+  }
+
+  const tail = new THREE.Mesh(
+    new THREE.TorusGeometry(0.58, 0.13, 8, 20, Math.PI * 1.35),
+    bodyMaterial
+  );
+  tail.position.set(-1.05, -0.45, -0.48);
+  tail.rotation.set(0.35, -0.5, -0.7);
+  monster.add(tail);
+
+  const particleGroup = new THREE.Group();
+  const particleMaterial = new THREE.MeshBasicMaterial({ color: 0xf0abfc, transparent: true, opacity: 0.8 });
+  for (let index = 0; index < 12; index += 1) {
+    const particle = new THREE.Mesh(new THREE.IcosahedronGeometry(0.045 + (index % 3) * 0.018, 0), particleMaterial);
+    const angle = (index / 12) * Math.PI * 2;
+    particle.position.set(Math.cos(angle) * 2.15, 0.2 + (index % 4) * 0.48, Math.sin(angle) * 0.7 - 0.15);
+    particleGroup.add(particle);
+  }
+  monster.add(particleGroup);
+
   const aura = new THREE.Mesh(
-    new THREE.SphereGeometry(2.8, 32, 16),
-    new THREE.MeshBasicMaterial({ color: 0xec4899, transparent: true, opacity: 0.07, depthWrite: false })
+    new THREE.SphereGeometry(2.9, 32, 16),
+    new THREE.MeshBasicMaterial({ color: 0xec4899, transparent: true, opacity: 0.065, depthWrite: false })
   );
   aura.position.y = 0.65;
   monster.add(aura);
 
+  monster.userData.parts = { body, head, belly, chestCrystal, eyes, arms, legs, particleGroup };
   scene.add(monster);
   return monster;
 }
@@ -185,9 +290,9 @@ export default function Monster3D({
 
     const scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0x090613, 6, 14);
-    const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
-    camera.position.set(0, 1.2, 8);
-    camera.lookAt(0, 0.75, 0);
+    const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+    camera.position.set(0.28, 1.25, 8.5);
+    camera.lookAt(0, 0.72, 0);
 
     scene.add(new THREE.HemisphereLight(0xffb7f6, 0x130b2b, 2.1));
     const keyLight = new THREE.DirectionalLight(0xffffff, 3.2);
@@ -209,6 +314,16 @@ export default function Monster3D({
     scene.add(floor);
 
     const monster = createMonster(scene);
+    const parts = monster.userData.parts as {
+      body: THREE.Mesh;
+      head: THREE.Mesh;
+      belly: THREE.Mesh;
+      chestCrystal: THREE.Mesh;
+      eyes: THREE.Mesh[];
+      arms: THREE.Mesh[];
+      legs: THREE.Mesh[];
+      particleGroup: THREE.Group;
+    };
     const clock = new THREE.Clock();
     let frameId = 0;
 
@@ -229,18 +344,36 @@ export default function Monster3D({
       const currentEffect = effectRef.current;
       const isDead = defeatedRef.current || currentEffect === 'death';
       const isHit = currentEffect === 'hit';
+      const breathe = 1 + Math.sin(elapsed * 1.8) * 0.025;
+      const blink = Math.sin(elapsed * 0.72) > 0.986 ? 0.12 : 1;
 
       if (isDead) {
-        monster.rotation.y += 0.012;
+        monster.rotation.y = THREE.MathUtils.lerp(monster.rotation.y, -0.22, 0.04);
         monster.rotation.z = THREE.MathUtils.lerp(monster.rotation.z, -0.38, 0.04);
         monster.scale.lerp(new THREE.Vector3(0.82, 0.82, 0.82), 0.035);
       } else {
-        monster.rotation.y = Math.sin(elapsed * 0.8) * 0.16;
+        monster.rotation.y = -0.06 + Math.sin(elapsed * 0.8) * 0.08;
         monster.rotation.z = isHit ? Math.sin(elapsed * 42) * 0.09 : 0;
-        monster.position.y = -0.25 + Math.sin(elapsed * 1.8) * 0.1;
+        monster.position.y = -0.35 + Math.sin(elapsed * 1.8) * 0.1;
         monster.scale.lerp(new THREE.Vector3(1, 1, 1), 0.08);
+
+        parts.body.scale.set(breathe, 1.18 * breathe, 0.84 * breathe);
+        parts.head.position.y = 1.5 + Math.sin(elapsed * 1.8) * 0.025;
+        parts.belly.position.y = -0.22 + Math.sin(elapsed * 1.8) * 0.035;
+        parts.eyes.forEach((eye) => { eye.scale.y = 1.32 * blink; });
+        parts.arms.forEach((arm, index) => {
+          const direction = index === 0 ? -1 : 1;
+          arm.rotation.z = direction * (0.62 + Math.sin(elapsed * 1.6 + index) * 0.035);
+        });
+        parts.legs.forEach((leg, index) => {
+          leg.rotation.z = Math.sin(elapsed * 1.8 + index * Math.PI) * 0.025;
+        });
+        parts.chestCrystal.rotation.y = elapsed * 1.4;
+        parts.chestCrystal.rotation.x = 0.25 + Math.sin(elapsed * 2) * 0.08;
       }
 
+      parts.particleGroup.rotation.y = elapsed * 0.18;
+      parts.particleGroup.position.y = Math.sin(elapsed * 1.4) * 0.08;
       floor.scale.setScalar(1 + Math.sin(elapsed * 2) * 0.06);
       pinkLight.intensity = 6.5 + Math.sin(elapsed * 2.2) * 1.2;
       renderer.render(scene, camera);
