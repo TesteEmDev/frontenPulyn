@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 interface Monster3DProps {
   hp: number;
@@ -314,6 +315,89 @@ export default function Monster3D({
     scene.add(floor);
 
     const monster = createMonster(scene);
+    let importedModel: THREE.Object3D | null = null;
+    let modelMixer: THREE.AnimationMixer | null = null;
+    let modelActions: Record<string, THREE.AnimationAction> = {};
+    let lastModelState = '';
+    let disposed = false;
+
+    const playModelAction = (state: string) => {
+      const action = modelActions[state] || modelActions.idle;
+      if (!action || lastModelState === state) return;
+
+      Object.values(modelActions).forEach((otherAction) => {
+        if (otherAction !== action) otherAction.fadeOut(0.12);
+      });
+      action.reset().fadeIn(0.12);
+      if (state === 'death' || state === 'hit' || state === 'attack') {
+        action.setLoop(THREE.LoopOnce, 1);
+        action.clampWhenFinished = true;
+      } else {
+        action.setLoop(THREE.LoopRepeat, Infinity);
+        action.clampWhenFinished = false;
+      }
+      action.play();
+      lastModelState = state;
+    };
+
+    const modelLoader = new GLTFLoader();
+    modelLoader.load(
+      '/models/morrendo.glb',
+      (gltf) => {
+        if (disposed) return;
+
+        const model = gltf.scene;
+        model.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          object.castShadow = true;
+          object.receiveShadow = true;
+        });
+
+        const initialBounds = new THREE.Box3().setFromObject(model);
+        const initialSize = initialBounds.getSize(new THREE.Vector3());
+        const targetHeight = 4.45;
+        const modelScale = initialSize.y > 0 ? targetHeight / initialSize.y : 1;
+        model.scale.setScalar(modelScale);
+
+        const scaledBounds = new THREE.Box3().setFromObject(model);
+        const scaledCenter = scaledBounds.getCenter(new THREE.Vector3());
+        model.position.x -= scaledCenter.x;
+        model.position.z -= scaledCenter.z;
+        model.position.y += -1.62 - scaledBounds.min.y;
+        scene.add(model);
+
+        modelMixer = new THREE.AnimationMixer(model);
+        const findClip = (terms: string[]) => gltf.animations.find((clip) => {
+          const clipName = clip.name.toLowerCase();
+          return terms.some((term) => clipName.includes(term));
+        });
+        const createAction = (terms: string[]) => {
+          const clip = findClip(terms);
+          return clip && modelMixer ? modelMixer.clipAction(clip) : undefined;
+        };
+
+        modelActions = {
+          idle: createAction(['flying_idle', 'idle']) || createAction(['flying']),
+          attack: createAction(['punch']) || createAction(['headbutt']),
+          hit: createAction(['hitreact', 'hit']),
+          death: createAction(['death', 'die']),
+          special: createAction(['headbutt']),
+          victory: createAction(['yes']),
+        } as Record<string, THREE.AnimationAction>;
+        modelActions = Object.fromEntries(
+          Object.entries(modelActions).filter(([, action]) => Boolean(action))
+        ) as Record<string, THREE.AnimationAction>;
+
+        monster.visible = false;
+        importedModel = model;
+        playModelAction('idle');
+      },
+      undefined,
+      (error) => {
+        console.warn('Não foi possível carregar o modelo GLB do monstro. Usando fallback procedural.', error);
+      }
+    );
+
     const parts = monster.userData.parts as {
       body: THREE.Mesh;
       head: THREE.Mesh;
@@ -340,12 +424,24 @@ export default function Monster3D({
     resize();
 
     const animate = () => {
+      const delta = clock.getDelta();
       const elapsed = clock.getElapsedTime();
       const currentEffect = effectRef.current;
       const isDead = defeatedRef.current || currentEffect === 'death';
       const isHit = currentEffect === 'hit';
       const breathe = 1 + Math.sin(elapsed * 1.8) * 0.025;
       const blink = Math.sin(elapsed * 0.72) > 0.986 ? 0.12 : 1;
+
+      if (importedModel && modelMixer) {
+        playModelAction(isDead ? 'death' : isHit ? 'hit' : 'idle');
+        modelMixer.update(delta);
+        importedModel.rotation.y = isDead
+          ? THREE.MathUtils.lerp(importedModel.rotation.y, -0.22, 0.04)
+          : Math.sin(elapsed * 0.7) * 0.045;
+        importedModel.rotation.z = isDead
+          ? THREE.MathUtils.lerp(importedModel.rotation.z, -0.12, 0.04)
+          : isHit ? Math.sin(elapsed * 36) * 0.025 : 0;
+      }
 
       if (isDead) {
         monster.rotation.y = THREE.MathUtils.lerp(monster.rotation.y, -0.22, 0.04);
@@ -382,8 +478,10 @@ export default function Monster3D({
     animate();
 
     return () => {
+      disposed = true;
       window.cancelAnimationFrame(frameId);
       resizeObserver.disconnect();
+      modelMixer?.stopAllAction();
       scene.traverse((object) => {
         if (!(object instanceof THREE.Mesh)) return;
         object.geometry.dispose();
