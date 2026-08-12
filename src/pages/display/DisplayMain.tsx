@@ -608,19 +608,22 @@ export default function DisplayMain() {
 
           {monsterStatus?.gameType === 'monster_hunt' && (
             <div className="mx-auto mb-6 max-w-5xl rounded-3xl border-2 border-danger/70 bg-gradient-to-br from-red-950/80 via-dark-surface/90 to-purple-950/70 p-6 text-center shadow-2xl shadow-danger/20" aria-live="polite">
-              <div className="mb-4 flex items-center justify-center gap-3">
-                <span className="animate-pulse text-5xl">👹</span>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-danger">Caça ao Monstro</p>
-                  <h2 className="font-display text-4xl font-bold text-white">Derrote o monstro!</h2>
+              <div className="mb-4">
+                <div className="flex items-center justify-center gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-danger">Caça ao Monstro</p>
+                    <h2 className="font-display text-4xl font-bold text-white">Derrote o monstro!</h2>
+                  </div>
                 </div>
-                <Monster3D
-                  hp={monsterStatus.monsterHp ?? 0}
-                  maxHp={monsterStatus.monsterMaxHp ?? 100}
-                  defeated={Boolean(monsterStatus.monsterDefeated || monsterStatus.completed)}
-                  winnerTeamName={monsterStatus.winnerTeamName}
-                  winnerTeamColor={monsterStatus.winnerTeamColor}
-                />
+                <div className="mt-4 min-h-[360px] w-full">
+                  <Monster3D
+                    hp={monsterStatus.monsterHp ?? 0}
+                    maxHp={monsterStatus.monsterMaxHp ?? 100}
+                    defeated={Boolean(monsterStatus.monsterDefeated || monsterStatus.completed)}
+                    winnerTeamName={monsterStatus.winnerTeamName}
+                    winnerTeamColor={monsterStatus.winnerTeamColor}
+                  />
+                </div>
               </div>
               <div className="mx-auto max-w-3xl">
                 <div className="mb-2 flex items-center justify-between text-sm font-semibold text-gray-200">
