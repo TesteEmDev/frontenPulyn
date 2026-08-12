@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  Star, FileText, RefreshCw, Settings, X, UserPlus, Loader2, Eye, EyeOff
+  FileText, RefreshCw, Settings, X, UserPlus, Loader2, Eye, EyeOff
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';

@@ -75,8 +75,8 @@ const priorityLabel: Record<TicketPriority, string> = {
 export default function MasterSupport() {
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [tickets, setTickets] = useState<any[]>([]);
-  const [clients, setClients] = useState<any[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [clients, setClients] = useState<Array<{ name: string }>>([]);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
@@ -141,7 +141,7 @@ export default function MasterSupport() {
     }
   };
 
-  const handleStatusChange = async (ticketId: string, newStatus: string) => {
+  const handleStatusChange = async (ticketId: string, newStatus: TicketStatus) => {
     try {
       await api.updateTicketStatus(ticketId, newStatus);
       setTickets(prev => prev.map(t =>

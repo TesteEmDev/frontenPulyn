@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Gamepad2, Users, Play, MapPin, Trophy, Radio, Plus, Edit2, Trash2, Save, X } from 'lucide-react';
+import { Gamepad2, Users, Play, MapPin, Trophy, Radio, Plus, Edit2, Trash2, Save } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
@@ -25,7 +25,7 @@ interface Checkpoint {
   name: string;
   location: string;
   points: number;
-  status: 'active' | 'inactive' | 'offline';
+  status: 'active' | 'inactive' | 'offline' | 'configured';
   event_id?: string;
   territorio_locked_until?: string | null;
   territorio_cooldown_until?: string | null;
@@ -44,7 +44,12 @@ export default function GameMasterCheckpoints() {
   const [editingCheckpointId, setEditingCheckpointId] = useState<string | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    location: string;
+    points: number;
+    status: Checkpoint['status'];
+  }>({
     name: '',
     location: '',
     points: 10,
@@ -135,7 +140,7 @@ export default function GameMasterCheckpoints() {
         alert('✅ Checkpoint criado! (Implementação em progresso)');
       } else if (modalMode === 'edit' && editingCheckpointId) {
         // Editar checkpoint existente
-        await api.updateCheckpointConfig(selectedEventId, editingCheckpointId, formData);
+        await api.saveCheckpointConfig(editingCheckpointId, formData, selectedEventId);
         alert('✅ Checkpoint atualizado com sucesso!');
       }
 

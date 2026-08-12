@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  FileText, RefreshCw, Settings, TrendingUp, Trophy, Star, Shield
+  FileText, RefreshCw, Settings, TrendingUp, Trophy, Shield
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -102,7 +102,6 @@ export default function AdminDashboard() {
   const totalEvents = safeEvents.length;
   const totalChildren = safeChildren.length;
   const activeCheckpoints = safeCheckpoints.filter(cp => cp?.status === 'online').length;
-  const availableGames = safeGames.filter(g => g?.status === 'active').length;
   const conqueredCheckpoints = Object.values(territories).filter(t => t?.isLocked).length;
   const totalScores = safeChildren.reduce((sum, c) => sum + (c?.scores || 0), 0);
 

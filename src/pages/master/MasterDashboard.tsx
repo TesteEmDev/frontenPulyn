@@ -113,7 +113,6 @@ export default function MasterDashboard() {
   const [activeEvents, setActiveEvents] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<MasterAlert[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadDashboardData();
@@ -126,7 +125,6 @@ export default function MasterDashboard() {
 
   const loadDashboardData = async () => {
     try {
-      setLoading(true);
       const [dashboard, clientsData, eventsData, alertsData] = await Promise.all([
         api.getMasterDashboard(),
         api.getMasterClients(),
@@ -140,8 +138,6 @@ export default function MasterDashboard() {
       setAlerts(alertsData || []);
     } catch (error) {
       console.error('❌ Error loading dashboard:', error);
-    } finally {
-      setLoading(false);
     }
   };
 

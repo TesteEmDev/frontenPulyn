@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  FileText, RefreshCw, Settings, X, Plus, Loader2, Edit2, Trash2
+  FileText, RefreshCw, Settings, Plus, Loader2, Edit2, Trash2
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
@@ -12,7 +12,6 @@ import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
-import Select from '../../components/ui/Select';
 import Modal from '../../components/ui/Modal';
 
 const navItems = [
@@ -351,7 +350,7 @@ export default function AdminTeams() {
                           ? 'border-white scale-110' 
                           : 'border-gray-600 hover:border-gray-400'
                       }`}
-                      style={{ backgroundColor: preset.color }}
+                      style={{ backgroundColor: preset.value }}
                       onClick={() => setNewTeam(prev => ({ ...prev, color: preset.value }))}
                       title={preset.label}
                     />

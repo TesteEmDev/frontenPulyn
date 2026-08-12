@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  Star, FileText, RefreshCw, Settings, Plus, ToggleLeft, ToggleRight
+  FileText, RefreshCw, Settings, Plus, ToggleLeft, ToggleRight
 } from 'lucide-react';
-import { usePulynStore, Game } from '../../store/mockData';
+import { usePulynStore } from '../../store/mockData';
 import Sidebar from '../../components/layout/Sidebar';
 import TopBar from '../../components/layout/TopBar';
 import PageHeader from '../../components/layout/PageHeader';

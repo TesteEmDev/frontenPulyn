@@ -77,7 +77,7 @@ export default function MasterLogs() {
   const [filterType, setFilterType] = useState('all');
   const [filterDate, setFilterDate] = useState('');
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
-  const [logEntries, setLogEntries] = useState<any[]>([]);
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

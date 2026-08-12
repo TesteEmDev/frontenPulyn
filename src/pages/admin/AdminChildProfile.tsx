@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  Star, FileText, RefreshCw, Settings, Shield, Clock, Award
+  FileText, RefreshCw, Settings, Shield, Clock, Award
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import Sidebar from '../../components/layout/Sidebar';

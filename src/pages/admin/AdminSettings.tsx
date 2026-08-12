@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  Star, FileText, RefreshCw, Settings, Upload, Save, Shield, Database, Monitor
+  FileText, RefreshCw, Settings, Upload, Save, Shield, Database, Monitor
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import Sidebar from '../../components/layout/Sidebar';
@@ -33,7 +33,7 @@ const navItems = [
 export default function AdminSettings() {
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { settings, loadSettings, updateSettings, updateSetting } = usePulynStore();
+  const { loadSettings, updateSettings } = usePulynStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);

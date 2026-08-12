@@ -35,7 +35,7 @@ export const useAuth = create<AuthStore>((set) => {
       const payload = token.split('.')[1];
       const decoded = JSON.parse(atob(payload));
       return decoded;
-    } catch (err) {
+    } catch {
       return null;
     }
   }

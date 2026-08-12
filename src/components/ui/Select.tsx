@@ -11,10 +11,11 @@ interface SelectProps {
   value?: string;
   onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   className?: string;
+  disabled?: boolean;
 }
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, options, value, onChange, className = '' }, ref) => {
+  ({ label, options, value, onChange, className = '', disabled = false }, ref) => {
     return (
       <div className="w-full">
         {label && (
@@ -26,6 +27,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           ref={ref}
           value={value}
           onChange={onChange}
+          disabled={disabled}
           className={`
             input-dark w-full rounded-lg border border-dark-border bg-dark-surface px-3 py-2
             text-white font-body appearance-none

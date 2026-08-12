@@ -3,6 +3,7 @@ import { Trophy, Medal, Star, Zap, Target, Clock, MapPin, Users, ArrowLeft } fro
 import { useGameWebSocket } from '../../hooks/useGameWebSocket';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
+import Monster3D from '../../components/display/Monster3D';
 
 interface Activity {
   id: string;
@@ -613,6 +614,13 @@ export default function DisplayMain() {
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-danger">Caça ao Monstro</p>
                   <h2 className="font-display text-4xl font-bold text-white">Derrote o monstro!</h2>
                 </div>
+                <Monster3D
+                  hp={monsterStatus.monsterHp ?? 0}
+                  maxHp={monsterStatus.monsterMaxHp ?? 100}
+                  defeated={Boolean(monsterStatus.monsterDefeated || monsterStatus.completed)}
+                  winnerTeamName={monsterStatus.winnerTeamName}
+                  winnerTeamColor={monsterStatus.winnerTeamColor}
+                />
               </div>
               <div className="mx-auto max-w-3xl">
                 <div className="mb-2 flex items-center justify-between text-sm font-semibold text-gray-200">

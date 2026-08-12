@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  Star, FileText, RefreshCw, Settings, Plus, Search, ChevronRight
+  FileText, RefreshCw, Settings, Plus, Search, ChevronRight
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import Sidebar from '../../components/layout/Sidebar';
@@ -162,7 +162,7 @@ export default function AdminChildren() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {filtered.map(child => {
-                    const team = getTeam(child.teamId || child.team_id);
+                    const team = getTeam(child.teamId ?? child.team_id ?? null);
                     const braceletCode = child.bracelet_code || child.bracelet;
                     return (
                       <tr

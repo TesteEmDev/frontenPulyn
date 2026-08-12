@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  Star, FileText, RefreshCw, Settings, Cloud, Server, Clock, AlertTriangle, CheckCircle2
+  FileText, RefreshCw, Settings, Cloud, Server, Clock, AlertTriangle, CheckCircle2
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import TopBar from '../../components/layout/TopBar';

@@ -2,10 +2,9 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  Star, FileText, RefreshCw, Settings, Trophy, Clock, CheckCircle, XCircle, Play, Square
+  Star, FileText, RefreshCw, Settings, Trophy, Clock, CheckCircle
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
-import { api, API_URL } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
 import TopBar from '../../components/layout/TopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -45,8 +44,6 @@ export default function AdminDashboard() {
   } = usePulynStore();
   
   const [loading, setLoading] = useState(true);
-  const [gameStatus, setGameStatus] = useState<any>(null);
-  const [selectedGame, setSelectedGame] = useState<string | null>(null);
 
   // Carregar dados da API
   useEffect(() => {
@@ -56,76 +53,18 @@ export default function AdminDashboard() {
         loadTeams(),
         loadChildren(),
         loadCheckpoints(),
-        loadEvents && loadEvents(),
+        loadEvents(),
       ]);
-      
-      // Buscar status do jogo
-      try {
-        const response = await fetch(`${API_URL}/debug/game-status`);
-        const data = await response.json();
-        setGameStatus(data.status);
-      } catch (err) {
-        console.error('Erro ao buscar status do jogo:', err);
-      }
-      
       setLoading(false);
     };
     loadData();
   }, [loadTeams, loadChildren, loadCheckpoints, loadEvents]);
 
-  const handleStartGame = async () => {
-    if (!selectedGame) {
-      alert('Selecione um jogo primeiro');
-      return;
-    }
-    
-    // Buscar evento ativo (ou primeiro evento disponível)
-    let eventoId = activeEvent?.id;
-    if (!eventoId && safeEvents.length > 0) {
-      eventoId = safeEvents[0].id;
-    }
-    
-    if (!eventoId) {
-      alert('Nenhum evento disponível. Crie um evento primeiro.');
-      return;
-    }
-    
-    try {
-      const data = await api.startGame(selectedGame, 'Jogo em Andamento', eventoId);
-      setGameStatus(data.status);
-      alert('✅ Jogo iniciado! Arduino foi notificado via WebSocket');
-    } catch (err) {
-      alert('❌ Erro ao iniciar jogo: ' + (err instanceof Error ? err.message : String(err)));
-    }
-  };
-
-  const handleStopGame = async () => {
-    // Buscar evento ativo (ou primeiro evento disponível)
-    let eventoId = activeEvent?.id;
-    if (!eventoId && safeEvents.length > 0) {
-      eventoId = safeEvents[0].id;
-    }
-    
-    if (!eventoId) {
-      alert('Nenhum evento disponível.');
-      return;
-    }
-    
-    try {
-      const data = await api.stopGame(eventoId);
-      setGameStatus(data.status);
-      setSelectedGame(null);
-      alert('✅ Jogo parado!');
-    } catch (err) {
-      alert('❌ Erro ao parar jogo: ' + (err instanceof Error ? err.message : String(err)));
-    }
-  };
-
   // Garantir que são arrays
-  const safeCheckpoints = Array.isArray(checkpoints) ? checkpoints : [];
   const safeChildren = Array.isArray(children) ? children : [];
   const safeTeams = Array.isArray(teams) ? teams : [];
   const safeEvents = Array.isArray(events) ? events : [];
+  const safeCheckpoints = Array.isArray(checkpoints) ? checkpoints : [];
 
   // Estatísticas
   const totalChildren = safeChildren.length;

@@ -1,6 +1,6 @@
 import React from 'react';
 
-type StatusType = 'online' | 'offline' | 'warning';
+type StatusType = 'online' | 'offline' | 'warning' | 'configured';
 
 interface StatusDotProps {
   status: StatusType;
@@ -11,6 +11,7 @@ const statusClasses: Record<StatusType, string> = {
   online: 'bg-success-500 animate-pulse',
   offline: 'bg-danger-500',
   warning: 'bg-warning-500',
+  configured: 'bg-primary-500',
 };
 
 const sizeClasses: Record<string, string> = {

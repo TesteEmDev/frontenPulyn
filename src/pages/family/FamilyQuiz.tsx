@@ -57,7 +57,7 @@ export default function FamilyQuiz() {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [score, setScore] = useState(0);
   const [selectedChild, setSelectedChild] = useState<string | null>(null);
-  const [answeredQuestions, setAnsweredQuestions] = useState(0);
+  const [, setAnsweredQuestions] = useState(0);
 
   const activeChildren = children.filter((c) => c.status === 'active' && c.team);
 

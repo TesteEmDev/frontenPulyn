@@ -22,7 +22,7 @@ const sidebarItems = [
 
 export default function GameMasterTeams() {
   const location = useLocation();
-  const { teams = [], children = [], updateTeam, addTeam, deleteTeam, loadTeams, loadChildren, setEventoAtual, eventoAtualId } = usePulynStore();
+  const { teams = [], children = [], updateTeam, deleteTeam, loadTeams, loadChildren, setEventoAtual, eventoAtualId } = usePulynStore();
   
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [editingTeam, setEditingTeam] = useState<string | null>(null);
@@ -126,7 +126,7 @@ export default function GameMasterTeams() {
     
     try {
       // Criar time diretamente com a API
-      const createdTeam = await api.createTime({
+      await api.createTime({
         name: newTeam.name,
         color: newTeam.color,
         evento_id: selectedEventId,

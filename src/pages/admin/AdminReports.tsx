@@ -2,8 +2,8 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  Star, FileText, RefreshCw, Settings, Download, Trophy
+  LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map as MapIcon,
+  FileText, RefreshCw, Settings, Download, Trophy
 } from 'lucide-react';
 import {
   BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis,
@@ -11,7 +11,6 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import { usePulynStore } from '../../store/mockData';
-import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
 import TopBar from '../../components/layout/TopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -26,7 +25,7 @@ const navItems = [
   { icon: <Users size={20} />, label: 'Crianças', path: '/admin/children' },
   { icon: <Gamepad2 size={20} />, label: 'Jogos', path: '/admin/games' },
   { icon: <MapPin size={20} />, label: 'Checkpoints', path: '/admin/checkpoints' },
-  { icon: <Map size={20} />, label: 'Mapa', path: '/admin/map' },
+  { icon: <MapIcon size={20} />, label: 'Mapa', path: '/admin/map' },
   { icon: <Users size={20} />, label: 'Usuários', path: '/admin/users' },
   { icon: <Users size={20} />, label: 'Times', path: '/admin/teams' },
   { icon: <FileText size={20} />, label: 'Relatórios', path: '/admin/reports' },
@@ -95,7 +94,6 @@ export default function AdminReports() {
   }, [loadChildren, loadTeams, loadCheckpoints, loadGames, teams, checkpoints]);
 
   const safeChildren = Array.isArray(children) ? children : [];
-  const safeTeams = Array.isArray(teams) ? teams : [];
   const safeCheckpoints = Array.isArray(checkpoints) ? checkpoints : [];
   const safeScoreLog = Array.isArray(scoreLog) ? scoreLog : [];
   const safeGames = Array.isArray(games) ? games : [];

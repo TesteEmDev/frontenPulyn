@@ -2,11 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  Star, FileText, RefreshCw, Settings, Plus, Lightbulb, Volume2, RotateCcw, Edit, Trash2
+  FileText, RefreshCw, Settings, Plus, Lightbulb, Volume2, Edit, Trash2
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNFCReader } from '../../hooks/useNFCReader';
-import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
 import TopBar from '../../components/layout/TopBar';

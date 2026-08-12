@@ -4,14 +4,12 @@ import { useParams } from 'react-router-dom';
 import { Save, Plus, Trash2, Wifi, WifiOff, CheckCircle, XCircle } from 'lucide-react';
 // No topo do arquivo AdminCheckpointConfig.tsx
 import { usePulynStore } from '../../store/mockData'; // Note: são 2 níveis: ../../store/mockData
-import { useCheckpointSocket } from '../../hooks/useCheckpointSocket';
 import { API_URL } from '../../services/api';
 
 export default function AdminCheckpointConfig() {
   const { id } = useParams<{ id: string }>();
   const { checkpoints, updateCheckpoint } = usePulynStore();
   const checkpoint = checkpoints.find(cp => cp.id === id);
-  const socket = useCheckpointSocket();
   
   const [formData, setFormData] = useState({
     name: checkpoint?.name || '',

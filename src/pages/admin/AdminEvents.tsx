@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  Star, FileText, RefreshCw, Settings, Plus, Edit, Eye, Play, Square, Trash2
+  FileText, RefreshCw, Settings, Plus, Edit, Trash2
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useEvento } from '../../contexts/EventoContext';
@@ -61,7 +61,7 @@ export default function AdminEvents() {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      const result = await loadEventos();
+      await loadEventos();
       setLoading(false);
     };
     loadData();

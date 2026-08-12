@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useArduino } from '../hooks/useArduino';
 import Card from './ui/Card';
 import Button from './ui/Button';
-import Badge from './ui/Badge';
 
 interface ArduinoReaderProps {
   onBraceletRead: (code: string) => void;

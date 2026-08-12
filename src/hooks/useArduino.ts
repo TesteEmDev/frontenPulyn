@@ -1,5 +1,24 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 
+interface SerialPort {
+  readable: ReadableStream<Uint8Array> | null;
+  writable: WritableStream<Uint8Array> | null;
+  getInfo(): { usbProductId?: number; usbVendorId?: number };
+  open(options: { baudRate: number }): Promise<void>;
+  close(): Promise<void>;
+}
+
+interface Serial {
+  getPorts(): Promise<SerialPort[]>;
+  requestPort(): Promise<SerialPort>;
+}
+
+declare global {
+  interface Navigator {
+    serial?: Serial;
+  }
+}
+
 interface UseArduinoOptions {
   enabled?: boolean;
   baudRate?: number;
@@ -16,13 +35,13 @@ export function useArduino(options: UseArduinoOptions = {}) {
   } = options;
 
   const [isConnected, setIsConnected] = useState(false);
-  const [ports, setPorts] = useState<any[]>([]);
+  const [ports, setPorts] = useState<SerialPort[]>([]);
   const [selectedPort, setSelectedPort] = useState<SerialPort | null>(null);
   const readerRef = useRef<ReadableStreamDefaultReader<string> | null>(null);
 
   // Verificar se a Web Serial API está disponível
   const isSerialAvailable = useCallback(() => {
-    return 'serial' in navigator && navigator.serial !== undefined;
+    return navigator.serial !== undefined;
   }, []);
 
   // Listar portas disponíveis
@@ -33,7 +52,7 @@ export function useArduino(options: UseArduinoOptions = {}) {
     }
 
     try {
-      const availablePorts = await navigator.serial.getPorts();
+      const availablePorts = await navigator.serial!.getPorts();
       setPorts(availablePorts);
       return availablePorts;
     } catch (err: any) {
@@ -50,7 +69,7 @@ export function useArduino(options: UseArduinoOptions = {}) {
     }
 
     try {
-      const port = await navigator.serial.requestPort();
+      const port = await navigator.serial!.requestPort();
       setPorts(prev => [...prev, port]);
       return port;
     } catch (err: any) {

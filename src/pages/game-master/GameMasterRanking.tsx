@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Trophy, Users, ArrowUp, ArrowDown, Minus, Gamepad2, Play, MapPin } from 'lucide-react';
-import { usePulynStore, type Child, type Team } from '../../store/mockData';
+import { usePulynStore } from '../../store/mockData';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
-import Button from '../../components/ui/Button';
 import Avatar from '../../components/ui/Avatar';
 import ScoreCounter from '../../components/ui/ScoreCounter';
 

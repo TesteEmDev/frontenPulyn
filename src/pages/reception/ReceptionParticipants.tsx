@@ -286,7 +286,7 @@ export default function ReceptionParticipants() {
         console.log(`✅ Criança ${editingName} atualizada com sucesso`);
       } else if (modalAction === 'change') {
         // Trocar pulseira - LÓGICA ORIGINAL
-        let inputValue = braceletInput;
+        const inputValue = braceletInput;
         console.log(`📊 [START] handleConfirmModal - braceletInput: "${inputValue}"`);
 
         if (!inputValue || !inputValue.trim()) {

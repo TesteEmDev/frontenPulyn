@@ -6,6 +6,7 @@ interface ModalProps {
   title?: string;
   children: React.ReactNode;
   className?: string;
+  size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -14,6 +15,7 @@ const Modal: React.FC<ModalProps> = ({
   title,
   children,
   className = '',
+  size = 'md',
 }) => {
   useEffect(() => {
     if (!isOpen) return;
@@ -26,6 +28,13 @@ const Modal: React.FC<ModalProps> = ({
 
   if (!isOpen) return null;
 
+  const sizeClasses = {
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-2xl',
+    xl: 'max-w-4xl',
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center animate-in fade-in duration-200">
       <div
@@ -34,7 +43,7 @@ const Modal: React.FC<ModalProps> = ({
       />
       <div
         className={`
-          relative z-10 w-full max-w-md rounded-xl border border-dark-border
+          relative z-10 w-full ${sizeClasses[size]} rounded-xl border border-dark-border
           bg-dark-card p-6 shadow-xl animate-in fade-in zoom-in-95 duration-200
           ${className}
         `}

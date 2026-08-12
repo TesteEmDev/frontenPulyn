@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  Star, FileText, RefreshCw, Settings, Check, ChevronLeft, ChevronRight
+  FileText, RefreshCw, Settings, Check, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
@@ -89,9 +89,6 @@ export default function AdminEventNew() {
   const handleCreate = async () => {
     setSaving(true);
     try {
-      // Usar empresa_id do usuário autenticado
-      const empresaId = auth.user?.empresa_id || auth.user?.id;
-      
       await api.createEvento({
         name: formData.name,
         description: formData.description,

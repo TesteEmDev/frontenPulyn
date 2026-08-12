@@ -44,7 +44,7 @@ function PodiumPosition({
   team,
   height,
 }: {
-  child: { nickname: string; avatar: string; score: number } | null;
+  child: { nickname: string; avatar: string; score?: number; scores?: number } | null;
   position: 1 | 2 | 3;
   team: { name: string; color: string; icon: string } | null;
   height: string;
@@ -53,7 +53,7 @@ function PodiumPosition({
 
   useEffect(() => {
     if (!child) return;
-                    const target = Number(child.scores ?? child.score ?? 0);
+    const target = Number(child.scores ?? child.score ?? 0);
     const steps = 40;
     const increment = target / steps;
     let current = 0;
@@ -140,7 +140,7 @@ export default function DisplayRanking() {
     [children]
   );
 
-  const getTeam = (teamId: string | null) => {
+  const getTeam = (teamId: string | null | undefined) => {
     if (!teamId) return null;
     return teams.find((t) => t.id === teamId) || null;
   };

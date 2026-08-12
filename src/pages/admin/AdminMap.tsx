@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map, Star, FileText, RefreshCw, Settings, Upload, CreditCard as Edit3, Trash2, Plus } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map, FileText, RefreshCw, Settings, Upload, CreditCard as Edit3, Trash2, Plus } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import Sidebar from '../../components/layout/Sidebar';
 import TopBar from '../../components/layout/TopBar';
