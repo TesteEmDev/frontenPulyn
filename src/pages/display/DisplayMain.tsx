@@ -38,7 +38,6 @@ interface MonsterDisplayStatus {
   monsterHp?: number;
   monsterMaxHp?: number;
   monsterDefeated?: boolean;
-  monsterSpecialCheckpointId?: string | null;
   winnerTeamName?: string | null;
   winnerTeamColor?: string | null;
   progress?: Array<{
@@ -651,9 +650,6 @@ export default function DisplayMain() {
                     </div>
                   ))}
                 </div>
-              )}
-              {monsterStatus.monsterSpecialCheckpointId && (
-                <p className="mt-4 text-xs text-accent">Checkpoint especial ativo: {checkpoints.find(cp => String(cp.id) === String(monsterStatus.monsterSpecialCheckpointId))?.name || monsterStatus.monsterSpecialCheckpointId} (-30 HP)</p>
               )}
             </div>
           )}

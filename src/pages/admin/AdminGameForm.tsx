@@ -76,7 +76,7 @@ export default function AdminGameForm() {
               id: cp.id,
               enabled: true,
               points: cp.points || 10,
-              cooldown: game.type === 'monster_hunt' ? 15 : (cp.cooldown || 30),
+              cooldown: Number(cp.cooldown) >= 1 ? Number(cp.cooldown) : 15,
               special: Boolean(cp.special),
             }))
           );
@@ -163,7 +163,9 @@ export default function AdminGameForm() {
             id: cp.id,
             enabled: !!savedConfig, // enabled se encontrou no saved
             points: savedConfig?.points || cp.points || 10,
-            cooldown: existingGame.type === 'monster_hunt' ? 15 : (savedConfig?.cooldown || 30),
+            cooldown: Number(savedConfig?.cooldown) >= 1
+              ? Number(savedConfig.cooldown)
+              : existingGame.type === 'monster_hunt' ? 15 : 30,
             special: Boolean(savedConfig?.special),
           };
         });
@@ -234,6 +236,13 @@ export default function AdminGameForm() {
       return;
     }
 
+    if (formData.type === 'monster_hunt' && selectedCheckpoints.some((cp) =>
+      !Number.isInteger(cp.cooldown) || cp.cooldown < 1 || cp.cooldown > 120
+    )) {
+      alert('Defina o bloqueio de cada checkpoint do Monstro entre 1 e 120 segundos.');
+      return;
+    }
+
     setSaving(true);
     try {
       const gameData = {
@@ -246,7 +255,7 @@ export default function AdminGameForm() {
         checkpoints: selectedCheckpoints.map(cp => ({
           id: cp.id,
           points: cp.points,
-          cooldown: formData.type === 'monster_hunt' ? 15 : cp.cooldown,
+          cooldown: cp.cooldown,
           special: formData.type === 'monster_hunt' && Boolean(cp.special),
         })),
       };
@@ -437,10 +446,12 @@ export default function AdminGameForm() {
                                 </label>
                                 <input
                                   type="number"
-                                  value={formData.type === 'monster_hunt' ? 15 : cp.cooldown}
+                                  value={cp.cooldown}
+                                  min={1}
+                                  max={120}
+                                  step={1}
                                   onChange={e => updateCheckpointConfig(cp.id, 'cooldown', Number(e.target.value))}
-                                  disabled={formData.type === 'monster_hunt'}
-                                  className="w-full rounded-lg border border-gray-500 bg-gray-800 px-3 py-2 text-white placeholder-gray-400 font-body text-sm transition-colors duration-200 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="w-full rounded-lg border border-gray-500 bg-gray-800 px-3 py-2 text-white placeholder-gray-400 font-body text-sm transition-colors duration-200 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50"
                                 />
                               </div>
                             </div>
