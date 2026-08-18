@@ -387,18 +387,25 @@ export default function ReceptionKiosk() {
               </div>
             </div>)}
 
-            {registrationVisible && <div className="grid gap-3 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto xl:grid-cols-2">
-              <section className="rounded-3xl border border-white/10 bg-gray-900/70 p-5 shadow-xl">
+            {registrationVisible && <div className="grid min-h-[calc(100vh-13rem)] gap-4 rounded-[2rem] border border-fuchsia-300/20 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.22),transparent_42%),linear-gradient(135deg,#11152d,#241047_58%,#120b2d)] p-3 shadow-2xl shadow-purple-950/40 sm:p-5 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto xl:grid-cols-2">
+              <section className="flex flex-col rounded-3xl border border-cyan-300/20 bg-[#0b1228]/75 p-4 shadow-xl backdrop-blur sm:p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-wider text-gray-500">Seu avatar</p>
-                    <h3 className="font-display text-2xl font-bold">Escolha seu avatar</h3>
+                    <p className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">Novo jogador</p>
+                    <h3 className="font-display text-2xl font-bold text-white">Escolha seu personagem</h3>
                   </div>
-                  <div className="rounded-full border border-primary/30 bg-primary/10 p-2">
+                  <div className="rounded-full border border-cyan-300/30 bg-cyan-300/10 p-2">
                     <Avatar emoji={selectedAvatar.emoji} size="md" bgColor={selectedAvatar.color} />
                   </div>
                 </div>
-                <div className="grid grid-cols-4 gap-2">
+
+                <div className="mb-4 flex min-h-[150px] flex-1 items-center justify-center rounded-[2rem] border border-cyan-300/15 bg-[radial-gradient(circle,rgba(34,211,238,0.18),transparent_62%)]">
+                  <div className="rounded-full border-4 border-cyan-300/50 bg-cyan-300/10 p-5 shadow-[0_0_55px_rgba(34,211,238,0.3)]">
+                    <Avatar emoji={selectedAvatar.emoji} size="lg" bgColor={selectedAvatar.color} />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-4">
                   {AVATAR_OPTIONS.map(option => {
                     const selected = form.avatar === option.emoji;
                     return (
@@ -410,22 +417,22 @@ export default function ReceptionKiosk() {
                         aria-pressed={selected}
                         onClick={() => setForm(previous => ({ ...previous, avatar: option.emoji }))}
                         className={`flex min-h-[72px] flex-col items-center justify-center rounded-2xl border p-1 transition ${
-                          selected ? 'border-primary bg-primary/20 ring-2 ring-primary/40' : 'border-white/10 bg-black/20 hover:border-primary/60'
+                          selected ? 'border-cyan-300 bg-cyan-300/20 ring-2 ring-cyan-300/40' : 'border-white/10 bg-black/20 hover:border-cyan-300/60'
                         } disabled:cursor-not-allowed disabled:opacity-50`}
                       >
                         <Avatar emoji={option.emoji} size="md" bgColor={option.color} />
-                        <span className="mt-1 text-[10px] text-gray-400">{option.name}</span>
+                        <span className="mt-1 text-[10px] text-gray-300">{option.name}</span>
                       </button>
                     );
                   })}
                 </div>
               </section>
 
-              <section className="rounded-[2rem] border border-fuchsia-400/30 bg-[#21103f]/90 p-4 shadow-xl shadow-purple-950/30 sm:p-5">
+              <section className="flex flex-col rounded-[2rem] border border-fuchsia-300/30 bg-[#21103f]/90 p-4 shadow-xl shadow-purple-950/30 backdrop-blur sm:p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">Novo jogador</p>
-                    <h3 className="font-display text-2xl font-bold text-white">Qual é o seu nome?</h3>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">Seu nome</p>
+                    <h3 className="font-display text-2xl font-bold text-white">Como você se chama?</h3>
                   </div>
                   <span className="text-2xl">✍️</span>
                 </div>
