@@ -332,10 +332,11 @@ export default function ReceptionKiosk() {
             </div>
           </section>
         ) : (
-          <section className={`grid flex-1 gap-4 lg:min-h-0 ${registrationVisible ? 'lg:grid-cols-[minmax(320px,0.78fr)_minmax(420px,1.22fr)]' : 'lg:grid-cols-1'}`}>
-            <div className="relative flex min-h-[500px] flex-col overflow-hidden rounded-3xl border border-primary/30 bg-black/20 p-4 shadow-2xl shadow-primary/10 backdrop-blur sm:p-5 lg:min-h-0">
-              <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/15 blur-3xl" />
-              <div className="relative flex flex-1 flex-col items-center justify-center text-center">
+          <section className="grid flex-1 grid-cols-1 gap-4 lg:min-h-0">
+            {!registrationVisible && (
+              <div className="relative flex min-h-[500px] flex-col overflow-hidden rounded-3xl border border-primary/30 bg-black/20 p-4 shadow-2xl shadow-primary/10 backdrop-blur sm:p-5 lg:min-h-0">
+                <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/15 blur-3xl" />
+                <div className="relative flex flex-1 flex-col items-center justify-center text-center">
                 {state === 'success' && successData ? (
                   <div className="animate-in zoom-in flex flex-col items-center">
                     <div className="mb-5 rounded-full border-4 border-success/60 bg-success/10 p-5 shadow-[0_0_50px_rgba(34,197,94,0.3)]">
@@ -384,7 +385,7 @@ export default function ReceptionKiosk() {
                 <span className={`h-2 w-2 rounded-full ${nfcConnected ? 'bg-success animate-pulse' : 'bg-warning'}`} />
                 {nfcConnected ? 'Aproxime a pulseira no leitor' : 'Verifique a conexão do leitor'}
               </div>
-            </div>
+            </div>)}
 
             {registrationVisible && <div className="grid gap-3 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto xl:grid-cols-2">
               <section className="rounded-3xl border border-white/10 bg-gray-900/70 p-5 shadow-xl">
