@@ -1,4 +1,6 @@
 import { useMemo } from 'react';
+import Avatar from '../../components/ui/Avatar';
+import { DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
 import { usePulynStore } from '../../store/mockData';
 
 interface ZoneConfig {
@@ -74,7 +76,9 @@ function ChildAvatar({
       className="absolute flex flex-col items-center pointer-events-none"
       style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' }}
     >
-      <div className="text-2xl drop-shadow-lg animate-float">{avatar}</div>
+      <div className="animate-float">
+        <Avatar emoji={avatar} size="sm" decorative />
+      </div>
       <span className="font-display text-[10px] text-slate-300 mt-0.5 whitespace-nowrap">
         {nickname}
       </span>
@@ -234,7 +238,7 @@ export default function DisplayMap() {
           <span className="text-xs text-slate-400">Offline</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-lg">🦊</span>
+          <Avatar emoji={DEFAULT_AVATAR_ID} size="sm" decorative />
           <span className="text-xs text-slate-400">Crianca</span>
         </div>
       </div>

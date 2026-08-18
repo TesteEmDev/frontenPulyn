@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import Avatar from '../../components/ui/Avatar';
 import { usePulynStore } from '../../store/mockData';
 
 function Confetti() {
@@ -98,8 +99,8 @@ function PodiumPosition({
     <div className="flex flex-col items-center" style={{ width: '220px' }}>
       {/* Avatar and info */}
       <div className={`flex flex-col items-center mb-4`}>
-        <div className={`text-6xl mb-2 ${position === 1 ? 'animate-float' : ''}`}>
-          {child.avatar}
+        <div className={`mb-2 ${position === 1 ? 'animate-float' : ''}`}>
+          <Avatar emoji={child.avatar} size="lg" decorative />
         </div>
         <span className="font-display text-xl text-slate-100 mb-1">{child.nickname}</span>
         {team && (
@@ -197,7 +198,7 @@ export default function DisplayRanking() {
                   <span className="font-display text-xl font-bold text-slate-500 w-8 text-center">
                     {index + 4}
                   </span>
-                  <span className="text-2xl">{child.avatar}</span>
+                  <Avatar emoji={child.avatar} size="sm" decorative />
                   <span className="font-display text-lg text-slate-200 flex-1">{child.nickname}</span>
                   {child.teamId || child.team_id || child.time_id || child.team && (() => {
                     const t = getTeam(child.teamId ?? child.team_id ?? child.time_id ?? child.team);

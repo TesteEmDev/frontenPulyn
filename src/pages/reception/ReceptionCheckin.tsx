@@ -10,6 +10,15 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import StatusDot from '../../components/ui/StatusDot';
+import Avatar from '../../components/ui/Avatar';
+import AvatarSelector from '../../components/ui/AvatarSelector';
+import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
+
+const AVATAR_OPTIONS = ADVENTURER_AVATARS.map(option => ({
+  emoji: option.id,
+  name: option.label.replace('Avatar ', ''),
+  color: 'bg-primary/20',
+}));
 
 const navItems = [
   {
@@ -79,6 +88,7 @@ export default function ReceptionCheckin() {
     guardian: '',
     phone: '',
     notes: '',
+    avatar: DEFAULT_AVATAR_ID,
   });
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [braceletCode, setBraceletCode] = useState('');
@@ -243,7 +253,7 @@ export default function ReceptionCheckin() {
         name: form.name,
         nickname: form.nickname || form.name.split(' ')[0],
         age: parseInt(form.age) || 5,
-        avatar: '👤',
+        avatar: form.avatar,
         braceletCode: normalizedBraceletCode,
         timeId: selectedTeam,
       };
@@ -257,7 +267,7 @@ export default function ReceptionCheckin() {
       showToast(`✅ ${form.name} cadastrado(a) com sucesso! Time: ${teams.find(t => t.id === selectedTeam)?.name || 'Desconhecido'} Pulseira vinculada.`, 'success');
       
       // Limpar formulário
-      setForm({ name: '', nickname: '', age: '', guardian: '', phone: '', notes: '' });
+      setForm({ name: '', nickname: '', age: '', guardian: '', phone: '', notes: '', avatar: DEFAULT_AVATAR_ID });
       setSelectedTeam(null);
       setBraceletCode('');
       setBraceletStatus('idle');
@@ -310,8 +320,8 @@ export default function ReceptionCheckin() {
 
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
-            title="Novo Cadastro"
-            description="Cadastre uma criança e vincule pulseira NFC"
+            title="Crie seu personagem"
+            description="Escolha seu avatar, informe seus dados e vincule a pulseira NFC"
             icon={
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
@@ -342,6 +352,58 @@ export default function ReceptionCheckin() {
               </div>
             </Card>
           )}
+
+          {/* Criação de personagem */}
+          <Card variant="secondary" className="relative overflow-hidden border-primary/20 bg-gradient-to-br from-primary/10 via-dark-surface to-secondary/10">
+            <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
+            <div className="relative">
+              <div className="mb-5 flex flex-col gap-1">
+                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Novo jogador</span>
+                <h2 className="font-display text-2xl text-white">Crie seu personagem</h2>
+                <p className="text-sm text-gray-400">Escolha um avatar e prepare-se para entrar na aventura!</p>
+              </div>
+
+              <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-[180px_1fr]">
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-black/10 p-5">
+                  <div className="mb-3 rounded-full border border-primary/30 bg-primary/10 p-4 shadow-[0_0_30px_rgba(139,92,246,0.2)]">
+                    <Avatar
+                      emoji={form.avatar}
+                      size="lg"
+                      bgColor={AVATAR_OPTIONS.find(option => option.emoji === form.avatar)?.color || 'bg-primary-500/30'}
+                    />
+                  </div>
+                  <span className="font-display text-lg text-white">
+                    {AVATAR_OPTIONS.find(option => option.emoji === form.avatar)?.name || 'Aventureiro'}
+                  </span>
+                  <span className="mt-1 text-center text-xs text-gray-400">Seu avatar na arena</span>
+                </div>
+
+                <div>
+                  <p className="mb-3 text-sm font-semibold text-gray-200">Escolha seu avatar</p>
+                  <AvatarSelector
+                    value={form.avatar}
+                    onChange={avatar => setForm(prev => ({ ...prev, avatar }))}
+                  />
+                </div>
+              </div>
+
+              <div className={`mt-5 flex items-center gap-3 rounded-xl border px-4 py-3 ${
+                braceletCode ? 'border-success/30 bg-success/10' : 'border-warning/30 bg-warning/10'
+              }`} aria-live="polite">
+                <span className="text-xl">{braceletCode ? '✨' : '📡'}</span>
+                <div>
+                  <p className={`text-sm font-semibold ${braceletCode ? 'text-success' : 'text-warning'}`}>
+                    {braceletCode ? 'Pulseira detectada!' : 'Aproxime a pulseira para começar'}
+                  </p>
+                  <p className="text-xs text-gray-300">
+                    {braceletCode
+                      ? `Código ${braceletCode} pronto para vincular ao personagem.`
+                      : 'O leitor vai preencher o código automaticamente.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Card>
 
           {/* Two-column form */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -553,7 +615,7 @@ export default function ReceptionCheckin() {
                   <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
-                  Cadastrar e Vincular
+                  Cadastrar personagem e vincular
                 </>
               )}
             </Button>

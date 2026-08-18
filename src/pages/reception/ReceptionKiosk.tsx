@@ -3,19 +3,16 @@ import { useAuth } from '../../hooks/useAuth';
 import { useNFCReader } from '../../hooks/useNFCReader';
 import { api } from '../../services/api';
 import Avatar from '../../components/ui/Avatar';
+import AvatarSelector from '../../components/ui/AvatarSelector';
+import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
 import Button from '../../components/ui/Button';
 import StatusDot from '../../components/ui/StatusDot';
 
-const AVATAR_OPTIONS = [
-  { emoji: '🦊', name: 'Raposa', color: 'bg-orange-500/30' },
-  { emoji: '🐯', name: 'Tigre', color: 'bg-yellow-500/30' },
-  { emoji: '🐼', name: 'Panda', color: 'bg-slate-400/30' },
-  { emoji: '🐸', name: 'Sapo', color: 'bg-green-500/30' },
-  { emoji: '🦄', name: 'Unicórnio', color: 'bg-pink-500/30' },
-  { emoji: '🐲', name: 'Dragão', color: 'bg-red-500/30' },
-  { emoji: '🐵', name: 'Macaco', color: 'bg-amber-700/30' },
-  { emoji: '🐙', name: 'Polvo', color: 'bg-purple-500/30' },
-];
+const AVATAR_OPTIONS = ADVENTURER_AVATARS.map(option => ({
+  emoji: option.id,
+  name: option.label.replace('Avatar ', ''),
+  color: 'bg-primary/20',
+}));
 
 const KEYBOARD_ROWS = [
   ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
@@ -78,7 +75,7 @@ export default function ReceptionKiosk() {
   const [state, setState] = useState<KioskState>('waiting');
   const [message, setMessage] = useState('Encoste a pulseira no leitor abaixo da tela para começar');
   const [braceletCode, setBraceletCode] = useState('');
-  const [form, setForm] = useState({ name: '', nickname: '', age: '', avatar: '🦊' });
+  const [form, setForm] = useState({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID });
   const [successData, setSuccessData] = useState<{ name: string; avatar: string; teamName: string } | null>(null);
   const lastReadRef = useRef<{ code: string; at: number } | null>(null);
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -90,7 +87,7 @@ export default function ReceptionKiosk() {
   const resetKiosk = useCallback(() => {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
     setBraceletCode('');
-    setForm({ name: '', nickname: '', age: '', avatar: '🦊' });
+    setForm({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID });
     setSelectedTeam('');
     setSuccessData(null);
     setState('waiting');
@@ -399,27 +396,12 @@ export default function ReceptionKiosk() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  {AVATAR_OPTIONS.map(option => {
-                    const selected = form.avatar === option.emoji;
-                    return (
-                      <button
-                        key={option.emoji}
-                        type="button"
-                        disabled={!canInteract}
-                        aria-label={`Escolher avatar ${option.name}`}
-                        aria-pressed={selected}
-                        onClick={() => setForm(previous => ({ ...previous, avatar: option.emoji }))}
-                        className={`flex min-h-[72px] flex-col items-center justify-center rounded-2xl border p-1 transition ${
-                          selected ? 'border-cyan-300 bg-cyan-300/20 ring-2 ring-cyan-300/40' : 'border-white/10 bg-black/20 hover:border-cyan-300/60'
-                        } disabled:cursor-not-allowed disabled:opacity-50`}
-                      >
-                        <Avatar emoji={option.emoji} size="md" bgColor={option.color} />
-                        <span className="mt-1 text-[10px] text-gray-300">{option.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                <AvatarSelector
+                  value={form.avatar}
+                  onChange={avatar => setForm(previous => ({ ...previous, avatar }))}
+                  disabled={!canInteract}
+                  compact
+                />
               </section>
 
               <section className="flex flex-col rounded-[2rem] border border-fuchsia-300/30 bg-[#21103f]/90 p-4 shadow-xl shadow-purple-950/30 backdrop-blur sm:p-5">
