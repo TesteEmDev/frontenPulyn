@@ -471,6 +471,43 @@ export const api = {
     }
   },
 
+  // ==================== AUTOATENDIMENTO / KIOSK ====================
+  async getKioskEvents() {
+    const res = await fetch(`${API_URL}/kiosk/events`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar eventos (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async getKioskTeams(eventId: string) {
+    const res = await fetch(`${API_URL}/kiosk/events/${encodeURIComponent(eventId)}/teams`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar times (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async getKioskBracelet(code: string) {
+    const res = await fetch(`${API_URL}/kiosk/bracelets/${encodeURIComponent(code)}`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao verificar pulseira (${res.status})`);
+    return data;
+  },
+
+  async createKioskParticipant(eventId: string, data: any) {
+    const res = await fetch(`${API_URL}/kiosk/participants`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ eventId, ...data }),
+    });
+    const response = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(response.error || `Erro ao cadastrar participante (${res.status})`);
+    return response;
+  },
+
   async getEvento(id: string) {
     const res = await fetch(`${API_URL}/eventos/${id}`, {
       headers: getAuthHeaders()

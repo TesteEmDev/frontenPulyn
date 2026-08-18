@@ -26,10 +26,11 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
         'game_master': '/game-master',
         'display': '/display',
         'family': '/family',
-        'master': '/master'
+        'master': '/master',
+        'kiosk': '/reception/kiosk'
       };
       
-      const redirectPath = user?.role ? roleRedirects[user.role] : '/login';
+      const redirectPath = user?.role ? (roleRedirects[user.role] || '/login') : '/login';
       return <Navigate to={redirectPath} replace />;
     }
   }

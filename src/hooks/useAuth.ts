@@ -26,6 +26,7 @@ export const roleLabels: Record<string, string> = {
   game_master: 'Recreacionista',
   family: 'Família',
   display: 'Telão',
+  kiosk: 'Autoatendimento',
 };
 
 export const useAuth = create<AuthStore>((set) => {
@@ -60,7 +61,8 @@ export const useAuth = create<AuthStore>((set) => {
                 : decoded.role === 'display' ? '/display'
                 : decoded.role === 'family' ? '/family'
                 : decoded.role === 'master' ? '/master'
-                : '/admin',
+                : decoded.role === 'kiosk' ? '/reception/kiosk'
+                : '/login',
         plan: decoded.plan
       };
       isInitiallyAuthenticated = true;

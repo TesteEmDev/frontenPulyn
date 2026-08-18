@@ -31,7 +31,7 @@ const navItems = [
   { icon: <Settings size={20} />, label: 'Configurações', path: '/admin/settings' },
 ];
 
-type UserRole = 'admin' | 'reception' | 'game_master' | 'display' | 'family';
+type UserRole = 'admin' | 'reception' | 'game_master' | 'display' | 'family' | 'kiosk';
 
 interface User {
   id: string;
@@ -47,6 +47,7 @@ const roleConfig: Record<UserRole, { label: string; description: string; variant
   game_master: { label: 'Game Master', description: 'Controle do jogo', variant: 'accent' },
   display: { label: 'Telão', description: 'Exibição de placar', variant: 'muted' },
   family: { label: 'Familiar', description: 'Acesso ao app', variant: 'success' },
+  kiosk: { label: 'Autoatendimento', description: 'Totem de cadastro de crianças', variant: 'primary' },
 };
 
 export default function AdminUsers() {

@@ -6,6 +6,7 @@ export function useNFCReader(
   onBraceletDetected: (code: string) => void,
   mode: string = 'default',
   eventoId?: string | null,
+  expectedSource?: string,
 ) {
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -19,6 +20,35 @@ export function useNFCReader(
 
   useEffect(() => {
     let disposed = false;
+
+    const pollReceptionReadings = async (since: number) => {
+      if (disposed || expectedSource !== 'reception' || !eventoId) return since;
+
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) return since;
+
+        const response = await fetch(
+          `${API_URL}/kiosk/events/${encodeURIComponent(eventoId)}/reception-readings?since=${since}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!response.ok) return since;
+
+        const data = await response.json();
+        const readings = Array.isArray(data.readings) ? data.readings : [];
+        let latest = since;
+        readings.forEach((reading: any) => {
+          const receivedAt = Number(reading.receivedAt || 0);
+          latest = Math.max(latest, receivedAt);
+          const code = reading.braceletCode || reading.code || reading.uid;
+          if (code) onBraceletDetectedRef.current(code);
+        });
+        return latest;
+      } catch (error) {
+        console.warn('⚠️ Não foi possível recuperar leituras NFC:', error);
+        return since;
+      }
+    };
 
     const connect = () => {
       if (disposed || !eventoId || socketRef.current?.readyState === WebSocket.OPEN) {
@@ -39,8 +69,10 @@ export function useNFCReader(
       }
 
       serverUrl = serverUrl.replace(/\/+$/, '');
-      const eventQuery = `?evento_id=${encodeURIComponent(eventoId)}`;
-      const ws = new WebSocket(`${serverUrl}${eventQuery}`);
+      const token = expectedSource === 'reception' ? localStorage.getItem('authToken') : null;
+      const eventQuery = new URLSearchParams({ evento_id: eventoId });
+      if (token) eventQuery.set('token', token);
+      const ws = new WebSocket(`${serverUrl}?${eventQuery.toString()}`);
       socketRef.current = ws;
 
       console.log(`🔗 Conectando WebSocket NFC ao evento ${eventoId}: ${serverUrl}`);
@@ -51,8 +83,12 @@ export function useNFCReader(
         console.log(`✅ WebSocket NFC conectado com sucesso (evento: ${eventoId})`);
         setIsConnected(true);
         reconnectAttemptsRef.current = 0;
-        ws.send(JSON.stringify({ type: 'SET_MODE', mode }));
-        console.log(`📡 Modo enviado: ${mode} (evento: ${eventoId})`);
+        if (expectedSource !== 'reception') {
+          ws.send(JSON.stringify({ type: 'SET_MODE', mode }));
+          console.log(`📡 Modo enviado: ${mode} (evento: ${eventoId})`);
+        } else {
+          console.log(`📡 Kiosk conectado ao canal de recepção (evento: ${eventoId})`);
+        }
       };
 
       ws.onmessage = (event) => {
@@ -62,8 +98,19 @@ export function useNFCReader(
           const msg = JSON.parse(event.data);
           console.log('📨 Mensagem NFC recebida:', msg.type);
 
-          if (msg.type === 'NFC_READING_DETECTED' || msg.type === 'BRACELET_DETECTED') {
-            const code = msg.payload?.braceletCode || msg.payload?.code;
+          const isNfcMessage = msg.type === 'NFC_READING_DETECTED' || msg.type === 'BRACELET_DETECTED';
+          const messageEventId = msg.payload?.eventoId || msg.payload?.eventId;
+          const belongsToSelectedEvent = !messageEventId
+            || String(messageEventId).trim().toLowerCase() === String(eventoId).trim().toLowerCase();
+          const isLegacyReceptionMessage = expectedSource === 'reception'
+            && (msg.type === 'BRACELET_DETECTED'
+              || (msg.type === 'NFC_READING_DETECTED' && !msg.payload?.source));
+          const isExpectedReceptionMessage = !expectedSource
+            || msg.payload?.source === expectedSource
+            || isLegacyReceptionMessage;
+
+          if (isNfcMessage && belongsToSelectedEvent && isExpectedReceptionMessage) {
+            const code = msg.payload?.braceletCode || msg.payload?.code || msg.payload?.uid;
             console.log('📱 NFC detectado:', code);
             if (code) onBraceletDetectedRef.current(code);
           }
@@ -91,14 +138,27 @@ export function useNFCReader(
       };
     };
 
+    let receptionSince = Date.now();
+    let receptionPoll: ReturnType<typeof setInterval> | null = null;
+
     if (eventoId) {
       connect();
+      if (expectedSource === 'reception') {
+        // O WebSocket continua sendo o canal principal. Esta recuperação evita
+        // perder uma leitura feita durante reconexão ou antes do handshake.
+        const poll = async () => {
+          receptionSince = await pollReceptionReadings(receptionSince);
+        };
+        poll();
+        receptionPoll = setInterval(poll, 1000);
+      }
     } else {
       setIsConnected(false);
       console.log('⚠️ WebSocket NFC aguardando evento selecionado');
     }
 
     return () => {
+      if (receptionPoll) clearInterval(receptionPoll);
       disposed = true;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
@@ -109,7 +169,7 @@ export function useNFCReader(
       setIsConnected(false);
       if (socket && socket.readyState !== WebSocket.CLOSED) socket.close();
     };
-  }, [mode, eventoId]);
+  }, [mode, eventoId, expectedSource]);
 
   return { isConnected };
 }
