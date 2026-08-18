@@ -386,7 +386,7 @@ export default function ReceptionKiosk() {
               </div>
             </div>
 
-            {registrationVisible && <div className="flex flex-col gap-3 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto">
+            {registrationVisible && <div className="grid gap-3 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto xl:grid-cols-2">
               <section className="rounded-3xl border border-white/10 bg-gray-900/70 p-5 shadow-xl">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
@@ -471,7 +471,7 @@ export default function ReceptionKiosk() {
                 </div>
               </section>
 
-              <section className="rounded-3xl border border-white/10 bg-gray-900/70 p-5 shadow-xl">
+              <section className="rounded-3xl border border-white/10 bg-gray-900/70 p-5 shadow-xl xl:col-span-2">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-wider text-gray-500">Equipe</p>
@@ -499,10 +499,10 @@ export default function ReceptionKiosk() {
                 </div>
               </section>
 
-              <Button variant="primary" size="lg" onClick={handleSubmit} disabled={!canInteract || !form.name.trim() || state === 'saving'} className="min-h-[58px] w-full rounded-2xl text-base">
+              <Button variant="primary" size="lg" onClick={handleSubmit} disabled={!canInteract || !form.name.trim() || state === 'saving'} className="min-h-[58px] w-full rounded-2xl text-base xl:col-span-2">
                 {state === 'saving' ? 'Salvando cadastro...' : '✨ Finalizar cadastro'}
               </Button>
-              <button type="button" onClick={resetKiosk} className="text-sm text-gray-500 transition hover:text-white">Não é você? Limpar e aguardar outra pulseira</button>
+              <button type="button" onClick={resetKiosk} className="text-sm text-gray-500 transition hover:text-white xl:col-span-2">Não é você? Limpar e aguardar outra pulseira</button>
             </div>}
           </section>
         )}
