@@ -269,7 +269,7 @@ export default function ReceptionKiosk() {
   }
 
   return (
-    <main className="min-h-screen overflow-y-auto bg-[radial-gradient(circle_at_top,#312e81_0%,#111827_45%,#030712_100%)] px-3 py-3 text-white sm:px-5 sm:py-4 lg:overflow-hidden">
+    <main className="min-h-screen overflow-y-auto bg-[radial-gradient(circle_at_top,#312e81_0%,#111827_45%,#030712_100%)] px-3 py-3 text-white sm:px-5 sm:py-4 lg:px-4 lg:py-3 xl:overflow-hidden">
       <div className="mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-6xl flex-col">
         <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -396,8 +396,8 @@ export default function ReceptionKiosk() {
             </div>
             </div>
 
-            {registrationVisible && <div className="animate-kiosk-register motion-reduce:animate-none relative z-10 grid min-h-[calc(100vh-13rem)] gap-4 rounded-[2rem] border border-fuchsia-300/20 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.22),transparent_42%),linear-gradient(135deg,#11152d,#241047_58%,#120b2d)] p-3 shadow-2xl shadow-purple-950/40 sm:p-5 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto xl:grid-cols-[minmax(190px,0.55fr)_minmax(360px,1.45fr)]">
-              <section className="flex flex-col rounded-3xl border border-cyan-300/20 bg-[#0b1228]/75 p-4 shadow-xl backdrop-blur sm:p-5">
+            {registrationVisible && <div className="animate-kiosk-register motion-reduce:animate-none relative z-10 grid min-h-[calc(100vh-13rem)] gap-3 rounded-[2rem] border border-fuchsia-300/20 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.22),transparent_42%),linear-gradient(135deg,#11152d,#241047_58%,#120b2d)] p-3 shadow-2xl shadow-purple-950/40 sm:p-5 lg:p-3 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:grid-cols-[minmax(260px,0.72fr)_minmax(420px,1.28fr)] xl:grid-cols-[minmax(190px,0.55fr)_minmax(360px,1.45fr)]">
+              <section className="flex flex-col rounded-3xl border border-cyan-300/20 bg-[#0b1228]/75 p-4 shadow-xl backdrop-blur sm:p-5 lg:p-3">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">Novo jogador</p>
@@ -416,7 +416,7 @@ export default function ReceptionKiosk() {
                 />
               </section>
 
-              <section className="flex flex-col rounded-[2rem] border border-fuchsia-300/30 bg-[#21103f]/90 p-4 shadow-xl shadow-purple-950/30 backdrop-blur sm:p-5">
+              <section className="flex flex-col rounded-[2rem] border border-fuchsia-300/30 bg-[#21103f]/90 p-4 shadow-xl shadow-purple-950/30 backdrop-blur sm:p-5 lg:p-3">
                 <div className="mb-4 flex items-center gap-3 rounded-3xl border border-fuchsia-300/20 bg-black/20 p-3">
                   <div className="rounded-full border-4 border-fuchsia-300/50 bg-fuchsia-300/10 p-2 shadow-[0_0_35px_rgba(217,70,239,0.3)]">
                     <Avatar emoji={selectedAvatar.emoji} size="lg" bgColor={selectedAvatar.color} />
@@ -470,7 +470,7 @@ export default function ReceptionKiosk() {
                 </div>
               </section>
 
-              <section className="rounded-3xl border border-white/10 bg-gray-900/70 p-5 shadow-xl xl:col-span-2">
+              <section className="rounded-3xl border border-white/10 bg-gray-900/70 p-5 shadow-xl lg:col-span-2">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-wider text-gray-500">Equipe</p>
@@ -498,10 +498,10 @@ export default function ReceptionKiosk() {
                 </div>
               </section>
 
-              <Button variant="primary" size="lg" onClick={handleSubmit} disabled={!canInteract || !form.name.trim() || state === 'saving'} className="min-h-[58px] w-full rounded-2xl text-base xl:col-span-2">
+              <Button variant="primary" size="lg" onClick={handleSubmit} disabled={!canInteract || !form.name.trim() || state === 'saving'} className="min-h-[58px] w-full rounded-2xl text-base lg:col-span-2">
                 {state === 'saving' ? 'Salvando cadastro...' : '✨ Finalizar cadastro'}
               </Button>
-              <button type="button" onClick={resetKiosk} className="text-sm text-gray-500 transition hover:text-white xl:col-span-2">Não é você? Limpar e aguardar outra pulseira</button>
+              <button type="button" onClick={resetKiosk} className="text-sm text-gray-500 transition hover:text-white lg:col-span-2">Não é você? Limpar e aguardar outra pulseira</button>
             </div>}
           </section>
         )}

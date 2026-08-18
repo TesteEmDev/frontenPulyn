@@ -25,7 +25,7 @@ export default function AvatarSelector({
     : DEFAULT_AVATAR_ID;
 
   const scrollClasses = compact
-    ? 'max-h-[360px] sm:max-h-[420px]'
+    ? 'max-h-[300px] sm:max-h-[340px] xl:max-h-[420px]'
     : 'max-h-[420px] sm:max-h-[520px]';
 
   return (
