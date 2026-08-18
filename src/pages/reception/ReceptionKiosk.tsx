@@ -79,13 +79,20 @@ export default function ReceptionKiosk() {
   const [successData, setSuccessData] = useState<{ name: string; avatar: string; teamName: string } | null>(null);
   const lastReadRef = useRef<{ code: string; at: number } | null>(null);
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const kioskStateRef = useRef<KioskState>('waiting');
 
   const selectedAvatar = AVATAR_OPTIONS.find(option => option.emoji === form.avatar) || AVATAR_OPTIONS[0];
   const selectedEvent = events.find(event => String(event.id) === String(selectedEventId));
   const selectedTeamData = teams.find(team => String(team.id) === String(selectedTeam));
 
+  useEffect(() => {
+    kioskStateRef.current = state;
+  }, [state]);
+
   const resetKiosk = useCallback(() => {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
+    lastReadRef.current = null;
+    kioskStateRef.current = 'waiting';
     setBraceletCode('');
     setForm({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID });
     setSelectedTeam('');
@@ -96,12 +103,14 @@ export default function ReceptionKiosk() {
 
   const handleBraceletDetected = useCallback((code: string) => {
     const normalizedCode = normalizeUid(code);
-    if (!normalizedCode || state === 'saving' || state === 'success') return;
+    const currentState = kioskStateRef.current;
+    if (!normalizedCode || currentState === 'reading' || currentState === 'saving' || currentState === 'success') return;
 
     const now = Date.now();
     const previousRead = lastReadRef.current;
     if (previousRead?.code === normalizedCode && now - previousRead.at < 2500) return;
     lastReadRef.current = { code: normalizedCode, at: now };
+    kioskStateRef.current = 'reading';
 
     setBraceletCode(normalizedCode);
     setState('reading');
@@ -109,18 +118,23 @@ export default function ReceptionKiosk() {
 
     api.getKioskBracelet(normalizedCode)
       .then(pulseira => {
+        if (lastReadRef.current?.code !== normalizedCode) return;
         if (!pulseira.available) {
+          kioskStateRef.current = 'error';
           setState('error');
           setMessage(`Esta pulseira já está ${pulseira.status === 'em_uso' ? 'vinculada a outra criança' : 'indisponível'}.`);
           return;
         }
+        kioskStateRef.current = 'ready';
         setState('ready');
       })
       .catch(() => {
+        if (lastReadRef.current?.code !== normalizedCode) return;
+        kioskStateRef.current = 'error';
         setState('error');
         setMessage('Não foi possível verificar a pulseira. Tente novamente.');
       });
-  }, [state]);
+  }, []);
 
   const { isConnected } = useNFCReader(
     handleBraceletDetected,
@@ -172,6 +186,7 @@ export default function ReceptionKiosk() {
     }
 
     setLoadingTeams(true);
+    kioskStateRef.current = 'waiting';
     setState('waiting');
     setMessage('Aproxime a pulseira no leitor para começar.');
     api.getKioskTeams(selectedEventId)
@@ -196,6 +211,7 @@ export default function ReceptionKiosk() {
     if (!form.name.trim()) return setMessage('Digite o nome da criança.');
     if (state === 'saving') return;
 
+    kioskStateRef.current = 'saving';
     setState('saving');
     setMessage('Criando personagem...');
     try {
@@ -213,10 +229,12 @@ export default function ReceptionKiosk() {
         avatar: form.avatar,
         teamName: selectedTeamData?.name || 'Seu time',
       });
+      kioskStateRef.current = 'success';
       setState('success');
       setMessage('Personagem criado com sucesso!');
       successTimerRef.current = setTimeout(resetKiosk, 5000);
     } catch (error) {
+      kioskStateRef.current = 'error';
       setState('error');
       setMessage(getErrorMessage(error));
     }
@@ -329,8 +347,8 @@ export default function ReceptionKiosk() {
             </div>
           </section>
         ) : (
-          <section className="grid flex-1 grid-cols-1 gap-4 lg:min-h-0">
-            {!registrationVisible && (
+          <section className="relative flex-1 min-h-0">
+            <div className={`transition-all duration-500 ease-out motion-reduce:transition-none ${registrationVisible ? 'pointer-events-none absolute inset-0 z-0 -translate-x-16 scale-95 opacity-0 blur-[2px]' : 'relative z-10 translate-x-0 scale-100 opacity-100'}`}>
               <div className="relative flex min-h-[500px] flex-col overflow-hidden rounded-3xl border border-primary/30 bg-black/20 p-4 shadow-2xl shadow-primary/10 backdrop-blur sm:p-5 lg:min-h-0">
                 <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/15 blur-3xl" />
                 <div className="relative flex flex-1 flex-col items-center justify-center text-center">
@@ -347,16 +365,10 @@ export default function ReceptionKiosk() {
                 ) : (
                   <>
                     <div className="mb-5 rounded-full border-4 border-cyan-300/30 bg-cyan-300/5 p-2 shadow-[0_0_50px_rgba(34,211,238,0.18)]">
-                      {registrationVisible ? (
-                        <div className="rounded-full border-4 border-success/60 bg-success/10 p-5 shadow-[0_0_50px_rgba(34,197,94,0.25)]">
-                          <Avatar emoji={selectedAvatar.emoji} size="lg" bgColor={selectedAvatar.color} />
-                        </div>
-                      ) : (
-                        <BraceletReaderIllustration active={state === 'reading'} />
-                      )}
+                      <BraceletReaderIllustration active={state === 'reading'} />
                     </div>
-                    <p className={`text-sm font-semibold uppercase tracking-[0.25em] ${registrationVisible ? 'text-success' : 'text-cyan-200'}`}>
-                      {registrationVisible
+                    <p className={`text-sm font-semibold uppercase tracking-[0.25em] ${state === 'error' ? 'text-danger' : state === 'ready' ? 'text-success' : 'text-cyan-200'}`}>
+                      {state === 'ready'
                         ? 'Pulseira reconhecida'
                         : state === 'reading'
                           ? 'Verificando pulseira'
@@ -365,8 +377,8 @@ export default function ReceptionKiosk() {
                             : 'Aguardando pulseira'}
                     </p>
                     <h2 className="mt-3 max-w-xl font-display text-3xl font-bold sm:text-4xl lg:text-5xl">
-                      {registrationVisible
-                        ? 'Agora vamos criar seu personagem!'
+                      {state === 'ready'
+                        ? 'Pulseira reconhecida!'
                         : state === 'reading'
                           ? 'Só um instante...'
                           : state === 'error'
@@ -374,7 +386,6 @@ export default function ReceptionKiosk() {
                             : 'Aproxime sua pulseira'}
                     </h2>
                     <p className={`mt-4 max-w-lg text-base sm:text-lg ${state === 'error' ? 'text-danger' : 'text-gray-400'}`}>{message}</p>
-                    {registrationVisible && <p className="mt-3 rounded-full border border-white/10 bg-black/20 px-4 py-2 font-mono text-sm text-gray-300">UID: {braceletCode}</p>}
                   </>
                 )}
               </div>
@@ -382,9 +393,10 @@ export default function ReceptionKiosk() {
                 <span className={`h-2 w-2 rounded-full ${nfcConnected ? 'bg-success animate-pulse' : 'bg-warning'}`} />
                 {nfcConnected ? 'Aproxime a pulseira no leitor' : 'Verifique a conexão do leitor'}
               </div>
-            </div>)}
+            </div>
+            </div>
 
-            {registrationVisible && <div className="grid min-h-[calc(100vh-13rem)] gap-4 rounded-[2rem] border border-fuchsia-300/20 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.22),transparent_42%),linear-gradient(135deg,#11152d,#241047_58%,#120b2d)] p-3 shadow-2xl shadow-purple-950/40 sm:p-5 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto xl:grid-cols-[minmax(190px,0.55fr)_minmax(360px,1.45fr)]">
+            {registrationVisible && <div className="animate-kiosk-register motion-reduce:animate-none relative z-10 grid min-h-[calc(100vh-13rem)] gap-4 rounded-[2rem] border border-fuchsia-300/20 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.22),transparent_42%),linear-gradient(135deg,#11152d,#241047_58%,#120b2d)] p-3 shadow-2xl shadow-purple-950/40 sm:p-5 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto xl:grid-cols-[minmax(190px,0.55fr)_minmax(360px,1.45fr)]">
               <section className="flex flex-col rounded-3xl border border-cyan-300/20 bg-[#0b1228]/75 p-4 shadow-xl backdrop-blur sm:p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <div>

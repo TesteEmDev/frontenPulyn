@@ -164,7 +164,7 @@ export default {
         'confetti': 'confetti 1s ease-out forwards',
         'shimmer': 'shimmer 2s linear infinite',
         'particle': 'particle 4s linear infinite',
-      },
+        'kiosk-register': 'kioskRegister 0.65s cubic-bezier(0.22, 1, 0.36, 1) both',      },
       keyframes: {
         glow: {
           '0%': { boxShadow: '0 0 5px rgba(30, 155, 215, 0.3), 0 0 10px rgba(30, 155, 215, 0.1)' },
@@ -210,6 +210,11 @@ export default {
           '10%': { opacity: '1' },
           '90%': { opacity: '1' },
           '100%': { transform: 'translateY(-10vh) scale(1)', opacity: '0' },
+        },
+        kioskRegister: {
+          '0%': { opacity: '0', transform: 'translate3d(48px, 0, 0) scale(0.96)', filter: 'blur(6px)' },
+          '65%': { opacity: '1', transform: 'translate3d(-8px, 0, 0) scale(1.01)', filter: 'blur(0)' },
+          '100%': { opacity: '1', transform: 'translate3d(0, 0, 0) scale(1)', filter: 'blur(0)' },
         },
       },
       backgroundImage: {
