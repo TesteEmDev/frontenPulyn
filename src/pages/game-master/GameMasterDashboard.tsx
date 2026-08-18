@@ -532,12 +532,7 @@ export default function GameMasterDashboard() {
 
     setActionLoading('reset');
     try {
-      const response = await fetch(`${API_URL}/debug/reset-scores/${selectedEventId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      const data = await response.json();
+      const data = await api.resetScores(selectedEventId);
       
       if (data.ok) {
         alert('✅ Pontos resetados com sucesso!');

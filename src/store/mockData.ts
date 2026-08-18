@@ -40,6 +40,9 @@ export interface Checkpoint {
   type: string;
   ip: string;
   zone: string;
+  location?: string | null;
+  map_x?: number | null;
+  map_y?: number | null;
   led: string;
   status: 'online' | 'offline' | 'configured';
   points: number;

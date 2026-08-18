@@ -478,6 +478,36 @@ export const api = {
     return res.json();
   },
 
+  async getFloorPlan(eventoId: string) {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/floor-plan`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar planta (${res.status})`);
+    return data.floorPlan || null;
+  },
+
+  async saveFloorPlan(eventoId: string, data: { dataUrl: string; name: string; type: string }) {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/floor-plan`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const response = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(response.error || `Erro ao salvar planta (${res.status})`);
+    return response;
+  },
+
+  async deleteFloorPlan(eventoId: string) {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/floor-plan`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    const response = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(response.error || `Erro ao remover planta (${res.status})`);
+    return response;
+  },
+
   async createEvento(data: any) {
     const res = await fetch(`${API_URL}/eventos`, {
       method: 'POST',
@@ -583,6 +613,16 @@ export const api = {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao finalizar jogo');
+    return data;
+  },
+
+  async resetScores(eventoId: string) {
+    const res = await fetch(`${API_URL}/debug/reset-scores/${encodeURIComponent(eventoId)}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao resetar pontos (${res.status})`);
     return data;
   },
 
