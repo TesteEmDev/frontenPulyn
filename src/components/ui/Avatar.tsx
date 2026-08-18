@@ -5,13 +5,15 @@ import {
   getDefaultAvatar,
 } from '../../avatar/adventurerAvatars';
 
-type AvatarSize = 'sm' | 'md' | 'lg';
+type AvatarSize = 'sm' | 'md' | 'lg' | 'xl';
+type AvatarShape = 'circle' | 'square';
 
 interface AvatarProps {
   emoji?: string;
   avatar?: string;
   value?: string;
   size?: AvatarSize;
+  shape?: AvatarShape;
   bgColor?: string;
   alt?: string;
   decorative?: boolean;
@@ -21,6 +23,12 @@ const sizeClasses: Record<AvatarSize, string> = {
   sm: 'h-8 w-8 text-sm',
   md: 'h-10 w-10 text-lg',
   lg: 'h-14 w-14 text-2xl',
+  xl: 'h-20 w-20 text-4xl',
+};
+
+const shapeClasses: Record<AvatarShape, string> = {
+  circle: 'rounded-full',
+  square: 'rounded-2xl',
 };
 
 const isLegacyEmoji = (value: unknown): value is string =>
@@ -31,6 +39,7 @@ const Avatar: React.FC<AvatarProps> = ({
   avatar,
   value,
   size = 'md',
+  shape = 'circle',
   bgColor = 'bg-primary-500/30',
   alt,
   decorative = false,
@@ -51,7 +60,7 @@ const Avatar: React.FC<AvatarProps> = ({
 
   return (
     <div
-      className={`inline-flex items-center justify-center overflow-hidden rounded-full font-body select-none ${sizeClasses[size]} ${bgColor}`}
+      className={`inline-flex items-center justify-center overflow-hidden font-body select-none ${shapeClasses[shape]} ${sizeClasses[size]} ${bgColor}`}
       aria-label={decorative ? undefined : accessibleLabel}
       aria-hidden={decorative ? true : undefined}
     >

@@ -24,32 +24,39 @@ export default function AvatarSelector({
     ? value
     : DEFAULT_AVATAR_ID;
 
+  const scrollClasses = compact
+    ? 'max-h-[360px] sm:max-h-[420px]'
+    : 'max-h-[420px] sm:max-h-[520px]';
+
   return (
     <div className={className} role="group" aria-label="Escolha seu avatar">
-      <div className="grid grid-cols-2 gap-3" data-compact={compact}>
-        {ADVENTURER_AVATARS.map(option => {
-          const selected = selectedValue === option.id;
-          return (
-            <button
-              key={option.id}
-              type="button"
-              disabled={disabled}
-              aria-label={`Escolher ${getAvatarLabel(option.id)}`}
-              aria-pressed={selected}
-              onClick={() => onChange(option.id)}
-              className={`group flex min-h-[112px] flex-col items-center justify-center gap-2 rounded-xl border p-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-50 ${
-                selected
-                  ? 'border-primary bg-primary/20 shadow-[0_0_18px_rgba(139,92,246,0.25)] ring-2 ring-primary/40'
-                  : 'border-white/10 bg-black/10 hover:border-primary/60 hover:bg-primary/10'
-              }`}
-            >
-              <Avatar emoji={option.id} size="lg" decorative />
-              <span className={`text-xs ${selected ? 'font-semibold text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
-                {String(option.label).replace('Avatar ', '')}
-              </span>
-            </button>
-          );
-        })}
+      <div className={`overflow-y-auto overscroll-contain pr-2 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5 ${scrollClasses}`}>
+        <div className="grid grid-cols-2 gap-4 px-1 py-2">
+          {ADVENTURER_AVATARS.map((option, index) => {
+            const selected = selectedValue === option.id;
+            const tilt = index % 2 === 0 ? '-rotate-2' : 'rotate-2';
+            return (
+              <button
+                key={option.id}
+                type="button"
+                disabled={disabled}
+                aria-label={`Escolher ${getAvatarLabel(option.id)}`}
+                aria-pressed={selected}
+                onClick={() => onChange(option.id)}
+                className={`group flex aspect-square w-full transform-gpu flex-col items-center justify-center gap-3 rounded-2xl border p-3 transition-all duration-200 ${tilt} hover:rotate-0 hover:scale-[1.03] focus-visible:rotate-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-50 ${
+                  selected
+                    ? 'border-primary bg-primary/20 shadow-[0_0_22px_rgba(139,92,246,0.3)] ring-2 ring-primary/40'
+                    : 'border-white/10 bg-black/10 hover:border-primary/60 hover:bg-primary/10'
+                }`}
+              >
+                <Avatar emoji={option.id} size="xl" shape="square" decorative />
+                <span className={`text-xs ${selected ? 'font-semibold text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
+                  {String(option.label).replace('Avatar ', '')}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
