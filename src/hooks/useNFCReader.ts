@@ -7,22 +7,28 @@ export function useNFCReader(
   mode: string = 'default',
   eventoId?: string | null,
   expectedSource?: string,
+  pollingEnabled = true,
 ) {
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onBraceletDetectedRef = useRef(onBraceletDetected);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectAttemptsRef = useRef(0);
+  const pollingEnabledRef = useRef(pollingEnabled);
 
   useEffect(() => {
     onBraceletDetectedRef.current = onBraceletDetected;
   }, [onBraceletDetected]);
 
   useEffect(() => {
+    pollingEnabledRef.current = pollingEnabled;
+  }, [pollingEnabled]);
+
+  useEffect(() => {
     let disposed = false;
 
     const pollReceptionReadings = async (since: number) => {
-      if (disposed || expectedSource !== 'reception' || !eventoId) return since;
+      if (disposed || !pollingEnabledRef.current || expectedSource !== 'reception' || !eventoId) return since;
 
       try {
         const token = localStorage.getItem('authToken');
@@ -32,7 +38,7 @@ export function useNFCReader(
           `${API_URL}/kiosk/events/${encodeURIComponent(eventoId)}/reception-readings?since=${since}`,
           { headers: { Authorization: `Bearer ${token}` } },
         );
-        if (!response.ok) return since;
+        if (!response.ok || !pollingEnabledRef.current || disposed) return since;
 
         const data = await response.json();
         const readings = Array.isArray(data.readings) ? data.readings : [];

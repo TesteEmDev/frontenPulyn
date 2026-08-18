@@ -167,4 +167,22 @@
   }
 }
 
+@layer utilities {
+  @media (min-width: 768px) and (max-width: 1200px) and (max-height: 850px) {
+    .kiosk-performance .backdrop-blur,
+    .kiosk-performance .backdrop-blur-sm,
+    .kiosk-performance .backdrop-blur-md,
+    .kiosk-performance .backdrop-blur-lg,
+    .kiosk-performance .backdrop-blur-xl {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+
+    .kiosk-performance .shadow-xl,
+    .kiosk-performance .shadow-2xl {
+      box-shadow: 0 8px 20px rgba(3, 7, 18, 0.28);
+    }
+  }
+}
+
 @tailwind utilities;

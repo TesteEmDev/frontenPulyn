@@ -42,10 +42,10 @@ const getErrorMessage = (error: unknown) => {
   return 'Não foi possível concluir o cadastro.';
 };
 
-function BraceletReaderIllustration({ active = false }: { active?: boolean }) {
+function BraceletReaderIllustration({ active = false, animated = true }: { active?: boolean; animated?: boolean }) {
   return (
     <div className="relative flex h-64 w-64 items-center justify-center sm:h-72 sm:w-72 lg:h-80 lg:w-80" aria-hidden="true">
-      <div className={`absolute inset-2 rounded-full border border-cyan-300/20 ${active ? 'animate-ping' : 'animate-pulse'}`} />
+      <div className={`absolute inset-2 rounded-full border border-cyan-300/20 ${animated ? (active ? 'animate-ping' : 'animate-pulse') : ''}`} />
       <div className="absolute inset-8 rounded-full border-2 border-cyan-300/30 shadow-[0_0_55px_rgba(34,211,238,0.25)]" />
       <div className="absolute inset-14 rounded-full bg-cyan-300/10 blur-xl" />
       <div className="relative flex h-36 w-52 -rotate-6 items-center justify-center rounded-[2rem] border-4 border-cyan-200/80 bg-gradient-to-br from-cyan-300 via-blue-500 to-violet-600 shadow-[0_12px_35px_rgba(14,165,233,0.45)] lg:h-40 lg:w-60">
@@ -136,11 +136,14 @@ export default function ReceptionKiosk() {
       });
   }, []);
 
+  const registrationVisible = Boolean(braceletCode && (state === 'ready' || state === 'saving'));
+
   const { isConnected } = useNFCReader(
     handleBraceletDetected,
     'checkin',
     selectedEventId || null,
     'reception',
+    !registrationVisible && state !== 'saving' && state !== 'success',
   );
 
   useEffect(() => {
@@ -244,8 +247,11 @@ export default function ReceptionKiosk() {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
   }, []);
 
-  const registrationVisible = Boolean(braceletCode && (state === 'ready' || state === 'saving'));
   const canInteract = Boolean(selectedEventId && state === 'ready');
+
+  const handleAvatarChange = useCallback((avatar: string) => {
+    setForm(previous => ({ ...previous, avatar }));
+  }, []);
 
   const handleVirtualKey = useCallback((key: string) => {
     if (!canInteract || state === 'saving') return;
@@ -269,7 +275,7 @@ export default function ReceptionKiosk() {
   }
 
   return (
-    <main className="min-h-screen overflow-y-auto bg-[radial-gradient(circle_at_top,#312e81_0%,#111827_45%,#030712_100%)] px-3 py-3 text-white sm:px-5 sm:py-4 lg:px-4 lg:py-3 xl:overflow-hidden">
+    <main className="kiosk-performance min-h-screen overflow-y-auto bg-[radial-gradient(circle_at_top,#312e81_0%,#111827_45%,#030712_100%)] px-3 py-3 text-white sm:px-5 sm:py-4 lg:px-4 lg:py-3 xl:overflow-hidden">
       <div className="mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-6xl flex-col">
         <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -365,7 +371,7 @@ export default function ReceptionKiosk() {
                 ) : (
                   <>
                     <div className="mb-5 rounded-full border-4 border-cyan-300/30 bg-cyan-300/5 p-2 shadow-[0_0_50px_rgba(34,211,238,0.18)]">
-                      <BraceletReaderIllustration active={state === 'reading'} />
+                      <BraceletReaderIllustration active={state === 'reading'} animated={!registrationVisible} />
                     </div>
                     <p className={`text-sm font-semibold uppercase tracking-[0.25em] ${state === 'error' ? 'text-danger' : state === 'ready' ? 'text-success' : 'text-cyan-200'}`}>
                       {state === 'ready'
@@ -410,7 +416,7 @@ export default function ReceptionKiosk() {
 
                 <AvatarSelector
                   value={form.avatar}
-                  onChange={avatar => setForm(previous => ({ ...previous, avatar }))}
+                  onChange={handleAvatarChange}
                   disabled={!canInteract}
                   compact
                 />

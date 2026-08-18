@@ -17,6 +17,7 @@ interface AvatarProps {
   bgColor?: string;
   alt?: string;
   decorative?: boolean;
+  loading?: 'eager' | 'lazy';
 }
 
 const sizeClasses: Record<AvatarSize, string> = {
@@ -43,6 +44,7 @@ const Avatar: React.FC<AvatarProps> = ({
   bgColor = 'bg-primary-500/30',
   alt,
   decorative = false,
+  loading = 'eager',
 }) => {
   const resolvedValue = value ?? avatar ?? emoji ?? null;
   const knownAvatar = findAdventurerAvatar(resolvedValue);
@@ -72,6 +74,8 @@ const Avatar: React.FC<AvatarProps> = ({
         <img
           src={imageSource}
           alt={decorative ? '' : accessibleLabel}
+          loading={loading}
+          decoding="async"
           className="h-full w-full object-cover"
           onError={() => {
             if (imageSource !== fallbackAvatar.src) {
@@ -86,4 +90,4 @@ const Avatar: React.FC<AvatarProps> = ({
   );
 };
 
-export default Avatar;
+export default React.memo(Avatar);

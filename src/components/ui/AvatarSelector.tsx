@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import Avatar from './Avatar';
 import {
   ADVENTURER_AVATARS,
@@ -13,7 +14,7 @@ interface AvatarSelectorProps {
   compact?: boolean;
 }
 
-export default function AvatarSelector({
+function AvatarSelector({
   value,
   onChange,
   disabled = false,
@@ -49,7 +50,7 @@ export default function AvatarSelector({
                     : 'border-white/10 bg-black/10 hover:border-primary/60 hover:bg-primary/10'
                 }`}
               >
-                <Avatar emoji={option.id} size="xl" shape="square" decorative />
+                <Avatar emoji={option.id} size="xl" shape="square" loading="lazy" decorative />
                 <span className={`text-xs ${selected ? 'font-semibold text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
                   {String(option.label).replace('Avatar ', '')}
                 </span>
@@ -61,3 +62,5 @@ export default function AvatarSelector({
     </div>
   );
 }
+
+export default memo(AvatarSelector);
