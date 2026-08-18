@@ -387,7 +387,7 @@ export default function ReceptionKiosk() {
               </div>
             </div>)}
 
-            {registrationVisible && <div className="grid min-h-[calc(100vh-13rem)] gap-4 rounded-[2rem] border border-fuchsia-300/20 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.22),transparent_42%),linear-gradient(135deg,#11152d,#241047_58%,#120b2d)] p-3 shadow-2xl shadow-purple-950/40 sm:p-5 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto xl:grid-cols-2">
+            {registrationVisible && <div className="grid min-h-[calc(100vh-13rem)] gap-4 rounded-[2rem] border border-fuchsia-300/20 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.22),transparent_42%),linear-gradient(135deg,#11152d,#241047_58%,#120b2d)] p-3 shadow-2xl shadow-purple-950/40 sm:p-5 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto xl:grid-cols-[minmax(190px,0.55fr)_minmax(360px,1.45fr)]">
               <section className="flex flex-col rounded-3xl border border-cyan-300/20 bg-[#0b1228]/75 p-4 shadow-xl backdrop-blur sm:p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
@@ -399,13 +399,7 @@ export default function ReceptionKiosk() {
                   </div>
                 </div>
 
-                <div className="mb-4 flex min-h-[150px] flex-1 items-center justify-center rounded-[2rem] border border-cyan-300/15 bg-[radial-gradient(circle,rgba(34,211,238,0.18),transparent_62%)]">
-                  <div className="rounded-full border-4 border-cyan-300/50 bg-cyan-300/10 p-5 shadow-[0_0_55px_rgba(34,211,238,0.3)]">
-                    <Avatar emoji={selectedAvatar.emoji} size="lg" bgColor={selectedAvatar.color} />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-4 gap-2 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2">
                   {AVATAR_OPTIONS.map(option => {
                     const selected = form.avatar === option.emoji;
                     return (
@@ -429,9 +423,12 @@ export default function ReceptionKiosk() {
               </section>
 
               <section className="flex flex-col rounded-[2rem] border border-fuchsia-300/30 bg-[#21103f]/90 p-4 shadow-xl shadow-purple-950/30 backdrop-blur sm:p-5">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">Seu nome</p>
+                <div className="mb-4 flex items-center gap-3 rounded-3xl border border-fuchsia-300/20 bg-black/20 p-3">
+                  <div className="rounded-full border-4 border-fuchsia-300/50 bg-fuchsia-300/10 p-2 shadow-[0_0_35px_rgba(217,70,239,0.3)]">
+                    <Avatar emoji={selectedAvatar.emoji} size="lg" bgColor={selectedAvatar.color} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">Seu personagem</p>
                     <h3 className="font-display text-2xl font-bold text-white">Como você se chama?</h3>
                   </div>
                   <span className="text-2xl">✍️</span>
