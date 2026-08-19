@@ -23,6 +23,8 @@ const KEYBOARD_ROWS = [
 const normalizeUid = (value: string) =>
   value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
 
+const KIOSK_EVENT_STORAGE_KEY = 'pulyn:kiosk-event-id';
+
 const isOpenEvent = (event: any) => ![
   'completed',
   'cancelled',
@@ -72,6 +74,8 @@ export default function ReceptionKiosk() {
   const [loading, setLoading] = useState(true);
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [nfcConnected, setNfcConnected] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [state, setState] = useState<KioskState>('waiting');
   const [message, setMessage] = useState('Encoste a pulseira no leitor abaixo da tela para começar');
   const [braceletCode, setBraceletCode] = useState('');
@@ -89,6 +93,36 @@ export default function ReceptionKiosk() {
     kioskStateRef.current = state;
   }, [state]);
 
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch {
+      setMessage('Não foi possível ativar a tela cheia neste navegador.');
+    }
+  }, []);
+
+  useEffect(() => {
+    const syncFullscreenState = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', syncFullscreenState);
+    syncFullscreenState();
+    return () => document.removeEventListener('fullscreenchange', syncFullscreenState);
+  }, []);
+
+  useEffect(() => {
+    const updateOnlineState = () => setIsOnline(navigator.onLine);
+    window.addEventListener('online', updateOnlineState);
+    window.addEventListener('offline', updateOnlineState);
+    updateOnlineState();
+    return () => {
+      window.removeEventListener('online', updateOnlineState);
+      window.removeEventListener('offline', updateOnlineState);
+    };
+  }, []);
+
   const resetKiosk = useCallback(() => {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
     lastReadRef.current = null;
@@ -100,6 +134,12 @@ export default function ReceptionKiosk() {
     setState('waiting');
     setMessage('Encoste a pulseira no leitor abaixo da tela para começar');
   }, []);
+
+  useEffect(() => {
+    if (state !== 'error') return;
+    const errorTimer = setTimeout(resetKiosk, 6000);
+    return () => clearTimeout(errorTimer);
+  }, [resetKiosk, state]);
 
   const handleBraceletDetected = useCallback((code: string) => {
     const normalizedCode = normalizeUid(code);
@@ -159,11 +199,14 @@ export default function ReceptionKiosk() {
         const openEvents = (Array.isArray(data) ? data : []).filter(isOpenEvent);
         setEvents(openEvents);
         const receptionEvents = openEvents.filter(event => event.has_reception_checkpoint);
+        const rememberedEventId = localStorage.getItem(KIOSK_EVENT_STORAGE_KEY);
+        const rememberedEvent = receptionEvents.find(event => String(event.id) === String(rememberedEventId));
         const activeReceptionEvents = receptionEvents.filter(event => ['active', 'ongoing'].includes(String(event.status || '').toLowerCase()));
         const activeEvents = openEvents.filter(event => ['active', 'ongoing'].includes(String(event.status || '').toLowerCase()));
-        // Prioriza o evento que realmente possui checkpoint de recepção.
-        // Isso evita conectar o kiosk a um evento diferente do checkpoint físico.
-        if (activeReceptionEvents.length === 1) {
+        // Mantém o evento escolhido no tablet quando ele ainda está aberto e possui recepção.
+        if (rememberedEvent) {
+          setSelectedEventId(String(rememberedEvent.id));
+        } else if (activeReceptionEvents.length === 1) {
           setSelectedEventId(String(activeReceptionEvents[0].id));
         } else if (receptionEvents.length === 1) {
           setSelectedEventId(String(receptionEvents[0].id));
@@ -179,6 +222,10 @@ export default function ReceptionKiosk() {
     loadEvents();
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (selectedEventId) localStorage.setItem(KIOSK_EVENT_STORAGE_KEY, selectedEventId);
+  }, [selectedEventId]);
 
   useEffect(() => {
     let active = true;
@@ -287,17 +334,23 @@ export default function ReceptionKiosk() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-2 text-xs text-gray-300">
-              <StatusDot status={nfcConnected ? 'online' : 'offline'} size="sm" />
-              {nfcConnected ? 'Leitor conectado' : 'Leitor aguardando'}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-2 text-xs text-gray-300" title={!isOnline ? 'Sem conexão com a internet' : nfcConnected ? 'Leitor NFC conectado' : 'Aguardando conexão do leitor NFC'}>
+              <StatusDot status={!isOnline ? 'offline' : nfcConnected ? 'online' : 'warning'} size="sm" />
+              <span className="hidden sm:inline">
+                {!isOnline ? 'Sem internet' : nfcConnected ? 'Leitor conectado' : 'Leitor aguardando'}
+              </span>
             </div>
             <button
               type="button"
-              onClick={logout}
-              className="rounded-full border border-white/10 bg-black/20 px-4 py-2 text-xs text-gray-400 transition hover:border-white/30 hover:text-white"
+              onClick={toggleFullscreen}
+              aria-pressed={isFullscreen}
+              aria-label={isFullscreen ? 'Sair da tela cheia' : 'Ativar tela cheia'}
+              title={isFullscreen ? 'Sair da tela cheia' : 'Ativar tela cheia'}
+              className="rounded-full border border-white/10 bg-black/20 px-3 py-2 text-sm text-gray-300 transition hover:border-primary/60 hover:text-white sm:px-4 sm:text-xs"
             >
-              Sair
+              <span aria-hidden="true">⛶</span>
+              <span className="ml-1 hidden sm:inline">{isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}</span>
             </button>
           </div>
         </header>
@@ -392,6 +445,15 @@ export default function ReceptionKiosk() {
                             : 'Aproxime sua pulseira'}
                     </h2>
                     <p className={`mt-4 max-w-lg text-base sm:text-lg ${state === 'error' ? 'text-danger' : 'text-gray-400'}`}>{message}</p>
+                    {state === 'error' && (
+                      <button
+                        type="button"
+                        onClick={resetKiosk}
+                        className="mt-6 rounded-xl border border-danger/40 bg-danger/10 px-5 py-3 text-sm font-semibold text-danger transition hover:bg-danger/20"
+                      >
+                        Tentar outra pulseira
+                      </button>
+                    )}
                   </>
                 )}
               </div>
@@ -408,9 +470,6 @@ export default function ReceptionKiosk() {
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">Novo jogador</p>
                     <h3 className="font-display text-2xl font-bold text-white">Escolha seu personagem</h3>
-                  </div>
-                  <div className="rounded-full border border-cyan-300/30 bg-cyan-300/10 p-2">
-                    <Avatar emoji={selectedAvatar.emoji} size="md" bgColor={selectedAvatar.color} />
                   </div>
                 </div>
 
