@@ -7,7 +7,12 @@ import Sidebar from '../../components/layout/Sidebar';
 import TopBar from '../../components/layout/TopBar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
 import StatusDot from '../../components/ui/StatusDot';
+import Avatar from '../../components/ui/Avatar';
+import AvatarSelector from '../../components/ui/AvatarSelector';
+import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
 
 const navItems = [
   {
@@ -55,20 +60,41 @@ const navItems = [
 
 const normalizeUid = (value: string) => value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
 
+const AVATAR_OPTIONS = ADVENTURER_AVATARS.map(option => ({
+  emoji: option.id,
+  name: option.label.replace('Avatar ', ''),
+  color: 'bg-primary/20',
+}));
+
 type BraceletStatus = 'idle' | 'checking' | 'available' | 'registered' | 'not-found' | 'error';
 
 export default function ReceptionCheckin() {
   const location = useLocation();
-  const { loadEventos, eventoAtualId, setEventoAtual } = usePulynStore();
+  const {
+    teams = [],
+    loadTeams,
+    loadChildren,
+    loadEventos,
+    eventoAtualId,
+    setEventoAtual,
+  } = usePulynStore();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    name: '',
+    nickname: '',
+    age: '',
+    avatar: DEFAULT_AVATAR_ID,
+  });
+  const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [braceletCode, setBraceletCode] = useState('');
   const [braceletStatus, setBraceletStatus] = useState<BraceletStatus>('idle');
   const [lastReadAt, setLastReadAt] = useState<Date | null>(null);
   const braceletCheckIdRef = useRef(0);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [nfcConnected, setNFCConnected] = useState(false);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
@@ -98,7 +124,7 @@ export default function ReceptionCheckin() {
         const pulseira = pulseiras.find(item => normalizeUid(String(item.code || '')) === normalizedCode);
         if (!pulseira) {
           setBraceletStatus('not-found');
-          showToast('Pulseira não encontrada no cadastro.', 'error');
+          showToast('Pulseira nova detectada. Ela será cadastrada ao finalizar o participante.');
           return;
         }
         if (pulseira.status === 'disponivel') {
@@ -165,6 +191,81 @@ export default function ReceptionCheckin() {
     loadData();
   }, [eventoAtualId, loadEventos, setEventoAtual]);
 
+  useEffect(() => {
+    if (!selectedEventId) {
+      setSelectedTeam(null);
+      return;
+    }
+    loadTeams().catch(error => {
+      console.error('Erro ao carregar times:', error);
+      showToast('Não foi possível carregar os times do evento.', 'error');
+    });
+  }, [selectedEventId, loadTeams, showToast]);
+
+  const handleChange = useCallback((field: 'name' | 'nickname' | 'age') => (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    setForm(previous => ({ ...previous, [field]: event.target.value }));
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
+    if (!selectedEventId) {
+      showToast('Selecione um evento antes de cadastrar.', 'error');
+      return;
+    }
+    if (!form.name.trim()) {
+      showToast('Preencha o nome da criança.', 'error');
+      return;
+    }
+    if (!selectedTeam) {
+      showToast('Selecione um time.', 'error');
+      return;
+    }
+    if (!braceletCode) {
+      showToast('Aproxime uma pulseira antes de cadastrar.', 'error');
+      return;
+    }
+    if (saving) return;
+
+    setSaving(true);
+    try {
+      const normalizedCode = normalizeUid(braceletCode);
+      const pulseiras = await api.getPulseiras();
+      let pulseira = pulseiras.find(item => normalizeUid(String(item.code || '')) === normalizedCode);
+
+      if (!pulseira) {
+        pulseira = await api.createPulseira(normalizedCode);
+      }
+      if (pulseira.status !== 'disponivel') {
+        showToast('Esta pulseira já está vinculada ou indisponível.', 'error');
+        setBraceletStatus('registered');
+        return;
+      }
+
+      await api.createCrianca(selectedEventId, {
+        name: form.name.trim(),
+        nickname: form.nickname.trim() || form.name.trim().split(/\s+/)[0],
+        age: Number.parseInt(form.age, 10) || 5,
+        avatar: form.avatar,
+        braceletCode: normalizedCode,
+        timeId: selectedTeam,
+      });
+      await Promise.all([loadTeams(), loadChildren()]);
+
+      const teamName = teams.find(team => String(team.id) === String(selectedTeam))?.name || 'time selecionado';
+      showToast(`${form.name.trim()} foi cadastrado(a) no ${teamName} e a pulseira foi vinculada.`);
+      setForm({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID });
+      setSelectedTeam(null);
+      clearBracelet();
+    } catch (error: unknown) {
+      console.error('Erro ao cadastrar participante:', error);
+      const message = error instanceof Error ? error.message : 'Não foi possível cadastrar o participante.';
+      showToast(message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }, [braceletCode, clearBracelet, form, loadChildren, loadTeams, saving, selectedEventId, selectedTeam, showToast, teams]);
+
   if (loading) {
     return (
       <div className="flex h-screen bg-dark">
@@ -203,7 +304,7 @@ export default function ReceptionCheckin() {
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Check-in de pulseiras"
-            description="Confira se a pulseira já está vinculada a uma criança"
+            description="Confira a pulseira e cadastre o participante no evento"
             icon={
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
@@ -242,6 +343,75 @@ export default function ReceptionCheckin() {
             </p>
           </Card>
 
+          <Card className="space-y-5">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Novo participante</p>
+              <h2 className="mt-1 font-display text-2xl text-white">Cadastre a criança e vincule a pulseira</h2>
+              <p className="mt-1 text-sm text-gray-400">A recepção também pode concluir o cadastro por este Check-in.</p>
+            </div>
+
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.8fr)]">
+              <div className="space-y-4">
+                <Input label="Nome completo" placeholder="Ex: Pedro Almeida" value={form.name} onChange={handleChange('name')} />
+                <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
+                  <Input label="Apelido" placeholder="Ex: Pedrinho" value={form.nickname} onChange={handleChange('nickname')} />
+                  <Input label="Idade" type="number" min="0" max="18" placeholder="Ex: 7" value={form.age} onChange={handleChange('age')} />
+                </div>
+
+                <div>
+                  <h3 className="mb-3 text-sm font-semibold text-gray-200">Escolha o time</h3>
+                  {teams.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {teams.map(team => {
+                        const isSelected = String(selectedTeam) === String(team.id);
+                        return (
+                          <button
+                            key={team.id}
+                            type="button"
+                            onClick={() => setSelectedTeam(team.id)}
+                            className={`rounded-xl border px-4 py-3 text-left transition ${isSelected ? 'ring-2 ring-primary/70' : 'border-white/10 hover:border-primary/60'}`}
+                            style={{ borderColor: isSelected ? team.color : undefined, backgroundColor: isSelected ? `${team.color || '#8b5cf6'}22` : undefined }}
+                          >
+                            <span className="block h-3 w-3 rounded-full" style={{ backgroundColor: team.color || '#8b5cf6' }} />
+                            <span className="mt-2 block truncate text-sm font-semibold text-white">{team.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">Nenhum time cadastrado para este evento.</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 text-sm font-semibold text-gray-200">Escolha o avatar</h3>
+                <div className="mb-3 flex items-center gap-3 rounded-xl border border-white/10 bg-black/10 p-3">
+                  <Avatar
+                    emoji={form.avatar}
+                    size="md"
+                    bgColor={AVATAR_OPTIONS.find(option => option.emoji === form.avatar)?.color || 'bg-primary/20'}
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-white">{AVATAR_OPTIONS.find(option => option.emoji === form.avatar)?.name || 'Aventureiro'}</p>
+                    <p className="text-xs text-gray-400">Avatar do participante</p>
+                  </div>
+                </div>
+                <AvatarSelector value={form.avatar} onChange={avatar => setForm(previous => ({ ...previous, avatar }))} compact />
+              </div>
+            </div>
+
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={handleSubmit}
+              disabled={!selectedEventId || !form.name.trim() || !selectedTeam || !braceletCode || braceletStatus === 'registered' || saving}
+              className="w-full"
+            >
+              {saving ? 'Cadastrando participante...' : 'Cadastrar participante e vincular pulseira'}
+            </Button>
+          </Card>
+
           <Card variant="secondary" className="relative overflow-hidden border-primary/20 bg-gradient-to-br from-primary/10 via-dark-surface to-secondary/10">
             <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
             <div className="relative flex flex-col items-center py-6 text-center sm:py-10">
@@ -254,14 +424,16 @@ export default function ReceptionCheckin() {
               </h2>
               <p className="mt-3 max-w-xl text-sm text-gray-400">
                 {braceletStatus === 'available'
-                  ? 'Esta pulseira está disponível. Para cadastrar a criança e criar o personagem, use o terminal Kiosk.'
+                  ? 'Pulseira disponível. Preencha os dados do participante acima e finalize o cadastro.'
                   : braceletStatus === 'registered'
-                    ? 'Esta pulseira já está vinculada a uma criança. Confira os dados abaixo ou consulte a tela de participantes.'
+                    ? 'Esta pulseira já está vinculada a uma criança. Aproxime outra para cadastrar um novo participante.'
                     : braceletStatus === 'not-found'
-                      ? 'Esta pulseira ainda não está cadastrada no estoque. Cadastre-a na área de Pulseiras antes de usar o Kiosk.'
+                      ? 'Pulseira nova detectada. Ela será cadastrada automaticamente ao finalizar o participante.'
                       : braceletStatus === 'error'
                         ? 'Não foi possível concluir a conferência. Aproxime a pulseira novamente.'
-                        : 'Aproxime a pulseira do leitor para conferir se ela está disponível ou vinculada.'}
+                        : braceletStatus === 'checking'
+                          ? 'Aguarde a conferência e depois preencha os dados do participante.'
+                          : 'Aproxime a pulseira do leitor para conferir e iniciar o cadastro.'}
               </p>
 
               <div className={`mt-6 w-full max-w-xl rounded-2xl border p-4 text-left ${
@@ -286,9 +458,9 @@ export default function ReceptionCheckin() {
                         {braceletCode ? `Pulseira ${braceletCode}` : 'Nenhuma pulseira lida'}
                       </p>
                       <p className="mt-1 text-xs text-gray-400">
-                        {braceletStatus === 'available' ? 'Disponível para ser vinculada no Kiosk.' :
+                        {braceletStatus === 'available' ? 'Disponível para ser vinculada no cadastro.' :
                           braceletStatus === 'registered' ? 'Já vinculada ou indisponível.' :
-                            braceletStatus === 'not-found' ? 'Não encontrada no cadastro.' :
+                            braceletStatus === 'not-found' ? 'Nova pulseira; será cadastrada ao finalizar.' :
                               braceletStatus === 'error' ? 'Conferência não concluída.' :
                                 nfcConnected ? 'Leitor conectado e aguardando leitura.' : 'Leitor aguardando conexão.'}
                       </p>
@@ -317,7 +489,7 @@ export default function ReceptionCheckin() {
           </div>
 
           <p className="text-center text-xs text-gray-500">
-            O cadastro de nome, avatar, idade, responsável e time é feito exclusivamente no terminal Kiosk.
+            O cadastro também pode ser realizado no Kiosk. Nesta tela, a recepção pode cadastrar nome, avatar, idade, time e pulseira.
           </p>
 
           {toast && (
