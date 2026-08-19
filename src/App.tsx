@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast';
 import { useEffect } from 'react';
 import { usePulynStore } from './store/mockData';
 import { useAuth } from './hooks/useAuth';
+import { useEventControl } from './hooks/useEventControl';
 import { EventoProvider } from './contexts/EventoContext';
 
 import ProtectedRoute from './components/ProtectedRoute';
@@ -55,6 +56,12 @@ import FamilyQuiz from './pages/family/FamilyQuiz';
 import FamilyProfile from './pages/family/FamilyProfile';
 import FamilyNotifications from './pages/family/FamilyNotifications';
 import FamilyInviteRegister from './pages/family/FamilyInviteRegister';
+
+function EventControlBridge({ enabled }: { enabled: boolean }) {
+  const setEventoAtual = usePulynStore(state => state.setEventoAtual);
+  useEventControl((eventId) => setEventoAtual(eventId), enabled);
+  return null;
+}
 
 function App() {
   const { 
@@ -127,6 +134,7 @@ function App() {
   return (
     <BrowserRouter>
       <EventoProvider>
+        <EventControlBridge enabled={isAuthenticated && Boolean(user?.empresa_id)} />
         <Toaster
           position="top-right"
           toastOptions={{

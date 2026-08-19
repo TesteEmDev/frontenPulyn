@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNFCReader } from '../../hooks/useNFCReader';
+import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import Avatar from '../../components/ui/Avatar';
 import StatusDot from '../../components/ui/StatusDot';
 
-const SCORE_EVENT_STORAGE_KEY = 'pulyn:score-kiosk-event-id';
 const CLOSED_EVENT_STATUSES = ['completed', 'cancelled', 'canceled', 'finished'];
 
 type ScoreKioskState = 'waiting' | 'reading' | 'displaying' | 'error';
@@ -52,9 +52,8 @@ function BraceletReaderIllustration({ active }: { active: boolean }) {
 
 export default function ScoreKiosk() {
   const { logout } = useAuth();
+  const selectedEventId = usePulynStore(state => state.eventoAtualId || '');
   const [events, setEvents] = useState<any[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState('');
-  const [setupOpen, setSetupOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [nfcConnected, setNfcConnected] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
@@ -115,12 +114,6 @@ export default function ScoreKiosk() {
         if (!active) return;
         const openEvents = (Array.isArray(data) ? data : []).filter(isOpenEvent);
         setEvents(openEvents);
-        const rememberedId = localStorage.getItem(SCORE_EVENT_STORAGE_KEY);
-        const rememberedEvent = openEvents.find(event => String(event.id) === String(rememberedId));
-        const activeEvents = openEvents.filter(event => ['active', 'ongoing'].includes(String(event.status || '').toLowerCase()));
-        if (rememberedEvent) setSelectedEventId(String(rememberedEvent.id));
-        else if (activeEvents.length === 1) setSelectedEventId(String(activeEvents[0].id));
-        else if (openEvents.length === 1) setSelectedEventId(String(openEvents[0].id));
       })
       .catch(error => {
         if (active) setMessage(getErrorMessage(error));
@@ -132,7 +125,6 @@ export default function ScoreKiosk() {
   }, []);
 
   useEffect(() => {
-    if (selectedEventId) localStorage.setItem(SCORE_EVENT_STORAGE_KEY, selectedEventId);
     resetScreen();
   }, [resetScreen, selectedEventId]);
 
@@ -185,11 +177,6 @@ export default function ScoreKiosk() {
     return <div className="flex min-h-screen items-center justify-center bg-dark text-white"><div className="text-center"><div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary/30 border-t-primary" /><p>Preparando a consulta...</p></div></div>;
   }
 
-  const selectEvent = (eventId: string) => {
-    setSelectedEventId(eventId);
-    setSetupOpen(false);
-  };
-
   return (
     <main className="kiosk-performance min-h-screen overflow-y-auto bg-[radial-gradient(circle_at_top,#164e63_0%,#111827_45%,#030712_100%)] px-3 py-3 text-white sm:px-5 sm:py-4">
       <div className="mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-6xl flex-col">
@@ -200,20 +187,13 @@ export default function ScoreKiosk() {
             <button type="button" onClick={toggleFullscreen} aria-pressed={isFullscreen} className="rounded-full border border-white/10 bg-black/20 px-3 py-2 text-sm text-gray-300 transition hover:border-cyan-300/60 hover:text-white sm:px-4 sm:text-xs"><span aria-hidden="true">⛶</span><span className="ml-1 hidden sm:inline">{isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}</span></button>
           </div>
         </header>
-        {selectedEventId && !setupOpen ? (
-          <section className="mb-3 flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-2 backdrop-blur">
-            <div className="flex min-w-0 items-center gap-2 text-xs text-gray-400"><span className="h-2 w-2 shrink-0 rounded-full bg-success shadow-[0_0_10px_rgba(34,197,94,0.8)]" /><span className="truncate">Evento conectado: <strong className="text-white">{selectedEvent?.name}</strong></span></div>
-            <button type="button" onClick={() => setSetupOpen(true)} className="shrink-0 rounded-lg px-3 py-1 text-xs text-gray-500 transition hover:bg-white/10 hover:text-white">⚙ Configurar visor</button>
-          </section>
-        ) : (
-          <section className="mb-3 grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 backdrop-blur sm:grid-cols-[1fr_auto] sm:items-center">
-            <div><p className="text-xs uppercase tracking-wider text-gray-500">Configuração do visor de pontuação</p><select value={selectedEventId} onChange={event => selectEvent(event.target.value)} className="mt-1 w-full max-w-xl rounded-xl border border-white/10 bg-gray-900/80 px-4 py-3 text-base text-white outline-none transition focus:border-cyan-300"><option value="">Selecione um evento aberto</option>{events.map(event => <option key={event.id} value={event.id}>{event.name}</option>)}</select></div>
-            <div className="text-left text-xs text-gray-500 sm:text-right"><p className="text-gray-300">Depois, deixe o visor em tela cheia</p><button type="button" onClick={logout} className="mt-1 text-gray-500 underline hover:text-white">Sair da conta</button></div>
-          </section>
-        )}
+        <section className="mb-3 flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-2 backdrop-blur">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-gray-400"><span className={`h-2 w-2 shrink-0 rounded-full ${selectedEventId ? 'bg-success shadow-[0_0_10px_rgba(34,197,94,0.8)]' : 'bg-warning'}`} /><span className="truncate">{selectedEventId ? <>Evento controlado pela recepção: <strong className="text-white">{selectedEvent?.name || 'carregando...'}</strong></> : 'Aguardando a recepção selecionar um evento'}</span></div>
+          <div className="flex shrink-0 items-center gap-3 text-xs text-gray-500"><span>Consulta de pontuação</span><button type="button" onClick={logout} className="underline hover:text-white">Sair</button></div>
+        </section>
 
         {!selectedEventId ? (
-          <section className="flex flex-1 items-center justify-center rounded-3xl border border-dashed border-cyan-300/40 bg-black/20 p-8 text-center"><div className="max-w-md"><div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center rounded-full bg-cyan-400/15 text-5xl shadow-[0_0_50px_rgba(34,211,238,0.25)]">🏆</div><h2 className="font-display text-3xl font-bold">Pronto para consultar</h2><p className="mt-3 text-gray-400">Selecione o evento deste terminal para começar.</p></div></section>
+          <section className="flex flex-1 items-center justify-center rounded-3xl border border-dashed border-cyan-300/40 bg-black/20 p-8 text-center"><div className="max-w-md"><div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center rounded-full bg-cyan-400/15 text-5xl shadow-[0_0_50px_rgba(34,211,238,0.25)]">🏆</div><h2 className="font-display text-3xl font-bold">Pronto para consultar</h2><p className="mt-3 text-gray-400">A recepção ainda não selecionou um evento. Aguarde a configuração no terminal da recepção.</p></div></section>
         ) : state === 'displaying' && scoreData ? (
           <ScoreResult data={scoreData} onReset={resetScreen} />
         ) : (

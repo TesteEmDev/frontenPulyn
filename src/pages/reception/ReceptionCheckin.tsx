@@ -154,12 +154,16 @@ export default function ReceptionCheckin() {
     const loadData = async () => {
       setLoading(true);
       try {
-        // 1. Carregar eventos
-        const eventosData = await loadEventos();
+        // A recepção é a fonte de verdade da seleção operacional do evento.
+        const [eventosData, controlData] = await Promise.all([
+          loadEventos(),
+          api.getActiveEventControl().catch(() => ({ event: null })),
+        ]);
         setEvents(eventosData || []);
+        const controlledEvent = controlData?.event
+          ? eventosData?.find(event => String(event.id) === String(controlData.event.id))
+          : null;
         
-        // 2. Reutilizar o evento já escolhido, priorizar um evento ativo e,
-        // quando houver somente um evento ainda aberto, selecioná-lo.
         const isOpenEvent = (event: any) => ![
           'completed',
           'cancelled',
@@ -171,7 +175,7 @@ export default function ReceptionCheckin() {
           ? eventosData?.find(e => e.id === eventoAtualId && isOpenEvent(e))
           : null;
         const openEvents = (eventosData || []).filter(isOpenEvent);
-        const eventToSelect = activeEvent || storedEvent || (openEvents.length === 1 ? openEvents[0] : null);
+        const eventToSelect = controlledEvent || activeEvent || storedEvent || (openEvents.length === 1 ? openEvents[0] : null);
 
         setSelectedEventId(currentId => {
           if (currentId && eventosData?.some(event => event.id === currentId)) return currentId;
@@ -179,6 +183,7 @@ export default function ReceptionCheckin() {
         });
         if (eventToSelect) {
           setEventoAtual(eventToSelect.id);
+          if (!controlledEvent) await api.setActiveEventControl(eventToSelect.id).catch(() => {});
         }
       } catch (error) {
         console.error('❌ Erro ao carregar eventos:', error);
@@ -337,8 +342,13 @@ export default function ReceptionCheckin() {
                 <select
                   value={selectedEventId || ''}
                   onChange={e => {
-                    setSelectedEventId(e.target.value);
-                    setEventoAtual(e.target.value);
+                    const eventId = e.target.value || null;
+                    setSelectedEventId(eventId);
+                    setEventoAtual(eventId);
+                    api.setActiveEventControl(eventId).catch(error => {
+                      console.error('❌ Não foi possível sincronizar o evento selecionado:', error);
+                      showToast('Não foi possível sincronizar o evento com os outros terminais.', 'error');
+                    });
                   }}
                   className="flex-1 px-4 py-2 rounded-lg bg-dark-surface border border-dark-border text-white focus:outline-none focus:border-primary"
                 >

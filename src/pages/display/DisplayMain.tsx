@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Trophy, Medal, Star, Zap, Target, Clock, MapPin, Users, ArrowLeft } from 'lucide-react';
 import { useGameWebSocket } from '../../hooks/useGameWebSocket';
+import { usePulynStore } from '../../store/mockData';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Monster3D from '../../components/display/Monster3D';
@@ -69,9 +70,9 @@ export default function DisplayMain() {
     color: string;
   } | null>(null);
 
-  // Estado para seleção de evento
   const [events, setEvents] = useState<any[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState<string>('');
+  const { eventoAtualId } = usePulynStore();
+  const selectedEventId = eventoAtualId || '';
   const [loading, setLoading] = useState(true);
   const [children, setChildren] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
@@ -133,10 +134,6 @@ export default function DisplayMain() {
         const { api } = await import('../../services/api');
         const eventosData = await api.getEventos();
         setEvents(eventosData || []);
-        
-        if (eventosData && eventosData.length > 0) {
-          setSelectedEventId(eventosData[0].id);
-        }
       } catch (err) {
         console.error('Erro ao carregar eventos:', err);
       }
@@ -426,48 +423,14 @@ export default function DisplayMain() {
       treasureStatus.turnWaitSeconds > 0)
   );
 
-  // Se não houver evento selecionado, mostrar tela de seleção
+  // Se não houver evento selecionado, aguardar o comando da recepção.
   if (!selectedEventId) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-dark via-dark/95 to-primary/10 p-6 flex items-center justify-center">
-        <Card variant="glow" className="max-w-md w-full">
-          <div className="text-center mb-6">
-            <h1 className="font-display text-4xl font-bold text-white mb-2">
-              Pulyn Arena
-            </h1>
-            <p className="text-gray-400">Selecione um evento para começar</p>
-          </div>
-          
-          <div className="space-y-4">
-            {loading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                <p className="text-gray-400">Carregando eventos...</p>
-              </div>
-            ) : events.length > 0 ? (
-              <>
-                <label className="block text-sm font-semibold text-gray-300 mb-2">
-                  Evento:
-                </label>
-                <select
-                  value={selectedEventId}
-                  onChange={(e) => setSelectedEventId(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg bg-dark-surface border border-primary text-white focus:outline-none focus:border-primary text-lg"
-                >
-                  <option value="">Selecionar evento...</option>
-                  {events.map(event => (
-                    <option key={event.id} value={event.id}>
-                      {event.name}
-                    </option>
-                  ))}
-                </select>
-              </>
-            ) : (
-              <p className="text-center text-gray-400 py-8">
-                Nenhum evento disponível
-              </p>
-            )}
-          </div>
+        <Card variant="glow" className="max-w-md w-full text-center">
+          <h1 className="font-display text-4xl font-bold text-white mb-2">Pulyn Arena</h1>
+          <p className="text-gray-400">Aguardando a recepção selecionar um evento...</p>
+          {loading && <div className="mx-auto mt-6 h-10 w-10 animate-spin rounded-full border-4 border-primary/30 border-t-primary" />}
         </Card>
       </div>
     );
@@ -593,16 +556,9 @@ export default function DisplayMain() {
           </div>
           <div className="flex items-center justify-center gap-4 mb-4">
             <p className="text-xl text-gray-300">
-              {events.find(e => e.id === selectedEventId)?.name || 'Evento não selecionado'}
+              {events.find(e => e.id === selectedEventId)?.name || 'Evento selecionado'}
             </p>
-            <button
-              onClick={() => setSelectedEventId('')}
-              className="px-3 py-1 rounded-lg bg-surface/50 hover:bg-surface text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-2"
-              title="Trocar evento"
-            >
-              <ArrowLeft size={16} />
-              Trocar
-            </button>
+            <span className="rounded-full border border-white/10 bg-surface/50 px-3 py-1 text-xs text-gray-500">Controlado pela recepção</span>
           </div>
 
           {monsterStatus?.gameType === 'monster_hunt' && (

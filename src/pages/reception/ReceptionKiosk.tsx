@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { usePulynStore } from '../../store/mockData';
 import { useNFCReader } from '../../hooks/useNFCReader';
 import { api } from '../../services/api';
 import Avatar from '../../components/ui/Avatar';
@@ -22,8 +23,6 @@ const KEYBOARD_ROWS = [
 
 const normalizeUid = (value: string) =>
   value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
-
-const KIOSK_EVENT_STORAGE_KEY = 'pulyn:kiosk-event-id';
 
 const isOpenEvent = (event: any) => ![
   'completed',
@@ -66,9 +65,8 @@ type KioskState = 'waiting' | 'reading' | 'ready' | 'saving' | 'success' | 'erro
 
 export default function ReceptionKiosk() {
   const { logout } = useAuth();
+  const selectedEventId = usePulynStore(state => state.eventoAtualId || '');
   const [events, setEvents] = useState<any[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState('');
-  const [setupOpen, setSetupOpen] = useState(false);
   const [teams, setTeams] = useState<any[]>([]);
   const [selectedTeam, setSelectedTeam] = useState('');
   const [loading, setLoading] = useState(true);
@@ -198,21 +196,6 @@ export default function ReceptionKiosk() {
         if (!active) return;
         const openEvents = (Array.isArray(data) ? data : []).filter(isOpenEvent);
         setEvents(openEvents);
-        const receptionEvents = openEvents.filter(event => event.has_reception_checkpoint);
-        const rememberedEventId = localStorage.getItem(KIOSK_EVENT_STORAGE_KEY);
-        const rememberedEvent = receptionEvents.find(event => String(event.id) === String(rememberedEventId));
-        const activeReceptionEvents = receptionEvents.filter(event => ['active', 'ongoing'].includes(String(event.status || '').toLowerCase()));
-        const activeEvents = openEvents.filter(event => ['active', 'ongoing'].includes(String(event.status || '').toLowerCase()));
-        // Mantém o evento escolhido no tablet quando ele ainda está aberto e possui recepção.
-        if (rememberedEvent) {
-          setSelectedEventId(String(rememberedEvent.id));
-        } else if (activeReceptionEvents.length === 1) {
-          setSelectedEventId(String(activeReceptionEvents[0].id));
-        } else if (receptionEvents.length === 1) {
-          setSelectedEventId(String(receptionEvents[0].id));
-        } else if (activeEvents.length === 1) {
-          setSelectedEventId(String(activeEvents[0].id));
-        }
       } catch {
         if (active) setMessage('Não foi possível carregar os eventos.');
       } finally {
@@ -222,10 +205,6 @@ export default function ReceptionKiosk() {
     loadEvents();
     return () => { active = false; };
   }, []);
-
-  useEffect(() => {
-    if (selectedEventId) localStorage.setItem(KIOSK_EVENT_STORAGE_KEY, selectedEventId);
-  }, [selectedEventId]);
 
   useEffect(() => {
     let active = true;
@@ -355,54 +334,22 @@ export default function ReceptionKiosk() {
           </div>
         </header>
 
-        {selectedEventId && !setupOpen ? (
-          <section className="mb-3 flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-2 backdrop-blur">
-            <div className="flex items-center gap-2 text-xs text-gray-400">
-              <span className="h-2 w-2 rounded-full bg-success shadow-[0_0_10px_rgba(34,197,94,0.8)]" />
-              <span>
-                Evento conectado: <strong className="text-white">{selectedEvent?.name}</strong>
-                {!selectedEvent?.has_reception_checkpoint && (
-                  <strong className="ml-2 text-warning">(sem checkpoint de recepção)</strong>
-                )}
-              </span>
-            </div>
-            <button type="button" onClick={() => setSetupOpen(true)} className="rounded-lg px-3 py-1 text-xs text-gray-500 transition hover:bg-white/10 hover:text-white">
-              ⚙ Configurar visor
-            </button>
-          </section>
-        ) : (
-          <section className="mb-3 grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 backdrop-blur sm:grid-cols-[1fr_auto] sm:items-center">
-            <div>
-              <p className="text-xs uppercase tracking-wider text-gray-500">Configuração inicial do visor</p>
-              <select
-                value={selectedEventId}
-                onChange={event => {
-                  setSelectedEventId(event.target.value);
-                  setSetupOpen(false);
-                  resetKiosk();
-                }}
-                className="mt-1 w-full max-w-xl rounded-xl border border-white/10 bg-gray-900/80 px-4 py-3 text-base text-white outline-none transition focus:border-primary"
-              >
-                <option value="">Selecione um evento aberto</option>
-                {events.map(event => <option key={event.id} value={event.id}>{event.name}</option>)}
-              </select>
-            </div>
-            <div className="text-left text-xs text-gray-500 sm:text-right">
-              <p className="text-gray-300">Depois, deixe o visor em tela cheia</p>
-              {events.length > 0 && !events.some(event => event.has_reception_checkpoint) && (
-                <p className="mt-1 text-warning">Nenhum evento possui checkpoint de recepção configurado.</p>
-              )}
-              <button type="button" onClick={logout} className="mt-1 text-gray-500 underline hover:text-white">Sair da conta</button>
-            </div>
-          </section>
-        )}
+        <section className="mb-3 flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-2 backdrop-blur">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-gray-400">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${selectedEventId ? 'bg-success shadow-[0_0_10px_rgba(34,197,94,0.8)]' : 'bg-warning'}`} />
+            <span className="truncate">
+              {selectedEventId ? <>Evento controlado pela recepção: <strong className="text-white">{selectedEvent?.name || 'carregando...'}</strong></> : 'Aguardando a recepção selecionar um evento'}
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-3 text-xs text-gray-500"><span>Cadastro de crianças</span><button type="button" onClick={logout} className="underline hover:text-white">Sair</button></div>
+        </section>
 
         {!selectedEventId ? (
           <section className="flex flex-1 items-center justify-center rounded-3xl border border-dashed border-primary/40 bg-black/20 p-8 text-center">
             <div className="max-w-md">
               <div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center rounded-full bg-primary/15 text-5xl shadow-[0_0_50px_rgba(139,92,246,0.25)]">🎮</div>
               <h2 className="font-display text-3xl font-bold">Pronto para começar</h2>
-              <p className="mt-3 text-gray-400">A recepção já entregou sua pulseira? Aproxime-a do leitor para criar seu personagem.</p>
+              <p className="mt-3 text-gray-400">A recepção ainda não selecionou um evento. Aguarde a configuração no terminal da recepção.</p>
             </div>
           </section>
         ) : (

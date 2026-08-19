@@ -471,6 +471,24 @@ export const api = {
     }
   },
 
+  async getActiveEventControl() {
+    const res = await fetch(`${API_URL}/event-control/active`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar evento selecionado (${res.status})`);
+    return data;
+  },
+
+  async setActiveEventControl(eventId: string | null) {
+    const res = await fetch(`${API_URL}/event-control/active`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ eventId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao selecionar evento (${res.status})`);
+    return data;
+  },
+
   // ==================== AUTOATENDIMENTO / KIOSK ====================
   async getKioskEvents() {
     const res = await fetch(`${API_URL}/kiosk/events`, { headers: getAuthHeaders() });
