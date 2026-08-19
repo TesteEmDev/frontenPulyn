@@ -163,7 +163,7 @@ export default function ScoreKiosk() {
     handleBraceletDetected,
     'score-kiosk',
     selectedEventId || null,
-    'reception',
+    'score-kiosk',
     true,
     'score-kiosk',
   );

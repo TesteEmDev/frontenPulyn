@@ -28,15 +28,17 @@ export function useNFCReader(
   useEffect(() => {
     let disposed = false;
 
-    const pollReceptionReadings = async (since: number) => {
-      if (disposed || !pollingEnabledRef.current || expectedSource !== 'reception' || !eventoId) return since;
+    const pollSourceReadings = async (since: number) => {
+      const supportsPollingSource = expectedSource === 'reception' || expectedSource === 'score-kiosk';
+      if (disposed || !pollingEnabledRef.current || !supportsPollingSource || !eventoId) return since;
 
       try {
         const token = localStorage.getItem('authToken');
         if (!token) return since;
 
+        const readingPath = expectedSource === 'score-kiosk' ? 'score-readings' : 'reception-readings';
         const response = await fetch(
-          `${API_URL}/${pollingApiBase}/events/${encodeURIComponent(eventoId)}/reception-readings?since=${since}`,
+          `${API_URL}/${pollingApiBase}/events/${encodeURIComponent(eventoId)}/${readingPath}?since=${since}`,
           { headers: { Authorization: `Bearer ${token}` } },
         );
         if (!response.ok || !pollingEnabledRef.current || disposed) return since;
@@ -77,7 +79,9 @@ export function useNFCReader(
       }
 
       serverUrl = serverUrl.replace(/\/+$/, '');
-      const token = expectedSource === 'reception' ? localStorage.getItem('authToken') : null;
+      const token = (expectedSource === 'reception' || expectedSource === 'score-kiosk')
+        ? localStorage.getItem('authToken')
+        : null;
       const eventQuery = new URLSearchParams({ evento_id: eventoId });
       if (token) eventQuery.set('token', token);
       const ws = new WebSocket(`${serverUrl}?${eventQuery.toString()}`);
@@ -91,9 +95,11 @@ export function useNFCReader(
         console.log(`✅ WebSocket NFC conectado com sucesso (evento: ${eventoId})`);
         setIsConnected(true);
         reconnectAttemptsRef.current = 0;
-        if (expectedSource !== 'reception') {
+        if (expectedSource !== 'reception' && expectedSource !== 'score-kiosk') {
           ws.send(JSON.stringify({ type: 'SET_MODE', mode }));
           console.log(`📡 Modo enviado: ${mode} (evento: ${eventoId})`);
+        } else if (expectedSource === 'score-kiosk') {
+          console.log(`📡 Score Kiosk conectado ao canal de pontuação (evento: ${eventoId})`);
         } else {
           console.log(`📡 Kiosk conectado ao canal de recepção (evento: ${eventoId})`);
         }
@@ -152,14 +158,14 @@ export function useNFCReader(
 
     if (eventoId) {
       connect();
-      if (expectedSource === 'reception') {
+      if (expectedSource === 'reception' || expectedSource === 'score-kiosk') {
         // O WebSocket continua sendo o canal principal. Esta recuperação evita
         // perder uma leitura feita durante reconexão ou antes do handshake.
         const poll = async () => {
           if (receptionPollInFlight || !pollingEnabledRef.current) return;
           receptionPollInFlight = true;
           try {
-            receptionSince = await pollReceptionReadings(receptionSince);
+            receptionSince = await pollSourceReadings(receptionSince);
           } finally {
             receptionPollInFlight = false;
           }
