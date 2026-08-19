@@ -51,9 +51,6 @@ function AvatarSelector({
                 }`}
               >
                 <Avatar emoji={option.id} size="xl" shape="square" loading="lazy" decorative />
-                <span className={`text-xs ${selected ? 'font-semibold text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
-                  {String(option.label).replace('Avatar ', '')}
-                </span>
               </button>
             );
           })}
