@@ -96,9 +96,12 @@ export default function DisplayMap() {
     // Walk scoreLog in chronological order (oldest first)
     const sorted = [...scoreLog].reverse();
     for (const entry of sorted) {
-      const cp = checkpoints.find((c) => c.id === entry.checkpoint);
-      if (cp) {
-        zoneMap[entry.childId] = { zone: cp.zone, checkpointId: cp.id };
+      const checkpointId = entry.checkpointId ?? entry.checkpoint_id ?? entry.checkpoint;
+      const cp = checkpoints.find((c) => String(c.id) === String(checkpointId));
+      const childId = entry.childId ?? entry.child_id;
+      if (cp && childId) {
+        const knownZone = ZONES.some(zone => zone.name === cp.zone) ? cp.zone : 'Entrada';
+        zoneMap[childId] = { zone: knownZone, checkpointId: cp.id };
       }
     }
 
@@ -109,7 +112,7 @@ export default function DisplayMap() {
   const childPositions = useMemo(() => {
     const zoneChildren: Record<string, { id: string; avatar: string; nickname: string }[]> = {};
 
-    const activeChildren = children.filter((c) => c.status === 'active' && c.team);
+    const activeChildren = children.filter((c) => c.status === 'active' && (c.teamId || c.team_id || c.time_id || c.team));
     for (const child of activeChildren) {
       const zone = childLastZone[child.id]?.zone || 'Entrada';
       if (!zoneChildren[zone]) zoneChildren[zone] = [];
@@ -143,24 +146,19 @@ export default function DisplayMap() {
   const checkpointPositions = useMemo(() => {
     const positions: { checkpoint: typeof checkpoints[number]; x: number; y: number }[] = [];
 
-    const zoneCenter: Record<string, { x: number; y: number }> = {};
-    for (const z of ZONES) {
-      zoneCenter[z.name] = { x: z.x + z.w * 0.5, y: z.y + z.h * 0.15 };
-    }
-
     for (const cp of checkpoints) {
-      const zone = ZONES.find((z) => z.name === cp.zone);
-      if (zone) {
-        // Spread checkpoints within their zone
-        const idx = checkpoints.filter((c) => c.zone === cp.zone).indexOf(cp);
-        const count = checkpoints.filter((c) => c.zone === cp.zone).length;
-        const xOff = count > 1 ? (idx / (count - 1)) * 0.6 + 0.2 : 0.5;
-        positions.push({
-          checkpoint: cp,
-          x: zone.x + zone.w * xOff,
-          y: zone.y + zone.h * 0.75,
-        });
-      }
+      const zone = ZONES.find((z) => z.name === cp.zone) || ZONES[0];
+      // Checkpoints com zona personalizada continuam visíveis na entrada até
+      // que exista uma posição de mapa específica para essa zona.
+      const sameZone = checkpoints.filter((c) => c.zone === cp.zone);
+      const idx = sameZone.indexOf(cp);
+      const count = sameZone.length;
+      const xOff = count > 1 ? (idx / (count - 1)) * 0.6 + 0.2 : 0.5;
+      positions.push({
+        checkpoint: cp,
+        x: zone.x + zone.w * xOff,
+        y: zone.y + zone.h * 0.75,
+      });
     }
 
     return positions;

@@ -217,6 +217,7 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
       get().loadChildren(),
       get().loadCheckpoints(),
       get().loadReadings(),
+      get().loadScoreLog(),
       get().loadBrincadeiras(),
     ]);
   },
@@ -227,7 +228,9 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
       if (!state.eventoAtualId) {
         return;
       }
-      const teams = await api.getTimes(state.eventoAtualId);
+      const eventId = state.eventoAtualId;
+      const teams = await api.getTimes(eventId);
+      if (get().eventoAtualId !== eventId) return;
       const normalizedTeams = (Array.isArray(teams) ? teams : []).map((team: any) => ({
         ...team,
         points: Number(team.points ?? team.score ?? 0),
@@ -247,7 +250,9 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
       if (!state.eventoAtualId) {
         return;
       }
-      const children = await api.getCriancas(state.eventoAtualId);
+      const eventId = state.eventoAtualId;
+      const children = await api.getCriancas(eventId);
+      if (get().eventoAtualId !== eventId) return;
       const normalizedChildren = (Array.isArray(children) ? children : []).map((child: any) => ({
         ...child,
         teamId: child.teamId ?? child.team_id ?? child.time_id ?? null,
@@ -277,7 +282,9 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
       if (!state.eventoAtualId) {
         return;
       }
-      const checkpoints = await api.getCheckpoints(state.eventoAtualId);
+      const eventId = state.eventoAtualId;
+      const checkpoints = await api.getCheckpoints(eventId);
+      if (get().eventoAtualId !== eventId) return;
       const normalizedCheckpoints = (Array.isArray(checkpoints) ? checkpoints : []).map((checkpoint: any) => ({
         ...checkpoint,
         points: Number(checkpoint.points ?? 0),
@@ -292,18 +299,38 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
 
   loadReadings: async () => {
     try {
+      const eventId = get().eventoAtualId;
+      if (!eventId) return;
       const readings = await api.getLogs(50);
-      set({ readingsLog: Array.isArray(readings) ? readings : [] });
+      if (get().eventoAtualId === eventId) {
+        set({ readingsLog: Array.isArray(readings) ? readings : [] });
+      }
     } catch (error) {
       console.error('❌ Erro ao carregar leituras:', error);
     }
   },
 
-  // O histórico de pontuações é mantido pelo backend e atualizado pelos
-  // rankings/eventos; não inventar dados locais quando não houver endpoint.
   loadScoreLog: async () => {
-    // Não há endpoint administrativo de pontuações neste contrato; preservar
-    // o estado atual evita apagar dados recebidos em tempo real.
+    try {
+      const eventId = get().eventoAtualId;
+      if (!eventId) return;
+      const history = await api.getScoreHistory(eventId, 100);
+      if (get().eventoAtualId !== eventId) return;
+
+      const normalizedHistory = (Array.isArray(history) ? history : []).map((entry: any) => ({
+        ...entry,
+        childId: entry.childId ?? entry.child_id,
+        childName: entry.childName ?? entry.child_name ?? entry.child_nickname ?? 'Participante',
+        checkpointId: entry.checkpointId ?? entry.checkpoint_id,
+        checkpoint: entry.checkpoint ?? entry.checkpoint_name ?? 'Checkpoint',
+        points: Number(entry.points ?? 0),
+        timestamp: entry.timestamp ?? entry.created_at,
+        teamColor: entry.teamColor ?? entry.team_color ?? '#FFFF00',
+      }));
+      set({ scoreLog: normalizedHistory });
+    } catch (error) {
+      console.error('❌ Erro ao carregar histórico de pontuações:', error);
+    }
   },
 
   loadEventos: async () => {
@@ -379,7 +406,23 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
     }
   },
 
-  setEventoAtual: (id) => set({ eventoAtualId: id }),
+  setEventoAtual: (id) => set((state) => {
+    if (state.eventoAtualId === id) return state;
+    return {
+      eventoAtualId: id,
+      children: [],
+      teams: [],
+      checkpoints: [],
+      readingsLog: [],
+      scoreLog: [],
+      brincadeiras: [],
+      games: [],
+      currentGameId: null,
+      activeGame: null,
+      gameTimer: 0,
+      gameRunning: false,
+    };
+  }),
 
   loadEventoAtual: async () => {
     const state = get();

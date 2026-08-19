@@ -364,6 +364,17 @@ export const api = {
     return res.json();
   },
 
+  async getScoreHistory(eventoId: string, limit = 100) {
+    const res = await fetch(`${API_URL}/leituras/eventos/${encodeURIComponent(eventoId)}/historico?limit=${limit}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `Erro ao carregar histórico do evento (${res.status})`);
+    }
+    return res.json();
+  },
+
   async createLog(data: any) {
     const res = await fetch(`${API_URL}/logs`, {
       method: 'POST',

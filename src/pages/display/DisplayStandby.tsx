@@ -43,10 +43,14 @@ function FloatingParticles() {
 }
 
 export default function DisplayStandby() {
-  const { events } = usePulynStore();
+  const { events, eventoAtualId } = usePulynStore();
   const [glowIntensity, setGlowIntensity] = useState(0);
 
-  const activeEvent = events.find((e) => e.status === 'active');
+  // O standby também segue o evento escolhido pela recepção; não escolhe
+  // silenciosamente outro evento apenas por ele estar ativo.
+  const activeEvent = eventoAtualId
+    ? events.find((event) => String(event.id) === String(eventoAtualId))
+    : null;
 
   // Pulse glow effect
   useEffect(() => {

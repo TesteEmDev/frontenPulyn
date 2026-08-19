@@ -1,19 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Trophy, Medal, Star, Zap, Target, Clock, MapPin, Users, ArrowLeft } from 'lucide-react';
 import { useGameWebSocket } from '../../hooks/useGameWebSocket';
 import { usePulynStore } from '../../store/mockData';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Monster3D from '../../components/display/Monster3D';
-
-interface Activity {
-  id: string;
-  childName: string;
-  checkpoint: string;
-  points: number;
-  timestamp: string;
-  teamColor?: string;
-}
 
 interface TreasureDisplayStatus {
   active: boolean;
@@ -58,10 +49,6 @@ const sameEventId = (left: unknown, right: unknown) => (
 export default function DisplayMain() {
 
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [topParticipants, setTopParticipants] = useState<any[]>([]);
-  const [topTeams, setTopTeams] = useState<any[]>([]);
-  const [recentActivities, setRecentActivities] = useState<any[]>([]);
-  const [checkpointStats, setCheckpointStats] = useState<any[]>([]);
   const [showNotification, setShowNotification] = useState(false);
   const [notificationData, setNotificationData] = useState<{
     name: string;
@@ -70,17 +57,52 @@ export default function DisplayMain() {
     color: string;
   } | null>(null);
 
-  const [events, setEvents] = useState<any[]>([]);
-  const { eventoAtualId } = usePulynStore();
+  const {
+    eventoAtualId,
+    children,
+    teams,
+    checkpoints,
+    scoreLog,
+    events,
+    loadChildren,
+    loadTeams,
+    loadCheckpoints,
+    loadScoreLog,
+  } = usePulynStore();
   const selectedEventId = eventoAtualId || '';
   const [loading, setLoading] = useState(true);
-  const [children, setChildren] = useState<any[]>([]);
-  const [teams, setTeams] = useState<any[]>([]);
-  const [checkpoints, setCheckpoints] = useState<any[]>([]);
-  const [scoreLog, setScoreLog] = useState<any[]>([]);
   const [displayMessages, setDisplayMessages] = useState<any[]>([]);
   const [treasureStatus, setTreasureStatus] = useState<TreasureDisplayStatus | null>(null);
   const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
+
+  const topParticipants = useMemo(() => [...children]
+    .filter(child => child.status === 'active')
+    .sort((a, b) => Number(b.scores || 0) - Number(a.scores || 0))
+    .slice(0, 5), [children]);
+  const topTeams = useMemo(() => [...teams]
+    .sort((a, b) => Number(b.points || b.score || 0) - Number(a.points || a.score || 0))
+    .slice(0, 5), [teams]);
+  const recentActivities = useMemo(() => scoreLog
+    .map((entry: any) => ({
+      id: entry.id,
+      childName: entry.childName || entry.child_name || 'Participante',
+      checkpoint: entry.checkpoint || entry.checkpoint_name || 'Checkpoint',
+      points: Number(entry.points || 0),
+      timestamp: entry.timestamp || entry.created_at,
+      teamColor: entry.teamColor || entry.team_color || '#FFFF00',
+    }))
+    .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
+    .slice(0, 10), [scoreLog]);
+  const checkpointStats = useMemo(() => checkpoints.map(cp => {
+    const checkpointReadings = scoreLog.filter((entry: any) => String(entry.checkpointId || entry.checkpoint_id) === String(cp.id));
+    const totalReadings = checkpointReadings.length;
+    return {
+      ...cp,
+      totalReadings,
+      authorizedReadings: totalReadings,
+      successRate: totalReadings > 0 ? 100 : 0,
+    };
+  }), [checkpoints, scoreLog]);
 
   const refreshTreasureStatus = useCallback(async () => {
     if (!selectedEventId) {
@@ -127,57 +149,49 @@ export default function DisplayMain() {
     }
   }, [selectedEventId]);
 
-  // Carregar eventos ao montar
+  // A fonte de dados do telão é o store compartilhado. Ao trocar o evento,
+  // carrega somente o contexto atual e ignora respostas atrasadas.
   useEffect(() => {
-    const loadEventsData = async () => {
-      try {
-        const { api } = await import('../../services/api');
-        const eventosData = await api.getEventos();
-        setEvents(eventosData || []);
-      } catch (err) {
-        console.error('Erro ao carregar eventos:', err);
-      }
-    };
-    loadEventsData();
-  }, []);
+    let disposed = false;
 
-  // Carregar dados quando evento é selecionado
-  useEffect(() => {
     const loadEventData = async () => {
-      if (!selectedEventId) return;
-      
       setLoading(true);
+      setDisplayMessages([]);
+      setTreasureStatus(null);
+      setMonsterStatus(null);
+      if (!selectedEventId) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const { api } = await import('../../services/api');
-        
-        // Carregar crianças, times e checkpoints para este evento
-        const childrenData = await api.getCriancas(selectedEventId);
-        const teamsData = await api.getTimes(selectedEventId);
-        const checkpointsData = await api.getCheckpoints(selectedEventId);
-        
-        setChildren(childrenData || []);
-        setTeams(teamsData || []);
-        setCheckpoints(checkpointsData || []);
-        setScoreLog([]);
+        await Promise.all([
+          loadTeams(),
+          loadChildren(),
+          loadCheckpoints(),
+          loadScoreLog(),
+        ]);
+        if (disposed) return;
+
         try {
           const messagesData = await api.getDisplayMessages(selectedEventId);
-          setDisplayMessages(Array.isArray(messagesData) ? messagesData : []);
+          if (!disposed) setDisplayMessages(Array.isArray(messagesData) ? messagesData : []);
         } catch (messageError) {
           console.error('Erro ao carregar mensagens do display:', messageError);
-          setDisplayMessages([]);
         }
 
-        await refreshTreasureStatus();
-        await refreshMonsterStatus();
+        await Promise.all([refreshTreasureStatus(), refreshMonsterStatus()]);
       } catch (err) {
-        console.error('Erro ao carregar dados do evento:', err);
+        if (!disposed) console.error('Erro ao carregar dados do evento:', err);
       } finally {
-        setLoading(false);
+        if (!disposed) setLoading(false);
       }
     };
-    
+
     loadEventData();
-  }, [refreshTreasureStatus, refreshMonsterStatus, selectedEventId]);
+    return () => { disposed = true; };
+  }, [loadTeams, loadChildren, loadCheckpoints, loadScoreLog, refreshTreasureStatus, refreshMonsterStatus, selectedEventId]);
 
   // Reconsultar o status persistido evita perder o timer quando o telão
   // conecta depois do GAME_STARTED ou quando o WebSocket reconecta.
@@ -198,7 +212,7 @@ export default function DisplayMain() {
     selectedEventId || null,
     (event) => {
       // Processar eventos do WebSocket
-      if (event.type === 'DISPLAY_MESSAGE' && String(event.payload?.evento_id) === String(selectedEventId)) {
+      if (event.type === 'DISPLAY_MESSAGE' && sameEventId(event.payload?.evento_id ?? event.payload?.eventoId, selectedEventId)) {
         setDisplayMessages((previous) => [event.payload, ...previous].slice(0, 50));
       } else if ((event.type === 'MONSTER_PROGRESS' || event.type === 'MONSTER_SPECIAL_ATTACK' || event.type === 'MONSTER_DEFEATED') && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const payload = event.payload || {};
@@ -239,10 +253,10 @@ export default function DisplayMain() {
         } else if (event.payload?.gameType === 'monster_hunt') {
           refreshMonsterStatus();
         }
-      } else if (event.type === 'GAME_STOPPED' && event.payload?.eventoId === selectedEventId) {
+      } else if (event.type === 'GAME_STOPPED' && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
         setTreasureStatus(prev => prev?.completed ? prev : null);
         setMonsterStatus(prev => prev?.completed ? prev : null);
-      } else if (event.type === 'TREASURE_PROGRESS' || event.type === 'TREASURE_ROUND_COMPLETED') {
+      } else if ((event.type === 'TREASURE_PROGRESS' || event.type === 'TREASURE_ROUND_COMPLETED') && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
         setTreasureStatus(prev => prev ? {
           ...prev,
           active: !event.payload?.finished,
@@ -267,24 +281,15 @@ export default function DisplayMain() {
             : prev.initialWait,
           targetCheckpointId: event.payload?.nextTargetCheckpointId ?? prev.targetCheckpointId,
         } : prev);
-      } else if (event.type === 'TERRITORY_CONQUERED') {
+      } else if (event.type === 'TERRITORY_CONQUERED' && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
         const { criancaName, checkpointId, teamColor, points } = event.payload;
         
         // Encontrar nome do checkpoint
         const checkpoint = checkpoints.find(cp => cp.id === checkpointId);
         const checkpointName = checkpoint?.name || `Checkpoint ${checkpointId}`;
         
-        // Adicionar ao início da lista de atividades recentes
-        const newActivity: Activity = {
-          id: `${Date.now()}-${Math.random()}`,
-          childName: criancaName,
-          checkpoint: checkpointName,
-          points: points,
-          timestamp: new Date().toLocaleTimeString('pt-BR'),
-          teamColor: teamColor
-        };
-        
-        setRecentActivities(prev => [newActivity, ...prev].slice(0, 10));
+        // O estado compartilhado é atualizado pelo DisplayRealtimeBridge;
+        // esta tela mantém apenas o feedback visual da conquista.
         
         // Mostrar notificação animada
         setNotificationData({
@@ -300,19 +305,6 @@ export default function DisplayMain() {
           setShowNotification(false);
         }, 3000);
         
-        // ✨ NOVO: Recarregar dados de crianças e times para atualizar rankings
-        const reloadData = async () => {
-          try {
-            const { api } = await import('../../services/api');
-            const childrenData = await api.getCriancas(selectedEventId);
-            const teamsData = await api.getTimes(selectedEventId);
-            setChildren(childrenData || []);
-            setTeams(teamsData || []);
-          } catch (err) {
-            console.error('Erro ao recarregar dados:', err);
-          }
-        };
-        reloadData();
       }
     }
   );
@@ -337,42 +329,6 @@ export default function DisplayMain() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Atualiza os dados quando crianças, times ou checkpoints mudam
-  useEffect(() => {
-    if (loading) return;
-
-    // Top participantes
-    const sortedChildren = [...children]
-      .sort((a, b) => (b.scores || 0) - (a.scores || 0))
-      .slice(0, 5);
-    setTopParticipants(sortedChildren);
-
-    // Top times
-    const sortedTeams = [...teams]
-      .sort((a, b) => (b.points || 0) - (a.points || 0))
-      .slice(0, 5);
-    setTopTeams(sortedTeams);
-
-    // Atividades recentes (de scoreLog ou vazio se não houver dados)
-    const recent = [...scoreLog]
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 10);
-    if (recentActivities.length === 0) {
-      setRecentActivities(recent);
-    }
-
-    // Estatísticas dos checkpoints
-    const stats = checkpoints.map(cp => {
-      return {
-        ...cp,
-        totalReadings: 0,
-        authorizedReadings: 0,
-        successRate: 0
-      };
-    });
-    setCheckpointStats(stats);
-  }, [children, teams, checkpoints, scoreLog, loading]);
-
   // Formatar hora
   const formattedTime = currentTime.toLocaleTimeString('pt-BR', {
     hour: '2-digit',
@@ -392,8 +348,8 @@ export default function DisplayMain() {
   const totalParticipants = children.length;
   const onlineCheckpoints = checkpoints.filter(cp => cp.status === 'online').length;
   const totalCheckpoints = checkpoints.length;
-  const totalReadings = 0;
-  const totalScores = scoreLog.reduce((sum, log) => sum + (log.points || 0), 0);
+  const totalReadings = scoreLog.length;
+  const totalScores = children.reduce((sum, child) => sum + Number(child.scores || 0), 0);
   const treasureStartingTeam = treasureStatus?.startingTeamId
     ? teams.find(team => String(team.id) === String(treasureStatus.startingTeamId))
     : teams.find(team => team.name === treasureStatus?.startingTeamName);
@@ -786,7 +742,7 @@ export default function DisplayMain() {
                       </div>
                       <div className="text-right">
                         <p className="text-xl font-bold text-secondary">
-                          {teamTotalPoints}
+                          {Number(team.points ?? team.score ?? teamTotalPoints)}
                         </p>
                         <p className="text-xs text-gray-500">pontos</p>
                       </div>

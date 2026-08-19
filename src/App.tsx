@@ -1,9 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { usePulynStore } from './store/mockData';
 import { useAuth } from './hooks/useAuth';
 import { useEventControl } from './hooks/useEventControl';
+import { useGameWebSocket, GameEvent } from './hooks/useGameWebSocket';
 import { EventoProvider } from './contexts/EventoContext';
 
 import ProtectedRoute from './components/ProtectedRoute';
@@ -63,6 +64,28 @@ function EventControlBridge({ enabled }: { enabled: boolean }) {
   return null;
 }
 
+function DisplayRealtimeBridge({ enabled }: { enabled: boolean }) {
+  const eventoAtualId = usePulynStore(state => state.eventoAtualId);
+  const loadTeams = usePulynStore(state => state.loadTeams);
+  const loadChildren = usePulynStore(state => state.loadChildren);
+  const loadCheckpoints = usePulynStore(state => state.loadCheckpoints);
+  const loadScoreLog = usePulynStore(state => state.loadScoreLog);
+  const eventId = enabled ? eventoAtualId : null;
+
+  const handleEvent = useCallback(async (event: GameEvent) => {
+    const payload = event.payload || {};
+    const eventPayloadId = payload.eventoId ?? payload.evento_id;
+    if (!eventId || String(eventPayloadId || '').trim().toLowerCase() !== String(eventId).trim().toLowerCase()) return;
+
+    if (['TERRITORY_CONQUERED', 'TREASURE_PROGRESS', 'TREASURE_ROUND_COMPLETED', 'MONSTER_PROGRESS', 'MONSTER_SPECIAL_ATTACK', 'MONSTER_DEFEATED'].includes(event.type)) {
+      await Promise.all([loadTeams(), loadChildren(), loadCheckpoints(), loadScoreLog()]);
+    }
+  }, [eventId, loadTeams, loadChildren, loadCheckpoints, loadScoreLog]);
+
+  useGameWebSocket(eventId, handleEvent, enabled);
+  return null;
+}
+
 function App() {
   const { 
     syncAll, 
@@ -70,6 +93,7 @@ function App() {
     loadChildren, 
     loadCheckpoints, 
     loadReadings,
+    loadScoreLog,
     loadEventos,
     loadBrincadeiras,
     loadClientes,
@@ -126,6 +150,7 @@ function App() {
       loadChildren();
       loadCheckpoints();
       loadReadings();
+      loadScoreLog();
     }, 10000);
     
     return () => clearInterval(interval);
@@ -135,6 +160,7 @@ function App() {
     <BrowserRouter>
       <EventoProvider>
         <EventControlBridge enabled={isAuthenticated && Boolean(user?.empresa_id)} />
+        <DisplayRealtimeBridge enabled={isAuthenticated && user?.role === 'display'} />
         <Toaster
           position="top-right"
           toastOptions={{
