@@ -47,6 +47,7 @@ interface TreasureStatus {
   turnTeamId?: string | null;
   turnTeamName?: string | null;
   turnRemainingSeconds?: number;
+  turnRemainingUpdatedAt?: number;
   turnWaitSeconds?: number | null;
   initialWait?: boolean;
   turnAvailableAt?: string | null;
@@ -137,7 +138,12 @@ export default function GameMasterDashboard() {
     }
     try {
       const status = await api.getTreasureEventStatus(selectedEventId);
-      setTreasureStatus(status);
+      setTreasureStatus({
+        ...status,
+        // O valor do backend já considera o relógio do servidor. O frontend
+        // só usa o horário local para suavizar a contagem entre os polls.
+        turnRemainingUpdatedAt: Date.now(),
+      });
       if (status.active) setGameRunning(true);
     } catch (err) {
       console.error('Erro ao carregar status do Caça ao Tesouro:', err);
@@ -258,6 +264,9 @@ export default function GameMasterDashboard() {
           turnTeamName: payload.turnTeamName ?? (payload.finished ? null : prev.turnTeamName),
           turnAvailableAt: payload.turnAvailableAt ?? (payload.finished ? null : prev.turnAvailableAt),
           turnRemainingSeconds: payload.turnRemainingSeconds ?? payload.turnWaitSeconds ?? prev.turnRemainingSeconds,
+          turnRemainingUpdatedAt: payload.turnRemainingSeconds !== undefined || payload.turnWaitSeconds !== undefined
+            ? Date.now()
+            : prev.turnRemainingUpdatedAt,
           targetCheckpointId: payload.nextTargetCheckpointId ?? (payload.finished ? null : prev.targetCheckpointId),
           completedCheckpointIds: payload.completedCheckpointIds || prev.completedCheckpointIds,
           teamRaceTimes: payload.teamRaceTimes || prev.teamRaceTimes,
@@ -290,6 +299,7 @@ export default function GameMasterDashboard() {
           turnTeamName: treasure.turnTeamName || treasure.startingTeamName || null,
           turnAvailableAt: treasure.turnAvailableAt || null,
           turnRemainingSeconds: treasure.turnRemainingSeconds ?? treasure.turnWaitSeconds ?? 10,
+          turnRemainingUpdatedAt: Date.now(),
           turnWaitSeconds: treasure.turnWaitSeconds ?? 10,
           initialWait: treasure.initialWait ?? true,
           targetCheckpointId: treasure.targetCheckpointId || null,
@@ -677,10 +687,14 @@ export default function GameMasterDashboard() {
     return `${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
   };
 
-  const turnAvailableAt = treasureStatus.turnAvailableAt ? Date.parse(treasureStatus.turnAvailableAt) : NaN;
-  const liveTurnRemaining = Number.isFinite(turnAvailableAt)
-    ? Math.max(0, Math.ceil((turnAvailableAt - clockNow) / 1000))
-    : treasureStatus.turnRemainingSeconds || 0;
+  const turnRemaining = Number(treasureStatus.turnRemainingSeconds);
+  const liveTurnRemaining = Number.isFinite(turnRemaining)
+    ? Math.max(0, turnRemaining - (
+      treasureStatus.turnRemainingUpdatedAt
+        ? Math.floor((clockNow - treasureStatus.turnRemainingUpdatedAt) / 1000)
+        : 0
+    ))
+    : 0;
 
   const wsStatus = wsConnectionStatus === 'connected'
     ? 'online'
