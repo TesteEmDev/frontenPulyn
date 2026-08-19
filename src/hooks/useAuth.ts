@@ -27,6 +27,7 @@ export const roleLabels: Record<string, string> = {
   family: 'Família',
   display: 'Telão',
   kiosk: 'Autoatendimento',
+  score_kiosk: 'Consulta de pontuação',
 };
 
 export const useAuth = create<AuthStore>((set) => {
@@ -62,6 +63,7 @@ export const useAuth = create<AuthStore>((set) => {
                 : decoded.role === 'family' ? '/family'
                 : decoded.role === 'master' ? '/master'
                 : decoded.role === 'kiosk' ? '/reception/kiosk'
+                : decoded.role === 'score_kiosk' ? '/score-kiosk'
                 : '/login',
         plan: decoded.plan
       };

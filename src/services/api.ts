@@ -479,6 +479,22 @@ export const api = {
     return Array.isArray(data) ? data : [];
   },
 
+  async getScoreKioskEvents() {
+    const res = await fetch(`${API_URL}/score-kiosk/events`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar eventos (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async getScoreKioskScore(eventId: string, code: string) {
+    const res = await fetch(`${API_URL}/score-kiosk/events/${encodeURIComponent(eventId)}/bracelets/${encodeURIComponent(code)}/score`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao consultar pontuação (${res.status})`);
+    return data;
+  },
+
   async getKioskTeams(eventId: string) {
     const res = await fetch(`${API_URL}/kiosk/events/${encodeURIComponent(eventId)}/teams`, {
       headers: getAuthHeaders(),

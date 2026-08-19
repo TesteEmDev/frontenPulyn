@@ -27,7 +27,8 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
         'display': '/display',
         'family': '/family',
         'master': '/master',
-        'kiosk': '/reception/kiosk'
+        'kiosk': '/reception/kiosk',
+        'score_kiosk': '/score-kiosk'
       };
       
       const redirectPath = user?.role ? (roleRedirects[user.role] || '/login') : '/login';

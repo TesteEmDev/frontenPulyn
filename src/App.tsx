@@ -15,6 +15,7 @@ import DisplayStandby from './pages/display/DisplayStandby';
 import ReceptionDashboard from './pages/reception/ReceptionDashboard';
 import ReceptionCheckin from './pages/reception/ReceptionCheckin';
 import ReceptionKiosk from './pages/reception/ReceptionKiosk';
+import ScoreKiosk from './pages/score-kiosk/ScoreKiosk';
 import ReceptionParticipants from './pages/reception/ReceptionParticipants';
 import ReceptionBracelets from './pages/reception/ReceptionBracelets';
 import ReceptionFamilies from './pages/reception/ReceptionFamilies';
@@ -55,7 +56,7 @@ import FamilyProfile from './pages/family/FamilyProfile';
 import FamilyNotifications from './pages/family/FamilyNotifications';
 import FamilyInviteRegister from './pages/family/FamilyInviteRegister';
 
-function App( ) {
+function App() {
   const { 
     syncAll, 
     loadTeams, 
@@ -89,7 +90,7 @@ function App( ) {
     }
     // A área familiar usa somente os endpoints de vínculos aprovados.
     // O kiosk possui uma API dedicada e não deve carregar dados administrativos.
-    if (user.role !== 'family' && user.role !== 'kiosk') {
+    if (user.role !== 'family' && user.role !== 'kiosk' && user.role !== 'score_kiosk') {
       loadBrincadeiras().catch(err => console.error('❌ Erro ao carregar jogos:', err));
       loadEventos().catch(err => console.error('❌ Erro ao carregar eventos:', err));
     }
@@ -97,7 +98,7 @@ function App( ) {
 
   // Sincronizar com a API quando um evento está selecionado
   useEffect(() => {
-    if (!eventoAtualId || user?.role === 'kiosk') {
+    if (!eventoAtualId || user?.role === 'kiosk' || user?.role === 'score_kiosk') {
       return; // Não sincroniza sem evento ou no visor de autoatendimento
     }
     
@@ -153,6 +154,7 @@ function App( ) {
           <Route path="/reception" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionDashboard /></ProtectedRoute>} />
           <Route path="/reception/checkin" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionCheckin /></ProtectedRoute>} />
           <Route path="/reception/kiosk" element={<ProtectedRoute allowedRoles={['kiosk']}><ReceptionKiosk /></ProtectedRoute>} />
+          <Route path="/score-kiosk" element={<ProtectedRoute allowedRoles={['kiosk', 'score_kiosk']}><ScoreKiosk /></ProtectedRoute>} />
           <Route path="/reception/participants" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionParticipants /></ProtectedRoute>} />
           <Route path="/reception/bracelets" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionBracelets /></ProtectedRoute>} />
           <Route path="/reception/families" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionFamilies /></ProtectedRoute>} />

@@ -8,6 +8,7 @@ export function useNFCReader(
   eventoId?: string | null,
   expectedSource?: string,
   pollingEnabled = true,
+  pollingApiBase = 'kiosk',
 ) {
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -35,7 +36,7 @@ export function useNFCReader(
         if (!token) return since;
 
         const response = await fetch(
-          `${API_URL}/kiosk/events/${encodeURIComponent(eventoId)}/reception-readings?since=${since}`,
+          `${API_URL}/${pollingApiBase}/events/${encodeURIComponent(eventoId)}/reception-readings?since=${since}`,
           { headers: { Authorization: `Bearer ${token}` } },
         );
         if (!response.ok || !pollingEnabledRef.current || disposed) return since;
@@ -183,7 +184,7 @@ export function useNFCReader(
       setIsConnected(false);
       if (socket && socket.readyState !== WebSocket.CLOSED) socket.close();
     };
-  }, [mode, eventoId, expectedSource]);
+  }, [mode, eventoId, expectedSource, pollingApiBase]);
 
   return { isConnected };
 }
