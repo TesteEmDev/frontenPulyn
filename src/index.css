@@ -169,6 +169,23 @@
 
 @layer utilities {
   @media (min-width: 768px) and (max-width: 1200px) and (max-height: 850px) {
+    .kiosk-performance .animate-pulse,
+    .kiosk-performance .animate-ping {
+      animation: none !important;
+    }
+
+    .kiosk-performance .animate-kiosk-register {
+      animation-duration: 180ms !important;
+    }
+
+    .kiosk-performance [class*="blur-"] {
+      filter: none;
+    }
+
+    .kiosk-performance [class*="shadow-["] {
+      box-shadow: none;
+    }
+
     .kiosk-performance .backdrop-blur,
     .kiosk-performance .backdrop-blur-sm,
     .kiosk-performance .backdrop-blur-md,

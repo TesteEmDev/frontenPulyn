@@ -41,6 +41,7 @@ export function useNFCReader(
         if (!response.ok || !pollingEnabledRef.current || disposed) return since;
 
         const data = await response.json();
+        if (!pollingEnabledRef.current || disposed) return since;
         const readings = Array.isArray(data.readings) ? data.readings : [];
         let latest = since;
         readings.forEach((reading: any) => {
@@ -102,7 +103,7 @@ export function useNFCReader(
 
         try {
           const msg = JSON.parse(event.data);
-          console.log('📨 Mensagem NFC recebida:', msg.type);
+          if (import.meta.env.DEV) console.debug('📨 Mensagem NFC recebida:', msg.type);
 
           const isNfcMessage = msg.type === 'NFC_READING_DETECTED' || msg.type === 'BRACELET_DETECTED';
           const messageEventId = msg.payload?.eventoId || msg.payload?.eventId;
@@ -117,7 +118,7 @@ export function useNFCReader(
 
           if (isNfcMessage && belongsToSelectedEvent && isExpectedReceptionMessage) {
             const code = msg.payload?.braceletCode || msg.payload?.code || msg.payload?.uid;
-            console.log('📱 NFC detectado:', code);
+            if (import.meta.env.DEV) console.debug('📱 NFC detectado:', code);
             if (code) onBraceletDetectedRef.current(code);
           }
         } catch (e) {
@@ -146,6 +147,7 @@ export function useNFCReader(
 
     let receptionSince = Date.now();
     let receptionPoll: ReturnType<typeof setInterval> | null = null;
+    let receptionPollInFlight = false;
 
     if (eventoId) {
       connect();
@@ -153,10 +155,16 @@ export function useNFCReader(
         // O WebSocket continua sendo o canal principal. Esta recuperação evita
         // perder uma leitura feita durante reconexão ou antes do handshake.
         const poll = async () => {
-          receptionSince = await pollReceptionReadings(receptionSince);
+          if (receptionPollInFlight || !pollingEnabledRef.current) return;
+          receptionPollInFlight = true;
+          try {
+            receptionSince = await pollReceptionReadings(receptionSince);
+          } finally {
+            receptionPollInFlight = false;
+          }
         };
         poll();
-        receptionPoll = setInterval(poll, 1000);
+        receptionPoll = setInterval(poll, 2000);
       }
     } else {
       setIsConnected(false);
