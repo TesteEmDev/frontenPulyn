@@ -483,14 +483,14 @@ export default function ReceptionKiosk() {
 
               <section className="flex flex-col rounded-[2rem] border border-fuchsia-300/30 bg-[#21103f]/90 p-4 shadow-xl shadow-purple-950/30 backdrop-blur sm:p-5 lg:p-3">
                 <div className="mb-4 flex items-center gap-3 rounded-3xl border border-fuchsia-300/20 bg-black/20 p-3">
-                  <div className="rounded-full border-4 border-fuchsia-300/50 bg-fuchsia-300/10 p-2 shadow-[0_0_35px_rgba(217,70,239,0.3)]">
-                    <Avatar emoji={selectedAvatar.emoji} size="lg" bgColor={selectedAvatar.color} />
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-4 border-fuchsia-300/50 bg-fuchsia-300/10 p-1.5 shadow-[0_0_35px_rgba(217,70,239,0.3)]">
+                    <Avatar emoji={selectedAvatar.emoji} size="md" bgColor={selectedAvatar.color} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">Seu personagem</p>
-                    <h3 className="font-display text-2xl font-bold text-white">Como você se chama?</h3>
+                    <h3 className="font-display text-xl font-bold leading-tight text-white sm:text-2xl">Como você se chama?</h3>
                   </div>
-                  <span className="text-2xl">✍️</span>
+                  <span className="shrink-0 text-xl sm:text-2xl">✍️</span>
                 </div>
 
                 <div className="mb-4 flex min-h-[58px] items-center justify-center rounded-2xl border-2 border-fuchsia-300/60 bg-black/30 px-4 text-center font-display text-xl uppercase tracking-wider text-white shadow-inner">
