@@ -732,6 +732,11 @@ export default function GameMasterDashboard() {
                     if (game) {
                       setActiveGame(game);
                       setGameTimer((game.duration || 10) * 60);
+                      if (selectedEventId) {
+                        api.selectGame(game.id, selectedEventId).catch(error => {
+                          console.error('Não foi possível atualizar o jogo no telão:', error);
+                        });
+                      }
                     }
                   }}
                   className="flex-1 px-4 py-2 rounded-lg bg-dark-surface border border-dark-border text-white focus:outline-none focus:border-primary"

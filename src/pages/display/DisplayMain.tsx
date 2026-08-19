@@ -72,6 +72,8 @@ export default function DisplayMain() {
   const selectedEventId = eventoAtualId || '';
   const [loading, setLoading] = useState(true);
   const [displayMessages, setDisplayMessages] = useState<any[]>([]);
+  const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
+  const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
   const [treasureStatus, setTreasureStatus] = useState<TreasureDisplayStatus | null>(null);
   const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
 
@@ -157,6 +159,8 @@ export default function DisplayMain() {
     const loadEventData = async () => {
       setLoading(true);
       setDisplayMessages([]);
+      setSelectedGameType(null);
+      setSelectedGameName(null);
       setTreasureStatus(null);
       setMonsterStatus(null);
       if (!selectedEventId) {
@@ -212,7 +216,12 @@ export default function DisplayMain() {
     selectedEventId || null,
     (event) => {
       // Processar eventos do WebSocket
-      if (event.type === 'DISPLAY_MESSAGE' && sameEventId(event.payload?.evento_id ?? event.payload?.eventoId, selectedEventId)) {
+      if (event.type === 'GAME_SELECTED' && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
+        setSelectedGameType(event.payload?.gameType || null);
+        setSelectedGameName(event.payload?.gameName || null);
+        setTreasureStatus(null);
+        setMonsterStatus(null);
+      } else if (event.type === 'DISPLAY_MESSAGE' && sameEventId(event.payload?.evento_id ?? event.payload?.eventoId, selectedEventId)) {
         setDisplayMessages((previous) => [event.payload, ...previous].slice(0, 50));
       } else if ((event.type === 'MONSTER_PROGRESS' || event.type === 'MONSTER_SPECIAL_ATTACK' || event.type === 'MONSTER_DEFEATED') && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const payload = event.payload || {};
@@ -234,6 +243,8 @@ export default function DisplayMain() {
         const treasure = event.payload?.treasure;
 
         const gameType = event.payload?.gameType;
+        setSelectedGameType(gameType || null);
+        setSelectedGameName(event.payload?.gameName || null);
         if (gameType === 'treasure_hunt') {
           setMonsterStatus(null);
           if (treasure?.startingTeamName) {
@@ -260,6 +271,8 @@ export default function DisplayMain() {
           setMonsterStatus(null);
         }
       } else if (event.type === 'GAME_STOPPED' && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
+        setSelectedGameType(null);
+        setSelectedGameName(null);
         setTreasureStatus(null);
         setMonsterStatus(null);
       } else if ((event.type === 'TREASURE_PROGRESS' || event.type === 'TREASURE_ROUND_COMPLETED') && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
@@ -523,6 +536,15 @@ export default function DisplayMain() {
             </p>
             <span className="rounded-full border border-white/10 bg-surface/50 px-3 py-1 text-xs text-gray-500">Controlado pela recepção</span>
           </div>
+          {selectedGameType && !monsterStatus?.active && !treasureStatus?.active && (
+            <div className="mx-auto mb-6 max-w-2xl rounded-2xl border border-primary/40 bg-primary/10 px-6 py-4 text-center" aria-live="polite">
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">Jogo selecionado</p>
+              <p className="mt-1 font-display text-2xl font-bold text-white">
+                {selectedGameName || (selectedGameType === 'monster_hunt' ? 'Derrote o Monstro' : selectedGameType === 'treasure_hunt' ? 'Caça ao Tesouro' : 'Jogo de território')}
+              </p>
+              <p className="mt-1 text-sm text-gray-400">Aguardando o Game Master iniciar a partida</p>
+            </div>
+          )}
 
           {monsterStatus?.gameType === 'monster_hunt' && (
             <div className="mx-auto mb-6 max-w-5xl rounded-3xl border-2 border-danger/70 bg-gradient-to-br from-red-950/80 via-dark-surface/90 to-purple-950/70 p-6 text-center shadow-2xl shadow-danger/20" aria-live="polite">

@@ -676,6 +676,17 @@ export const api = {
     return res.json();
   },
 
+  async selectGame(gameId: string, eventoId: string) {
+    const res = await fetch(`${API_URL}/debug/select-game`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ gameId, eventoId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro ao selecionar jogo');
+    return data;
+  },
+
   async startGame(gameId: string, gameName: string, eventoId: string) {
     const res = await fetch(`${API_URL}/debug/start-game`, {
       method: 'POST',
