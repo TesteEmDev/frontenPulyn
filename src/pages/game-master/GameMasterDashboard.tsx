@@ -47,6 +47,8 @@ interface TreasureStatus {
   turnTeamId?: string | null;
   turnTeamName?: string | null;
   turnRemainingSeconds?: number;
+  turnWaitSeconds?: number | null;
+  initialWait?: boolean;
   turnAvailableAt?: string | null;
   teamRaceTimes?: Array<{
     teamId: string;
@@ -156,6 +158,14 @@ export default function GameMasterDashboard() {
     }
   }, [selectedEventId, setGameRunning]);
 
+  const resetGameTimer = useCallback(() => {
+    const selectedGame = games.find(game => (
+      String(game.id).trim().toLowerCase() === String(selectedGameId).trim().toLowerCase()
+    ));
+    const durationMinutes = Number(selectedGame?.duration || activeGame?.duration || 10);
+    setGameTimer(Math.max(1, durationMinutes) * 60);
+  }, [activeGame?.duration, games, selectedGameId, setGameTimer]);
+
   // ✨ WebSocket em tempo real
   const handleGameEvent = useCallback((event: GameEvent) => {
     console.log(`🎮 Evento do jogo recebido: ${event.type}`, event.payload);
@@ -169,7 +179,19 @@ export default function GameMasterDashboard() {
       return;
     }
 
-    if (event.type === 'MONSTER_PROGRESS' || event.type === 'MONSTER_SPECIAL_ATTACK' || event.type === 'MONSTER_DEFEATED') {
+    if (event.type === 'GAME_SELECTED') {
+      const selectedGame = games.find(game => String(game.id).trim().toLowerCase() === String(payload.gameId || '').trim().toLowerCase());
+      if (selectedGame) {
+        setSelectedGameId(selectedGame.id);
+        setActiveGame(selectedGame);
+        setGameTimer(Number(selectedGame.duration || 10) * 60);
+        setLastGameEvent({
+          label: 'Jogo selecionado',
+          detail: `${selectedGame.name} está aguardando o início da partida.`,
+          at: receivedAt,
+        });
+      }
+    } else if (event.type === 'MONSTER_PROGRESS' || event.type === 'MONSTER_SPECIAL_ATTACK' || event.type === 'MONSTER_DEFEATED') {
       setTreasureStatus({ active: false, gameType: 'none' });
       const progress = Array.isArray(payload.progress) ? payload.progress : (Array.isArray(payload.teamsProgress) ? payload.teamsProgress : []);
       setMonsterStatus(prev => ({
@@ -248,11 +270,30 @@ export default function GameMasterDashboard() {
       });
       loadTreasureStatus();
     } else if (event.type === 'GAME_STARTED') {
+      const startedGame = games.find(game => String(game.id).trim().toLowerCase() === String(payload.gameId || '').trim().toLowerCase());
+      if (startedGame) {
+        setSelectedGameId(startedGame.id);
+        setActiveGame(startedGame);
+      }
       const gameType = payload.gameType;
       if (gameType === 'monster_hunt') {
         setTreasureStatus({ active: false, gameType: 'none' });
       } else if (gameType === 'treasure_hunt') {
         setMonsterStatus({ active: false, gameType: 'none' });
+        const treasure = payload.treasure;
+        setTreasureStatus(treasure ? {
+          active: true,
+          gameType: 'treasure_hunt',
+          startingTeamId: treasure.startingTeamId || null,
+          startingTeamName: treasure.startingTeamName || null,
+          turnTeamId: treasure.turnTeamId || treasure.startingTeamId || null,
+          turnTeamName: treasure.turnTeamName || treasure.startingTeamName || null,
+          turnAvailableAt: treasure.turnAvailableAt || null,
+          turnRemainingSeconds: treasure.turnRemainingSeconds ?? treasure.turnWaitSeconds ?? 10,
+          turnWaitSeconds: treasure.turnWaitSeconds ?? 10,
+          initialWait: treasure.initialWait ?? true,
+          targetCheckpointId: treasure.targetCheckpointId || null,
+        } : { active: false, gameType: 'none' });
       } else {
         setTreasureStatus({ active: false, gameType: 'none' });
         setMonsterStatus({ active: false, gameType: 'none' });
@@ -264,10 +305,11 @@ export default function GameMasterDashboard() {
     } else if (event.type === 'GAME_STOPPED') {
       setLastGameEvent({ label: 'Jogo finalizado', detail: 'O evento foi finalizado.', at: receivedAt });
       setGameRunning(false);
+      resetGameTimer();
       setTreasureStatus({ active: false, gameType: 'none' });
       setMonsterStatus({ active: false, gameType: 'none' });
     }
-  }, [loadTeams, loadChildren, setGameRunning, loadTreasureStatus, loadMonsterStatus]);
+  }, [games, selectedEventId, loadTeams, loadChildren, setGameRunning, setGameTimer, setActiveGame, resetGameTimer, loadTreasureStatus, loadMonsterStatus]);
 
   const {
     connectionStatus: wsConnectionStatus,
@@ -323,9 +365,28 @@ export default function GameMasterDashboard() {
         // resolvidos pelo backend e diferenças de maiúsculas/minúsculas do PostgreSQL.
         const eventGames = await api.getBrincadeiras(selectedEventId);
         setGames(eventGames);
-        const firstGame = eventGames[0];
-        setSelectedGameId(firstGame?.id || '');
-        setActiveGame(firstGame || null);
+        let persistedState: any = null;
+        try {
+          persistedState = await api.getGameState(selectedEventId);
+        } catch (stateError) {
+          console.warn('Não foi possível restaurar o jogo selecionado:', stateError);
+        }
+
+        const persistedGame = persistedState?.gameId
+          ? eventGames.find(game => String(game.id).trim().toLowerCase() === String(persistedState.gameId).trim().toLowerCase())
+          : null;
+        const initialGame = persistedGame || eventGames[0] || null;
+        setSelectedGameId(initialGame?.id || '');
+        setActiveGame(initialGame);
+        if (initialGame && persistedState?.active && persistedState.startedAt) {
+          const durationSeconds = Number(initialGame.duration || 10) * 60;
+          const elapsedSeconds = Math.max(0, Math.floor((Date.now() - Date.parse(persistedState.startedAt)) / 1000));
+          setGameTimer(Math.max(0, durationSeconds - elapsedSeconds));
+        } else if (initialGame) {
+          setGameTimer(Number(initialGame.duration || 10) * 60);
+        } else {
+          setGameTimer(0);
+        }
       } catch (err) {
         console.error('Erro ao carregar jogos do evento:', err);
         setGames([]);
@@ -334,7 +395,7 @@ export default function GameMasterDashboard() {
       }
     };
     loadGames();
-  }, [selectedEventId, setActiveGame]);
+  }, [selectedEventId, setActiveGame, setGameTimer]);
 
   // Carregar dados da API ao montar (apenas INICIAL, não polling contínuo)
   useEffect(() => {
@@ -443,9 +504,12 @@ export default function GameMasterDashboard() {
     if (gameTimer > 0 || !gameRunning || !selectedEventId) return;
     setGameRunning(false);
     api.stopGame(selectedEventId)
-      .then(() => setTreasureStatus({ active: false, gameType: 'none' }))
+      .then(() => {
+        resetGameTimer();
+        setTreasureStatus({ active: false, gameType: 'none' });
+      })
       .catch(err => console.error('Erro ao finalizar jogo pelo timer:', err));
-  }, [gameTimer, gameRunning, selectedEventId, setGameRunning]);
+  }, [gameTimer, gameRunning, selectedEventId, resetGameTimer, setGameRunning]);
 
   // Função para obter o time da criança
   const getChildTeam = (teamId: string | null) => {
@@ -478,6 +542,7 @@ export default function GameMasterDashboard() {
         selectedEventId
       );
       console.log('✅ Jogo iniciado:', data);
+      resetGameTimer();
       setGameRunning(true);
       await loadTreasureStatus();
       await loadMonsterStatus();
@@ -504,7 +569,7 @@ export default function GameMasterDashboard() {
       const data = await api.stopGame(selectedEventId);
       console.log('✅ Jogo finalizado:', data);
       setGameRunning(false);
-      setGameTimer(0);
+      resetGameTimer();
       setTreasureStatus({ active: false, gameType: 'none' });
       setMonsterStatus({ active: false, gameType: 'none' });
       await loadTerritoriesStatus();
@@ -727,16 +792,20 @@ export default function GameMasterDashboard() {
                   value={selectedGameId}
                   onChange={(e) => {
                     const gameId = e.target.value;
-                    setSelectedGameId(gameId);
                     const game = games.find(g => g.id === gameId);
-                    if (game) {
-                      setActiveGame(game);
-                      setGameTimer((game.duration || 10) * 60);
-                      if (selectedEventId) {
-                        api.selectGame(game.id, selectedEventId).catch(error => {
-                          console.error('Não foi possível atualizar o jogo no telão:', error);
-                        });
-                      }
+                    if (!game) return;
+
+                    const previousGameId = selectedGameId;
+                    const previousGame = activeGame;
+                    setSelectedGameId(gameId);
+                    setActiveGame(game);
+                    setGameTimer((game.duration || 10) * 60);
+                    if (selectedEventId) {
+                      api.selectGame(game.id, selectedEventId).catch(error => {
+                        setSelectedGameId(previousGameId);
+                        setActiveGame(previousGame || null);
+                        alert(error instanceof Error ? error.message : 'Não foi possível selecionar o jogo');
+                      });
                     }
                   }}
                   className="flex-1 px-4 py-2 rounded-lg bg-dark-surface border border-dark-border text-white focus:outline-none focus:border-primary"

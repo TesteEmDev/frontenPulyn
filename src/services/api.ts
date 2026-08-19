@@ -676,6 +676,15 @@ export const api = {
     return res.json();
   },
 
+  async getGameState(eventoId: string) {
+    const res = await fetch(`${API_URL}/debug/game-state/${encodeURIComponent(eventoId)}`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao consultar estado do jogo (${res.status})`);
+    return data;
+  },
+
   async selectGame(gameId: string, eventoId: string) {
     const res = await fetch(`${API_URL}/debug/select-game`, {
       method: 'POST',

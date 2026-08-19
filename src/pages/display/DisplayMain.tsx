@@ -170,6 +170,15 @@ export default function DisplayMain() {
 
       try {
         const { api } = await import('../../services/api');
+        try {
+          const gameState = await api.getGameState(selectedEventId);
+          if (!disposed && gameState?.selected) {
+            setSelectedGameType(gameState.gameType || null);
+            setSelectedGameName(gameState.gameName || null);
+          }
+        } catch (stateError) {
+          console.error('Erro ao restaurar seleção do jogo no telão:', stateError);
+        }
         await Promise.all([
           loadTeams(),
           loadChildren(),

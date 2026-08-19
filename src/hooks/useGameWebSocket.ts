@@ -59,7 +59,10 @@ export function useGameWebSocket(
     try {
       setConnectionStatus(reconnectAttemptsRef.current > 0 ? 'reconnecting' : 'connecting');
       const serverUrl = getServerUrl();
-      const wsUrl = `${serverUrl}?evento_id=${encodeURIComponent(eventoId)}`;
+      const query = new URLSearchParams({ evento_id: eventoId });
+      const token = localStorage.getItem('authToken');
+      if (token) query.set('token', token);
+      const wsUrl = `${serverUrl}?${query.toString()}`;
       
       console.log(`🔗 Conectando ao WebSocket: ${wsUrl}`);
       const ws = new WebSocket(wsUrl);
