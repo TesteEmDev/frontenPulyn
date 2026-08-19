@@ -170,6 +170,7 @@ export default function GameMasterDashboard() {
     }
 
     if (event.type === 'MONSTER_PROGRESS' || event.type === 'MONSTER_SPECIAL_ATTACK' || event.type === 'MONSTER_DEFEATED') {
+      setTreasureStatus({ active: false, gameType: 'none' });
       const progress = Array.isArray(payload.progress) ? payload.progress : (Array.isArray(payload.teamsProgress) ? payload.teamsProgress : []);
       setMonsterStatus(prev => ({
         ...prev,
@@ -201,6 +202,7 @@ export default function GameMasterDashboard() {
       loadTeams();
       loadChildren();
     } else if (event.type === 'TREASURE_PROGRESS' || event.type === 'TREASURE_ROUND_COMPLETED') {
+      setMonsterStatus({ active: false, gameType: 'none' });
       setLastGameEvent({
         label: event.type === 'TREASURE_ROUND_COMPLETED' ? 'Etapa concluída' : 'Progresso do tesouro',
         detail: payload.teamName ? `${payload.teamName} atualizou o progresso da etapa.` : 'O progresso do Caça ao Tesouro foi atualizado.',
@@ -246,6 +248,15 @@ export default function GameMasterDashboard() {
       });
       loadTreasureStatus();
     } else if (event.type === 'GAME_STARTED') {
+      const gameType = payload.gameType;
+      if (gameType === 'monster_hunt') {
+        setTreasureStatus({ active: false, gameType: 'none' });
+      } else if (gameType === 'treasure_hunt') {
+        setMonsterStatus({ active: false, gameType: 'none' });
+      } else {
+        setTreasureStatus({ active: false, gameType: 'none' });
+        setMonsterStatus({ active: false, gameType: 'none' });
+      }
       setLastGameEvent({ label: 'Jogo iniciado', detail: 'O evento foi iniciado pelo Game Master.', at: receivedAt });
       setGameRunning(true);
       loadTreasureStatus();

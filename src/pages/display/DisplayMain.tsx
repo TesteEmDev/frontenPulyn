@@ -114,7 +114,7 @@ export default function DisplayMain() {
       const { api } = await import('../../services/api');
       const status = await api.getTreasureEventStatus(selectedEventId);
       setTreasureStatus(
-        status?.gameType === 'treasure_hunt' && (status?.active || status?.completed)
+        status?.gameType === 'treasure_hunt' && status?.active
           ? {
               ...status,
               completed: Boolean(status.completed),
@@ -139,7 +139,7 @@ export default function DisplayMain() {
       const { api } = await import('../../services/api');
       const status = await api.getMonsterEventStatus(selectedEventId);
       setMonsterStatus(
-        status?.gameType === 'monster_hunt' && (status?.active || status?.monsterDefeated || status?.completed)
+        status?.gameType === 'monster_hunt' && status?.active
           ? status
           : null
       );
@@ -216,6 +216,7 @@ export default function DisplayMain() {
         setDisplayMessages((previous) => [event.payload, ...previous].slice(0, 50));
       } else if ((event.type === 'MONSTER_PROGRESS' || event.type === 'MONSTER_SPECIAL_ATTACK' || event.type === 'MONSTER_DEFEATED') && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const payload = event.payload || {};
+        setTreasureStatus(null);
         setMonsterStatus(prev => ({
           ...(prev || { active: true, gameType: 'monster_hunt' }),
           active: event.type !== 'MONSTER_DEFEATED',
@@ -232,31 +233,37 @@ export default function DisplayMain() {
       } else if (event.type === 'GAME_STARTED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const treasure = event.payload?.treasure;
 
-        if (event.payload?.gameType === 'treasure_hunt' && treasure?.startingTeamName) {
-          setTreasureStatus({
-            active: true,
-            gameType: 'treasure_hunt',
-            startingTeamId: treasure.startingTeamId || null,
-            startingTeamName: treasure.startingTeamName,
-            turnTeamId: treasure.turnTeamId || treasure.startingTeamId || null,
-            turnTeamName: treasure.turnTeamName || treasure.startingTeamName,
-            turnAvailableAt: treasure.turnAvailableAt || null,
-            turnRemainingSeconds: treasure.turnRemainingSeconds ?? 0,
-            turnWaitSeconds: treasure.turnWaitSeconds ?? 0,
-            initialWait: treasure.initialWait ?? false,
-            targetCheckpointId: treasure.targetCheckpointId || null,
-          });
-        }
-
-        if (event.payload?.gameType === 'treasure_hunt') {
+        const gameType = event.payload?.gameType;
+        if (gameType === 'treasure_hunt') {
+          setMonsterStatus(null);
+          if (treasure?.startingTeamName) {
+            setTreasureStatus({
+              active: true,
+              gameType: 'treasure_hunt',
+              startingTeamId: treasure.startingTeamId || null,
+              startingTeamName: treasure.startingTeamName,
+              turnTeamId: treasure.turnTeamId || treasure.startingTeamId || null,
+              turnTeamName: treasure.turnTeamName || treasure.startingTeamName,
+              turnAvailableAt: treasure.turnAvailableAt || null,
+              turnRemainingSeconds: treasure.turnRemainingSeconds ?? 0,
+              turnWaitSeconds: treasure.turnWaitSeconds ?? 0,
+              initialWait: treasure.initialWait ?? false,
+              targetCheckpointId: treasure.targetCheckpointId || null,
+            });
+          }
           refreshTreasureStatus();
-        } else if (event.payload?.gameType === 'monster_hunt') {
+        } else if (gameType === 'monster_hunt') {
+          setTreasureStatus(null);
           refreshMonsterStatus();
+        } else {
+          setTreasureStatus(null);
+          setMonsterStatus(null);
         }
       } else if (event.type === 'GAME_STOPPED' && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
-        setTreasureStatus(prev => prev?.completed ? prev : null);
-        setMonsterStatus(prev => prev?.completed ? prev : null);
+        setTreasureStatus(null);
+        setMonsterStatus(null);
       } else if ((event.type === 'TREASURE_PROGRESS' || event.type === 'TREASURE_ROUND_COMPLETED') && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
+        setMonsterStatus(null);
         setTreasureStatus(prev => prev ? {
           ...prev,
           active: !event.payload?.finished,
