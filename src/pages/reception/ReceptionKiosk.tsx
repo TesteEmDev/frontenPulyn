@@ -422,13 +422,14 @@ export default function ReceptionKiosk() {
             </div>
             </div>
 
-            {registrationVisible && <div className="animate-kiosk-register motion-reduce:animate-none relative z-10 grid min-h-[calc(100vh-13rem)] gap-3 overflow-hidden rounded-[2rem] border border-fuchsia-300/15 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.18),transparent_42%),linear-gradient(135deg,#0d1428,#20103d_58%,#100b27)] p-3 shadow-[0_24px_80px_rgba(19,8,51,0.45)] sm:p-5 lg:min-h-0 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:grid-cols-[minmax(260px,0.72fr)_minmax(420px,1.28fr)] lg:p-3 xl:grid-cols-[minmax(190px,0.55fr)_minmax(360px,1.45fr)]">
-              <section className="flex flex-col rounded-3xl border border-cyan-300/15 bg-[#091226]/80 p-4 shadow-[0_16px_40px_rgba(2,10,24,0.28)] backdrop-blur-xl sm:p-5 lg:p-3">
-                <div className="mb-4 flex items-center justify-between">
+            {registrationVisible && <div className="animate-kiosk-register motion-reduce:animate-none relative z-10 grid min-h-[calc(100vh-13rem)] gap-3 overflow-hidden rounded-[2rem] border border-fuchsia-300/20 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.2),transparent_42%),linear-gradient(135deg,#0c1328,#211040_58%,#100b29)] p-3 shadow-[0_24px_80px_rgba(19,8,51,0.5)] sm:p-5 lg:min-h-0 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:grid-cols-[minmax(260px,0.72fr)_minmax(420px,1.28fr)] lg:p-3 xl:grid-cols-[minmax(190px,0.55fr)_minmax(360px,1.45fr)]">
+              <section className="flex flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#081327]/85 p-4 shadow-[0_18px_45px_rgba(2,10,24,0.3)] backdrop-blur-xl sm:p-5 lg:p-3">
+                <div className="mb-4 flex items-center justify-between gap-3 border-b border-cyan-300/10 pb-3">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">Novo jogador</p>
-                    <h3 className="font-display text-2xl font-bold text-white">Escolha seu personagem</h3>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">Etapa 1 • Aparência</p>
+                    <h3 className="mt-1 font-display text-2xl font-bold text-white">Escolha seu personagem</h3>
                   </div>
+                  <span className="hidden rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-cyan-200 sm:inline-flex">Avatar</span>
                 </div>
 
                 <AvatarSelector
@@ -439,23 +440,23 @@ export default function ReceptionKiosk() {
                 />
               </section>
 
-              <section className="flex flex-col rounded-[2rem] border border-fuchsia-300/20 bg-[#1b1037]/90 p-4 shadow-[0_16px_45px_rgba(55,12,92,0.28)] backdrop-blur-xl sm:p-5 lg:p-3">
-                <div className="mb-4 flex items-center gap-3 rounded-3xl border border-fuchsia-300/20 bg-black/20 p-3">
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-4 border-fuchsia-300/50 bg-fuchsia-300/10 p-1.5 shadow-[0_0_35px_rgba(217,70,239,0.3)]">
+              <section className="flex flex-col rounded-[1.75rem] border border-fuchsia-300/25 bg-[#1b0f38]/90 p-4 shadow-[0_18px_50px_rgba(55,12,92,0.3)] backdrop-blur-xl sm:p-5 lg:p-3">
+                <div className="mb-4 flex items-center gap-3 rounded-3xl border border-fuchsia-300/20 bg-gradient-to-r from-fuchsia-300/10 to-transparent p-3">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-4 border-fuchsia-300/50 bg-fuchsia-300/10 p-1.5 shadow-[0_0_35px_rgba(217,70,239,0.3)]">
                     <Avatar emoji={selectedAvatar.emoji} size="md" bgColor={selectedAvatar.color} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">Seu personagem</p>
-                    <h3 className="font-display text-xl font-bold leading-tight text-white sm:text-2xl">Como você se chama?</h3>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">Etapa 2 • Identidade</p>
+                    <h3 className="mt-1 font-display text-xl font-bold leading-tight text-white sm:text-2xl">Como você se chama?</h3>
                   </div>
                   <span className="shrink-0 text-xl sm:text-2xl">✍️</span>
                 </div>
 
-                <div className="mb-4 flex min-h-[58px] items-center justify-center rounded-2xl border-2 border-fuchsia-300/60 bg-black/30 px-4 text-center font-display text-xl uppercase tracking-wider text-white shadow-inner">
+                <div className="mb-4 flex min-h-[58px] items-center justify-center rounded-2xl border-2 border-fuchsia-300/55 bg-[#120a27]/75 px-4 text-center font-display text-xl uppercase tracking-wider text-white shadow-[inset_0_2px_12px_rgba(0,0,0,0.25)]">
                   {form.name || <span className="text-sm font-normal tracking-normal text-gray-500">Toque nas letras para digitar</span>}
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 rounded-2xl border border-white/[0.06] bg-black/15 p-2 sm:p-3">
                   {KEYBOARD_ROWS.map((row, rowIndex) => (
                     <div key={`keyboard-row-${rowIndex}`} className="flex justify-center gap-1.5">
                       {row.map(key => (
@@ -464,7 +465,7 @@ export default function ReceptionKiosk() {
                           type="button"
                           disabled={!canInteract}
                           onClick={() => handleVirtualKey(key)}
-                          className="h-10 min-w-[28px] flex-1 rounded-xl border border-purple-300/30 bg-purple-500/20 px-1 text-sm font-bold text-white shadow-[0_3px_0_rgba(91,33,182,0.65)] transition active:translate-y-0.5 active:shadow-none hover:bg-fuchsia-400/30 disabled:cursor-not-allowed disabled:opacity-40 sm:h-11 sm:text-base"
+                          className="h-10 min-w-[28px] flex-1 rounded-xl border border-fuchsia-200/20 bg-gradient-to-b from-purple-400/25 to-purple-600/20 px-1 text-sm font-bold text-white shadow-[0_3px_0_rgba(91,33,182,0.65)] transition-all duration-150 active:translate-y-0.5 active:shadow-none hover:border-fuchsia-200/50 hover:from-fuchsia-400/30 hover:to-purple-500/30 disabled:cursor-not-allowed disabled:opacity-40 sm:h-11 sm:text-base"
                         >
                           {key}
                         </button>
@@ -476,7 +477,7 @@ export default function ReceptionKiosk() {
                       type="button"
                       disabled={!canInteract}
                       onClick={() => handleVirtualKey('⌫')}
-                      className="h-10 flex-[0.8] rounded-xl border border-rose-300/30 bg-rose-500/20 text-lg text-white shadow-[0_3px_0_rgba(159,18,57,0.65)] transition active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:opacity-40 sm:h-11"
+                      className="h-10 flex-[0.8] rounded-xl border border-rose-200/25 bg-gradient-to-b from-rose-400/25 to-rose-600/20 text-lg text-white shadow-[0_3px_0_rgba(159,18,57,0.65)] transition-all duration-150 active:translate-y-0.5 active:shadow-none hover:border-rose-200/50 hover:bg-rose-400/30 disabled:cursor-not-allowed disabled:opacity-40 sm:h-11"
                       aria-label="Apagar última letra"
                     >
                       ⌫
@@ -485,7 +486,7 @@ export default function ReceptionKiosk() {
                       type="button"
                       disabled={!canInteract}
                       onClick={() => handleVirtualKey('ESPAÇO')}
-                      className="h-10 flex-[2] rounded-xl border border-purple-300/30 bg-purple-500/20 text-xs font-bold text-white shadow-[0_3px_0_rgba(91,33,182,0.65)] transition active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:opacity-40 sm:h-11"
+                      className="h-10 flex-[2] rounded-xl border border-fuchsia-200/20 bg-gradient-to-b from-purple-400/25 to-purple-600/20 text-xs font-bold text-white shadow-[0_3px_0_rgba(91,33,182,0.65)] transition-all duration-150 active:translate-y-0.5 active:shadow-none hover:border-fuchsia-200/50 hover:from-fuchsia-400/30 hover:to-purple-500/30 disabled:cursor-not-allowed disabled:opacity-40 sm:h-11"
                     >
                       ESPAÇO
                     </button>
@@ -493,13 +494,16 @@ export default function ReceptionKiosk() {
                 </div>
               </section>
 
-              <section className="rounded-3xl border border-white/[0.08] bg-dark-card/75 p-4 shadow-[0_16px_40px_rgba(2,10,24,0.24)] backdrop-blur-xl sm:p-5 lg:col-span-2">
-                <div className="mb-4 flex items-center justify-between gap-3">
+              <section className="rounded-[1.75rem] border border-white/[0.1] bg-dark-card/80 p-4 shadow-[0_18px_45px_rgba(2,10,24,0.28)] backdrop-blur-xl sm:p-5 lg:col-span-2">
+                <div className="mb-4 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-gray-500">Último passo</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-amber-300">Etapa 3 • Equipe</p>
                     <h3 className="mt-1 font-display text-xl font-bold text-white sm:text-2xl">Escolha seu time</h3>
                   </div>
-                  {loadingTeams && <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />}
+                  <div className="flex items-center gap-2">
+                    <span className="hidden rounded-full border border-amber-300/20 bg-amber-300/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-200 sm:inline-flex">Quase lá</span>
+                    {loadingTeams && <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />}
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {teams.map(team => {
