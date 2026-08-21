@@ -5,9 +5,15 @@ import { useNFCReader } from '../../hooks/useNFCReader';
 import { api } from '../../services/api';
 import Avatar from '../../components/ui/Avatar';
 import AvatarSelector from '../../components/ui/AvatarSelector';
-import { DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
+import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
 import Button from '../../components/ui/Button';
 import StatusDot from '../../components/ui/StatusDot';
+
+const AVATAR_OPTIONS = ADVENTURER_AVATARS.map(option => ({
+  emoji: option.id,
+  name: option.label.replace('Avatar ', ''),
+  color: 'bg-primary/20',
+}));
 
 const KEYBOARD_ROWS = [
   ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
@@ -77,6 +83,7 @@ export default function ReceptionKiosk() {
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const kioskStateRef = useRef<KioskState>('waiting');
 
+  const selectedAvatar = AVATAR_OPTIONS.find(option => option.emoji === form.avatar) || AVATAR_OPTIONS[0];
   const selectedEvent = events.find(event => String(event.id) === String(selectedEventId));
   const selectedTeamData = teams.find(team => String(team.id) === String(selectedTeam));
 
@@ -415,51 +422,37 @@ export default function ReceptionKiosk() {
             </div>
             </div>
 
-            {registrationVisible && <div className="animate-kiosk-register motion-reduce:animate-none relative z-10 grid min-h-[calc(100vh-13rem)] gap-4 overflow-hidden rounded-[2rem] border border-fuchsia-300/15 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.2),transparent_38%),linear-gradient(135deg,#0b1226,#1b0d36_58%,#0d0924)] p-3 shadow-[0_28px_90px_rgba(19,8,51,0.52)] sm:p-5 lg:min-h-0 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:grid-cols-[minmax(280px,0.82fr)_minmax(420px,1.18fr)] lg:p-4 xl:grid-cols-[minmax(300px,0.9fr)_minmax(440px,1.1fr)]">
-              <section className="flex min-h-0 flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#071126]/90 p-4 shadow-[0_18px_45px_rgba(2,10,24,0.35)] backdrop-blur-xl sm:p-5 lg:p-4">
-                <div className="mb-3 flex items-center justify-between gap-2">
+            {registrationVisible && <div className="animate-kiosk-register motion-reduce:animate-none relative z-10 grid min-h-[calc(100vh-13rem)] gap-3 overflow-hidden rounded-[2rem] border border-fuchsia-300/15 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.18),transparent_42%),linear-gradient(135deg,#0d1428,#20103d_58%,#100b27)] p-3 shadow-[0_24px_80px_rgba(19,8,51,0.45)] sm:p-5 lg:min-h-0 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:grid-cols-[minmax(260px,0.72fr)_minmax(420px,1.28fr)] lg:p-3 xl:grid-cols-[minmax(190px,0.55fr)_minmax(360px,1.45fr)]">
+              <section className="flex flex-col rounded-3xl border border-cyan-300/15 bg-[#091226]/80 p-4 shadow-[0_16px_40px_rgba(2,10,24,0.28)] backdrop-blur-xl sm:p-5 lg:p-3">
+                <div className="mb-4 flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">Etapa 1 de 3</p>
-                    <h3 className="mt-1 font-display text-xl font-bold text-white sm:text-2xl">Escolha seu personagem</h3>
-                  </div>
-                  <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-cyan-200">Avatar</span>
-                </div>
-
-                <div className="mb-3 flex items-center gap-3 rounded-2xl border border-cyan-300/15 bg-gradient-to-br from-cyan-300/10 to-primary/10 p-3">
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border-2 border-cyan-200/40 bg-cyan-200/10 p-1 shadow-[0_0_30px_rgba(34,211,238,0.18)] sm:h-24 sm:w-24">
-                    <Avatar emoji={form.avatar} size="lg" shape="square" decorative />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300">Selecionado</p>
-                    <p className="mt-1 truncate font-display text-lg font-bold text-white sm:text-xl">Seu avatar está pronto</p>
-                    <p className="mt-1 text-xs leading-5 text-gray-400">Escolha uma aparência para começar a aventura.</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">Novo jogador</p>
+                    <h3 className="font-display text-2xl font-bold text-white">Escolha seu personagem</h3>
                   </div>
                 </div>
 
-                <div className="min-h-0 flex-1 rounded-2xl border border-white/[0.06] bg-black/10 p-2">
-                  <AvatarSelector
-                    value={form.avatar}
-                    onChange={handleAvatarChange}
-                    disabled={!canInteract}
-                    compact
-                  />
-                </div>
+                <AvatarSelector
+                  value={form.avatar}
+                  onChange={handleAvatarChange}
+                  disabled={!canInteract}
+                  compact
+                />
               </section>
 
-              <section className="flex min-h-0 flex-col rounded-[1.75rem] border border-fuchsia-300/25 bg-[#1a0d35]/95 p-4 shadow-[0_18px_50px_rgba(55,12,92,0.35)] backdrop-blur-xl sm:p-5 lg:p-4">
-                <div className="mb-4 flex items-center justify-between gap-3 border-b border-fuchsia-300/10 pb-3">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-fuchsia-300">Etapa 2 de 3</p>
-                    <h3 className="mt-1 font-display text-2xl font-bold leading-tight text-white sm:text-3xl">Dê um nome ao herói</h3>
+              <section className="flex flex-col rounded-[2rem] border border-fuchsia-300/20 bg-[#1b1037]/90 p-4 shadow-[0_16px_45px_rgba(55,12,92,0.28)] backdrop-blur-xl sm:p-5 lg:p-3">
+                <div className="mb-4 flex items-center gap-3 rounded-3xl border border-fuchsia-300/20 bg-black/20 p-3">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-4 border-fuchsia-300/50 bg-fuchsia-300/10 p-1.5 shadow-[0_0_35px_rgba(217,70,239,0.3)]">
+                    <Avatar emoji={selectedAvatar.emoji} size="md" bgColor={selectedAvatar.color} />
                   </div>
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-fuchsia-300/20 bg-fuchsia-300/10 text-xl">✍️</div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">Seu personagem</p>
+                    <h3 className="font-display text-xl font-bold leading-tight text-white sm:text-2xl">Como você se chama?</h3>
+                  </div>
+                  <span className="shrink-0 text-xl sm:text-2xl">✍️</span>
                 </div>
 
-                <div className="mb-4 flex min-h-[64px] items-center justify-between gap-3 rounded-2xl border-2 border-fuchsia-300/55 bg-black/30 px-4 text-center shadow-[inset_0_2px_15px_rgba(0,0,0,0.25)]">
-                  <span className="min-w-0 flex-1 truncate font-display text-xl uppercase tracking-wider text-white sm:text-2xl">
-                    {form.name || <span className="text-sm font-normal tracking-normal text-gray-500">Toque nas letras para digitar</span>}
-                  </span>
-                  <span className="shrink-0 rounded-full bg-fuchsia-300/10 px-2 py-1 text-[10px] font-bold text-fuchsia-200">{form.name.length}/18</span>
+                <div className="mb-4 flex min-h-[58px] items-center justify-center rounded-2xl border-2 border-fuchsia-300/60 bg-black/30 px-4 text-center font-display text-xl uppercase tracking-wider text-white shadow-inner">
+                  {form.name || <span className="text-sm font-normal tracking-normal text-gray-500">Toque nas letras para digitar</span>}
                 </div>
 
                 <div className="space-y-2">
@@ -503,13 +496,10 @@ export default function ReceptionKiosk() {
               <section className="rounded-3xl border border-white/[0.08] bg-dark-card/75 p-4 shadow-[0_16px_40px_rgba(2,10,24,0.24)] backdrop-blur-xl sm:p-5 lg:col-span-2">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-amber-300">Etapa 3 de 3</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-gray-500">Último passo</p>
                     <h3 className="mt-1 font-display text-xl font-bold text-white sm:text-2xl">Escolha seu time</h3>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="hidden rounded-full border border-amber-300/20 bg-amber-300/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-200 sm:inline-flex">Quase lá</span>
-                    {loadingTeams && <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />}
-                  </div>
+                  {loadingTeams && <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {teams.map(team => {
