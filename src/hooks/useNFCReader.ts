@@ -1,6 +1,7 @@
 // hooks/useNFCReader.ts
 import { useEffect, useRef, useState } from 'react';
 import { API_URL } from '../services/api';
+import { createAuthenticatedWebSocket } from '../services/websocket';
 
 export function useNFCReader(
   onBraceletDetected: (code: string) => void,
@@ -83,8 +84,7 @@ export function useNFCReader(
         ? localStorage.getItem('authToken')
         : null;
       const eventQuery = new URLSearchParams({ evento_id: eventoId });
-      if (token) eventQuery.set('token', token);
-      const ws = new WebSocket(`${serverUrl}?${eventQuery.toString()}`);
+      const ws = createAuthenticatedWebSocket(`${serverUrl}?${eventQuery.toString()}`, token);
       socketRef.current = ws;
 
       console.log(`🔗 Conectando WebSocket NFC ao evento ${eventoId}: ${serverUrl}`);

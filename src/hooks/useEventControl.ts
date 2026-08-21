@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { API_URL } from '../services/api';
+import { createAuthenticatedWebSocket } from '../services/websocket';
 
 export interface ControlledEventPayload {
   eventoId: string | null;
@@ -61,8 +62,8 @@ export function useEventControl(
       const token = localStorage.getItem('authToken');
       if (!token) return;
 
-      const query = new URLSearchParams({ scope: 'company', token });
-      socket = new WebSocket(`${getServerUrl()}?${query.toString()}`);
+      const query = new URLSearchParams({ scope: 'company' });
+      socket = createAuthenticatedWebSocket(`${getServerUrl()}?${query.toString()}`, token);
       socket.onopen = () => {
         reconnectAttempts = 0;
       };

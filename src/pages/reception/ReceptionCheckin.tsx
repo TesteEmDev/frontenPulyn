@@ -143,7 +143,12 @@ export default function ReceptionCheckin() {
       });
   }, [showToast]);
 
-  const { isConnected } = useNFCReader(handleBraceletDetected, 'checkin', selectedEventId);
+  const { isConnected } = useNFCReader(
+    handleBraceletDetected,
+    'checkin',
+    selectedEventId,
+    'reception',
+  );
 
   useEffect(() => {
     setNFCConnected(isConnected);

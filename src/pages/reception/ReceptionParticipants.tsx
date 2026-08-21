@@ -108,7 +108,12 @@ export default function ReceptionParticipants() {
 
   // O checkpoint já está validado no modo checkin; reutilizamos esse modo
   // durante cadastro/troca para manter o mesmo comportamento do fluxo que funciona.
-  const { isConnected } = useNFCReader(handleBraceletDetected, 'checkin', selectedEventId);
+  const { isConnected } = useNFCReader(
+    handleBraceletDetected,
+    'checkin',
+    selectedEventId,
+    'reception',
+  );
 
   useEffect(() => {
     setNFCConnected(isConnected);

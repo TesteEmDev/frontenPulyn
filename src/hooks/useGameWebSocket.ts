@@ -1,6 +1,7 @@
 // hooks/useGameWebSocket.ts - WebSocket genérico para eventos do jogo
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { API_URL } from '../services/api';
+import { createAuthenticatedWebSocket } from '../services/websocket';
 
 export interface GameEvent {
   type: string;
@@ -60,12 +61,11 @@ export function useGameWebSocket(
       setConnectionStatus(reconnectAttemptsRef.current > 0 ? 'reconnecting' : 'connecting');
       const serverUrl = getServerUrl();
       const query = new URLSearchParams({ evento_id: eventoId });
-      const token = localStorage.getItem('authToken');
-      if (token) query.set('token', token);
       const wsUrl = `${serverUrl}?${query.toString()}`;
-      
-      console.log(`🔗 Conectando ao WebSocket: ${wsUrl}`);
-      const ws = new WebSocket(wsUrl);
+      const token = localStorage.getItem('authToken');
+      const ws = createAuthenticatedWebSocket(wsUrl, token);
+
+      console.log(`🔗 Conectando ao WebSocket do evento ${eventoId}`);
 
       ws.onopen = () => {
         if (disposedRef.current || socketRef.current !== ws) return;
