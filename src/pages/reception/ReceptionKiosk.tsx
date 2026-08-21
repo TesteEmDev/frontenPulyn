@@ -464,23 +464,14 @@ export default function ReceptionKiosk() {
 
                 <div className="space-y-2">
                   {KEYBOARD_ROWS.map((row, rowIndex) => (
-                    <div
-                      key={`keyboard-row-${rowIndex}`}
-                      className={`mx-auto grid w-full max-w-[560px] gap-1.5 ${
-                        rowIndex === 0
-                          ? 'grid-cols-10'
-                          : rowIndex === 1
-                            ? 'grid-cols-9 px-[5%]'
-                            : 'grid-cols-7 px-[15%]'
-                      }`}
-                    >
+                    <div key={`keyboard-row-${rowIndex}`} className="flex justify-center gap-1.5">
                       {row.map(key => (
                         <button
                           key={key}
                           type="button"
                           disabled={!canInteract}
                           onClick={() => handleVirtualKey(key)}
-                          className="h-10 min-w-0 w-full rounded-xl border border-purple-300/30 bg-purple-500/20 px-1 text-sm font-bold text-white shadow-[0_3px_0_rgba(91,33,182,0.65)] transition active:translate-y-0.5 active:shadow-none hover:bg-fuchsia-400/30 disabled:cursor-not-allowed disabled:opacity-40 sm:h-11 sm:text-base"
+                          className="h-10 min-w-[28px] flex-1 rounded-xl border border-purple-300/30 bg-purple-500/20 px-1 text-sm font-bold text-white shadow-[0_3px_0_rgba(91,33,182,0.65)] transition active:translate-y-0.5 active:shadow-none hover:bg-fuchsia-400/30 disabled:cursor-not-allowed disabled:opacity-40 sm:h-11 sm:text-base"
                         >
                           {key}
                         </button>
