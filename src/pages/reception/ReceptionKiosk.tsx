@@ -301,16 +301,19 @@ export default function ReceptionKiosk() {
   }
 
   return (
-    <main className="kiosk-performance min-h-screen overflow-y-auto bg-[radial-gradient(circle_at_top,#312e81_0%,#111827_45%,#030712_100%)] px-3 py-3 text-white sm:px-5 sm:py-4 lg:px-4 lg:py-3 xl:overflow-hidden">
-      <div className="mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-6xl flex-col">
-        <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/20 text-2xl shadow-lg shadow-primary/20">⚡</div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary-300">Pulyn</p>
-                <h1 className="font-display text-2xl font-bold sm:text-3xl">Monte seu personagem</h1>
+    <main className="kiosk-performance relative min-h-screen overflow-y-auto bg-[#080f1e] px-3 py-3 text-white sm:px-5 sm:py-4 lg:px-4 lg:py-3 xl:overflow-hidden">
+      <div className="pointer-events-none absolute -left-40 top-16 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
+      <div className="pointer-events-none absolute -right-40 bottom-0 h-96 w-96 rounded-full bg-fuchsia-500/10 blur-3xl" />
+      <div className="relative mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-6xl flex-col">
+        <header className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-dark-card/60 px-3 py-2.5 shadow-[0_12px_35px_rgba(2,10,24,0.18)] backdrop-blur-xl sm:px-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-primary-300/20 bg-primary-500/10 text-2xl shadow-[0_0_28px_rgba(30,155,215,0.18)]">⚡</div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary-300">Pulyn Kiosk</p>
+                <span className="hidden rounded-full border border-success-400/20 bg-success-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-success-300 sm:inline-flex">Cadastro rápido</span>
               </div>
+              <h1 className="truncate font-display text-xl font-bold text-white sm:text-2xl">Monte seu personagem</h1>
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -326,7 +329,7 @@ export default function ReceptionKiosk() {
               aria-pressed={isFullscreen}
               aria-label={isFullscreen ? 'Sair da tela cheia' : 'Ativar tela cheia'}
               title={isFullscreen ? 'Sair da tela cheia' : 'Ativar tela cheia'}
-              className="rounded-full border border-white/10 bg-black/20 px-3 py-2 text-sm text-gray-300 transition hover:border-primary/60 hover:text-white sm:px-4 sm:text-xs"
+              className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm font-semibold text-gray-300 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary-300/40 hover:bg-primary-500/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60 sm:px-4 sm:text-xs"
             >
               <span aria-hidden="true">⛶</span>
               <span className="ml-1 hidden sm:inline">{isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}</span>
@@ -334,22 +337,30 @@ export default function ReceptionKiosk() {
           </div>
         </header>
 
-        <section className="mb-3 flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-2 backdrop-blur">
-          <div className="flex min-w-0 items-center gap-2 text-xs text-gray-400">
-            <span className={`h-2 w-2 shrink-0 rounded-full ${selectedEventId ? 'bg-success shadow-[0_0_10px_rgba(34,197,94,0.8)]' : 'bg-warning'}`} />
+        <section className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/[0.08] bg-dark-card/55 px-3 py-2.5 shadow-[0_8px_24px_rgba(2,10,24,0.12)] backdrop-blur-xl sm:px-4">
+          <div className="flex min-w-0 items-center gap-2.5 text-xs text-gray-400">
+            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ring-4 ${selectedEventId ? 'bg-success ring-success/10 shadow-[0_0_12px_rgba(76,175,80,0.7)]' : 'bg-warning ring-warning/10'}`} />
             <span className="truncate">
-              {selectedEventId ? <>Evento controlado pela recepção: <strong className="text-white">{selectedEvent?.name || 'carregando...'}</strong></> : 'Aguardando a recepção selecionar um evento'}
+              {selectedEventId ? <>Evento da recepção: <strong className="font-semibold text-white">{selectedEvent?.name || 'carregando...'}</strong></> : 'Aguardando a recepção selecionar um evento'}
             </span>
           </div>
-          <div className="flex shrink-0 items-center gap-3 text-xs text-gray-500"><span>Cadastro de crianças</span><button type="button" onClick={logout} className="underline hover:text-white">Sair</button></div>
+          <div className="flex shrink-0 items-center gap-2.5 text-[11px] text-gray-500 sm:gap-3">
+            <span className="hidden rounded-full border border-primary-400/15 bg-primary-500/10 px-2.5 py-1 text-primary-300 sm:inline-flex">Cadastro de crianças</span>
+            <button type="button" onClick={logout} className="rounded-lg px-2 py-1 underline decoration-white/20 underline-offset-2 transition hover:bg-white/5 hover:text-white">Sair</button>
+          </div>
         </section>
 
         {!selectedEventId ? (
-          <section className="flex flex-1 items-center justify-center rounded-3xl border border-dashed border-primary/40 bg-black/20 p-8 text-center">
-            <div className="max-w-md">
-              <div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center rounded-full bg-primary/15 text-5xl shadow-[0_0_50px_rgba(139,92,246,0.25)]">🎮</div>
-              <h2 className="font-display text-3xl font-bold">Pronto para começar</h2>
-              <p className="mt-3 text-gray-400">A recepção ainda não selecionou um evento. Aguarde a configuração no terminal da recepção.</p>
+          <section className="relative flex flex-1 items-center justify-center overflow-hidden rounded-3xl border border-primary-300/15 bg-dark-card/55 p-6 text-center shadow-[0_20px_60px_rgba(2,10,24,0.25)] backdrop-blur-xl sm:p-10">
+            <div className="pointer-events-none absolute left-1/2 top-0 h-48 w-96 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
+            <div className="relative max-w-md">
+              <div className="mx-auto mb-5 flex h-24 w-24 items-center justify-center rounded-[2rem] border border-primary-300/20 bg-primary-500/10 text-5xl shadow-[0_0_55px_rgba(30,155,215,0.2)]">🎮</div>
+              <p className="text-xs font-bold uppercase tracking-[0.3em] text-primary-300">Tudo pronto</p>
+              <h2 className="mt-2 font-display text-3xl font-bold text-white sm:text-4xl">Prepare seu personagem</h2>
+              <p className="mt-3 leading-6 text-gray-400">A recepção ainda não selecionou um evento. Assim que a configuração terminar, aproxime a pulseira para começar.</p>
+              <div className="mx-auto mt-6 inline-flex items-center gap-2 rounded-full border border-warning-400/20 bg-warning-500/10 px-3 py-2 text-xs font-semibold text-warning-300">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-warning-400" /> Aguardando a recepção
+              </div>
             </div>
           </section>
         ) : (
@@ -411,8 +422,8 @@ export default function ReceptionKiosk() {
             </div>
             </div>
 
-            {registrationVisible && <div className="animate-kiosk-register motion-reduce:animate-none relative z-10 grid min-h-[calc(100vh-13rem)] gap-3 rounded-[2rem] border border-fuchsia-300/20 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.22),transparent_42%),linear-gradient(135deg,#11152d,#241047_58%,#120b2d)] p-3 shadow-2xl shadow-purple-950/40 sm:p-5 lg:p-3 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:grid-cols-[minmax(260px,0.72fr)_minmax(420px,1.28fr)] xl:grid-cols-[minmax(190px,0.55fr)_minmax(360px,1.45fr)]">
-              <section className="flex flex-col rounded-3xl border border-cyan-300/20 bg-[#0b1228]/75 p-4 shadow-xl backdrop-blur sm:p-5 lg:p-3">
+            {registrationVisible && <div className="animate-kiosk-register motion-reduce:animate-none relative z-10 grid min-h-[calc(100vh-13rem)] gap-3 overflow-hidden rounded-[2rem] border border-fuchsia-300/15 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.18),transparent_42%),linear-gradient(135deg,#0d1428,#20103d_58%,#100b27)] p-3 shadow-[0_24px_80px_rgba(19,8,51,0.45)] sm:p-5 lg:min-h-0 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:grid-cols-[minmax(260px,0.72fr)_minmax(420px,1.28fr)] lg:p-3 xl:grid-cols-[minmax(190px,0.55fr)_minmax(360px,1.45fr)]">
+              <section className="flex flex-col rounded-3xl border border-cyan-300/15 bg-[#091226]/80 p-4 shadow-[0_16px_40px_rgba(2,10,24,0.28)] backdrop-blur-xl sm:p-5 lg:p-3">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">Novo jogador</p>
@@ -428,7 +439,7 @@ export default function ReceptionKiosk() {
                 />
               </section>
 
-              <section className="flex flex-col rounded-[2rem] border border-fuchsia-300/30 bg-[#21103f]/90 p-4 shadow-xl shadow-purple-950/30 backdrop-blur sm:p-5 lg:p-3">
+              <section className="flex flex-col rounded-[2rem] border border-fuchsia-300/20 bg-[#1b1037]/90 p-4 shadow-[0_16px_45px_rgba(55,12,92,0.28)] backdrop-blur-xl sm:p-5 lg:p-3">
                 <div className="mb-4 flex items-center gap-3 rounded-3xl border border-fuchsia-300/20 bg-black/20 p-3">
                   <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-4 border-fuchsia-300/50 bg-fuchsia-300/10 p-1.5 shadow-[0_0_35px_rgba(217,70,239,0.3)]">
                     <Avatar emoji={selectedAvatar.emoji} size="md" bgColor={selectedAvatar.color} />
@@ -482,11 +493,11 @@ export default function ReceptionKiosk() {
                 </div>
               </section>
 
-              <section className="rounded-3xl border border-white/10 bg-gray-900/70 p-5 shadow-xl lg:col-span-2">
-                <div className="mb-4 flex items-center justify-between">
+              <section className="rounded-3xl border border-white/[0.08] bg-dark-card/75 p-4 shadow-[0_16px_40px_rgba(2,10,24,0.24)] backdrop-blur-xl sm:p-5 lg:col-span-2">
+                <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs uppercase tracking-wider text-gray-500">Equipe</p>
-                    <h3 className="font-display text-2xl font-bold">Escolha seu time</h3>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-gray-500">Último passo</p>
+                    <h3 className="mt-1 font-display text-xl font-bold text-white sm:text-2xl">Escolha seu time</h3>
                   </div>
                   {loadingTeams && <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />}
                 </div>
@@ -499,7 +510,7 @@ export default function ReceptionKiosk() {
                         type="button"
                         disabled={!canInteract}
                         onClick={() => setSelectedTeam(team.id)}
-                        className={`rounded-2xl border px-3 py-3 text-left transition ${selected ? 'ring-2 ring-white/50' : 'border-white/10 hover:border-white/30'} disabled:cursor-not-allowed disabled:opacity-50`}
+                        className={`rounded-2xl border px-3 py-3.5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/[0.04] ${selected ? 'ring-2 ring-white/60 shadow-lg' : 'border-white/10 hover:border-white/30'} disabled:cursor-not-allowed disabled:opacity-50`}
                         style={{ borderColor: selected ? team.color : undefined, backgroundColor: selected ? `${team.color}22` : undefined }}
                       >
                         <span className="block h-3 w-3 rounded-full" style={{ backgroundColor: team.color || '#8b5cf6' }} />
@@ -517,9 +528,9 @@ export default function ReceptionKiosk() {
             </div>}
           </section>
         )}
-        <footer className="mt-5 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600">
-          <span>{selectedEvent?.name || 'Nenhum evento selecionado'}</span>
-          <span>Autoatendimento conectado ao checkpoint de recepção</span>
+        <footer className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] px-1 pt-3 text-[10px] text-gray-600 sm:text-xs">
+          <span className="truncate">{selectedEvent?.name || 'Nenhum evento selecionado'}</span>
+          <span className="hidden sm:inline">Autoatendimento conectado ao checkpoint de recepção</span>
         </footer>
       </div>
     </main>
