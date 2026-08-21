@@ -411,40 +411,46 @@ export default function DisplayMain() {
   // Se não houver evento selecionado, aguardar o comando da recepção.
   if (!selectedEventId) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-dark via-dark/95 to-primary/10 p-6 flex items-center justify-center">
-        <Card variant="glow" className="max-w-md w-full text-center">
-          <h1 className="font-display text-4xl font-bold text-white mb-2">Pulyn Arena</h1>
-          <p className="text-gray-400">Aguardando a recepção selecionar um evento...</p>
-          {loading && <div className="mx-auto mt-6 h-10 w-10 animate-spin rounded-full border-4 border-primary/30 border-t-primary" />}
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#08111f] p-6">
+        <div className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-primary/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-40 -right-24 h-[30rem] w-[30rem] rounded-full bg-secondary/10 blur-3xl" />
+        <Card variant="glow" className="relative w-full max-w-md border-primary-400/20 bg-dark-card/90 p-8 text-center shadow-[0_24px_80px_rgba(2,10,24,0.45)]">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-primary-300/20 bg-primary-500/10 text-3xl shadow-[0_0_35px_rgba(30,155,215,0.18)]">⚡</div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-[0.3em] text-primary-300">Pulyn Arena</p>
+          <h1 className="font-display text-3xl font-bold text-white sm:text-4xl">Aguardando o evento</h1>
+          <p className="mt-3 text-sm leading-6 text-gray-400">A recepção precisa selecionar um evento para liberar a arena.</p>
+          {loading && <div className="mx-auto mt-7 h-9 w-9 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />}
         </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-dark via-dark/95 to-primary/10 p-6 relative">
+    <div className="relative min-h-screen overflow-hidden bg-[#08111f] px-4 py-5 text-white sm:px-6 lg:px-8">
+      <div className="pointer-events-none absolute -left-48 top-24 h-[32rem] w-[32rem] rounded-full bg-primary/10 blur-3xl" />
+      <div className="pointer-events-none absolute -right-56 bottom-0 h-[34rem] w-[34rem] rounded-full bg-secondary/10 blur-3xl" />
       {/* Botão de Sair - Canto superior esquerdo */}
-      <div className="absolute top-6 left-6 z-40">
+      <div className="absolute left-4 top-4 z-40 sm:left-6 sm:top-6">
         <button
           onClick={() => window.history.back()}
-          className="px-4 py-2 rounded-lg bg-surface/80 hover:bg-surface text-sm text-gray-300 hover:text-white transition-all duration-300 flex items-center gap-2 backdrop-blur-md"
+          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-dark-card/80 px-3.5 py-2 text-sm font-semibold text-gray-300 shadow-lg shadow-black/10 backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-primary-400/40 hover:bg-dark-surface hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
           title="Voltar (ESC)"
         >
-          <ArrowLeft size={18} />
-          Sair
+          <ArrowLeft size={17} />
+          <span className="hidden sm:inline">Sair</span>
         </button>
       </div>
 
-      {/* Notificação Animada de Conquista - GRANDE */}
+      {/* Notificação Animada de Conquista */}
       {showNotification && notificationData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm pointer-events-none">
           <div className="animate-in fade-in zoom-in duration-500 pointer-events-auto">
             <div
-              className="px-12 py-8 rounded-2xl shadow-2xl border-4 transform transition-all duration-300"
+              className="w-full max-w-xl rounded-3xl border-2 px-8 py-8 shadow-2xl sm:px-12 sm:py-10"
               style={{
-                backgroundColor: notificationData.color + '15',
+                backgroundColor: notificationData.color + '18',
                 borderColor: notificationData.color,
-                boxShadow: `0 0 60px ${notificationData.color}60, inset 0 0 30px ${notificationData.color}20`
+                boxShadow: `0 0 80px ${notificationData.color}45, inset 0 0 35px ${notificationData.color}15`
               }}
             >
               <div className="flex flex-col items-center gap-6 text-center">
@@ -510,44 +516,49 @@ export default function DisplayMain() {
 
       <div className="max-w-7xl mx-auto">
         {/* Header com data/hora */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <h1 className="font-display text-5xl font-bold text-white">
+        <div className="relative mb-7 overflow-hidden rounded-3xl border border-white/10 bg-dark-card/75 p-5 text-center shadow-[0_18px_50px_rgba(2,10,24,0.2)] backdrop-blur-xl sm:p-7">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-300/70 to-transparent" />
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary-300/20 bg-primary-500/10 text-2xl shadow-[0_0_30px_rgba(30,155,215,0.15)]">⚡</div>
+            <h1 className="font-display text-4xl font-bold tracking-tight text-white sm:text-6xl">
               Pulyn Arena
             </h1>
-            <div className="flex items-center gap-2" aria-live="polite">
-              <div className={`h-3 w-3 rounded-full ${
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1.5" aria-live="polite">
+              <div className={`h-2.5 w-2.5 rounded-full ${
                 connectionStatus === 'connected'
                   ? 'bg-success animate-pulse'
                   : connectionStatus === 'reconnecting' || connectionStatus === 'connecting'
                     ? 'bg-warning animate-pulse'
                     : 'bg-danger'
               }`} />
-              <span className="text-xs text-gray-400">
+              <span className="text-xs font-semibold text-gray-300">
                 {connectionStatus === 'connected'
-                  ? 'Em tempo real'
+                  ? 'Ao vivo'
                   : connectionStatus === 'reconnecting'
-                    ? 'Reconectando...'
+                    ? 'Reconectando'
                     : connectionStatus === 'connecting'
-                      ? 'Conectando...'
+                      ? 'Conectando'
                       : 'Desconectado'}
               </span>
               {lastMessageAt && connectionStatus === 'connected' && (
-                <span className="text-[11px] text-gray-500">
+                <span className="hidden text-[11px] text-gray-500 sm:inline">
                   · {lastMessageAt.toLocaleTimeString('pt-BR')}
                 </span>
               )}
             </div>
           </div>
-          <div className="flex items-center justify-center gap-4 mb-4">
-            <p className="text-xl text-gray-300">
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
+            <p className="max-w-full truncate text-base font-semibold text-gray-200 sm:text-xl">
               {events.find(e => e.id === selectedEventId)?.name || 'Evento selecionado'}
             </p>
-            <span className="rounded-full border border-white/10 bg-surface/50 px-3 py-1 text-xs text-gray-500">Controlado pela recepção</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-secondary-400/20 bg-secondary-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-secondary-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-secondary-400" /> Recepção no controle
+            </span>
           </div>
           {selectedGameType && !monsterStatus?.active && !treasureStatus?.active && (
-            <div className="mx-auto mb-6 max-w-2xl rounded-2xl border border-primary/40 bg-primary/10 px-6 py-4 text-center" aria-live="polite">
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">Jogo selecionado</p>
+            <div className="mx-auto mb-6 max-w-2xl rounded-2xl border border-primary-400/25 bg-primary-500/10 px-6 py-5 text-center shadow-[0_12px_35px_rgba(30,155,215,0.08)]" aria-live="polite">
+              <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-primary-500/15 text-lg">🎮</div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary-300">Jogo selecionado</p>
               <p className="mt-1 font-display text-2xl font-bold text-white">
                 {selectedGameName || (selectedGameType === 'monster_hunt' ? 'Derrote o Monstro' : selectedGameType === 'treasure_hunt' ? 'Caça ao Tesouro' : 'Jogo de território')}
               </p>
@@ -658,54 +669,86 @@ export default function DisplayMain() {
             </div>
           )}
 
-          <div className="flex justify-center gap-8 text-center">
-            <div>
-              <p className="text-3xl font-mono text-primary font-bold">{formattedTime}</p>
-              <p className="text-sm text-gray-400 mt-1">{formattedDate}</p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 border-t border-white/[0.06] pt-4 text-center">
+            <div className="flex items-center gap-2">
+              <Clock size={16} className="text-primary-300" />
+              <p className="font-mono text-xl font-bold tracking-wide text-primary-300 sm:text-2xl">{formattedTime}</p>
             </div>
+            <span className="hidden h-4 w-px bg-white/10 sm:block" />
+            <p className="text-xs capitalize text-gray-500 sm:text-sm">{formattedDate}</p>
           </div>
         </div>
 
         {/* Cards de estatísticas */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <Card variant="glow" className="text-center p-4">
-            <Users size={32} className="text-primary mx-auto mb-2" />
-            <p className="text-3xl font-bold text-white">{activeParticipants}/{totalParticipants}</p>
-            <p className="text-sm text-gray-400">Participantes Ativos</p>
+        <div className="mb-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <Card variant="glow" className="group relative overflow-hidden p-4 sm:p-5">
+            <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-primary/10 blur-2xl transition group-hover:bg-primary/20" />
+            <div className="relative flex items-start justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Participantes</p>
+                <p className="mt-2 text-2xl font-bold text-white sm:text-3xl">{activeParticipants}/{totalParticipants}</p>
+                <p className="mt-1 text-xs text-gray-400">ativos no evento</p>
+              </div>
+              <div className="rounded-xl border border-primary-400/20 bg-primary-500/10 p-2 text-primary-300"><Users size={20} /></div>
+            </div>
           </Card>
 
-          <Card variant="glow" className="text-center p-4">
-            <Target size={32} className="text-secondary mx-auto mb-2" />
-            <p className="text-3xl font-bold text-white">{onlineCheckpoints}/{totalCheckpoints}</p>
-            <p className="text-sm text-gray-400">Checkpoints Online</p>
+          <Card variant="secondary" className="group relative overflow-hidden p-4 sm:p-5">
+            <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-secondary/10 blur-2xl transition group-hover:bg-secondary/20" />
+            <div className="relative flex items-start justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Checkpoints</p>
+                <p className="mt-2 text-2xl font-bold text-white sm:text-3xl">{onlineCheckpoints}/{totalCheckpoints}</p>
+                <p className="mt-1 text-xs text-gray-400">online agora</p>
+              </div>
+              <div className="rounded-xl border border-secondary-400/20 bg-secondary-500/10 p-2 text-secondary-300"><Target size={20} /></div>
+            </div>
           </Card>
 
-          <Card variant="glow" className="text-center p-4">
-            <Zap size={32} className="text-accent mx-auto mb-2" />
-            <p className="text-3xl font-bold text-white">{totalReadings}</p>
-            <p className="text-sm text-gray-400">Leituras Realizadas</p>
+          <Card variant="glow" className="group relative overflow-hidden p-4 sm:p-5">
+            <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-accent/10 blur-2xl transition group-hover:bg-accent/20" />
+            <div className="relative flex items-start justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Leituras</p>
+                <p className="mt-2 text-2xl font-bold text-white sm:text-3xl">{totalReadings}</p>
+                <p className="mt-1 text-xs text-gray-400">conquistas registradas</p>
+              </div>
+              <div className="rounded-xl border border-accent-400/20 bg-accent-500/10 p-2 text-accent-300"><Zap size={20} /></div>
+            </div>
           </Card>
 
-          <Card variant="glow" className="text-center p-4">
-            <Trophy size={32} className="text-warning mx-auto mb-2" />
-            <p className="text-3xl font-bold text-white">{totalScores}</p>
-            <p className="text-sm text-gray-400">Pontos Totais</p>
+          <Card variant="glow" className="group relative overflow-hidden p-4 sm:p-5">
+            <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-warning/10 blur-2xl transition group-hover:bg-warning/20" />
+            <div className="relative flex items-start justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Pontuação</p>
+                <p className="mt-2 text-2xl font-bold text-white sm:text-3xl">{totalScores}</p>
+                <p className="mt-1 text-xs text-gray-400">pontos acumulados</p>
+              </div>
+              <div className="rounded-xl border border-warning-400/20 bg-warning-500/10 p-2 text-warning-300"><Trophy size={20} /></div>
+            </div>
           </Card>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Ranking de Participantes */}
-          <Card variant="glow">
-            <div className="flex items-center gap-2 mb-4">
-              <Medal size={24} className="text-warning" />
-              <h2 className="font-display text-xl text-white">Top Participantes</h2>
+          <Card variant="glow" className="overflow-hidden p-4 sm:p-5">
+            <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl border border-warning-400/20 bg-warning-500/10 p-2 text-warning-300"><Medal size={20} /></div>
+                <div>
+                  <h2 className="font-display text-xl font-bold text-white">Top Participantes</h2>
+                  <p className="mt-0.5 text-xs text-gray-500">Quem está liderando a festa</p>
+                </div>
+              </div>
+              <Badge variant="warning">Top 5</Badge>
             </div>
             <div className="space-y-3">
               {topParticipants.length > 0 ? (
                 topParticipants.map((child, index) => (
                   <div
                     key={child.id}
-                    className="flex items-center gap-3 p-3 rounded-lg bg-surface/50 hover:bg-surface transition-colors"
+                    className="flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-3.5 transition-all duration-200 hover:border-white/10 hover:bg-white/[0.05]"
                   >
                     <div className="flex-shrink-0 w-8 text-center">
                       {index === 0 ? (
@@ -743,10 +786,16 @@ export default function DisplayMain() {
           </Card>
 
           {/* Ranking de Times */}
-          <Card variant="glow">
-            <div className="flex items-center gap-2 mb-4">
-              <Trophy size={24} className="text-primary" />
-              <h2 className="font-display text-xl text-white">Ranking de Times</h2>
+          <Card variant="secondary" className="overflow-hidden p-4 sm:p-5">
+            <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl border border-primary-400/20 bg-primary-500/10 p-2 text-primary-300"><Trophy size={20} /></div>
+                <div>
+                  <h2 className="font-display text-xl font-bold text-white">Ranking de Times</h2>
+                  <p className="mt-0.5 text-xs text-gray-500">A disputa pelo primeiro lugar</p>
+                </div>
+              </div>
+              <Badge variant="primary">Top 5</Badge>
             </div>
             <div className="space-y-3">
               {topTeams.length > 0 ? (
@@ -758,7 +807,7 @@ export default function DisplayMain() {
                   return (
                     <div
                       key={team.id}
-                      className="flex items-center gap-3 p-3 rounded-lg bg-surface/50 hover:bg-surface transition-colors"
+                      className="flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-3.5 transition-all duration-200 hover:border-white/10 hover:bg-white/[0.05]"
                     >
                       <div 
                         className="w-10 h-10 rounded-lg flex items-center justify-center"
@@ -808,11 +857,16 @@ export default function DisplayMain() {
             </Card>
           )}
 
-          {/* Atividades Recentes */}
-          <Card variant="glow" className="lg:col-span-2">
-            <div className="flex items-center gap-2 mb-4">
-              <Clock size={24} className="text-secondary" />
-              <h2 className="font-display text-xl text-white">Atividades Recentes</h2>
+          <Card variant="glow" className="overflow-hidden p-4 sm:p-5 lg:col-span-2">
+            <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl border border-secondary-400/20 bg-secondary-500/10 p-2 text-secondary-300"><Clock size={20} /></div>
+                <div>
+                  <h2 className="font-display text-xl font-bold text-white">Atividades Recentes</h2>
+                  <p className="mt-0.5 text-xs text-gray-500">Últimas conquistas em tempo real</p>
+                </div>
+              </div>
+              <span className="hidden rounded-full border border-success-400/20 bg-success-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-success-300 sm:inline-flex">Ao vivo</span>
             </div>
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
               {recentActivities.length > 0 ? (
@@ -866,17 +920,25 @@ export default function DisplayMain() {
           </Card>
 
           {/* Status dos Checkpoints */}
-          <Card variant="glow" className="lg:col-span-2">
-            <div className="flex items-center gap-2 mb-4">
-              <MapPin size={24} className="text-accent" />
-              <h2 className="font-display text-xl text-white">Status dos Checkpoints</h2>
+          <Card variant="glow" className="overflow-hidden p-4 sm:p-5 lg:col-span-2">
+            <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl border border-accent-400/20 bg-accent-500/10 p-2 text-accent-300"><MapPin size={20} /></div>
+                <div>
+                  <h2 className="font-display text-xl font-bold text-white">Status dos Checkpoints</h2>
+                  <p className="mt-0.5 text-xs text-gray-500">Saúde dos territórios conectados</p>
+                </div>
+              </div>
+              <Badge variant={onlineCheckpoints === totalCheckpoints && totalCheckpoints > 0 ? 'success' : 'warning'}>
+                {onlineCheckpoints}/{totalCheckpoints} online
+              </Badge>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {checkpointStats.length > 0 ? (
                 checkpointStats.map((cp) => (
                   <div
                     key={cp.id}
-                    className="p-4 rounded-lg bg-surface/30 border border-border"
+                    className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4 transition-colors hover:border-white/10 hover:bg-white/[0.045]"
                   >
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="font-semibold text-white">{cp.name}</h3>
