@@ -48,10 +48,12 @@ const Button: React.FC<ButtonProps> = ({
       onClick={onClick}
       disabled={disabled}
       className={`
-        inline-flex items-center justify-center rounded-lg font-body font-semibold
-        transition-all duration-200 ease-in-out
-        focus:outline-none focus:ring-2 focus:ring-primary-500/50
-        disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none
+        inline-flex items-center justify-center rounded-xl font-body font-semibold
+        min-h-10 border border-white/10
+        transition-all duration-200 ease-out
+        focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2 focus:ring-offset-dark
+        active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none
+        hover:-translate-y-0.5
         ${variantClasses[variant]}
         ${sizeClasses[size]}
         ${className}
