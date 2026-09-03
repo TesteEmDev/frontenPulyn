@@ -1,6 +1,3 @@
-// RECEPÇÃO KIOSK - VERSÃO OTIMIZADA
-// Performance: <300ms troca de tela, 50+ FPS
-
 import { useCallback, useEffect, useRef, useState, memo } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { usePulynStore } from '../../store/mockData';
@@ -13,6 +10,7 @@ import Button from '../../components/ui/Button';
 import StatusDot from '../../components/ui/StatusDot';
 import VirtualKeyboardOtimizado from '../../components/ui/VirtualKeyboardOtimizado';
 import { useDebounce, useMemoizedCallback } from '../../hooks/useDebounce';
+import type { Event, Team } from '../../types/index';
 
 const AVATAR_OPTIONS = ADVENTURER_AVATARS.map(option => ({
   emoji: option.id,
@@ -66,8 +64,8 @@ type KioskState = 'waiting' | 'reading' | 'ready' | 'saving' | 'success' | 'erro
 export default function ReceptionKioskOtimizado() {
   const { logout } = useAuth();
   const selectedEventId = usePulynStore(state => state.eventoAtualId || '');
-  const [events, setEvents] = useState<any[]>([]);
-  const [teams, setTeams] = useState<any[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [selectedTeam, setSelectedTeam] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingTeams, setLoadingTeams] = useState(false);

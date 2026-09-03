@@ -70,20 +70,15 @@ export const API_URL = (configuredForProduction || fallbackApiUrl).replace(/\/+$
 
 // Helper para obter headers com autenticação
 function getAuthHeaders() {
-  try {
-    const token = localStorage.getItem('authToken') || useAuth.getState().token;
-    if (!token) {
-      throw new Error('Sessão expirada. Faça login novamente.');
-    }
-
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    };
-  } catch (err) {
-    console.error('❌ Erro ao obter headers de autenticação:', err);
-    throw err;
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new Error('Sessão expirada. Faça login novamente.');
   }
+
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  };
 }
 
 export const api = {

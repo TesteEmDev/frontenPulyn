@@ -32,6 +32,7 @@ import Select from '../../components/ui/Select';
 import Modal from '../../components/ui/Modal';
 
 import { api } from '../../services/api';
+import type { Client } from '../../types/index';
 
 const masterNavItems = [
   { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/master' },
@@ -43,18 +44,12 @@ const masterNavItems = [
   { icon: <BarChart3 size={20} />, label: 'Analytics', path: '/master/analytics' },
 ];
 
-interface Client {
-  id: string;
+interface ClientFormState {
   name: string;
   city: string;
   state: string;
-  plan: 'starter' | 'professional' | 'enterprise';
-  status: 'active' | 'blocked' | 'trial';
-  eventsDone: number;
-  lastAccess: string;
   email: string;
-  phone: string;
-  createdAt: string;
+  password: string;
 }
 
 const planBadgeVariant: Record<string, 'primary' | 'secondary' | 'muted'> = {
