@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { QrCode, Edit, RotateCw, Unlink } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useNFCReader } from '../../hooks/useNFCReader';
 import { api } from '../../services/api';
@@ -12,6 +13,7 @@ import Input from '../../components/ui/Input';
 import Badge from '../../components/ui/Badge';
 import Avatar from '../../components/ui/Avatar';
 import Modal from '../../components/ui/Modal';
+import QRCodeModal from '../../components/ui/QRCodeModal';
 import StatusDot from '../../components/ui/StatusDot';
 
 const navItems = [
@@ -92,7 +94,7 @@ export default function ReceptionParticipants() {
   const [teamsData, setTeamsData] = useState<Team[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalChild, setModalChild] = useState<string | null>(null);
-  const [modalAction, setModalAction] = useState<'unlink' | 'change' | 'edit-name' | 'delete' | null>(null);
+  const [modalAction, setModalAction] = useState<'unlink' | 'change' | 'edit-name' | 'delete' | 'generate-qrcode' | null>(null);
   const [braceletInput, setBraceletInput] = useState('');
   const [nfcConnected, setNFCConnected] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -100,6 +102,11 @@ export default function ReceptionParticipants() {
   const [teamSelections, setTeamSelections] = useState<Record<string, string>>({});
   const [editingName, setEditingName] = useState('');
   const [editingNickname, setEditingNickname] = useState('');
+  const [qrCodeModalOpen, setQrCodeModalOpen] = useState(false);
+  const [qrCodeLoading, setQrCodeLoading] = useState(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
+  const [qrCodeError, setQrCodeError] = useState<string | null>(null);
+  const [selectedChildForQR, setSelectedChildForQR] = useState<{ id: string; name: string } | null>(null);
 
   // Callback para quando uma pulseira é detectada pelo Arduino
   const handleBraceletDetected = useCallback((code: string) => {
@@ -229,7 +236,7 @@ export default function ReceptionParticipants() {
     return result;
   }, [children, search, activeTab, selectedTeam]);
 
-  const handleOpenModal = useCallback((childId: string, action: 'unlink' | 'change' | 'edit-name' | 'delete') => {
+  const handleOpenModal = useCallback((childId: string, action: 'unlink' | 'change' | 'edit-name' | 'delete' | 'generate-qrcode') => {
     setModalChild(childId);
     setModalAction(action);
     
@@ -241,9 +248,47 @@ export default function ReceptionParticipants() {
         setEditingNickname(child.nickname);
       }
     }
+
+    // Se é gerar QR Code, abrir o modal de QR Code e buscar o código
+    if (action === 'generate-qrcode') {
+      const child = children.find(c => c.id === childId);
+      if (child) {
+        setSelectedChildForQR({ id: childId, name: child.name });
+        setQrCodeModalOpen(true);
+        loadQRCode(childId);
+      }
+      return;
+    }
     
     setModalOpen(true);
   }, [children]);
+
+  const loadQRCode = useCallback(async (childId: string) => {
+    try {
+      setQrCodeLoading(true);
+      setQrCodeError(null);
+      setQrCodeDataUrl(null);
+
+      console.log(`📊 Carregando QR Code para criança ${childId}`);
+      const response = await api.generateQRCode(childId);
+      
+      if (response?.qrCodeDataUrl) {
+        console.log(`✅ QR Code gerado com sucesso`);
+        setQrCodeDataUrl(response.qrCodeDataUrl);
+      } else if (response?.url) {
+        // Se o backend retornar uma URL em vez de data URL
+        console.log(`✅ QR Code URL recebida`);
+        setQrCodeDataUrl(response.url);
+      } else {
+        throw new Error('Formato de resposta inválido');
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao carregar QR Code:', error);
+      setQrCodeError(error.message || 'Erro ao gerar QR Code');
+    } finally {
+      setQrCodeLoading(false);
+    }
+  }, []);
 
   const handleConfirmModal = useCallback(async () => {
     if (!modalChild || !modalAction) return;
@@ -639,15 +684,21 @@ export default function ReceptionParticipants() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-1">
+                              {/* QrCode icon */}
+                              <button
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-dark-surface transition-colors duration-200"
+                                title="Gerar QR Code"
+                                onClick={() => handleOpenModal(child.id, 'generate-qrcode')}
+                              >
+                                <QrCode className="w-4 h-4" />
+                              </button>
                               {/* Edit icon */}
                               <button
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-dark-surface transition-colors duration-200"
                                 title="Editar"
                                 onClick={() => handleOpenModal(child.id, 'edit-name')}
                               >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
+                                <Edit className="w-4 h-4" />
                               </button>
                               {/* Change bracelet */}
                               <button
@@ -655,9 +706,7 @@ export default function ReceptionParticipants() {
                                 title={child.bracelet_code ? 'Trocar pulseira' : 'Cadastrar pulseira'}
                                 onClick={() => handleOpenModal(child.id, 'change')}
                               >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
+                                <RotateCw className="w-4 h-4" />
                               </button>
                               {/* Unlink bracelet */}
                               {child.bracelet_code && (
@@ -666,9 +715,7 @@ export default function ReceptionParticipants() {
                                   title="Desvincular pulseira"
                                   onClick={() => handleOpenModal(child.id, 'unlink')}
                                 >
-                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                                  </svg>
+                                  <Unlink className="w-4 h-4" />
                                 </button>
                               )}
                               {/* Delete participant */}
@@ -826,6 +873,23 @@ export default function ReceptionParticipants() {
           </div>
         </div>
       </Modal>
+
+      {/* Modal para QR Code */}
+      <QRCodeModal
+        isOpen={qrCodeModalOpen}
+        onClose={() => {
+          setQrCodeModalOpen(false);
+          setQrCodeDataUrl(null);
+          setQrCodeError(null);
+          setSelectedChildForQR(null);
+        }}
+        childName={selectedChildForQR?.name || ''}
+        childId={selectedChildForQR?.id || ''}
+        qrCodeDataUrl={qrCodeDataUrl || undefined}
+        loading={qrCodeLoading}
+        error={qrCodeError || undefined}
+      />
+
     </div>
   );
 }

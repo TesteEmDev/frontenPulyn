@@ -1197,4 +1197,43 @@ export const api = {
       throw error;
     }
   },
+
+  // ==================== QR CODE ====================
+  async generateQRCode(criancaId: string) {
+    try {
+      const res = await fetch(`${API_URL}/qrcode/generate/${encodeURIComponent(criancaId)}`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao gerar QR Code (${res.status})`);
+      }
+      
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao gerar QR Code:', error);
+      throw error;
+    }
+  },
+
+  async getQRCode(criancaId: string) {
+    try {
+      const res = await fetch(`${API_URL}/qrcode/${encodeURIComponent(criancaId)}`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao buscar QR Code (${res.status})`);
+      }
+      
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao buscar QR Code:', error);
+      throw error;
+    }
+  },
 };
