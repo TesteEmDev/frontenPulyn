@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { QrCode, Edit, RotateCw, Unlink, Trash2 } from 'lucide-react';
+import { QrCode, Edit, RotateCw, Unlink } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useNFCReader } from '../../hooks/useNFCReader';
 import { api } from '../../services/api';
@@ -94,7 +94,7 @@ export default function ReceptionParticipants() {
   const [teamsData, setTeamsData] = useState<Team[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalChild, setModalChild] = useState<string | null>(null);
-  const [modalAction, setModalAction] = useState<'unlink' | 'change' | 'edit-name' | 'delete' | null>(null);
+  const [modalAction, setModalAction] = useState<'unlink' | 'change' | 'edit-name' | 'delete' | 'generate-qrcode' | null>(null);
   const [braceletInput, setBraceletInput] = useState('');
   const [nfcConnected, setNFCConnected] = useState(false);
   const [saving, setSaving] = useState(false);
