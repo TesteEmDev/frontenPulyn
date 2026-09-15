@@ -289,6 +289,10 @@ export default function GameMasterDashboard() {
       if (startedGame) {
         setSelectedGameId(startedGame.id);
         setActiveGame(startedGame);
+        // Garantir que eventoAtualId está definido ao iniciar jogo
+        if (selectedEventId && !eventoAtualId) {
+          setEventoAtual(selectedEventId);
+        }
       }
       const gameType = payload.gameType;
       if (gameType === 'monster_hunt') {
@@ -325,7 +329,7 @@ export default function GameMasterDashboard() {
       setTreasureStatus({ active: false, gameType: 'none' });
       setMonsterStatus({ active: false, gameType: 'none' });
     }
-  }, [games, selectedEventId, loadTeams, loadChildren, setGameRunning, setGameTimer, setActiveGame, resetGameTimer, loadTreasureStatus, loadMonsterStatus]);
+  }, [games, selectedEventId, eventoAtualId, loadTeams, loadChildren, setGameRunning, setGameTimer, setActiveGame, setEventoAtual, resetGameTimer, loadTreasureStatus, loadMonsterStatus]);
 
   const {
     connectionStatus: wsConnectionStatus,
