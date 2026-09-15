@@ -235,8 +235,8 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
         const slot = checkpointChildren[lastCheckpoint.id] || 0;
         checkpointChildren[lastCheckpoint.id] = slot + 1;
         
-        // Layout em pirâmide com maior espaçamento: -8, 0, 8 (primeira linha), depois abaixo com mais espaçamento
-        const offsets = [-8, 0, 8];
+        // Layout em pirâmide com muito mais espaçamento
+        const offsets = [-16, 0, 16];  // Espaçamento horizontal maior
         const offsetX = offsets[slot % offsets.length];
         const row = Math.floor(slot / 3);
 
@@ -246,7 +246,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           avatar: child.avatar,
           nickname: child.nickname || child.name,
           x: basePosition.x + offsetX,
-          y: basePosition.y + 10 + row * 8,
+          y: basePosition.y + 15 + row * 20,  // Espaçamento vertical maior
         });
         continue;
       }
