@@ -226,12 +226,48 @@ export default function AdminMap() {
     }
   }, []);
 
+  const loadZones = useCallback(async (eventId: string | null) => {
+    if (!eventId) {
+      setZones(initialZones);
+      return;
+    }
+
+    try {
+      const zonesData = await api.getZones(eventId);
+      if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
+        setZones(zonesData);
+      } else {
+        setZones(initialZones);
+      }
+    } catch (err: any) {
+      console.error('❌ Erro ao carregar zonas:', err);
+      setZones(initialZones);
+    }
+  }, []);
+
   useEffect(() => {
     setSelectedCheckpointId(null);
     loadCheckpoints(selectedEventId);
     loadFloorPlan(selectedEventId);
+    loadZones(selectedEventId);
     if (selectedEventId) setEventoAtual(selectedEventId);
-  }, [loadCheckpoints, loadFloorPlan, selectedEventId, setEventoAtual]);
+  }, [loadCheckpoints, loadFloorPlan, loadZones, selectedEventId, setEventoAtual]);
+
+  // Salvar zonas quando mudarem
+  useEffect(() => {
+    if (!selectedEventId || zones.length === 0) return;
+
+    const saveZones = async () => {
+      try {
+        await api.saveZones(selectedEventId, zones);
+      } catch (err) {
+        console.error('❌ Erro ao salvar zonas:', err);
+      }
+    };
+
+    const debounceTimer = setTimeout(saveZones, 500);
+    return () => clearTimeout(debounceTimer);
+  }, [zones, selectedEventId]);
 
   const updateZone = (id: string, field: keyof Zone, value: string | number) => {
     setZones((prev) => prev.map((zone) => zone.id === id ? { ...zone, [field]: value } : zone));

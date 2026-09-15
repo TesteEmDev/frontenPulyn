@@ -126,7 +126,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           return;
         }
 
-        // Buscar zonas do evento (se houver endpoint)
+        // Buscar zonas do evento via API
         try {
           const zonesData = await (window as any).api?.getZones?.(eventoAtual);
           if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
@@ -135,6 +135,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
             setZones(DEFAULT_ZONES);
           }
         } catch (e) {
+          console.error('Erro ao carregar zonas:', e);
           setZones(DEFAULT_ZONES);
         }
 
@@ -147,6 +148,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
             setFloorPlan(null);
           }
         } catch (e) {
+          console.error('Erro ao carregar planta:', e);
           setFloorPlan(null);
         }
       } catch (error) {

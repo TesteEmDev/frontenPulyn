@@ -1236,4 +1236,43 @@ export const api = {
       throw error;
     }
   },
+
+  // ==================== ZONAS DO MAPA ====================
+  async getZones(eventoId: string) {
+    try {
+      const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/zones`, {
+        headers: getAuthHeaders(),
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao carregar zonas (${res.status})`);
+      }
+      
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao carregar zonas:', error);
+      throw error;
+    }
+  },
+
+  async saveZones(eventoId: string, zones: any[]) {
+    try {
+      const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/zones`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ zones }),
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao salvar zonas (${res.status})`);
+      }
+      
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao salvar zonas:', error);
+      throw error;
+    }
+  },
 };
