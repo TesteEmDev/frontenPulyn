@@ -243,8 +243,8 @@ export default function AdminMap() {
     const bounds = svg.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return null;
     return {
-      x: clamp(((event.clientX - bounds.left) / bounds.width) * MAP_WIDTH, 16, MAP_WIDTH - 16),
-      y: clamp(((event.clientY - bounds.top) / bounds.height) * MAP_HEIGHT, 22, MAP_HEIGHT - 16),
+      x: ((event.clientX - bounds.left) / bounds.width) * MAP_WIDTH,
+      y: ((event.clientY - bounds.top) / bounds.height) * MAP_HEIGHT,
     };
   };
 
@@ -267,14 +267,14 @@ export default function AdminMap() {
 
     const roundedPosition = { x: Math.round(position.x), y: Math.round(position.y) };
     dragPositionRef.current = roundedPosition;
-    // Atualizar o estado para renderizar em tempo real
+    // Atualizar o estado para renderizar em tempo real (sem limites)
     setDraggedPosition(roundedPosition);
   };
 
   const handlePointerUp = async () => {
     const checkpointId = draggingCheckpointRef.current;
     const startPosition = dragStartPositionRef.current;
-    const finalPosition = dragPositionRef.current;
+    let finalPosition = dragPositionRef.current;
     draggingCheckpointRef.current = null;
     dragStartPositionRef.current = null;
     dragPositionRef.current = null;
@@ -285,6 +285,12 @@ export default function AdminMap() {
     const checkpoint = checkpoints.find((item) => item.id === checkpointId);
     if (!checkpoint) return;
     if (startPosition && startPosition.x === finalPosition.x && startPosition.y === finalPosition.y) return;
+
+    // Aplicar limites apenas ao salvar
+    finalPosition = {
+      x: clamp(finalPosition.x, 0, MAP_WIDTH),
+      y: clamp(finalPosition.y, 0, MAP_HEIGHT),
+    };
 
     // Atualizar o estado com a posição final
     setCheckpoints((current) => current.map((item) => item.id === checkpointId
