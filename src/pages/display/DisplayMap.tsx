@@ -246,7 +246,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           avatar: child.avatar,
           nickname: child.nickname || child.name,
           x: basePosition.x + offsetX,
-          y: basePosition.y + 45 + row * 38,  // Mais afastado (45 vs 20) e espaçamento maior (38)
+          y: basePosition.y + 45 + row * 50,  // Espaçamento bem maior (50) para acomodar animação
         });
         continue;
       }
