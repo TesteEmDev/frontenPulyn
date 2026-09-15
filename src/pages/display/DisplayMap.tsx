@@ -235,8 +235,8 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
         const slot = checkpointChildren[lastCheckpoint.id] || 0;
         checkpointChildren[lastCheckpoint.id] = slot + 1;
         
-        // Layout em pirâmide: -4, 0, 4 (primeira linha), depois abaixo com mais espaçamento
-        const offsets = [-4, 0, 4];
+        // Layout em pirâmide com maior espaçamento: -8, 0, 8 (primeira linha), depois abaixo com mais espaçamento
+        const offsets = [-8, 0, 8];
         const offsetX = offsets[slot % offsets.length];
         const row = Math.floor(slot / 3);
 
@@ -246,7 +246,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           avatar: child.avatar,
           nickname: child.nickname || child.name,
           x: basePosition.x + offsetX,
-          y: basePosition.y + 8 + row * 5,
+          y: basePosition.y + 10 + row * 8,
         });
         continue;
       }
@@ -382,16 +382,16 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           {childPositions.map((position) => (
             <foreignObject
               key={position.id}
-              x={position.x - 15}
-              y={position.y}
-              width={30}
-              height={50}
+              x={position.x - 12}
+              y={position.y - 6}
+              width={24}
+              height={40}
             >
-              <div className="flex flex-col items-center w-full pointer-events-none">
+              <div className="flex flex-col items-center w-full pointer-events-none" style={{ transform: 'scale(0.8)' }}>
                 <div className="animate-float">
                   <Avatar emoji={position.avatar || DEFAULT_AVATAR_ID} size="sm" decorative />
                 </div>
-                <span className="mt-0.5 whitespace-nowrap font-display text-[10px] text-slate-300">
+                <span className="mt-0.5 whitespace-nowrap font-display text-[8px] text-slate-300">
                   {position.nickname || 'Participante'}
                 </span>
               </div>
