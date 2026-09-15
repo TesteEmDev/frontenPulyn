@@ -494,6 +494,7 @@ export default function AdminMap() {
                       : storedPosition;
                     const isSelected = selectedCheckpointId === checkpoint.id;
                     const color = checkpoint.status === 'online' ? '#22C55E' : '#EF4444';
+                    const circleRadius = isSelected ? 17 : 14;
                     return (
                       <g
                         key={checkpoint.id}
@@ -502,7 +503,7 @@ export default function AdminMap() {
                         onPointerDown={(event) => handlePointerDown(event, checkpoint.id)}
                         onClick={() => setSelectedCheckpointId(checkpoint.id)}
                       >
-                        <circle r={isSelected ? 17 : 14} fill={color} fillOpacity={0.18} stroke={isSelected ? '#FFFFFF' : color} strokeWidth={isSelected ? 3 : 2} />
+                        <circle r={circleRadius} fill={color} fillOpacity={0.18} stroke={isSelected ? '#FFFFFF' : color} strokeWidth={isSelected ? 3 : 2} />
                         <circle r="5" fill={color} />
                         <text y="-22" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="600">{checkpoint.id}</text>
                         <text y="30" textAnchor="middle" fill="#D1D5DB" fontSize="9">{checkpoint.name}</text>
