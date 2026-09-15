@@ -103,13 +103,26 @@ interface DisplayMapProps {
 export default function DisplayMap({ embedded = false }: DisplayMapProps) {
   const { children, checkpoints, scoreLog, teams } = usePulynStore();
   const eventoAtual = usePulynStore((state: any) => state.eventoAtualId);
+  const activeGame = usePulynStore((state: any) => state.activeGame);
   const [zones, setZones] = useState<Zone[]>(DEFAULT_ZONES);
   const [floorPlan, setFloorPlan] = useState<string | null>(null);
+
+  // Determinar se o modo atual usa mapa
+  const modesWithMap = ['team', 'individual', 'cooperative', 'treasure_hunt', 'monster_hunt'];
+  const gameType = activeGame?.type || 'team';
+  const showMap = modesWithMap.includes(gameType);
 
   // Carregar zonas do backend com polling
   useEffect(() => {
     const loadData = async () => {
       try {
+        // Se não há mapa para este modo, não carregar dados
+        if (!showMap) {
+          setZones(DEFAULT_ZONES);
+          setFloorPlan(null);
+          return;
+        }
+
         if (!eventoAtual) {
           setZones(DEFAULT_ZONES);
           setFloorPlan(null);
@@ -179,7 +192,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
     // Polling a cada 2 segundos para sincronizar mudanças de zona
     const interval = setInterval(loadData, 2000);
     return () => clearInterval(interval);
-  }, [eventoAtual]);
+  }, [eventoAtual, showMap]);
 
   const teamById = useMemo(() => {
     const map = new Map<string, Team>();
@@ -236,7 +249,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
         checkpointChildren[lastCheckpoint.id] = slot + 1;
         
         // Layout em pirâmide com muito mais espaçamento
-        const offsets = [-40, 0, 40];  // Espaçamento horizontal
+        const offsets = [-35, 0, 35];  // Espaçamento horizontal
         const offsetX = offsets[slot % offsets.length];
         const row = Math.floor(slot / 3);
 
@@ -301,15 +314,26 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
     <div className={embedded
       ? 'relative flex flex-col overflow-hidden rounded-3xl border border-primary-400/20 bg-dark-card/75 p-4 shadow-[0_18px_50px_rgba(2,10,24,0.2)] backdrop-blur-xl sm:p-6'
       : 'fixed inset-0 flex flex-col overflow-hidden bg-gradient-dark'}>
-      <div className={`relative z-10 border-b border-dark-border/50 text-center ${embedded ? 'pb-4' : 'py-6'}`}>
-        <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary-300">Brincadeira Zona</p>
-        <h1 className="font-display text-3xl text-slate-100">Mapa do Espaço</h1>
-        <p className="mt-1 text-sm uppercase tracking-widest text-slate-500">Domínio dos territórios em tempo real</p>
-      </div>
+      
+      {/* Mostrar mapa apenas para modos com mapa */}
+      {!showMap && (
+        <div className="flex flex-col items-center justify-center flex-1 text-center">
+          <p className="text-xl text-gray-400">Este modo de jogo não usa mapa</p>
+          <p className="text-sm text-gray-500 mt-2">Tipo: {gameType}</p>
+        </div>
+      )}
 
-      <div className={embedded
-        ? 'relative z-10 mt-5 h-[520px] overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'
-        : 'relative z-10 mx-8 my-6 flex-1 overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'}>
+      {showMap && (
+        <>
+          <div className={`relative z-10 border-b border-dark-border/50 text-center ${embedded ? 'pb-4' : 'py-6'}`}>
+            <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary-300">Brincadeira Zona</p>
+            <h1 className="font-display text-3xl text-slate-100">Mapa do Espaço</h1>
+            <p className="mt-1 text-sm uppercase tracking-widest text-slate-500">Domínio dos territórios em tempo real</p>
+          </div>
+
+          <div className={embedded
+            ? 'relative z-10 mt-5 h-[520px] overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'
+            : 'relative z-10 mx-8 my-6 flex-1 overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'}>
         
         {/* Planta baixa como background */}
         {floorPlan && (
@@ -420,6 +444,8 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           <span className="text-xs text-slate-400">Criança</span>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }
