@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map, FileText, RefreshCw, Settings, Upload, CreditCard as Edit3, Trash2, Plus, Save, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map, FileText, RefreshCw, Settings, Upload, Pencil, Trash2, Plus, Save, Loader2 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
@@ -1053,7 +1053,7 @@ export default function AdminMap() {
                           <p className="truncate text-sm font-semibold text-white">{zone.name}</p>
                           <p className="text-xs text-gray-500">{zone.width}x{zone.height}px</p>
                         </div>
-                        <button onClick={() => setEditingZone(zone.id)} className="rounded p-1 text-gray-400 hover:text-white" title="Editar zona"><Edit3 size={14} /></button>
+                        <button onClick={() => setEditingZone(zone.id)} className="rounded p-1 text-gray-400 hover:text-white" title="Editar zona"><Pencil size={14} /></button>
                         <button onClick={() => removeZone(zone.id)} className="rounded p-1 text-gray-400 hover:text-danger" title="Remover zona"><Trash2 size={14} /></button>
                       </div>
                     )}
