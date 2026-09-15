@@ -236,7 +236,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
         checkpointChildren[lastCheckpoint.id] = slot + 1;
         
         // Layout em pirâmide com muito mais espaçamento
-        const offsets = [-20, 0, 20];  // Espaçamento horizontal
+        const offsets = [-40, 0, 40];  // Espaçamento horizontal
         const offsetX = offsets[slot % offsets.length];
         const row = Math.floor(slot / 3);
 
@@ -246,7 +246,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           avatar: child.avatar,
           nickname: child.nickname || child.name,
           x: basePosition.x + offsetX,
-          y: basePosition.y + 45 + row * 50,  // Espaçamento bem maior (50) para acomodar animação
+          y: basePosition.y + 68 + row * 50,  // Espaçamento bem maior (50) para acomodar animação
         });
         continue;
       }
@@ -383,9 +383,9 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
             <foreignObject
               key={position.id}
               x={position.x - 28}
-              y={position.y - 35}
+              y={position.y - 50}
               width={56}
-              height={110}
+              height={140}
             >
               <div className="flex flex-col items-center w-full pointer-events-none" style={{ transform: 'scale(0.8)' }}>
                 <div className="animate-float">
