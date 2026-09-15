@@ -226,42 +226,55 @@ export default function AdminMap() {
     }
   }, []);
 
-  const loadZones = useCallback(async (eventId: string | null) => {
-    if (!eventId) {
-      setZones(initialZones);
-      return;
-    }
+  // Carregar zonas do localStorage (fallback local até backend implementar)
+  useEffect(() => {
+    const loadZones = () => {
+      try {
+        if (!selectedEventId) {
+          setZones(initialZones);
+          return;
+        }
 
-    try {
-      const zonesData = await api.getZones(eventId);
-      if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
-        setZones(zonesData);
-      } else {
+        const key = `zones_${selectedEventId}`;
+        const stored = localStorage.getItem(key);
+        
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          console.log('✅ Zonas carregadas do localStorage:', parsed);
+          setZones(parsed);
+        } else {
+          console.log('📝 Nenhuma zona salva, usando padrão');
+          setZones(initialZones);
+        }
+      } catch (e) {
+        console.error('❌ Erro ao carregar zonas:', e);
         setZones(initialZones);
       }
-    } catch (err: any) {
-      console.error('❌ Erro ao carregar zonas:', err);
-      setZones(initialZones);
-    }
-  }, []);
+    };
+
+    loadZones();
+  }, [selectedEventId]);
 
   useEffect(() => {
     setSelectedCheckpointId(null);
     loadCheckpoints(selectedEventId);
     loadFloorPlan(selectedEventId);
-    loadZones(selectedEventId);
     if (selectedEventId) setEventoAtual(selectedEventId);
-  }, [loadCheckpoints, loadFloorPlan, loadZones, selectedEventId, setEventoAtual]);
+  }, [loadCheckpoints, loadFloorPlan, selectedEventId, setEventoAtual]);
 
-  // Salvar zonas quando mudarem
+  // Salvar zonas no localStorage (fallback local até backend implementar)
   useEffect(() => {
     if (!selectedEventId || zones.length === 0) return;
 
-    const saveZones = async () => {
+    const saveZones = () => {
       try {
-        console.log('💾 Salvando zonas:', zones);
-        await api.saveZones(selectedEventId, zones);
-        console.log('✅ Zonas salvas com sucesso');
+        const key = `zones_${selectedEventId}`;
+        const zonesWithoutDefaults = zones.filter(z => !initialZones.find(i => i.id === z.id) || JSON.stringify(z) !== JSON.stringify(initialZones.find(i => i.id === z.id)));
+        
+        if (zonesWithoutDefaults.length > 0 || zones.length !== initialZones.length) {
+          localStorage.setItem(key, JSON.stringify(zones));
+          console.log('💾 Zonas salvas no localStorage:', zones);
+        }
       } catch (err) {
         console.error('❌ Erro ao salvar zonas:', err);
       }

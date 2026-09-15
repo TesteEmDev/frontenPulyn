@@ -113,15 +113,29 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           return;
         }
 
-        // Buscar zonas do evento via API
+        // Buscar zonas do localStorage (fallback local até backend implementar)
         try {
-          const zonesData = await api.getZones(eventoAtual);
-          console.log('✅ Zonas carregadas:', zonesData);
-          if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
-            setZones(zonesData);
+          const key = `zones_${eventoAtual}`;
+          const stored = localStorage.getItem(key);
+          
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            console.log('✅ Zonas carregadas do localStorage:', parsed);
+            setZones(parsed);
           } else {
-            console.warn('⚠️ Zonas vazias, usando default');
-            setZones(DEFAULT_ZONES);
+            console.log('📝 Nenhuma zona salva, tentando API...');
+            try {
+              const zonesData = await api.getZones(eventoAtual);
+              if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
+                console.log('✅ Zonas carregadas da API:', zonesData);
+                setZones(zonesData);
+              } else {
+                setZones(DEFAULT_ZONES);
+              }
+            } catch (e) {
+              console.warn('⚠️ API retornou erro, usando default');
+              setZones(DEFAULT_ZONES);
+            }
           }
         } catch (e) {
           console.error('❌ Erro ao carregar zonas:', e);
