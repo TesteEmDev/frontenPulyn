@@ -112,8 +112,30 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
   const gameType = activeGame?.type || 'team';
   const showMap = modesWithMap.includes(gameType);
 
-  // Usar eventoAtual do store, ou do activeGame se disponível
-  const eventIdToLoad = eventoAtual || activeGame?.evento_id;
+  // Usar eventoAtual do store, ou do activeGame, ou localStorage como último fallback
+  let eventIdToLoad = eventoAtual || activeGame?.evento_id;
+  
+  // Último fallback: tenta localStorage
+  if (!eventIdToLoad && typeof window !== 'undefined') {
+    const lastEventId = localStorage.getItem('lastEventId');
+    if (lastEventId) {
+      eventIdToLoad = lastEventId;
+    }
+  }
+
+  // DEBUG: Log para diagnóstico
+  useEffect(() => {
+    console.log('📍 DisplayMap Estado:', {
+      eventoAtual,
+      activeGameId: activeGame?.id,
+      activeGameType: activeGame?.type,
+      activeGameEventoId: activeGame?.evento_id,
+      localStorageLastEventId: typeof window !== 'undefined' ? localStorage.getItem('lastEventId') : null,
+      eventIdToLoad,
+      checkpointsCount: checkpoints.length,
+      showMap
+    });
+  }, [eventoAtual, activeGame, eventIdToLoad, checkpoints, showMap]);
 
   // Carregar zonas do backend com polling
   useEffect(() => {
@@ -133,9 +155,14 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           return;
         }
 
+        // Guardar último evento no localStorage para recuperação
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('lastEventId', eventIdToLoad);
+        }
+
         // Buscar zonas do backend (com fallback localStorage)
         try {
-          console.log('🔄 Carregando zonas do backend...');
+          console.log('🔄 Carregando zonas do backend para evento:', eventIdToLoad);
           const zonesData = await api.getZones(eventIdToLoad);
           if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
             console.log('✅ Zonas carregadas do backend:', zonesData);
