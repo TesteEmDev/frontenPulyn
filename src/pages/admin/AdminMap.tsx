@@ -100,6 +100,7 @@ export default function AdminMap() {
   const dragStartPositionRef = useRef<MapPosition | null>(null);
   const dragPositionRef = useRef<MapPosition | null>(null);
   const dragOffsetRef = useRef<MapPosition | null>(null);
+  const renderTimerRef = useRef<number | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -114,7 +115,7 @@ export default function AdminMap() {
   const [floorPlanUrl, setFloorPlanUrl] = useState<string | null>(null);
   const [floorPlanName, setFloorPlanName] = useState<string | null>(null);
   const [uploadingFloorPlan, setUploadingFloorPlan] = useState(false);
-  const [draggedPosition, setDraggedPosition] = useState<MapPosition | null>(null);
+  const [, forceRender] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { setEventoAtual } = usePulynStore();
 
@@ -285,10 +286,16 @@ export default function AdminMap() {
       y: cursorPosition.y - (dragOffsetRef.current?.y || 0),
     };
 
-    // Não arredondar durante o drag - deixar suave
     dragPositionRef.current = checkpointPosition;
-    // Atualizar o estado para renderizar em tempo real (sem limites)
-    setDraggedPosition(checkpointPosition);
+    
+    // Usar requestAnimationFrame para render sincronizado com tela
+    if (renderTimerRef.current !== null) {
+      cancelAnimationFrame(renderTimerRef.current);
+    }
+    renderTimerRef.current = requestAnimationFrame(() => {
+      forceRender((prev) => prev + 1);
+      renderTimerRef.current = null;
+    });
   };
 
   const handlePointerUp = async () => {
@@ -299,7 +306,12 @@ export default function AdminMap() {
     dragStartPositionRef.current = null;
     dragPositionRef.current = null;
     dragOffsetRef.current = null;
-    setDraggedPosition(null);
+    
+    if (renderTimerRef.current !== null) {
+      cancelAnimationFrame(renderTimerRef.current);
+      renderTimerRef.current = null;
+    }
+    forceRender((prev) => prev + 1);
 
     if (!checkpointId || !selectedEventId || !finalPosition) return;
 
@@ -515,9 +527,9 @@ export default function AdminMap() {
 
                   {checkpoints.map((checkpoint, index) => {
                     const storedPosition = checkpointPositions[checkpoint.id] || fallbackPosition(checkpoint, index);
-                    // Se está sendo arrastado, usar a posição do draggedPosition (renderiza em tempo real), caso contrário usar a posição armazenada
-                    const position = (draggingCheckpointRef.current === checkpoint.id && draggedPosition)
-                      ? draggedPosition
+                    // Se está sendo arrastado, usar dragPositionRef (renderiza em tempo real), caso contrário usar a posição armazenada
+                    const position = (draggingCheckpointRef.current === checkpoint.id && dragPositionRef.current)
+                      ? dragPositionRef.current
                       : storedPosition;
                     const isSelected = selectedCheckpointId === checkpoint.id;
                     const color = checkpoint.status === 'online' ? '#22C55E' : '#EF4444';
