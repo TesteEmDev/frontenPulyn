@@ -112,6 +112,9 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
   const gameType = activeGame?.type || 'team';
   const showMap = modesWithMap.includes(gameType);
 
+  // Usar eventoAtual do store, ou do activeGame se disponível
+  const eventIdToLoad = eventoAtual || activeGame?.evento_id;
+
   // Carregar zonas do backend com polling
   useEffect(() => {
     const loadData = async () => {
@@ -123,7 +126,8 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           return;
         }
 
-        if (!eventoAtual) {
+        if (!eventIdToLoad) {
+          console.log('⚠️ Nenhum evento para carregar mapa');
           setZones(DEFAULT_ZONES);
           setFloorPlan(null);
           return;
@@ -132,15 +136,15 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
         // Buscar zonas do backend (com fallback localStorage)
         try {
           console.log('🔄 Carregando zonas do backend...');
-          const zonesData = await api.getZones(eventoAtual);
+          const zonesData = await api.getZones(eventIdToLoad);
           if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
             console.log('✅ Zonas carregadas do backend:', zonesData);
             setZones(zonesData);
             // Atualizar localStorage como cache
-            localStorage.setItem(`zones_${eventoAtual}`, JSON.stringify(zonesData));
+            localStorage.setItem(`zones_${eventIdToLoad}`, JSON.stringify(zonesData));
           } else {
             console.log('📝 Nenhuma zona no backend, tentando localStorage...');
-            const key = `zones_${eventoAtual}`;
+            const key = `zones_${eventIdToLoad}`;
             const stored = localStorage.getItem(key);
             if (stored) {
               const parsed = JSON.parse(stored);
@@ -152,7 +156,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           }
         } catch (apiError) {
           console.warn('⚠️ Erro ao carregar do backend, tentando localStorage...');
-          const key = `zones_${eventoAtual}`;
+          const key = `zones_${eventIdToLoad}`;
           const stored = localStorage.getItem(key);
           if (stored) {
             try {
@@ -169,7 +173,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
 
         // Buscar planta baixa do evento
         try {
-          const floorPlanData = await api.getFloorPlan(eventoAtual);
+          const floorPlanData = await api.getFloorPlan(eventIdToLoad);
           if (floorPlanData?.dataUrl) {
             setFloorPlan(floorPlanData.dataUrl);
           } else {
@@ -192,7 +196,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
     // Polling a cada 2 segundos para sincronizar mudanças de zona
     const interval = setInterval(loadData, 2000);
     return () => clearInterval(interval);
-  }, [eventoAtual, showMap]);
+  }, [eventIdToLoad, showMap]);
 
   const teamById = useMemo(() => {
     const map = new Map<string, Team>();
