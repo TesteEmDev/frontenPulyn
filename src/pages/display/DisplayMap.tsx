@@ -231,19 +231,17 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
         const basePosition = getCheckpointDisplayPosition(lastCheckpoint, checkpoints, zones);
         const slot = checkpointChildren[lastCheckpoint.id] || 0;
         checkpointChildren[lastCheckpoint.id] = slot + 1;
-        const offsets = [-4, 0, 4];
-        const offsetX = offsets[slot % offsets.length];
 
-        // Converter pixels para percentual
-        const posX = pxToPercent(basePosition.x + offsetX, MAP_WIDTH);
-        const posY = pxToPercent(basePosition.y + 8 + Math.floor(slot / offsets.length) * 5, MAP_HEIGHT);
+        // Converter pixels para percentual - SEM OFFSETS, exatamente no checkpoint
+        const posX = pxToPercent(basePosition.x, MAP_WIDTH);
+        const posY = pxToPercent(basePosition.y + 25 + slot * 20, MAP_HEIGHT);  // Stack verticalmente embaixo
 
         positions.push({
           id: child.id,
           avatar: child.avatar,
           nickname: child.nickname || child.name,
-          x: Math.min(Math.max(posX, 4), 96),
-          y: Math.min(Math.max(posY, 6), 94),
+          x: posX,
+          y: posY,
         });
         continue;
       }
