@@ -528,10 +528,11 @@ export default function AdminMap() {
     if (!checkpoint) return;
     if (startPosition && startPosition.x === finalPosition.x && startPosition.y === finalPosition.y) return;
 
-    // Arredondar e limitar à área visível do mapa
+    // Arredondar e limitar à área visível do mapa (considerando raio do checkpoint ~17px)
+    const CHECKPOINT_RADIUS = 17;
     finalPosition = {
-      x: clamp(Math.round(finalPosition.x), -MAP_WIDTH, MAP_WIDTH * 2),
-      y: clamp(Math.round(finalPosition.y), -MAP_HEIGHT, MAP_HEIGHT * 2),
+      x: clamp(Math.round(finalPosition.x), CHECKPOINT_RADIUS, MAP_WIDTH - CHECKPOINT_RADIUS),
+      y: clamp(Math.round(finalPosition.y), CHECKPOINT_RADIUS, MAP_HEIGHT - CHECKPOINT_RADIUS),
     };
 
     // Atualizar o estado com a posição final
