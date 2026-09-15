@@ -528,10 +528,10 @@ export default function AdminMap() {
     if (!checkpoint) return;
     if (startPosition && startPosition.x === finalPosition.x && startPosition.y === finalPosition.y) return;
 
-    // Arredondar e aplicar limites apenas ao salvar
+    // Arredondar (sem limites - permite posicionar em toda a área)
     finalPosition = {
-      x: clamp(Math.round(finalPosition.x), 0, MAP_WIDTH),
-      y: clamp(Math.round(finalPosition.y), 0, MAP_HEIGHT),
+      x: Math.round(finalPosition.x),
+      y: Math.round(finalPosition.y),
     };
 
     // Atualizar o estado com a posição final
