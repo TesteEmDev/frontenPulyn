@@ -328,15 +328,17 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
                   fill={zone.color}
                   fillOpacity={0.15}
                   stroke={zone.color}
-                  strokeWidth={0.4}
-                  rx={1.5}
+                  strokeWidth={0.44}
+                  strokeDasharray="1.33 0.67"
+                  rx={1.8}
                 />
                 <text
                   x={zoneX + zoneW / 2}
-                  y={zoneY + 4}
+                  y={zoneY + zoneH / 2}
                   textAnchor="middle"
+                  dominantBaseline="middle"
                   fill={zone.color}
-                  fontSize={2.5}
+                  fontSize={2.67}
                   fontWeight={600}
                   fontFamily="system-ui"
                 >
@@ -354,12 +356,12 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
             
             return (
               <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
-                <circle r={3.8} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={0.45} />
-                <circle r={1.1} fill={color} />
-                <text y={-4.8} textAnchor="middle" fill="#FFFFFF" fontSize={2.2} fontWeight={600}>
+                <circle r={3.78} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={0.44} />
+                <circle r={1.11} fill={color} />
+                <text y={-4.89} textAnchor="middle" fill="#FFFFFF" fontSize={2.22} fontWeight={600}>
                   {checkpoint.id}
                 </text>
-                <text y={6.7} textAnchor="middle" fill="#D1D5DB" fontSize={2} >
+                <text y={6.67} textAnchor="middle" fill="#D1D5DB" fontSize={2} >
                   {checkpoint.name}
                 </text>
               </g>
