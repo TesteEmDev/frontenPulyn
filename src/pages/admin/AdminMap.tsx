@@ -147,7 +147,32 @@ export default function AdminMap() {
     setError('');
     try {
       const data = await api.getCheckpoints(eventId);
-      setCheckpoints(Array.isArray(data) ? data : []);
+      let checkpoints = Array.isArray(data) ? data : [];
+      
+      // Proteção: recuperar checkpoints perdidos fora da área visível
+      const CHECKPOINT_RADIUS = 17;
+      const centerX = MAP_WIDTH / 2;
+      const centerY = MAP_HEIGHT / 2;
+      
+      checkpoints = checkpoints.map((checkpoint) => {
+        const x = Number(checkpoint.map_x ?? checkpoint.mapX);
+        const y = Number(checkpoint.map_y ?? checkpoint.mapY);
+        
+        // Se checkpoint está fora dos limites, retornar ao centro
+        if (!Number.isFinite(x) || !Number.isFinite(y) || 
+            x < CHECKPOINT_RADIUS || x > MAP_WIDTH - CHECKPOINT_RADIUS ||
+            y < CHECKPOINT_RADIUS || y > MAP_HEIGHT - CHECKPOINT_RADIUS) {
+          return {
+            ...checkpoint,
+            map_x: centerX,
+            map_y: centerY,
+          };
+        }
+        
+        return checkpoint;
+      });
+      
+      setCheckpoints(checkpoints);
     } catch (err: any) {
       console.error('❌ Erro ao carregar checkpoints do mapa:', err);
       setCheckpoints([]);
