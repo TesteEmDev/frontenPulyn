@@ -236,15 +236,13 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
         checkpointChildren[lastCheckpoint.id] = slot + 1;
 
         // Coordenadas em PIXELS (para foreignObject dentro do SVG)
-        // Arco horizontal com maior espaçamento: -40, -20, 0, 20, 40, -60, 60 pixels
-        const arcOffsets = [-60, -40, -20, 0, 20, 40, 60];  // Até 7 participantes em arco com espaçamento
-
+        // Stack vertical embaixo do checkpoint como antes
         positions.push({
           id: child.id,
           avatar: child.avatar,
           nickname: child.nickname || child.name,
-          x: basePosition.x + arcOffsets[slot % arcOffsets.length],
-          y: basePosition.y + 28,
+          x: basePosition.x,
+          y: basePosition.y + 25 + slot * 20,
         });
         continue;
       }
@@ -380,17 +378,17 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           {childPositions.map((position) => (
             <foreignObject
               key={position.id}
-              x={position.x - 12}
-              y={position.y - 8}
-              width={24}
-              height={40}
+              x={position.x - 15}
+              y={position.y}
+              width={30}
+              height={50}
             >
-              <div className="flex flex-col items-center w-full pointer-events-none" style={{ transform: 'scale(0.8)' }}>
+              <div className="flex flex-col items-center w-full pointer-events-none">
                 <div className="animate-float">
                   <Avatar emoji={position.avatar || DEFAULT_AVATAR_ID} size="sm" decorative />
                 </div>
-                <span className="whitespace-nowrap font-display text-[8px] text-slate-300" style={{ marginTop: '2px' }}>
-                  {position.nickname || 'Part.'}
+                <span className="mt-0.5 whitespace-nowrap font-display text-[10px] text-slate-300">
+                  {position.nickname || 'Participante'}
                 </span>
               </div>
             </foreignObject>
