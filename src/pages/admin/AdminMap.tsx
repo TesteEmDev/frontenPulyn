@@ -285,10 +285,10 @@ export default function AdminMap() {
       y: cursorPosition.y - (dragOffsetRef.current?.y || 0),
     };
 
-    const roundedPosition = { x: Math.round(checkpointPosition.x), y: Math.round(checkpointPosition.y) };
-    dragPositionRef.current = roundedPosition;
+    // Não arredondar durante o drag - deixar suave
+    dragPositionRef.current = checkpointPosition;
     // Atualizar o estado para renderizar em tempo real (sem limites)
-    setDraggedPosition(roundedPosition);
+    setDraggedPosition(checkpointPosition);
   };
 
   const handlePointerUp = async () => {
@@ -307,10 +307,10 @@ export default function AdminMap() {
     if (!checkpoint) return;
     if (startPosition && startPosition.x === finalPosition.x && startPosition.y === finalPosition.y) return;
 
-    // Aplicar limites apenas ao salvar
+    // Arredondar e aplicar limites apenas ao salvar
     finalPosition = {
-      x: clamp(finalPosition.x, 0, MAP_WIDTH),
-      y: clamp(finalPosition.y, 0, MAP_HEIGHT),
+      x: clamp(Math.round(finalPosition.x), 0, MAP_WIDTH),
+      y: clamp(Math.round(finalPosition.y), 0, MAP_HEIGHT),
     };
 
     // Atualizar o estado com a posição final
