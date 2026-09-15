@@ -126,6 +126,12 @@ export default function AdminMap() {
   const [drawingZone, setDrawingZone] = useState(false);
   const [zoneStartPos, setZoneStartPos] = useState<MapPosition | null>(null);
   const [zoneEndPos, setZoneEndPos] = useState<MapPosition | null>(null);
+  
+  // Estados para edição de zona
+  const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
+  const [resizingZone, setResizingZone] = useState(false);
+  const [resizeStart, setResizeStart] = useState<MapPosition | null>(null);
+  const [resizeEnd, setResizeEnd] = useState<MapPosition | null>(null);
 
   const loadCheckpoints = useCallback(async (eventId: string | null) => {
     if (!eventId) {
@@ -280,6 +286,66 @@ export default function AdminMap() {
     setZoneStartPos(null);
     setZoneEndPos(null);
     setError('');
+  };
+
+  const startEditingZone = (zoneId: string) => {
+    setEditingZoneId(zoneId);
+    setResizingZone(false);
+    setResizeStart(null);
+    setResizeEnd(null);
+  };
+
+  const startResizingZone = (event: React.PointerEvent<SVGElement>, zoneId: string) => {
+    event.stopPropagation();
+    setEditingZoneId(zoneId);
+    setResizingZone(true);
+    const pos = getPointerPosition(event as any);
+    if (pos) {
+      setResizeStart(pos);
+      setResizeEnd(pos);
+    }
+  };
+
+  const handleResizeMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!resizingZone || !editingZoneId || !resizeStart) return;
+    const pos = getPointerPosition(event);
+    if (pos) {
+      setResizeEnd(pos);
+    }
+  };
+
+  const handleResizeEnd = () => {
+    if (!resizingZone || !editingZoneId || !resizeStart || !resizeEnd) return;
+
+    const zone = zones.find((z) => z.id === editingZoneId);
+    if (!zone) return;
+
+    const newX = Math.min(resizeStart.x, resizeEnd.x);
+    const newY = Math.min(resizeStart.y, resizeEnd.y);
+    const newWidth = Math.abs(resizeEnd.x - resizeStart.x);
+    const newHeight = Math.abs(resizeEnd.y - resizeStart.y);
+
+    if (newWidth < 20 || newHeight < 20) {
+      setError('Zona muito pequena. Mínimo 20x20px.');
+      return;
+    }
+
+    updateZone(editingZoneId, 'x', Math.round(newX));
+    updateZone(editingZoneId, 'y', Math.round(newY));
+    updateZone(editingZoneId, 'width', Math.round(newWidth));
+    updateZone(editingZoneId, 'height', Math.round(newHeight));
+
+    setResizingZone(false);
+    setResizeStart(null);
+    setResizeEnd(null);
+    setError('');
+  };
+
+  const cancelEditingZone = () => {
+    setEditingZoneId(null);
+    setResizingZone(false);
+    setResizeStart(null);
+    setResizeEnd(null);
   };
 
   const fallbackPosition = useCallback((checkpoint: any, index: number): MapPosition => {
@@ -590,10 +656,12 @@ export default function AdminMap() {
                   className="relative z-10 touch-none"
                   onPointerMove={(e) => {
                     if (drawingZone) handleZoneDrawMove(e);
+                    else if (resizingZone) handleResizeMove(e);
                     else handlePointerMove(e);
                   }}
                   onPointerUp={() => {
                     if (drawingZone) handleZoneDrawEnd();
+                    else if (resizingZone) handleResizeEnd();
                     else handlePointerUp();
                   }}
                   onPointerDown={(e) => {
@@ -612,13 +680,58 @@ export default function AdminMap() {
                   ))}
 
                   {zones.map((zone) => (
-                    <g key={zone.id}>
-                      <rect x={zone.x} y={zone.y} width={zone.width} height={zone.height} fill={zone.color} fillOpacity={0.15} stroke={zone.color} strokeWidth={2} strokeDasharray="6 3" rx={8} />
-                      <text x={zone.x + zone.width / 2} y={zone.y + zone.height / 2} textAnchor="middle" dominantBaseline="middle" fill={zone.color} fontSize={12} fontWeight="600">
+                    <g key={zone.id} onClick={() => startEditingZone(zone.id)} className="cursor-pointer">
+                      <rect
+                        x={zone.x}
+                        y={zone.y}
+                        width={zone.width}
+                        height={zone.height}
+                        fill={zone.color}
+                        fillOpacity={editingZoneId === zone.id ? 0.25 : 0.15}
+                        stroke={editingZoneId === zone.id ? '#FFFFFF' : zone.color}
+                        strokeWidth={editingZoneId === zone.id ? 3 : 2}
+                        strokeDasharray="6 3"
+                        rx={8}
+                      />
+                      <text
+                        x={zone.x + zone.width / 2}
+                        y={zone.y + zone.height / 2}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fill={zone.color}
+                        fontSize={12}
+                        fontWeight="600"
+                      >
                         {zone.name}
                       </text>
+                      
+                      {editingZoneId === zone.id && (
+                        <>
+                          {/* Handles nos cantos */}
+                          <circle cx={zone.x} cy={zone.y} r={5} fill="#FFFFFF" stroke={zone.color} strokeWidth={2} className="cursor-nwse-resize" onPointerDown={(e) => startResizingZone(e, zone.id)} />
+                          <circle cx={zone.x + zone.width} cy={zone.y} r={5} fill="#FFFFFF" stroke={zone.color} strokeWidth={2} className="cursor-nesw-resize" onPointerDown={(e) => startResizingZone(e, zone.id)} />
+                          <circle cx={zone.x} cy={zone.y + zone.height} r={5} fill="#FFFFFF" stroke={zone.color} strokeWidth={2} className="cursor-nesw-resize" onPointerDown={(e) => startResizingZone(e, zone.id)} />
+                          <circle cx={zone.x + zone.width} cy={zone.y + zone.height} r={5} fill="#FFFFFF" stroke={zone.color} strokeWidth={2} className="cursor-nwse-resize" onPointerDown={(e) => startResizingZone(e, zone.id)} />
+                        </>
+                      )}
                     </g>
                   ))}
+
+                  {resizingZone && resizeStart && resizeEnd && editingZoneId && (
+                    <g>
+                      <rect
+                        x={Math.min(resizeStart.x, resizeEnd.x)}
+                        y={Math.min(resizeStart.y, resizeEnd.y)}
+                        width={Math.abs(resizeEnd.x - resizeStart.x)}
+                        height={Math.abs(resizeEnd.y - resizeStart.y)}
+                        fill="rgba(255, 255, 255, 0.1)"
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
+                        strokeDasharray="4 4"
+                        rx={8}
+                      />
+                    </g>
+                  )}
 
                   {drawingZone && zoneStartPos && zoneEndPos && (
                     <g>
@@ -727,6 +840,14 @@ export default function AdminMap() {
                       <Button variant="ghost" size="sm" onClick={cancelZoneCreation}>Cancelar desenho</Button>
                     </div>
                   )}
+                </div>
+              )}
+
+              {editingZoneId && (
+                <div className="mb-4 rounded-lg border border-warning/50 bg-warning/10 p-3">
+                  <p className="mb-2 text-sm font-semibold text-white">Editando zona</p>
+                  <p className="mb-2 text-xs text-gray-400">Clique e arraste nos cantos da zona para redimensionar</p>
+                  <Button variant="ghost" size="sm" onClick={cancelEditingZone}>Concluir edição</Button>
                 </div>
               )}
 
