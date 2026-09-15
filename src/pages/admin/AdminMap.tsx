@@ -530,8 +530,8 @@ export default function AdminMap() {
 
     // Arredondar e limitar à área visível do mapa
     finalPosition = {
-      x: clamp(Math.round(finalPosition.x), 0, MAP_WIDTH),
-      y: clamp(Math.round(finalPosition.y), 0, MAP_HEIGHT),
+      x: clamp(Math.round(finalPosition.x), -MAP_WIDTH, MAP_WIDTH * 2),
+      y: clamp(Math.round(finalPosition.y), -MAP_HEIGHT, MAP_HEIGHT * 2),
     };
 
     // Atualizar o estado com a posição final
