@@ -113,7 +113,6 @@ export default function AdminMap() {
   const [floorPlanUrl, setFloorPlanUrl] = useState<string | null>(null);
   const [floorPlanName, setFloorPlanName] = useState<string | null>(null);
   const [uploadingFloorPlan, setUploadingFloorPlan] = useState(false);
-  const [draggedPosition, setDraggedPosition] = useState<MapPosition | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { setEventoAtual } = usePulynStore();
 
@@ -255,7 +254,6 @@ export default function AdminMap() {
     const initialPosition = checkpointPositions[checkpointId];
     dragStartPositionRef.current = initialPosition ? { ...initialPosition } : null;
     dragPositionRef.current = initialPosition ? { ...initialPosition } : null;
-    setDraggedPosition(null);
     setSelectedCheckpointId(checkpointId);
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
@@ -268,7 +266,11 @@ export default function AdminMap() {
 
     const roundedPosition = { x: Math.round(position.x), y: Math.round(position.y) };
     dragPositionRef.current = roundedPosition;
-    setDraggedPosition(roundedPosition);
+    
+    // Forçar um re-render simples do SVG sem re-renderizar todo o componente
+    if (svgRef.current) {
+      svgRef.current.style.opacity = svgRef.current.style.opacity;
+    }
   };
 
   const handlePointerUp = async () => {
@@ -278,7 +280,6 @@ export default function AdminMap() {
     draggingCheckpointRef.current = null;
     dragStartPositionRef.current = null;
     dragPositionRef.current = null;
-    setDraggedPosition(null);
 
     if (!checkpointId || !selectedEventId || !finalPosition) return;
 
@@ -488,9 +489,9 @@ export default function AdminMap() {
 
                   {checkpoints.map((checkpoint, index) => {
                     const storedPosition = checkpointPositions[checkpoint.id] || fallbackPosition(checkpoint, index);
-                    // Se está sendo arrastado, usar a posição do drag, caso contrário usar a posição armazenada
-                    const position = (draggingCheckpointRef.current === checkpoint.id && draggedPosition)
-                      ? draggedPosition
+                    // Se está sendo arrastado, usar a posição do ref (sem re-render), caso contrário usar a posição armazenada
+                    const position = (draggingCheckpointRef.current === checkpoint.id && dragPositionRef.current)
+                      ? dragPositionRef.current
                       : storedPosition;
                     const isSelected = selectedCheckpointId === checkpoint.id;
                     const color = checkpoint.status === 'online' ? '#22C55E' : '#EF4444';
