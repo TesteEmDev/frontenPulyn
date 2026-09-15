@@ -51,9 +51,7 @@ const initialZones: Zone[] = [
   { id: '4', name: 'Área Central', color: '#F59E0B', x: 200, y: 200, width: 200, height: 100 },
 ];
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
-}
+// Função clamp removida - checkpoints e zonas podem usar todo o espaço do mapa
 
 async function optimizeFloorPlan(file: File): Promise<string> {
   const source = await new Promise<string>((resolve, reject) => {
@@ -150,7 +148,6 @@ export default function AdminMap() {
       let checkpoints = Array.isArray(data) ? data : [];
       
       // Proteção: recuperar checkpoints perdidos fora da área visível
-      const CHECKPOINT_RADIUS = 17;
       const centerX = MAP_WIDTH / 2;
       const centerY = MAP_HEIGHT / 2;
       
@@ -158,10 +155,8 @@ export default function AdminMap() {
         const x = Number(checkpoint.map_x ?? checkpoint.mapX);
         const y = Number(checkpoint.map_y ?? checkpoint.mapY);
         
-        // Se checkpoint está fora dos limites, retornar ao centro
-        if (!Number.isFinite(x) || !Number.isFinite(y) || 
-            x < CHECKPOINT_RADIUS || x > MAP_WIDTH - CHECKPOINT_RADIUS ||
-            y < CHECKPOINT_RADIUS || y > MAP_HEIGHT - CHECKPOINT_RADIUS) {
+        // Validar apenas se é número válido
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
           return {
             ...checkpoint,
             map_x: centerX,
@@ -448,8 +443,8 @@ export default function AdminMap() {
     const deltaX = pos.x - moveStart.x;
     const deltaY = pos.y - moveStart.y;
 
-    const newX = clamp(zone.x + deltaX, 0, MAP_WIDTH - zone.width);
-    const newY = clamp(zone.y + deltaY, 0, MAP_HEIGHT - zone.height);
+    const newX = zone.x + deltaX;
+    const newY = zone.y + deltaY;
 
     updateZone(editingZoneId, 'x', Math.round(newX));
     updateZone(editingZoneId, 'y', Math.round(newY));
@@ -635,11 +630,10 @@ export default function AdminMap() {
     if (!checkpoint) return;
     if (startPosition && startPosition.x === finalPosition.x && startPosition.y === finalPosition.y) return;
 
-    // Arredondar e limitar à área visível do mapa (considerando raio do checkpoint ~17px)
-    const CHECKPOINT_RADIUS = 17;
+    // Arredondar e salvar posição final (sem limitações de barreira)
     finalPosition = {
-      x: clamp(Math.round(finalPosition.x), CHECKPOINT_RADIUS, MAP_WIDTH - CHECKPOINT_RADIUS),
-      y: clamp(Math.round(finalPosition.y), CHECKPOINT_RADIUS, MAP_HEIGHT - CHECKPOINT_RADIUS),
+      x: Math.round(finalPosition.x),
+      y: Math.round(finalPosition.y),
     };
 
     // Atualizar o estado com a posição final
