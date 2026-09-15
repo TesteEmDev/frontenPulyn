@@ -242,12 +242,24 @@ export default function AdminMap() {
   const getPointerPosition = (event: React.PointerEvent<SVGSVGElement>): MapPosition | null => {
     const svg = svgRef.current;
     if (!svg) return null;
-    const bounds = svg.getBoundingClientRect();
-    if (!bounds.width || !bounds.height) return null;
-    return {
-      x: ((event.clientX - bounds.left) / bounds.width) * MAP_WIDTH,
-      y: ((event.clientY - bounds.top) / bounds.height) * MAP_HEIGHT,
-    };
+    
+    try {
+      // Usar SVG native methods para transformação precisa e rápida
+      const pt = svg.createSVGPoint();
+      pt.x = event.clientX;
+      pt.y = event.clientY;
+      const screenCTM = svg.getScreenCTM();
+      if (!screenCTM) return null;
+      const ctm = screenCTM.inverse();
+      const svgPt = pt.matrixTransform(ctm);
+      
+      return {
+        x: svgPt.x,
+        y: svgPt.y,
+      };
+    } catch (e) {
+      return null;
+    }
   };
 
   const handlePointerDown = (event: React.PointerEvent<SVGGElement>, checkpointId: string) => {
