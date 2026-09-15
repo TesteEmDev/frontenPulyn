@@ -52,20 +52,31 @@ function getStoredMapPosition(checkpoint: Checkpoint) {
 
 function getCheckpointDisplayPosition(checkpoint: Checkpoint, checkpoints: Checkpoint[], zones: Zone[]) {
   const storedPosition = getStoredMapPosition(checkpoint);
-  if (storedPosition) return storedPosition;
+  if (storedPosition) {
+    // Converter px para %
+    return {
+      x: pxToPercent(storedPosition.x, MAP_WIDTH),
+      y: pxToPercent(storedPosition.y, MAP_HEIGHT),
+    };
+  }
 
   // Se não tem posição salva, usar zona como fallback
   const zone = zones.find((item) => normalizeZoneName(item.name) === normalizeZoneName(checkpoint.zone)) || zones[0];
-  if (!zone) return { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
+  if (!zone) return { x: 50, y: 50 };
 
   const sameZone = checkpoints.filter((item) => normalizeZoneName(item.zone) === normalizeZoneName(checkpoint.zone));
   const index = sameZone.indexOf(checkpoint);
   const count = sameZone.length;
   const xOffset = count > 1 ? (index / (count - 1)) * 0.6 + 0.2 : 0.5;
 
+  const zoneX = pxToPercent(zone.x, MAP_WIDTH);
+  const zoneW = sizeToPercent(zone.width, MAP_WIDTH);
+  const zoneY = pxToPercent(zone.y, MAP_HEIGHT);
+  const zoneH = sizeToPercent(zone.height, MAP_HEIGHT);
+
   return {
-    x: zone.x + zone.width * xOffset,
-    y: zone.y + zone.height * 0.75,
+    x: zoneX + zoneW * xOffset,
+    y: zoneY + zoneH * 0.75,
   };
 }
 
@@ -287,33 +298,38 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           />
         )}
         
-        {/* SVG com viewBox para manter proporções exatamente como AdminMap */}
+        {/* SVG com viewBox para escalar proporcionalmente */}
         <svg
           className="absolute inset-0 w-full h-full z-10"
-          viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
-          preserveAspectRatio="xMidYMid slice"
+          viewBox={`0 0 100 100`}
+          preserveAspectRatio="xMidYMid meet"
         >
-          {/* Zonas */}
+          {/* Zonas convertidas para % */}
           {zones.map((zone) => {
+            const zoneX = pxToPercent(zone.x, MAP_WIDTH);
+            const zoneY = pxToPercent(zone.y, MAP_HEIGHT);
+            const zoneW = sizeToPercent(zone.width, MAP_WIDTH);
+            const zoneH = sizeToPercent(zone.height, MAP_HEIGHT);
+
             return (
               <g key={zone.id}>
                 <rect
-                  x={zone.x}
-                  y={zone.y}
-                  width={zone.width}
-                  height={zone.height}
+                  x={zoneX}
+                  y={zoneY}
+                  width={zoneW}
+                  height={zoneH}
                   fill={zone.color}
                   fillOpacity={0.15}
                   stroke={zone.color}
-                  strokeWidth={2}
-                  rx={8}
+                  strokeWidth={0.4}
+                  rx={1.5}
                 />
                 <text
-                  x={zone.x + zone.width / 2}
-                  y={zone.y + 20}
+                  x={zoneX + zoneW / 2}
+                  y={zoneY + 4}
                   textAnchor="middle"
                   fill={zone.color}
-                  fontSize={14}
+                  fontSize={2.5}
                   fontWeight={600}
                   fontFamily="system-ui"
                 >
@@ -323,7 +339,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
             );
           })}
 
-          {/* Checkpoints */}
+          {/* Checkpoints convertidos para % */}
           {checkpointPositions.map(({ checkpoint, x, y }) => {
             const owner = checkpointOwnerById.get(String(checkpoint.id));
             const isOnline = checkpoint.status === 'online';
@@ -331,12 +347,12 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
             
             return (
               <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
-                <circle r={17} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={2} />
-                <circle r={5} fill={color} />
-                <text y={-22} textAnchor="middle" fill="#FFFFFF" fontSize={10} fontWeight={600}>
+                <circle r={3.8} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={0.45} />
+                <circle r={1.1} fill={color} />
+                <text y={-4.8} textAnchor="middle" fill="#FFFFFF" fontSize={2.2} fontWeight={600}>
                   {checkpoint.id}
                 </text>
-                <text y={30} textAnchor="middle" fill="#D1D5DB" fontSize={9}>
+                <text y={6.7} textAnchor="middle" fill="#D1D5DB" fontSize={2} >
                   {checkpoint.name}
                 </text>
               </g>
