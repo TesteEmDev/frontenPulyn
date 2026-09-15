@@ -37,11 +37,6 @@ function pxToPercent(px: number, totalSize: number): number {
   return (px / totalSize) * 100;
 }
 
-// Converter tamanho em px para % (com muita precisão)
-function sizeToPercent(size: number, totalSize: number): number {
-  return (size / totalSize) * 100;
-}
-
 function getStoredMapPosition(checkpoint: Checkpoint) {
   const x = Number(checkpoint.map_x ?? checkpoint.mapX);
   const y = Number(checkpoint.map_y ?? checkpoint.mapY);
@@ -53,30 +48,21 @@ function getStoredMapPosition(checkpoint: Checkpoint) {
 function getCheckpointDisplayPosition(checkpoint: Checkpoint, checkpoints: Checkpoint[], zones: Zone[]) {
   const storedPosition = getStoredMapPosition(checkpoint);
   if (storedPosition) {
-    // Converter px para %
-    return {
-      x: pxToPercent(storedPosition.x, MAP_WIDTH),
-      y: pxToPercent(storedPosition.y, MAP_HEIGHT),
-    };
+    return storedPosition;  // Já em pixels
   }
 
   // Se não tem posição salva, usar zona como fallback
   const zone = zones.find((item) => normalizeZoneName(item.name) === normalizeZoneName(checkpoint.zone)) || zones[0];
-  if (!zone) return { x: 50, y: 50 };
+  if (!zone) return { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
 
   const sameZone = checkpoints.filter((item) => normalizeZoneName(item.zone) === normalizeZoneName(checkpoint.zone));
   const index = sameZone.indexOf(checkpoint);
   const count = sameZone.length;
   const xOffset = count > 1 ? (index / (count - 1)) * 0.6 + 0.2 : 0.5;
 
-  const zoneX = pxToPercent(zone.x, MAP_WIDTH);
-  const zoneW = sizeToPercent(zone.width, MAP_WIDTH);
-  const zoneY = pxToPercent(zone.y, MAP_HEIGHT);
-  const zoneH = sizeToPercent(zone.height, MAP_HEIGHT);
-
   return {
-    x: zoneX + zoneW * xOffset,
-    y: zoneY + zoneH * 0.75,
+    x: zone.x + zone.width * xOffset,
+    y: zone.y + zone.height * 0.75,
   };
 }
 
@@ -248,17 +234,13 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
         const row = Math.floor(index / 4);
         const col = index % 4;
         const xOff = cols > 1 ? (col / (cols - 1)) * 0.6 + 0.2 : 0.5;
-        const zoneX = pxToPercent(zone.x, MAP_WIDTH);
-        const zoneW = sizeToPercent(zone.width, MAP_WIDTH);
-        const zoneY = pxToPercent(zone.y, MAP_HEIGHT);
-        const zoneH = sizeToPercent(zone.height, MAP_HEIGHT);
         
         positions.push({
           id: kid.id,
           avatar: kid.avatar,
           nickname: kid.nickname,
-          x: zoneX + zoneW * xOff,
-          y: zoneY + zoneH * (0.3 + row * 0.25),
+          x: pxToPercent(zone.x + zone.width * xOff, MAP_WIDTH),
+          y: pxToPercent(zone.y + zone.height * (0.3 + row * 0.25), MAP_HEIGHT),
         });
       });
     }
@@ -305,40 +287,35 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           />
         )}
         
-        {/* SVG com viewBox mantendo proporções */}
+        {/* SVG com viewBox em pixels, mantendo proporções sem esticar */}
         <svg
           className="absolute inset-0 w-full h-full z-10"
-          viewBox={`0 0 100 100`}
+          viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
           preserveAspectRatio="xMidYMid meet"
         >
-          {/* Zonas convertidas para % */}
+          {/* Zonas em coordenadas de pixels (como AdminMap) */}
           {zones.map((zone) => {
-            const zoneX = pxToPercent(zone.x, MAP_WIDTH);
-            const zoneY = pxToPercent(zone.y, MAP_HEIGHT);
-            const zoneW = sizeToPercent(zone.width, MAP_WIDTH);
-            const zoneH = sizeToPercent(zone.height, MAP_HEIGHT);
-
             return (
               <g key={zone.id}>
                 <rect
-                  x={zoneX}
-                  y={zoneY}
-                  width={zoneW}
-                  height={zoneH}
+                  x={zone.x}
+                  y={zone.y}
+                  width={zone.width}
+                  height={zone.height}
                   fill={zone.color}
                   fillOpacity={0.15}
                   stroke={zone.color}
-                  strokeWidth={0.44}
-                  strokeDasharray="1.33 0.67"
-                  rx={1.8}
+                  strokeWidth={2}
+                  strokeDasharray="6 3"
+                  rx={8}
                 />
                 <text
-                  x={zoneX + zoneW / 2}
-                  y={zoneY + zoneH / 2}
+                  x={zone.x + zone.width / 2}
+                  y={zone.y + zone.height / 2}
                   textAnchor="middle"
                   dominantBaseline="middle"
                   fill={zone.color}
-                  fontSize={2.67}
+                  fontSize={12}
                   fontWeight={600}
                   fontFamily="system-ui"
                 >
@@ -348,7 +325,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
             );
           })}
 
-          {/* Checkpoints convertidos para % */}
+          {/* Checkpoints em coordenadas de pixels (como AdminMap) */}
           {checkpointPositions.map(({ checkpoint, x, y }) => {
             const owner = checkpointOwnerById.get(String(checkpoint.id));
             const isOnline = checkpoint.status === 'online';
@@ -356,12 +333,12 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
             
             return (
               <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
-                <circle r={3.78} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={0.44} />
-                <circle r={1.11} fill={color} />
-                <text y={-4.89} textAnchor="middle" fill="#FFFFFF" fontSize={2.22} fontWeight={600}>
+                <circle r={17} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={2} />
+                <circle r={5} fill={color} />
+                <text y={-22} textAnchor="middle" fill="#FFFFFF" fontSize={10} fontWeight={600}>
                   {checkpoint.id}
                 </text>
-                <text y={6.67} textAnchor="middle" fill="#D1D5DB" fontSize={2} >
+                <text y={30} textAnchor="middle" fill="#D1D5DB" fontSize={9}>
                   {checkpoint.name}
                 </text>
               </g>
