@@ -305,11 +305,11 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           />
         )}
         
-        {/* SVG com viewBox preenchendo todo o espaço */}
+        {/* SVG com viewBox mantendo proporções */}
         <svg
           className="absolute inset-0 w-full h-full z-10"
           viewBox={`0 0 100 100`}
-          preserveAspectRatio="none"
+          preserveAspectRatio="xMidYMid meet"
         >
           {/* Zonas convertidas para % */}
           {zones.map((zone) => {
