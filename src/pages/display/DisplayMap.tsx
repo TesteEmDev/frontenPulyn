@@ -175,27 +175,49 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
   const { children, checkpoints, scoreLog, teams } = usePulynStore();
   const eventoAtual = (usePulynStore.getState() as any).eventoAtual;
   const [zones, setZones] = useState<Zone[]>(DEFAULT_ZONES);
+  const [floorPlan, setFloorPlan] = useState<string | null>(null);
 
-  // Carregar zonas do evento atual
+  // Carregar zonas e planta do evento
   useEffect(() => {
-    const loadZones = async () => {
+    const loadData = async () => {
       try {
         if (!eventoAtual) {
-          // Usar zonas padrão
           setZones(DEFAULT_ZONES);
+          setFloorPlan(null);
           return;
         }
 
-        // TODO: Buscar zonas do evento quando houver endpoint
-        // Por enquanto, usar zonas padrão
-        setZones(DEFAULT_ZONES);
+        // Buscar zonas do evento (se houver endpoint)
+        try {
+          const zonesData = await (window as any).api?.getZones?.(eventoAtual);
+          if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
+            setZones(zonesData);
+          } else {
+            setZones(DEFAULT_ZONES);
+          }
+        } catch (e) {
+          setZones(DEFAULT_ZONES);
+        }
+
+        // Buscar planta baixa do evento
+        try {
+          const floorPlanData = await (window as any).api?.getFloorPlan?.(eventoAtual);
+          if (floorPlanData?.dataUrl) {
+            setFloorPlan(floorPlanData.dataUrl);
+          } else {
+            setFloorPlan(null);
+          }
+        } catch (e) {
+          setFloorPlan(null);
+        }
       } catch (error) {
-        console.error('Erro ao carregar zonas:', error);
+        console.error('Erro ao carregar dados do mapa:', error);
         setZones(DEFAULT_ZONES);
+        setFloorPlan(null);
       }
     };
 
-    loadZones();
+    loadData();
   }, [eventoAtual]);
 
   const teamById = useMemo(() => {
@@ -327,6 +349,18 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
       <div className={embedded
         ? 'relative z-10 mt-5 h-[520px] overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'
         : 'relative z-10 mx-8 my-6 flex-1 overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'}>
+        
+        {/* Planta baixa como background */}
+        {floorPlan && (
+          <img 
+            src={floorPlan} 
+            alt="Planta do espaço" 
+            className="absolute inset-0 h-full w-full object-cover opacity-25 z-0"
+          />
+        )}
+        
+        {/* Zonas e elementos por cima da planta */}
+        <div className="absolute inset-0 z-[5]">
         {zones.map((zone) => {
           const zoneX = pxToPercent(zone.x, MAP_WIDTH);
           const zoneW = sizeToPercent(zone.width, MAP_WIDTH);
@@ -385,6 +419,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
             y={position.y}
           />
         ))}
+        </div>
       </div>
 
       <div className={`relative z-10 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 ${embedded ? 'pt-4' : 'px-6 pb-5'}`}>
