@@ -216,8 +216,8 @@ export default function AdminMap() {
     const storedY = Number(checkpoint.map_y ?? checkpoint.mapY);
     if (Number.isFinite(storedX) && Number.isFinite(storedY)) {
       return {
-        x: clamp(storedX, 16, MAP_WIDTH - 16),
-        y: clamp(storedY, 22, MAP_HEIGHT - 16),
+        x: storedX,
+        y: storedY,
       };
     }
 
