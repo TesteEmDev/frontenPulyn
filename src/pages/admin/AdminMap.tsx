@@ -814,7 +814,7 @@ export default function AdminMap() {
 
               <div className="relative overflow-hidden rounded-lg bg-surface" style={{ height: 420 }}>
                 {floorPlanUrl && (
-                  <img src={floorPlanUrl} alt="Planta do espaço" className="absolute inset-0 h-full w-full object-cover opacity-35" />
+                  <img src={floorPlanUrl} alt="Planta do espaço" className="absolute inset-0 h-full w-full object-contain opacity-35" />
                 )}
                 <svg
                   ref={svgRef}
@@ -842,12 +842,7 @@ export default function AdminMap() {
                     else handlePointerUp();
                   }}
                 >
-                  {[...Array(9)].map((_, index) => (
-                    <line key={`h${index}`} x1="0" y1={index * 40} x2={MAP_WIDTH} y2={index * 40} stroke="#1E1B2E" strokeWidth="1" />
-                  ))}
-                  {[...Array(12)].map((_, index) => (
-                    <line key={`v${index}`} x1={index * 40} y1="0" x2={index * 40} y2={MAP_HEIGHT} stroke="#1E1B2E" strokeWidth="1" />
-                  ))}
+                  {/* Grid removido - agora igual ao DisplayMap */}
 
                   {zones.map((zone) => (
                     <g key={zone.id} onClick={() => startEditingZone(zone.id)} className="cursor-pointer">
