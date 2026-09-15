@@ -16,6 +16,14 @@ interface Zone {
 
 const MAP_WIDTH = 450;
 const MAP_HEIGHT = 320;
+
+// Zonas padrão (fallback se não carregar do backend)
+const DEFAULT_ZONES: Zone[] = [
+  { id: '1', name: 'Entrada', color: '#1E9BD7', x: 50, y: 5, width: 120, height: 80 },
+  { id: '2', name: 'Área Verde', color: '#22C55E', x: 200, y: 20, width: 200, height: 150 },
+  { id: '3', name: 'Área Azul', color: '#1E9BD7', x: 50, y: 130, width: 120, height: 120 },
+  { id: '4', name: 'Área Central', color: '#F59E0B', x: 200, y: 200, width: 200, height: 100 },
+];
 function normalizeZoneName(value?: string | null) {
   return String(value || '')
     .normalize('NFD')
@@ -165,23 +173,30 @@ interface DisplayMapProps {
 
 export default function DisplayMap({ embedded = false }: DisplayMapProps) {
   const { children, checkpoints, scoreLog, teams } = usePulynStore();
-  const [zones, setZones] = useState<Zone[]>([]);
+  const eventoAtual = (usePulynStore.getState() as any).eventoAtual;
+  const [zones, setZones] = useState<Zone[]>(DEFAULT_ZONES);
 
   // Carregar zonas do evento atual
   useEffect(() => {
     const loadZones = async () => {
       try {
-        // Por enquanto, usar fallback vazio
-        // Você pode adicionar carregamento de API aqui
-        setZones([]);
+        if (!eventoAtual) {
+          // Usar zonas padrão
+          setZones(DEFAULT_ZONES);
+          return;
+        }
+
+        // TODO: Buscar zonas do evento quando houver endpoint
+        // Por enquanto, usar zonas padrão
+        setZones(DEFAULT_ZONES);
       } catch (error) {
         console.error('Erro ao carregar zonas:', error);
-        setZones([]);
+        setZones(DEFAULT_ZONES);
       }
     };
 
     loadZones();
-  }, []);
+  }, [eventoAtual]);
 
   const teamById = useMemo(() => {
     const map = new Map<string, Team>();
