@@ -246,7 +246,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           avatar: child.avatar,
           nickname: child.nickname || child.name,
           x: basePosition.x + offsetX,
-          y: basePosition.y + 20 + row * 40,  // Espaçamento vertical bem maior para não sobrepor
+          y: basePosition.y + 20 + row * 30,  // Espaçamento vertical de 30 entre linhas
         });
         continue;
       }
@@ -383,9 +383,9 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
             <foreignObject
               key={position.id}
               x={position.x - 28}
-              y={position.y - 25}
+              y={position.y - 35}
               width={56}
-              height={90}
+              height={110}
             >
               <div className="flex flex-col items-center w-full pointer-events-none" style={{ transform: 'scale(0.8)' }}>
                 <div className="animate-float">
