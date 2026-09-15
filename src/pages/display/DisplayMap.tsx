@@ -236,15 +236,14 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
         checkpointChildren[lastCheckpoint.id] = slot + 1;
 
         // Coordenadas em PIXELS (para foreignObject dentro do SVG)
-        // Arco horizontal: -25, -12, 0, 12, 25 pixels lateralmente
-        const arcOffsets = [-25, -12, 0, 12, 25, -37, 37];  // Até 7 participantes em arco
-        const arcX = arcOffsets[slot % arcOffsets.length];
+        // Arco horizontal com maior espaçamento: -40, -20, 0, 20, 40, -60, 60 pixels
+        const arcOffsets = [-60, -40, -20, 0, 20, 40, 60];  // Até 7 participantes em arco com espaçamento
 
         positions.push({
           id: child.id,
           avatar: child.avatar,
           nickname: child.nickname || child.name,
-          x: basePosition.x + arcX,
+          x: basePosition.x + arcOffsets[slot % arcOffsets.length],
           y: basePosition.y + 28,
         });
         continue;
@@ -390,7 +389,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
                 <div className="animate-float">
                   <Avatar emoji={position.avatar || DEFAULT_AVATAR_ID} size="sm" decorative />
                 </div>
-                <span className="mt-0.5 whitespace-nowrap font-display text-[8px] text-slate-300">
+                <span className="whitespace-nowrap font-display text-[8px] text-slate-300" style={{ marginTop: '2px' }}>
                   {position.nickname || 'Part.'}
                 </span>
               </div>
