@@ -1,25 +1,18 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import Avatar from '../../components/ui/Avatar';
 import { DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
 import type { Checkpoint, Team } from '../../store/mockData';
 import { usePulynStore } from '../../store/mockData';
 
-interface ZoneConfig {
+interface Zone {
+  id: string;
   name: string;
   color: string;
-  borderColor: string;
   x: number;
   y: number;
-  w: number;
-  h: number;
+  width: number;
+  height: number;
 }
-
-const ZONES: ZoneConfig[] = [
-  { name: 'Entrada', color: '#1E9BD7', borderColor: '#1E9BD760', x: 30, y: 5, w: 40, h: 18 },
-  { name: 'Area Verde', color: '#10B981', borderColor: '#10B98160', x: 5, y: 28, w: 42, h: 38 },
-  { name: 'Area Azul', color: '#1E9BD7', borderColor: '#1E9BD760', x: 53, y: 28, w: 42, h: 38 },
-  { name: 'Area Central', color: '#F59E0B', borderColor: '#F59E0B60', x: 20, y: 70, w: 60, h: 25 },
-];
 
 const MAP_WIDTH = 450;
 const MAP_HEIGHT = 320;
@@ -31,30 +24,48 @@ function normalizeZoneName(value?: string | null) {
     .toLowerCase();
 }
 
+// Converter posição em px para %
+function pxToPercent(px: number, totalSize: number): number {
+  return (px / totalSize) * 100;
+}
+
+// Converter tamanho em px para %
+function sizeToPercent(size: number, totalSize: number): number {
+  return (size / totalSize) * 100;
+}
+
 function getStoredMapPosition(checkpoint: Checkpoint) {
   const x = Number(checkpoint.map_x ?? checkpoint.mapX);
   const y = Number(checkpoint.map_y ?? checkpoint.mapY);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
 
   return {
-    x: Math.min(Math.max((x / MAP_WIDTH) * 100, 2), 98),
-    y: Math.min(Math.max((y / MAP_HEIGHT) * 100, 2), 98),
+    x: pxToPercent(x, MAP_WIDTH),
+    y: pxToPercent(y, MAP_HEIGHT),
   };
 }
 
-function getCheckpointDisplayPosition(checkpoint: Checkpoint, checkpoints: Checkpoint[]) {
+function getCheckpointDisplayPosition(checkpoint: Checkpoint, checkpoints: Checkpoint[], zones: Zone[]) {
   const storedPosition = getStoredMapPosition(checkpoint);
   if (storedPosition) return storedPosition;
 
-  const zone = ZONES.find((item) => normalizeZoneName(item.name) === normalizeZoneName(checkpoint.zone)) || ZONES[0];
+  // Se não tem posição salva, usar zona como fallback
+  const zone = zones.find((item) => normalizeZoneName(item.name) === normalizeZoneName(checkpoint.zone)) || zones[0];
+  if (!zone) return { x: 50, y: 50 };
+
   const sameZone = checkpoints.filter((item) => normalizeZoneName(item.zone) === normalizeZoneName(checkpoint.zone));
   const index = sameZone.indexOf(checkpoint);
   const count = sameZone.length;
   const xOffset = count > 1 ? (index / (count - 1)) * 0.6 + 0.2 : 0.5;
 
+  const zoneX = pxToPercent(zone.x, MAP_WIDTH);
+  const zoneW = sizeToPercent(zone.width, MAP_WIDTH);
+  const zoneY = pxToPercent(zone.y, MAP_HEIGHT);
+  const zoneH = sizeToPercent(zone.height, MAP_HEIGHT);
+
   return {
-    x: zone.x + zone.w * xOffset,
-    y: zone.y + zone.h * 0.75,
+    x: zoneX + zoneW * xOffset,
+    y: zoneY + zoneH * 0.75,
   };
 }
 
@@ -67,13 +78,13 @@ function CheckpointMarker({
   checkpoint: Checkpoint;
   x: number;
   y: number;
-  owner?: Team;
+  owner?: Team | undefined;
 }) {
   const isOnline = checkpoint.status === 'online';
   const isOwned = Boolean(owner);
   const color = owner?.color || (isOnline ? '#22C55E' : '#EF4444');
   const stateLabel = isOwned
-    ? `Dominado pelo time ${owner?.name}`
+    ? `Dominado pelo time ${owner!.name}`
     : isOnline
       ? 'Livre e online'
       : 'Offline';
@@ -112,7 +123,7 @@ function CheckpointMarker({
       </span>
       {isOwned && (
         <span className="max-w-40 truncate whitespace-nowrap font-semibold text-[10px]" style={{ color }}>
-          {owner.name}
+          {owner && owner.name}
         </span>
       )}
       <span className="font-mono text-[10px] text-primary-400">
@@ -154,6 +165,23 @@ interface DisplayMapProps {
 
 export default function DisplayMap({ embedded = false }: DisplayMapProps) {
   const { children, checkpoints, scoreLog, teams } = usePulynStore();
+  const [zones, setZones] = useState<Zone[]>([]);
+
+  // Carregar zonas do evento atual
+  useEffect(() => {
+    const loadZones = async () => {
+      try {
+        // Por enquanto, usar fallback vazio
+        // Você pode adicionar carregamento de API aqui
+        setZones([]);
+      } catch (error) {
+        console.error('Erro ao carregar zonas:', error);
+        setZones([]);
+      }
+    };
+
+    loadZones();
+  }, []);
 
   const teamById = useMemo(() => {
     const map = new Map<string, Team>();
@@ -180,15 +208,15 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
       const cp = checkpoints.find((c) => String(c.id) === String(checkpointId));
       const childId = entry.childId ?? entry.child_id;
       if (cp && childId) {
-        const knownZone = ZONES.some((zone) => normalizeZoneName(zone.name) === normalizeZoneName(cp.zone))
-          ? ZONES.find((zone) => normalizeZoneName(zone.name) === normalizeZoneName(cp.zone))?.name || 'Entrada'
+        const knownZone = zones.some((zone) => normalizeZoneName(zone.name) === normalizeZoneName(cp.zone))
+          ? zones.find((zone) => normalizeZoneName(zone.name) === normalizeZoneName(cp.zone))?.name || 'Entrada'
           : 'Entrada';
         zoneMap[childId] = { zone: knownZone, checkpointId: cp.id };
       }
     }
 
     return zoneMap;
-  }, [scoreLog, checkpoints]);
+  }, [scoreLog, checkpoints, zones]);
 
   // Avatares acompanham o último checkpoint conquistado. Quando ainda não
   // existe uma conquista, continuam distribuídos na zona de entrada/zona atual.
@@ -205,7 +233,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
         : undefined;
 
       if (lastCheckpoint) {
-        const basePosition = getCheckpointDisplayPosition(lastCheckpoint, checkpoints);
+        const basePosition = getCheckpointDisplayPosition(lastCheckpoint, checkpoints, zones);
         const slot = checkpointChildren[lastCheckpoint.id] || 0;
         checkpointChildren[lastCheckpoint.id] = slot + 1;
         const offsets = [-4, 0, 4];
@@ -230,30 +258,35 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
       });
     }
 
-    for (const zone of ZONES) {
+    for (const zone of zones) {
       const kids = zoneChildren[zone.name] || [];
       const cols = Math.min(kids.length, 4);
       kids.forEach((kid, index) => {
         const row = Math.floor(index / 4);
         const col = index % 4;
         const xOff = cols > 1 ? (col / (cols - 1)) * 0.6 + 0.2 : 0.5;
+        const zoneX = pxToPercent(zone.x, MAP_WIDTH);
+        const zoneW = sizeToPercent(zone.width, MAP_WIDTH);
+        const zoneY = pxToPercent(zone.y, MAP_HEIGHT);
+        const zoneH = sizeToPercent(zone.height, MAP_HEIGHT);
+        
         positions.push({
           id: kid.id,
           avatar: kid.avatar,
           nickname: kid.nickname,
-          x: zone.x + zone.w * xOff,
-          y: zone.y + zone.h * (0.3 + row * 0.25),
+          x: zoneX + zoneW * xOff,
+          y: zoneY + zoneH * (0.3 + row * 0.25),
         });
       });
     }
 
     return positions;
-  }, [children, childLastZone, checkpoints]);
+  }, [children, childLastZone, checkpoints, zones]);
 
   const checkpointPositions = useMemo(() => checkpoints.map((checkpoint) => ({
     checkpoint,
-    ...getCheckpointDisplayPosition(checkpoint, checkpoints),
-  })), [checkpoints]);
+    ...getCheckpointDisplayPosition(checkpoint, checkpoints, zones),
+  })), [checkpoints, zones]);
 
   const ownedTeams = useMemo(() => {
     const seen = new Set<string>();
@@ -279,31 +312,43 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
       <div className={embedded
         ? 'relative z-10 mt-5 h-[520px] overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'
         : 'relative z-10 mx-8 my-6 flex-1 overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'}>
-        {ZONES.map((zone) => (
-          <div
-            key={zone.name}
-            className="absolute rounded-xl border-2"
-            style={{
-              left: `${zone.x}%`,
-              top: `${zone.y}%`,
-              width: `${zone.w}%`,
-              height: `${zone.h}%`,
-              backgroundColor: `${zone.color}10`,
-              borderColor: zone.borderColor,
-            }}
-          >
-            <div className="absolute left-3 top-2 flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full" style={{ backgroundColor: zone.color, boxShadow: `0 0 8px ${zone.color}80` }} />
-              <span className="font-display text-sm font-bold" style={{ color: zone.color }}>{zone.name}</span>
+        {zones.map((zone) => {
+          const zoneX = pxToPercent(zone.x, MAP_WIDTH);
+          const zoneW = sizeToPercent(zone.width, MAP_WIDTH);
+          const zoneY = pxToPercent(zone.y, MAP_HEIGHT);
+          const zoneH = sizeToPercent(zone.height, MAP_HEIGHT);
+          const borderColor = `${zone.color}60`;
+
+          return (
+            <div
+              key={zone.id}
+              className="absolute rounded-xl border-2"
+              style={{
+                left: `${zoneX}%`,
+                top: `${zoneY}%`,
+                width: `${zoneW}%`,
+                height: `${zoneH}%`,
+                backgroundColor: `${zone.color}10`,
+                borderColor: borderColor,
+              }}
+            >
+              <div className="absolute left-3 top-2 flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full" style={{ backgroundColor: zone.color, boxShadow: `0 0 8px ${zone.color}80` }} />
+                <span className="font-display text-sm font-bold" style={{ color: zone.color }}>{zone.name}</span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         <svg className="absolute inset-0 z-[1] h-full w-full pointer-events-none">
-          <line x1="50%" y1="23%" x2="26%" y2="28%" stroke="#3B267080" strokeWidth="2" strokeDasharray="6 4" />
-          <line x1="50%" y1="23%" x2="74%" y2="28%" stroke="#3B267080" strokeWidth="2" strokeDasharray="6 4" />
-          <line x1="26%" y1="66%" x2="50%" y2="70%" stroke="#3B267080" strokeWidth="2" strokeDasharray="6 4" />
-          <line x1="74%" y1="66%" x2="50%" y2="70%" stroke="#3B267080" strokeWidth="2" strokeDasharray="6 4" />
+          {zones.length >= 2 && (
+            <>
+              <line x1="50%" y1="23%" x2="26%" y2="28%" stroke="#3B267080" strokeWidth="2" strokeDasharray="6 4" />
+              <line x1="50%" y1="23%" x2="74%" y2="28%" stroke="#3B267080" strokeWidth="2" strokeDasharray="6 4" />
+              <line x1="26%" y1="66%" x2="50%" y2="70%" stroke="#3B267080" strokeWidth="2" strokeDasharray="6 4" />
+              <line x1="74%" y1="66%" x2="50%" y2="70%" stroke="#3B267080" strokeWidth="2" strokeDasharray="6 4" />
+            </>
+          )}
         </svg>
 
         {checkpointPositions.map(({ checkpoint, x, y }) => (
@@ -312,7 +357,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
             checkpoint={checkpoint}
             x={x}
             y={y}
-            owner={checkpointOwnerById.get(String(checkpoint.id))}
+            owner={checkpointOwnerById.get(String(checkpoint.id)) || undefined}
           />
         ))}
 
