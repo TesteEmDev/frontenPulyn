@@ -234,15 +234,19 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
         const basePosition = getCheckpointDisplayPosition(lastCheckpoint, checkpoints, zones);
         const slot = checkpointChildren[lastCheckpoint.id] || 0;
         checkpointChildren[lastCheckpoint.id] = slot + 1;
+        
+        // Layout em pirâmide: -4, 0, 4 (primeira linha), depois abaixo com mais espaçamento
+        const offsets = [-4, 0, 4];
+        const offsetX = offsets[slot % offsets.length];
+        const row = Math.floor(slot / 3);
 
         // Coordenadas em PIXELS (para foreignObject dentro do SVG)
-        // Stack vertical embaixo do checkpoint como antes
         positions.push({
           id: child.id,
           avatar: child.avatar,
           nickname: child.nickname || child.name,
-          x: basePosition.x,
-          y: basePosition.y + 25 + slot * 20,
+          x: basePosition.x + offsetX,
+          y: basePosition.y + 8 + row * 5,
         });
         continue;
       }
