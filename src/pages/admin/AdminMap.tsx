@@ -135,6 +135,7 @@ export default function AdminMap() {
   const [movingZone, setMovingZone] = useState(false);
   const [moveStart, setMoveStart] = useState<MapPosition | null>(null);
   const [zoneOriginalSize, setZoneOriginalSize] = useState<{ width: number; height: number } | null>(null);
+  const [previewZoneSize, setPreviewZoneSize] = useState<{ width: number; height: number } | null>(null);
 
   const loadCheckpoints = useCallback(async (eventId: string | null) => {
     if (!eventId) {
@@ -355,10 +356,19 @@ export default function AdminMap() {
   };
 
   const handleResizeMove = (event: React.PointerEvent<SVGSVGElement>) => {
-    if (!resizingZone || !editingZoneId || !resizeStart) return;
+    if (!resizingZone || !editingZoneId || !resizeStart || !zoneOriginalSize) return;
     const pos = getPointerPosition(event);
     if (pos) {
       setResizeEnd(pos);
+      
+      // Calcular preview de tamanho
+      const deltaX = pos.x - resizeStart.x;
+      const deltaY = pos.y - resizeStart.y;
+      
+      const newWidth = Math.max(20, zoneOriginalSize.width + deltaX);
+      const newHeight = Math.max(20, zoneOriginalSize.height + deltaY);
+      
+      setPreviewZoneSize({ width: newWidth, height: newHeight });
     }
   };
 
@@ -382,6 +392,7 @@ export default function AdminMap() {
     setResizeStart(null);
     setResizeEnd(null);
     setZoneOriginalSize(null);
+    setPreviewZoneSize(null);
     setError('');
   };
 
@@ -393,6 +404,7 @@ export default function AdminMap() {
     setResizeEnd(null);
     setMoveStart(null);
     setZoneOriginalSize(null);
+    setPreviewZoneSize(null);
   };
 
   const fallbackPosition = useCallback((checkpoint: any, index: number): MapPosition => {
@@ -901,6 +913,40 @@ export default function AdminMap() {
                     <p>🖱️ <strong>Mover:</strong> Arraste a zona para outra posição</p>
                     <p>📐 <strong>Redimensionar:</strong> Clique no handle do canto inferior direito e arraste</p>
                   </div>
+                  
+                  {resizingZone && zoneOriginalSize && previewZoneSize && editingZoneId && (
+                    <div className="mt-3 border-t border-warning/20 pt-3">
+                      <p className="mb-2 text-xs font-semibold text-white">Preview de redimensionamento:</p>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <p className="text-gray-500">Tamanho original:</p>
+                          <p className="text-primary">{Math.round(zoneOriginalSize.width)}×{Math.round(zoneOriginalSize.height)}px</p>
+                          <p className="text-gray-500">Área: {Math.round(zoneOriginalSize.width * zoneOriginalSize.height)}px²</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Novo tamanho:</p>
+                          <p className="text-warning">{Math.round(previewZoneSize.width)}×{Math.round(previewZoneSize.height)}px</p>
+                          <p className="text-gray-500">Área: {Math.round(previewZoneSize.width * previewZoneSize.height)}px²</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 rounded bg-surface/50 p-2">
+                        {(() => {
+                          const originalArea = zoneOriginalSize.width * zoneOriginalSize.height;
+                          const newArea = previewZoneSize.width * previewZoneSize.height;
+                          const difference = newArea - originalArea;
+                          const percentChange = ((difference / originalArea) * 100).toFixed(1);
+                          const isIncrease = difference > 0;
+                          
+                          return (
+                            <p className={`text-xs font-semibold ${isIncrease ? 'text-success' : 'text-danger'}`}>
+                              {isIncrease ? '📈' : '📉'} {isIncrease ? '+' : ''}{Math.round(difference)}px² ({percentChange}%)
+                            </p>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                  
                   <Button variant="ghost" size="sm" onClick={cancelEditingZone} className="mt-2">Concluir edição</Button>
                 </div>
               )}
