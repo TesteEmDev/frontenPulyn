@@ -113,6 +113,7 @@ export default function AdminMap() {
   const [floorPlanUrl, setFloorPlanUrl] = useState<string | null>(null);
   const [floorPlanName, setFloorPlanName] = useState<string | null>(null);
   const [uploadingFloorPlan, setUploadingFloorPlan] = useState(false);
+  const [draggedPosition, setDraggedPosition] = useState<MapPosition | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { setEventoAtual } = usePulynStore();
 
@@ -254,6 +255,7 @@ export default function AdminMap() {
     const initialPosition = checkpointPositions[checkpointId];
     dragStartPositionRef.current = initialPosition ? { ...initialPosition } : null;
     dragPositionRef.current = initialPosition ? { ...initialPosition } : null;
+    setDraggedPosition(null);
     setSelectedCheckpointId(checkpointId);
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
@@ -266,9 +268,7 @@ export default function AdminMap() {
 
     const roundedPosition = { x: Math.round(position.x), y: Math.round(position.y) };
     dragPositionRef.current = roundedPosition;
-    setCheckpoints((current) => current.map((checkpoint) => checkpoint.id === checkpointId
-      ? { ...checkpoint, map_x: roundedPosition.x, map_y: roundedPosition.y }
-      : checkpoint));
+    setDraggedPosition(roundedPosition);
   };
 
   const handlePointerUp = async () => {
@@ -278,11 +278,18 @@ export default function AdminMap() {
     draggingCheckpointRef.current = null;
     dragStartPositionRef.current = null;
     dragPositionRef.current = null;
+    setDraggedPosition(null);
+
     if (!checkpointId || !selectedEventId || !finalPosition) return;
 
     const checkpoint = checkpoints.find((item) => item.id === checkpointId);
     if (!checkpoint) return;
     if (startPosition && startPosition.x === finalPosition.x && startPosition.y === finalPosition.y) return;
+
+    // Atualizar o estado com a posição final
+    setCheckpoints((current) => current.map((item) => item.id === checkpointId
+      ? { ...item, map_x: finalPosition.x, map_y: finalPosition.y }
+      : item));
 
     setSavingCheckpointId(checkpointId);
     try {
@@ -480,7 +487,11 @@ export default function AdminMap() {
                   ))}
 
                   {checkpoints.map((checkpoint, index) => {
-                    const position = checkpointPositions[checkpoint.id] || fallbackPosition(checkpoint, index);
+                    const storedPosition = checkpointPositions[checkpoint.id] || fallbackPosition(checkpoint, index);
+                    // Se está sendo arrastado, usar a posição do drag, caso contrário usar a posição armazenada
+                    const position = (draggingCheckpointRef.current === checkpoint.id && draggedPosition)
+                      ? draggedPosition
+                      : storedPosition;
                     const isSelected = selectedCheckpointId === checkpoint.id;
                     const color = checkpoint.status === 'online' ? '#22C55E' : '#EF4444';
                     return (
