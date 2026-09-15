@@ -47,10 +47,7 @@ function getStoredMapPosition(checkpoint: Checkpoint) {
   const y = Number(checkpoint.map_y ?? checkpoint.mapY);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
 
-  return {
-    x: pxToPercent(x, MAP_WIDTH),
-    y: pxToPercent(y, MAP_HEIGHT),
-  };
+  return { x, y };
 }
 
 function getCheckpointDisplayPosition(checkpoint: Checkpoint, checkpoints: Checkpoint[], zones: Zone[]) {
@@ -59,86 +56,17 @@ function getCheckpointDisplayPosition(checkpoint: Checkpoint, checkpoints: Check
 
   // Se não tem posição salva, usar zona como fallback
   const zone = zones.find((item) => normalizeZoneName(item.name) === normalizeZoneName(checkpoint.zone)) || zones[0];
-  if (!zone) return { x: 50, y: 50 };
+  if (!zone) return { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
 
   const sameZone = checkpoints.filter((item) => normalizeZoneName(item.zone) === normalizeZoneName(checkpoint.zone));
   const index = sameZone.indexOf(checkpoint);
   const count = sameZone.length;
   const xOffset = count > 1 ? (index / (count - 1)) * 0.6 + 0.2 : 0.5;
 
-  const zoneX = pxToPercent(zone.x, MAP_WIDTH);
-  const zoneW = sizeToPercent(zone.width, MAP_WIDTH);
-  const zoneY = pxToPercent(zone.y, MAP_HEIGHT);
-  const zoneH = sizeToPercent(zone.height, MAP_HEIGHT);
-
   return {
-    x: zoneX + zoneW * xOffset,
-    y: zoneY + zoneH * 0.75,
+    x: zone.x + zone.width * xOffset,
+    y: zone.y + zone.height * 0.75,
   };
-}
-
-function CheckpointMarker({
-  checkpoint,
-  x,
-  y,
-  owner,
-}: {
-  checkpoint: Checkpoint;
-  x: number;
-  y: number;
-  owner?: Team | undefined;
-}) {
-  const isOnline = checkpoint.status === 'online';
-  const isOwned = Boolean(owner);
-  const color = owner?.color || (isOnline ? '#22C55E' : '#EF4444');
-  const stateLabel = isOwned
-    ? `Dominado pelo time ${owner!.name}`
-    : isOnline
-      ? 'Livre e online'
-      : 'Offline';
-
-  return (
-    <div
-      className="absolute z-20 flex flex-col items-center"
-      style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' }}
-      aria-label={`${checkpoint.name}: ${stateLabel}`}
-    >
-      <div className="relative">
-        <div
-          className="flex h-8 w-8 items-center justify-center rounded-full border-2 bg-dark-card/95"
-          style={{
-            borderColor: color,
-            boxShadow: `0 0 0 4px ${color}20, 0 0 18px ${color}${isOwned ? 'B0' : '70'}`,
-          }}
-        >
-          <div className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: color }} />
-        </div>
-        {isOnline && (
-          <div
-            className="absolute inset-0 h-8 w-8 rounded-full animate-ping opacity-30"
-            style={{ backgroundColor: color }}
-          />
-        )}
-        {!isOnline && (
-          <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-dark-card bg-danger-500" />
-        )}
-      </div>
-      <span className="mt-1 whitespace-nowrap font-mono text-[10px] text-slate-400">
-        {checkpoint.id}
-      </span>
-      <span className="whitespace-nowrap font-display text-xs text-slate-100">
-        {checkpoint.name}
-      </span>
-      {isOwned && (
-        <span className="max-w-40 truncate whitespace-nowrap font-semibold text-[10px]" style={{ color }}>
-          {owner && owner.name}
-        </span>
-      )}
-      <span className="font-mono text-[10px] text-primary-400">
-        +{checkpoint.points}pts
-      </span>
-    </div>
-  );
 }
 
 function ChildAvatar({
@@ -359,67 +287,74 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           />
         )}
         
-        {/* Zonas e elementos por cima da planta */}
-        <div className="absolute inset-0 z-[5]">
-        {zones.map((zone) => {
-          const zoneX = pxToPercent(zone.x, MAP_WIDTH);
-          const zoneW = sizeToPercent(zone.width, MAP_WIDTH);
-          const zoneY = pxToPercent(zone.y, MAP_HEIGHT);
-          const zoneH = sizeToPercent(zone.height, MAP_HEIGHT);
-          const borderColor = `${zone.color}60`;
+        {/* SVG com viewBox para manter proporções exatamente como AdminMap */}
+        <svg
+          className="absolute inset-0 w-full h-full z-10"
+          viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
+          preserveAspectRatio="xMidYMid slice"
+        >
+          {/* Zonas */}
+          {zones.map((zone) => {
+            return (
+              <g key={zone.id}>
+                <rect
+                  x={zone.x}
+                  y={zone.y}
+                  width={zone.width}
+                  height={zone.height}
+                  fill={zone.color}
+                  fillOpacity={0.15}
+                  stroke={zone.color}
+                  strokeWidth={2}
+                  rx={8}
+                />
+                <text
+                  x={zone.x + zone.width / 2}
+                  y={zone.y + 20}
+                  textAnchor="middle"
+                  fill={zone.color}
+                  fontSize={14}
+                  fontWeight={600}
+                  fontFamily="system-ui"
+                >
+                  {zone.name}
+                </text>
+              </g>
+            );
+          })}
 
-          return (
-            <div
-              key={zone.id}
-              className="absolute rounded-xl border-2"
-              style={{
-                left: `${zoneX}%`,
-                top: `${zoneY}%`,
-                width: `${zoneW}%`,
-                height: `${zoneH}%`,
-                backgroundColor: `${zone.color}10`,
-                borderColor: borderColor,
-                boxSizing: 'border-box',
-              }}
-            >
-              <div className="absolute left-3 top-2 flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full" style={{ backgroundColor: zone.color, boxShadow: `0 0 8px ${zone.color}80` }} />
-                <span className="font-display text-sm font-bold" style={{ color: zone.color }}>{zone.name}</span>
-              </div>
-            </div>
-          );
-        })}
-
-        <svg className="absolute inset-0 z-[1] h-full w-full pointer-events-none">
-          {zones.length >= 2 && (
-            <>
-              <line x1="50%" y1="23%" x2="26%" y2="28%" stroke="#3B267080" strokeWidth="2" strokeDasharray="6 4" />
-              <line x1="50%" y1="23%" x2="74%" y2="28%" stroke="#3B267080" strokeWidth="2" strokeDasharray="6 4" />
-              <line x1="26%" y1="66%" x2="50%" y2="70%" stroke="#3B267080" strokeWidth="2" strokeDasharray="6 4" />
-              <line x1="74%" y1="66%" x2="50%" y2="70%" stroke="#3B267080" strokeWidth="2" strokeDasharray="6 4" />
-            </>
-          )}
+          {/* Checkpoints */}
+          {checkpointPositions.map(({ checkpoint, x, y }) => {
+            const owner = checkpointOwnerById.get(String(checkpoint.id));
+            const isOnline = checkpoint.status === 'online';
+            const color = owner?.color || (isOnline ? '#22C55E' : '#EF4444');
+            
+            return (
+              <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
+                <circle r={17} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={2} />
+                <circle r={5} fill={color} />
+                <text y={-22} textAnchor="middle" fill="#FFFFFF" fontSize={10} fontWeight={600}>
+                  {checkpoint.id}
+                </text>
+                <text y={30} textAnchor="middle" fill="#D1D5DB" fontSize={9}>
+                  {checkpoint.name}
+                </text>
+              </g>
+            );
+          })}
         </svg>
 
-        {checkpointPositions.map(({ checkpoint, x, y }) => (
-          <CheckpointMarker
-            key={checkpoint.id}
-            checkpoint={checkpoint}
-            x={x}
-            y={y}
-            owner={checkpointOwnerById.get(String(checkpoint.id)) || undefined}
-          />
-        ))}
-
-        {childPositions.map((position) => (
-          <ChildAvatar
-            key={position.id}
-            avatar={position.avatar}
-            nickname={position.nickname}
-            x={position.x}
-            y={position.y}
-          />
-        ))}
+        {/* Crianças (posicionadas com %) */}
+        <div className="absolute inset-0 z-20 pointer-events-none">
+          {childPositions.map((position) => (
+            <ChildAvatar
+              key={position.id}
+              avatar={position.avatar}
+              nickname={position.nickname}
+              x={position.x}
+              y={position.y}
+            />
+          ))}
         </div>
       </div>
 
