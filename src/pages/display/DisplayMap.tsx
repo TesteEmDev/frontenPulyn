@@ -94,7 +94,7 @@ function ChildAvatar({
   return (
     <div
       className="absolute z-10 flex flex-col items-center pointer-events-none transition-[left,top] duration-700 ease-out"
-      style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' }}
+      style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, 0%)' }}
     >
       <div className="animate-float">
         <Avatar emoji={avatar || DEFAULT_AVATAR_ID} size="sm" decorative />
@@ -112,11 +112,11 @@ interface DisplayMapProps {
 
 export default function DisplayMap({ embedded = false }: DisplayMapProps) {
   const { children, checkpoints, scoreLog, teams } = usePulynStore();
-  const eventoAtual = (usePulynStore.getState() as any).eventoAtual;
+  const eventoAtual = usePulynStore((state: any) => state.eventoAtualId);
   const [zones, setZones] = useState<Zone[]>(DEFAULT_ZONES);
   const [floorPlan, setFloorPlan] = useState<string | null>(null);
 
-  // Carregar zonas e planta do evento
+  // Carregar zonas e planta do evento com polling
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -158,7 +158,12 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
       }
     };
 
+    // Carregar imediatamente
     loadData();
+    
+    // Polling a cada 3 segundos para sincronizar mudanças de zona
+    const interval = setInterval(loadData, 3000);
+    return () => clearInterval(interval);
   }, [eventoAtual]);
 
   const teamById = useMemo(() => {
