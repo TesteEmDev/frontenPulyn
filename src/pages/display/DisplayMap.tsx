@@ -382,16 +382,16 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           {childPositions.map((position) => (
             <foreignObject
               key={position.id}
-              x={position.x - 18}
-              y={position.y - 8}
-              width={36}
-              height={55}
+              x={position.x - 22}
+              y={position.y - 15}
+              width={44}
+              height={70}
             >
               <div className="flex flex-col items-center w-full pointer-events-none" style={{ transform: 'scale(0.8)' }}>
                 <div className="animate-float">
                   <Avatar emoji={position.avatar || DEFAULT_AVATAR_ID} size="sm" decorative />
                 </div>
-                <span className="mt-0.5 whitespace-normal text-center font-display text-[7px] text-slate-300 leading-tight px-1">
+                <span className="mt-0.5 whitespace-normal text-center font-display text-[9px] text-slate-300 leading-tight px-1">
                   {position.nickname || 'Participante'}
                 </span>
               </div>
