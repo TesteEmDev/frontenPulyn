@@ -115,6 +115,16 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
   // Usar eventoAtual do store, ou do activeGame se disponível
   const eventIdToLoad = eventoAtual || activeGame?.evento_id;
 
+  // DEBUG: Log para entender o estado
+  console.log('📍 DisplayMap DEBUG:', {
+    eventoAtual,
+    activeGame: activeGame?.id,
+    activeGameType: activeGame?.type,
+    activeGameEventoId: activeGame?.evento_id,
+    eventIdToLoad,
+    showMap
+  });
+
   // Carregar zonas do backend com polling
   useEffect(() => {
     const loadData = async () => {
