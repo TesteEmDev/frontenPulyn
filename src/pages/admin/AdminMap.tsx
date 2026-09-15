@@ -829,6 +829,11 @@ export default function AdminMap() {
                     else handlePointerUp();
                   }}
                   onPointerDown={(e) => {
+                    // Se clicar no SVG vazio (não em um elemento), desselecionar
+                    if (e.target === e.currentTarget) {
+                      setEditingZoneId(null);
+                      setSelectedCheckpointId(null);
+                    }
                     if (drawingZone) handleZoneDrawStart(e);
                   }}
                   onPointerLeave={() => {
