@@ -118,6 +118,14 @@ export default function AdminMap() {
   const [, forceRender] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { setEventoAtual } = usePulynStore();
+  
+  // Estados para criação de zona
+  const [creatingZone, setCreatingZone] = useState(false);
+  const [newZoneName, setNewZoneName] = useState('');
+  const [newZoneColor, setNewZoneColor] = useState('#1E9BD7');
+  const [drawingZone, setDrawingZone] = useState(false);
+  const [zoneStartPos, setZoneStartPos] = useState<MapPosition | null>(null);
+  const [zoneEndPos, setZoneEndPos] = useState<MapPosition | null>(null);
 
   const loadCheckpoints = useCallback(async (eventId: string | null) => {
     if (!eventId) {
@@ -199,16 +207,79 @@ export default function AdminMap() {
   };
 
   const addZone = () => {
+    setCreatingZone(true);
+    setNewZoneName('');
+    setDrawingZone(false);
+    setZoneStartPos(null);
+    setZoneEndPos(null);
+  };
+
+  const startDrawingZone = () => {
+    if (!newZoneName.trim()) {
+      setError('Digite um nome para a zona');
+      return;
+    }
+    setDrawingZone(true);
+    setZoneStartPos(null);
+    setZoneEndPos(null);
+  };
+
+  const handleZoneDrawStart = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!drawingZone) return;
+    const pos = getPointerPosition(event);
+    if (pos) {
+      setZoneStartPos(pos);
+      setZoneEndPos(pos);
+    }
+  };
+
+  const handleZoneDrawMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!drawingZone || !zoneStartPos) return;
+    const pos = getPointerPosition(event);
+    if (pos) {
+      setZoneEndPos(pos);
+    }
+  };
+
+  const handleZoneDrawEnd = () => {
+    if (!drawingZone || !zoneStartPos || !zoneEndPos) return;
+    
+    const x = Math.min(zoneStartPos.x, zoneEndPos.x);
+    const y = Math.min(zoneStartPos.y, zoneEndPos.y);
+    const width = Math.abs(zoneEndPos.x - zoneStartPos.x);
+    const height = Math.abs(zoneEndPos.y - zoneStartPos.y);
+
+    if (width < 20 || height < 20) {
+      setError('Zona muito pequena. Desenhe uma zona maior.');
+      return;
+    }
+
     const newId = String(Date.now());
     setZones((prev) => [...prev, {
       id: newId,
-      name: 'Nova Zona',
-      color: '#1E9BD7',
-      x: 50,
-      y: 50,
-      width: 100,
-      height: 80,
+      name: newZoneName,
+      color: newZoneColor,
+      x: Math.round(x),
+      y: Math.round(y),
+      width: Math.round(width),
+      height: Math.round(height),
     }]);
+
+    setCreatingZone(false);
+    setDrawingZone(false);
+    setNewZoneName('');
+    setZoneStartPos(null);
+    setZoneEndPos(null);
+    setError('');
+  };
+
+  const cancelZoneCreation = () => {
+    setCreatingZone(false);
+    setDrawingZone(false);
+    setNewZoneName('');
+    setZoneStartPos(null);
+    setZoneEndPos(null);
+    setError('');
   };
 
   const fallbackPosition = useCallback((checkpoint: any, index: number): MapPosition => {
@@ -244,7 +315,7 @@ export default function AdminMap() {
     if (!svg) return null;
     
     try {
-      // Usar SVG native methods para transformação precisa e rápida
+      // Usar SVG native methods para transformação mais precisa e rápida
       const pt = svg.createSVGPoint();
       pt.x = event.clientX;
       pt.y = event.clientY;
@@ -517,9 +588,21 @@ export default function AdminMap() {
                   height="100%"
                   viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
                   className="relative z-10 touch-none"
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                  onPointerLeave={handlePointerUp}
+                  onPointerMove={(e) => {
+                    if (drawingZone) handleZoneDrawMove(e);
+                    else handlePointerMove(e);
+                  }}
+                  onPointerUp={() => {
+                    if (drawingZone) handleZoneDrawEnd();
+                    else handlePointerUp();
+                  }}
+                  onPointerDown={(e) => {
+                    if (drawingZone) handleZoneDrawStart(e);
+                  }}
+                  onPointerLeave={() => {
+                    if (drawingZone) handleZoneDrawEnd();
+                    else handlePointerUp();
+                  }}
                 >
                   {[...Array(9)].map((_, index) => (
                     <line key={`h${index}`} x1="0" y1={index * 40} x2={MAP_WIDTH} y2={index * 40} stroke="#1E1B2E" strokeWidth="1" />
@@ -536,6 +619,33 @@ export default function AdminMap() {
                       </text>
                     </g>
                   ))}
+
+                  {drawingZone && zoneStartPos && zoneEndPos && (
+                    <g>
+                      <rect
+                        x={Math.min(zoneStartPos.x, zoneEndPos.x)}
+                        y={Math.min(zoneStartPos.y, zoneEndPos.y)}
+                        width={Math.abs(zoneEndPos.x - zoneStartPos.x)}
+                        height={Math.abs(zoneEndPos.y - zoneStartPos.y)}
+                        fill={newZoneColor}
+                        fillOpacity={0.25}
+                        stroke={newZoneColor}
+                        strokeWidth={2}
+                        rx={8}
+                      />
+                      <text
+                        x={(Math.min(zoneStartPos.x, zoneEndPos.x) + Math.max(zoneStartPos.x, zoneEndPos.x)) / 2}
+                        y={(Math.min(zoneStartPos.y, zoneEndPos.y) + Math.max(zoneStartPos.y, zoneEndPos.y)) / 2}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fill={newZoneColor}
+                        fontSize={12}
+                        fontWeight="600"
+                      >
+                        {newZoneName}
+                      </text>
+                    </g>
+                  )}
 
                   {checkpoints.map((checkpoint, index) => {
                     const storedPosition = checkpointPositions[checkpoint.id] || fallbackPosition(checkpoint, index);
@@ -575,8 +685,51 @@ export default function AdminMap() {
             <Card>
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="font-display text-lg text-white">Zonas</h3>
-                <Button variant="ghost" size="sm" onClick={addZone} title="Adicionar zona"><Plus size={14} /></Button>
+                <Button variant="ghost" size="sm" onClick={addZone} title="Adicionar zona" disabled={creatingZone}><Plus size={14} /></Button>
               </div>
+
+              {creatingZone && (
+                <div className="mb-4 rounded-lg border border-primary/50 bg-primary/10 p-3">
+                  <p className="mb-2 text-sm font-semibold text-white">Criar nova zona</p>
+                  
+                  {!drawingZone ? (
+                    <div className="space-y-2">
+                      <div>
+                        <label className="mb-1 block text-xs text-gray-400">Nome da zona</label>
+                        <Input
+                          value={newZoneName}
+                          onChange={(e) => setNewZoneName(e.target.value)}
+                          placeholder="Ex: Entrada, Área Verde..."
+                          className="text-sm"
+                          autoFocus
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-gray-400">Cor</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={newZoneColor}
+                            onChange={(e) => setNewZoneColor(e.target.value)}
+                            className="h-10 w-10 cursor-pointer rounded border border-border bg-surface"
+                          />
+                          <span className="text-xs text-gray-500">{newZoneColor}</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="primary" size="sm" onClick={startDrawingZone}>Desenhar no mapa</Button>
+                        <Button variant="ghost" size="sm" onClick={cancelZoneCreation}>Cancelar</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-400">Clique e arraste no mapa para desenhar a zona "<strong>{newZoneName}</strong>"</p>
+                      <Button variant="ghost" size="sm" onClick={cancelZoneCreation}>Cancelar desenho</Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-3">
                 {zones.map((zone) => (
                   <div key={zone.id} className="rounded-lg bg-surface/50 p-3">
