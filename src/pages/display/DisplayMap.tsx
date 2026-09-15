@@ -151,7 +151,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
             setFloorPlan(null);
           }
         } catch (e) {
-          console.error('Erro ao carregar planta:', e);
+          console.warn('⚠️ Planta não disponível (pode ser permissão):', e);
           setFloorPlan(null);
         }
       } catch (error) {
