@@ -33,10 +33,10 @@ function normalizeZoneName(value?: string | null) {
     .toLowerCase();
 }
 
-// Converter posição em px para % (com muita precisão)
-function pxToPercent(px: number, totalSize: number): number {
-  return (px / totalSize) * 100;
-}
+// Converter posição em px para % (não mais utilizado - avatares agora em foreignObject)
+// function pxToPercent(px: number, totalSize: number): number {
+//   return (px / totalSize) * 100;
+// }
 
 function getStoredMapPosition(checkpoint: Checkpoint) {
   const x = Number(checkpoint.map_x ?? checkpoint.mapX);
@@ -67,6 +67,8 @@ function getCheckpointDisplayPosition(checkpoint: Checkpoint, checkpoints: Check
   };
 }
 
+// ⚠️ ChildAvatar não mais utilizado - avatares agora renderizados como foreignObject dentro do SVG
+/*
 function ChildAvatar({
   avatar,
   nickname,
@@ -92,6 +94,7 @@ function ChildAvatar({
     </div>
   );
 }
+*/
 
 interface DisplayMapProps {
   embedded?: boolean;
@@ -232,16 +235,13 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
         const slot = checkpointChildren[lastCheckpoint.id] || 0;
         checkpointChildren[lastCheckpoint.id] = slot + 1;
 
-        // Converter pixels para percentual - SEM OFFSETS, exatamente no checkpoint
-        const posX = pxToPercent(basePosition.x, MAP_WIDTH);
-        const posY = pxToPercent(basePosition.y + 25 + slot * 20, MAP_HEIGHT);  // Stack verticalmente embaixo
-
+        // Coordenadas em PIXELS (para foreignObject dentro do SVG)
         positions.push({
           id: child.id,
           avatar: child.avatar,
           nickname: child.nickname || child.name,
-          x: posX,
-          y: posY,
+          x: basePosition.x,
+          y: basePosition.y + 25 + slot * 20,
         });
         continue;
       }
@@ -267,8 +267,8 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           id: kid.id,
           avatar: kid.avatar,
           nickname: kid.nickname,
-          x: pxToPercent(zone.x + zone.width * xOff, MAP_WIDTH),
-          y: pxToPercent(zone.y + zone.height * (0.3 + row * 0.25), MAP_HEIGHT),
+          x: zone.x + zone.width * xOff,
+          y: zone.y + zone.height * (0.3 + row * 0.25),
         });
       });
     }
@@ -372,20 +372,27 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
               </g>
             );
           })}
-        </svg>
 
-        {/* Crianças (posicionadas com %) */}
-        <div className="absolute inset-0 z-20 pointer-events-none">
+          {/* Avatares como foreignObject dentro do SVG (mesmas coordenadas em pixels) */}
           {childPositions.map((position) => (
-            <ChildAvatar
+            <foreignObject
               key={position.id}
-              avatar={position.avatar}
-              nickname={position.nickname}
-              x={position.x}
+              x={position.x - 15}
               y={position.y}
-            />
+              width={30}
+              height={50}
+            >
+              <div className="flex flex-col items-center w-full pointer-events-none">
+                <div className="animate-float">
+                  <Avatar emoji={position.avatar || DEFAULT_AVATAR_ID} size="sm" decorative />
+                </div>
+                <span className="mt-0.5 whitespace-nowrap font-display text-[10px] text-slate-300">
+                  {position.nickname || 'Participante'}
+                </span>
+              </div>
+            </foreignObject>
           ))}
-        </div>
+        </svg>
       </div>
 
       <div className={`relative z-10 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 ${embedded ? 'pt-4' : 'px-6 pb-5'}`}>
