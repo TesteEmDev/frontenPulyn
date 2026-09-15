@@ -99,6 +99,7 @@ export default function AdminMap() {
   const draggingCheckpointRef = useRef<string | null>(null);
   const dragStartPositionRef = useRef<MapPosition | null>(null);
   const dragPositionRef = useRef<MapPosition | null>(null);
+  const dragOffsetRef = useRef<MapPosition | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -251,10 +252,23 @@ export default function AdminMap() {
   const handlePointerDown = (event: React.PointerEvent<SVGGElement>, checkpointId: string) => {
     event.preventDefault();
     event.stopPropagation();
+    
+    const checkpointPosition = checkpointPositions[checkpointId];
+    if (!checkpointPosition) return;
+
     draggingCheckpointRef.current = checkpointId;
-    const initialPosition = checkpointPositions[checkpointId];
-    dragStartPositionRef.current = initialPosition ? { ...initialPosition } : null;
-    dragPositionRef.current = initialPosition ? { ...initialPosition } : null;
+    dragStartPositionRef.current = checkpointPosition ? { ...checkpointPosition } : null;
+    dragPositionRef.current = checkpointPosition ? { ...checkpointPosition } : null;
+    
+    // Calcular o offset: diferença entre onde clicou e o centro do checkpoint
+    const clickPosition = getPointerPosition(event as any);
+    if (clickPosition) {
+      dragOffsetRef.current = {
+        x: clickPosition.x - checkpointPosition.x,
+        y: clickPosition.y - checkpointPosition.y,
+      };
+    }
+    
     setSelectedCheckpointId(checkpointId);
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
@@ -262,10 +276,16 @@ export default function AdminMap() {
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
     const checkpointId = draggingCheckpointRef.current;
     if (!checkpointId) return;
-    const position = getPointerPosition(event);
-    if (!position) return;
+    const cursorPosition = getPointerPosition(event);
+    if (!cursorPosition) return;
 
-    const roundedPosition = { x: Math.round(position.x), y: Math.round(position.y) };
+    // Subtrair o offset: posição do checkpoint = posição do cursor - offset
+    const checkpointPosition = {
+      x: cursorPosition.x - (dragOffsetRef.current?.x || 0),
+      y: cursorPosition.y - (dragOffsetRef.current?.y || 0),
+    };
+
+    const roundedPosition = { x: Math.round(checkpointPosition.x), y: Math.round(checkpointPosition.y) };
     dragPositionRef.current = roundedPosition;
     // Atualizar o estado para renderizar em tempo real (sem limites)
     setDraggedPosition(roundedPosition);
@@ -278,6 +298,7 @@ export default function AdminMap() {
     draggingCheckpointRef.current = null;
     dragStartPositionRef.current = null;
     dragPositionRef.current = null;
+    dragOffsetRef.current = null;
     setDraggedPosition(null);
 
     if (!checkpointId || !selectedEventId || !finalPosition) return;
