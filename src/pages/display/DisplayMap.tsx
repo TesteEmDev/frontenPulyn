@@ -383,9 +383,9 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
             <foreignObject
               key={position.id}
               x={position.x - 28}
-              y={position.y - 50}
+              y={position.y - 60}
               width={56}
-              height={140}
+              height={150}
             >
               <div className="flex flex-col items-center w-full pointer-events-none" style={{ transform: 'scale(0.8)' }}>
                 <div className="animate-float">
