@@ -236,7 +236,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
         checkpointChildren[lastCheckpoint.id] = slot + 1;
         
         // Layout em pirâmide com muito mais espaçamento
-        const offsets = [-16, 0, 16];  // Espaçamento horizontal maior
+        const offsets = [-20, 0, 20];  // Espaçamento horizontal ainda maior
         const offsetX = offsets[slot % offsets.length];
         const row = Math.floor(slot / 3);
 
@@ -246,7 +246,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           avatar: child.avatar,
           nickname: child.nickname || child.name,
           x: basePosition.x + offsetX,
-          y: basePosition.y + 15 + row * 20,  // Espaçamento vertical maior
+          y: basePosition.y + 20 + row * 25,  // Espaçamento vertical ainda maior
         });
         continue;
       }
@@ -382,16 +382,16 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           {childPositions.map((position) => (
             <foreignObject
               key={position.id}
-              x={position.x - 12}
-              y={position.y - 6}
-              width={24}
-              height={40}
+              x={position.x - 18}
+              y={position.y - 8}
+              width={36}
+              height={55}
             >
               <div className="flex flex-col items-center w-full pointer-events-none" style={{ transform: 'scale(0.8)' }}>
                 <div className="animate-float">
                   <Avatar emoji={position.avatar || DEFAULT_AVATAR_ID} size="sm" decorative />
                 </div>
-                <span className="mt-0.5 whitespace-nowrap font-display text-[8px] text-slate-300">
+                <span className="mt-0.5 whitespace-normal text-center font-display text-[7px] text-slate-300 leading-tight px-1">
                   {position.nickname || 'Participante'}
                 </span>
               </div>
