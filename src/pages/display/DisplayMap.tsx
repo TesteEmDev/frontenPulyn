@@ -32,12 +32,12 @@ function normalizeZoneName(value?: string | null) {
     .toLowerCase();
 }
 
-// Converter posição em px para %
+// Converter posição em px para % (com muita precisão)
 function pxToPercent(px: number, totalSize: number): number {
   return (px / totalSize) * 100;
 }
 
-// Converter tamanho em px para %
+// Converter tamanho em px para % (com muita precisão)
 function sizeToPercent(size: number, totalSize: number): number {
   return (size / totalSize) * 100;
 }
@@ -379,6 +379,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
                 height: `${zoneH}%`,
                 backgroundColor: `${zone.color}10`,
                 borderColor: borderColor,
+                boxSizing: 'border-box',
               }}
             >
               <div className="absolute left-3 top-2 flex items-center gap-2">
