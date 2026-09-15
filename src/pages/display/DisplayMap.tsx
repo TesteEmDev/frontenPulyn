@@ -116,13 +116,15 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
         // Buscar zonas do evento via API
         try {
           const zonesData = await api.getZones(eventoAtual);
+          console.log('✅ Zonas carregadas:', zonesData);
           if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
             setZones(zonesData);
           } else {
+            console.warn('⚠️ Zonas vazias, usando default');
             setZones(DEFAULT_ZONES);
           }
         } catch (e) {
-          console.error('Erro ao carregar zonas:', e);
+          console.error('❌ Erro ao carregar zonas:', e);
           setZones(DEFAULT_ZONES);
         }
 
@@ -148,8 +150,8 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
     // Carregar imediatamente
     loadData();
     
-    // Polling a cada 3 segundos para sincronizar mudanças de zona
-    const interval = setInterval(loadData, 3000);
+    // Polling a cada 2 segundos para sincronizar mudanças de zona
+    const interval = setInterval(loadData, 2000);
     return () => clearInterval(interval);
   }, [eventoAtual]);
 

@@ -259,7 +259,9 @@ export default function AdminMap() {
 
     const saveZones = async () => {
       try {
+        console.log('💾 Salvando zonas:', zones);
         await api.saveZones(selectedEventId, zones);
+        console.log('✅ Zonas salvas com sucesso');
       } catch (err) {
         console.error('❌ Erro ao salvar zonas:', err);
       }
