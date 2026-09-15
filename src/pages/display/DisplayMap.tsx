@@ -316,7 +316,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           <img 
             src={floorPlan} 
             alt="Planta do espaço" 
-            className="absolute inset-0 h-full w-full object-cover opacity-25 z-0"
+            className="absolute inset-0 h-full w-full object-cover opacity-35 z-0"
           />
         )}
         
