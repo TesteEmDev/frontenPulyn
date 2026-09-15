@@ -226,25 +226,51 @@ export default function AdminMap() {
     }
   }, []);
 
-  // Carregar zonas do localStorage (fallback local até backend implementar)
+  // Carregar zonas do backend (com fallback localStorage)
   useEffect(() => {
-    const loadZones = () => {
+    const loadZones = async () => {
       try {
         if (!selectedEventId) {
           setZones(initialZones);
           return;
         }
 
-        const key = `zones_${selectedEventId}`;
-        const stored = localStorage.getItem(key);
-        
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          console.log('✅ Zonas carregadas do localStorage:', parsed);
-          setZones(parsed);
-        } else {
-          console.log('📝 Nenhuma zona salva, usando padrão');
-          setZones(initialZones);
+        // Tentar carregar da API primeiro
+        try {
+          console.log('🔄 Carregando zonas da API...');
+          const zonesData = await api.getZones(selectedEventId);
+          if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
+            console.log('✅ Zonas carregadas da API:', zonesData);
+            setZones(zonesData);
+            // Atualizar localStorage como cache
+            localStorage.setItem(`zones_${selectedEventId}`, JSON.stringify(zonesData));
+          } else {
+            console.log('📝 Nenhuma zona na API, tentando localStorage...');
+            const key = `zones_${selectedEventId}`;
+            const stored = localStorage.getItem(key);
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              console.log('✅ Zonas carregadas do localStorage:', parsed);
+              setZones(parsed);
+            } else {
+              setZones(initialZones);
+            }
+          }
+        } catch (apiError) {
+          console.warn('⚠️ Erro ao carregar da API, tentando localStorage...');
+          const key = `zones_${selectedEventId}`;
+          const stored = localStorage.getItem(key);
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              console.log('✅ Zonas carregadas do localStorage (fallback):', parsed);
+              setZones(parsed);
+            } catch (e) {
+              setZones(initialZones);
+            }
+          } else {
+            setZones(initialZones);
+          }
         }
       } catch (e) {
         console.error('❌ Erro ao carregar zonas:', e);
@@ -262,18 +288,23 @@ export default function AdminMap() {
     if (selectedEventId) setEventoAtual(selectedEventId);
   }, [loadCheckpoints, loadFloorPlan, selectedEventId, setEventoAtual]);
 
-  // Salvar zonas no localStorage (fallback local até backend implementar)
+  // Salvar zonas no backend (com fallback localStorage)
   useEffect(() => {
     if (!selectedEventId || zones.length === 0) return;
 
-    const saveZones = () => {
+    const saveZones = async () => {
       try {
-        const key = `zones_${selectedEventId}`;
-        const zonesWithoutDefaults = zones.filter(z => !initialZones.find(i => i.id === z.id) || JSON.stringify(z) !== JSON.stringify(initialZones.find(i => i.id === z.id)));
-        
-        if (zonesWithoutDefaults.length > 0 || zones.length !== initialZones.length) {
-          localStorage.setItem(key, JSON.stringify(zones));
-          console.log('💾 Zonas salvas no localStorage:', zones);
+        // Tentar salvar na API
+        try {
+          console.log('💾 Salvando zonas na API:', zones);
+          await api.saveZones(selectedEventId, zones);
+          console.log('✅ Zonas salvas na API com sucesso');
+          // Atualizar localStorage como cache
+          localStorage.setItem(`zones_${selectedEventId}`, JSON.stringify(zones));
+        } catch (apiError) {
+          console.warn('⚠️ Erro ao salvar na API, salvando no localStorage...');
+          localStorage.setItem(`zones_${selectedEventId}`, JSON.stringify(zones));
+          console.log('✅ Zonas salvas no localStorage (fallback)');
         }
       } catch (err) {
         console.error('❌ Erro ao salvar zonas:', err);

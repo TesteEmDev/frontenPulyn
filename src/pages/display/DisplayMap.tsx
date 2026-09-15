@@ -103,7 +103,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
   const [zones, setZones] = useState<Zone[]>(DEFAULT_ZONES);
   const [floorPlan, setFloorPlan] = useState<string | null>(null);
 
-  // Carregar zonas e planta do evento com polling
+  // Carregar zonas do backend com polling
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -113,33 +113,42 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           return;
         }
 
-        // Buscar zonas do localStorage (fallback local até backend implementar)
+        // Buscar zonas do backend (com fallback localStorage)
         try {
-          const key = `zones_${eventoAtual}`;
-          const stored = localStorage.getItem(key);
-          
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            console.log('✅ Zonas carregadas do localStorage:', parsed);
-            setZones(parsed);
+          console.log('🔄 Carregando zonas do backend...');
+          const zonesData = await api.getZones(eventoAtual);
+          if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
+            console.log('✅ Zonas carregadas do backend:', zonesData);
+            setZones(zonesData);
+            // Atualizar localStorage como cache
+            localStorage.setItem(`zones_${eventoAtual}`, JSON.stringify(zonesData));
           } else {
-            console.log('📝 Nenhuma zona salva, tentando API...');
-            try {
-              const zonesData = await api.getZones(eventoAtual);
-              if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
-                console.log('✅ Zonas carregadas da API:', zonesData);
-                setZones(zonesData);
-              } else {
-                setZones(DEFAULT_ZONES);
-              }
-            } catch (e) {
-              console.warn('⚠️ API retornou erro, usando default');
+            console.log('📝 Nenhuma zona no backend, tentando localStorage...');
+            const key = `zones_${eventoAtual}`;
+            const stored = localStorage.getItem(key);
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              console.log('✅ Zonas carregadas do localStorage:', parsed);
+              setZones(parsed);
+            } else {
               setZones(DEFAULT_ZONES);
             }
           }
-        } catch (e) {
-          console.error('❌ Erro ao carregar zonas:', e);
-          setZones(DEFAULT_ZONES);
+        } catch (apiError) {
+          console.warn('⚠️ Erro ao carregar do backend, tentando localStorage...');
+          const key = `zones_${eventoAtual}`;
+          const stored = localStorage.getItem(key);
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              console.log('✅ Zonas carregadas do localStorage (fallback):', parsed);
+              setZones(parsed);
+            } catch (e) {
+              setZones(DEFAULT_ZONES);
+            }
+          } else {
+            setZones(DEFAULT_ZONES);
+          }
         }
 
         // Buscar planta baixa do evento
