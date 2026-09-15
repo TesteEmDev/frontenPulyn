@@ -103,75 +103,32 @@ interface DisplayMapProps {
 export default function DisplayMap({ embedded = false }: DisplayMapProps) {
   const { children, checkpoints, scoreLog, teams } = usePulynStore();
   const eventoAtual = usePulynStore((state: any) => state.eventoAtualId);
-  const activeGame = usePulynStore((state: any) => state.activeGame);
+  const treasureStatus = usePulynStore((state: any) => state.treasureStatus);
   const [zones, setZones] = useState<Zone[]>(DEFAULT_ZONES);
   const [floorPlan, setFloorPlan] = useState<string | null>(null);
-
-  // Determinar se o modo atual usa mapa
-  const modesWithMap = ['team', 'individual', 'cooperative', 'treasure_hunt', 'monster_hunt'];
-  const gameType = activeGame?.type || 'team';
-  const showMap = modesWithMap.includes(gameType);
-
-  // Usar eventoAtual do store, ou do activeGame, ou localStorage como último fallback
-  let eventIdToLoad = eventoAtual || activeGame?.evento_id;
-  
-  // Último fallback: tenta localStorage
-  if (!eventIdToLoad && typeof window !== 'undefined') {
-    const lastEventId = localStorage.getItem('lastEventId');
-    if (lastEventId) {
-      eventIdToLoad = lastEventId;
-    }
-  }
-
-  // DEBUG: Log para diagnóstico
-  useEffect(() => {
-    console.log('📍 DisplayMap Estado:', {
-      eventoAtual,
-      activeGameId: activeGame?.id,
-      activeGameType: activeGame?.type,
-      activeGameEventoId: activeGame?.evento_id,
-      localStorageLastEventId: typeof window !== 'undefined' ? localStorage.getItem('lastEventId') : null,
-      eventIdToLoad,
-      checkpointsCount: checkpoints.length,
-      showMap
-    });
-  }, [eventoAtual, activeGame, eventIdToLoad, checkpoints, showMap]);
 
   // Carregar zonas do backend com polling
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Se não há mapa para este modo, não carregar dados
-        if (!showMap) {
+        if (!eventoAtual) {
           setZones(DEFAULT_ZONES);
           setFloorPlan(null);
           return;
-        }
-
-        if (!eventIdToLoad) {
-          console.log('⚠️ Nenhum evento para carregar mapa');
-          setZones(DEFAULT_ZONES);
-          setFloorPlan(null);
-          return;
-        }
-
-        // Guardar último evento no localStorage para recuperação
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('lastEventId', eventIdToLoad);
         }
 
         // Buscar zonas do backend (com fallback localStorage)
         try {
-          console.log('🔄 Carregando zonas do backend para evento:', eventIdToLoad);
-          const zonesData = await api.getZones(eventIdToLoad);
+          console.log('🔄 Carregando zonas do backend...');
+          const zonesData = await api.getZones(eventoAtual);
           if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
             console.log('✅ Zonas carregadas do backend:', zonesData);
             setZones(zonesData);
             // Atualizar localStorage como cache
-            localStorage.setItem(`zones_${eventIdToLoad}`, JSON.stringify(zonesData));
+            localStorage.setItem(`zones_${eventoAtual}`, JSON.stringify(zonesData));
           } else {
             console.log('📝 Nenhuma zona no backend, tentando localStorage...');
-            const key = `zones_${eventIdToLoad}`;
+            const key = `zones_${eventoAtual}`;
             const stored = localStorage.getItem(key);
             if (stored) {
               const parsed = JSON.parse(stored);
@@ -183,7 +140,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           }
         } catch (apiError) {
           console.warn('⚠️ Erro ao carregar do backend, tentando localStorage...');
-          const key = `zones_${eventIdToLoad}`;
+          const key = `zones_${eventoAtual}`;
           const stored = localStorage.getItem(key);
           if (stored) {
             try {
@@ -200,7 +157,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
 
         // Buscar planta baixa do evento
         try {
-          const floorPlanData = await api.getFloorPlan(eventIdToLoad);
+          const floorPlanData = await api.getFloorPlan(eventoAtual);
           if (floorPlanData?.dataUrl) {
             setFloorPlan(floorPlanData.dataUrl);
           } else {
@@ -223,7 +180,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
     // Polling a cada 2 segundos para sincronizar mudanças de zona
     const interval = setInterval(loadData, 2000);
     return () => clearInterval(interval);
-  }, [eventIdToLoad, showMap]);
+  }, [eventoAtual]);
 
   const teamById = useMemo(() => {
     const map = new Map<string, Team>();
@@ -330,6 +287,16 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
     ...getCheckpointDisplayPosition(checkpoint, checkpoints, zones),
   })), [checkpoints, zones]);
 
+  // Encontrar a posição do checkpoint denominado "checkpoint" para usar como posição do alvo de tesouro
+  const targetCheckpointPosition = useMemo(() => {
+    const targetCp = checkpoints.find((cp) => normalizeZoneName(cp.name) === normalizeZoneName('checkpoint'));
+    if (!targetCp) return null;
+    return {
+      checkpoint: targetCp,
+      ...getCheckpointDisplayPosition(targetCp, checkpoints, zones),
+    };
+  }, [checkpoints, zones]);
+
   const ownedTeams = useMemo(() => {
     const seen = new Set<string>();
     return checkpoints
@@ -345,26 +312,15 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
     <div className={embedded
       ? 'relative flex flex-col overflow-hidden rounded-3xl border border-primary-400/20 bg-dark-card/75 p-4 shadow-[0_18px_50px_rgba(2,10,24,0.2)] backdrop-blur-xl sm:p-6'
       : 'fixed inset-0 flex flex-col overflow-hidden bg-gradient-dark'}>
-      
-      {/* Mostrar mapa apenas para modos com mapa */}
-      {!showMap && (
-        <div className="flex flex-col items-center justify-center flex-1 text-center">
-          <p className="text-xl text-gray-400">Este modo de jogo não usa mapa</p>
-          <p className="text-sm text-gray-500 mt-2">Tipo: {gameType}</p>
-        </div>
-      )}
+      <div className={`relative z-10 border-b border-dark-border/50 text-center ${embedded ? 'pb-4' : 'py-6'}`}>
+        <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary-300">Brincadeira Zona</p>
+        <h1 className="font-display text-3xl text-slate-100">Mapa do Espaço</h1>
+        <p className="mt-1 text-sm uppercase tracking-widest text-slate-500">Domínio dos territórios em tempo real</p>
+      </div>
 
-      {showMap && (
-        <>
-          <div className={`relative z-10 border-b border-dark-border/50 text-center ${embedded ? 'pb-4' : 'py-6'}`}>
-            <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary-300">Brincadeira Zona</p>
-            <h1 className="font-display text-3xl text-slate-100">Mapa do Espaço</h1>
-            <p className="mt-1 text-sm uppercase tracking-widest text-slate-500">Domínio dos territórios em tempo real</p>
-          </div>
-
-          <div className={embedded
-            ? 'relative z-10 mt-5 h-[520px] overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'
-            : 'relative z-10 mx-8 my-6 flex-1 overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'}>
+      <div className={embedded
+        ? 'relative z-10 mt-5 h-[520px] overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'
+        : 'relative z-10 mx-8 my-6 flex-1 overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'}>
         
         {/* Planta baixa como background */}
         {floorPlan && (
@@ -433,6 +389,18 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
             );
           })}
 
+          {/* Alvo do Caça ao Tesouro - sempre na posição do checkpoint "checkpoint" */}
+          {treasureStatus?.active && targetCheckpointPosition && (
+            <g transform={`translate(${targetCheckpointPosition.x} ${targetCheckpointPosition.y})`}>
+              {/* Círculo de alvo com pulsação */}
+              <circle r={25} fill="none" stroke="#FFD700" strokeWidth={2} opacity={0.6} />
+              <circle r={20} fill="none" stroke="#FFD700" strokeWidth={1.5} opacity={0.4} />
+              <text y={-30} textAnchor="middle" fill="#FFD700" fontSize={11} fontWeight={700}>
+                🎯 ALVO
+              </text>
+            </g>
+          )}
+
           {/* Avatares como foreignObject dentro do SVG (mesmas coordenadas em pixels) */}
           {childPositions.map((position) => (
             <foreignObject
@@ -475,8 +443,6 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           <span className="text-xs text-slate-400">Criança</span>
         </div>
       </div>
-        </>
-      )}
     </div>
   );
 }
