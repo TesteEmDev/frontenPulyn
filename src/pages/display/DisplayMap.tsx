@@ -3,6 +3,7 @@ import Avatar from '../../components/ui/Avatar';
 import { DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
 import type { Checkpoint, Team } from '../../store/mockData';
 import { usePulynStore } from '../../store/mockData';
+import { api } from '../../services/api';
 
 interface Zone {
   id: string;
@@ -114,7 +115,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
 
         // Buscar zonas do evento via API
         try {
-          const zonesData = await (window as any).api?.getZones?.(eventoAtual);
+          const zonesData = await api.getZones(eventoAtual);
           if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
             setZones(zonesData);
           } else {
@@ -127,7 +128,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
 
         // Buscar planta baixa do evento
         try {
-          const floorPlanData = await (window as any).api?.getFloorPlan?.(eventoAtual);
+          const floorPlanData = await api.getFloorPlan(eventoAtual);
           if (floorPlanData?.dataUrl) {
             setFloorPlan(floorPlanData.dataUrl);
           } else {
