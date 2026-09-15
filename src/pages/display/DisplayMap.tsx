@@ -234,12 +234,16 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
         const offsets = [-4, 0, 4];
         const offsetX = offsets[slot % offsets.length];
 
+        // Converter pixels para percentual
+        const posX = pxToPercent(basePosition.x + offsetX, MAP_WIDTH);
+        const posY = pxToPercent(basePosition.y + 8 + Math.floor(slot / offsets.length) * 5, MAP_HEIGHT);
+
         positions.push({
           id: child.id,
           avatar: child.avatar,
           nickname: child.nickname || child.name,
-          x: Math.min(Math.max(basePosition.x + offsetX, 4), 96),
-          y: Math.min(Math.max(basePosition.y + 8 + Math.floor(slot / offsets.length) * 5, 6), 94),
+          x: Math.min(Math.max(posX, 4), 96),
+          y: Math.min(Math.max(posY, 6), 94),
         });
         continue;
       }
