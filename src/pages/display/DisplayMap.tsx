@@ -125,6 +125,14 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
     });
   }, [gameType, isTreasureMode, shouldShowPlanta, localFloorPlan, eventoAtual]);
 
+  // Sincronizar floorPlan prop com localFloorPlan state
+  useEffect(() => {
+    if (floorPlan) {
+      console.log('✅ DisplayMap: Sincronizando floorPlan prop:', floorPlan.substring(0, 50) + '...');
+      setLocalFloorPlan(floorPlan);
+    }
+  }, [floorPlan]);
+
   // Carregar zonas do backend com polling
   useEffect(() => {
     const loadData = async () => {
@@ -172,27 +180,9 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
             setZones(DEFAULT_ZONES);
           }
         }
-
-        // Buscar planta baixa do evento (mostrar em zona e tesouro)
-        if (shouldShowPlanta) {
-          try {
-            const floorPlanData = await api.getFloorPlan(eventoAtual);
-            if (floorPlanData?.dataUrl) {
-              setLocalFloorPlan(floorPlanData.dataUrl);
-            } else {
-              setLocalFloorPlan(null);
-            }
-          } catch (e) {
-            console.warn('⚠️ Planta não disponível (pode ser permissão):', e);
-            setLocalFloorPlan(null);
-          }
-        } else {
-          setLocalFloorPlan(null);
-        }
       } catch (error) {
         console.error('Erro ao carregar dados do mapa:', error);
         setZones(DEFAULT_ZONES);
-        setLocalFloorPlan(null);
       }
     };
 
@@ -343,7 +333,7 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
           <img 
             src={localFloorPlan} 
             alt="Planta do espaço" 
-            className="absolute inset-0 h-full w-full object-contain opacity-70 z-0"
+            className="absolute inset-0 h-full w-full object-contain opacity-40 z-0 pointer-events-none"
           />
         )}
         

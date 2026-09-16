@@ -127,9 +127,17 @@ export default function DisplayMain() {
     }
   }, [selectedEventId]);
 
-  // Carregar planta baixa quando necessário
+  // Carregar planta baixa quando necessário (zona E tesouro)
   useEffect(() => {
-    if (!selectedEventId || selectedGameType !== 'treasure_hunt') {
+    if (!selectedEventId) {
+      setFloorPlan(null);
+      return;
+    }
+
+    // Carregar planta para AMBOS os modos
+    const shouldLoadFloorPlan = selectedGameType === 'treasure_hunt' || selectedGameType === 'team';
+    
+    if (!shouldLoadFloorPlan) {
       setFloorPlan(null);
       return;
     }
