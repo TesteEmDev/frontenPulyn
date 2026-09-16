@@ -236,11 +236,19 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
     const NEUTRAL_COLOR = '#94A3B8'; // Cinza neutro
     const DISPUTE_COLOR = '#F59E0B'; // Âmbar para disputa
     
+    console.log('🔍 Calculando cores das zonas...');
+    console.log('Zonas:', zones);
+    console.log('Checkpoints:', checkpoints);
+    console.log('Ownership:', checkpointOwnerById);
+    console.log('ScoreLog:', scoreLog);
+    
     for (const zone of zones) {
       // Encontrar checkpoints que estão nesta zona
       const checkpointsInZone = checkpoints.filter(
         (cp) => normalizeZoneName(cp.zone) === normalizeZoneName(zone.name)
       );
+      
+      console.log(`📍 Zona "${zone.name}":`, checkpointsInZone);
       
       // Coletar todos os owners únicos de checkpoints conquistados nesta zona
       const ownerTeams = new Set<string>();
@@ -249,6 +257,8 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
       
       for (const checkpoint of checkpointsInZone) {
         const ownerId = checkpointOwnerById.get(String(checkpoint.id));
+        console.log(`  Checkpoint ${checkpoint.id}: ownerId=${ownerId}`);
+        
         if (ownerId) {
           ownerTeams.add(String(ownerId).toLowerCase());
           
@@ -274,6 +284,8 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
         }
       }
       
+      console.log(`  Owners: ${ownerTeams.size}, Color: ${ownerTeams.size > 1 ? DISPUTE_COLOR : lastConquestTeamColor}`);
+      
       // Se há múltiplas equipes com checkpoints nesta zona = DISPUTA
       if (ownerTeams.size > 1) {
         colorMap.set(normalizeZoneName(zone.name), DISPUTE_COLOR);
@@ -282,6 +294,7 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
       }
     }
     
+    console.log('✅ Mapa de cores final:', colorMap);
     return colorMap;
   }, [zones, checkpoints, checkpointOwnerById, teamById, scoreLog]);
 
