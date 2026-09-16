@@ -406,6 +406,9 @@ export default function DisplayMain() {
   const isZoneGame = ['zone_conquest', 'zone', 'territory', 'territory_conquest'].includes(selectedGameType || '')
     || /\b(zona|zone|territor)/.test(normalizedGameContext);
 
+  // Também mostrar mapa em tesouro
+  const shouldShowMap = isZoneGame || selectedGameType === 'treasure_hunt';
+
   const monsterCards = monsterStatus?.monsters?.length
     ? monsterStatus.monsters
     : monsterStatus?.progress || [];
@@ -648,7 +651,7 @@ export default function DisplayMain() {
           </div>
         </div>
 
-        {isZoneGame && !monsterStatus?.active && !treasureStatus?.active && (
+        {shouldShowMap && !monsterStatus?.active && !treasureStatus?.active && (
           <div className="mb-8" aria-live="polite">
             <DisplayMap embedded />
           </div>

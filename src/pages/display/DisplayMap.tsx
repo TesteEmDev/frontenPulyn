@@ -109,6 +109,18 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
 
   // Determinar se deve mostrar planta (zona ou tesouro)
   const shouldShowPlanta = activeGame?.type === 'team' || activeGame?.type === 'treasure_hunt';
+  
+  // Debug: verificar estado
+  useEffect(() => {
+    console.log('DisplayMap Debug:', {
+      activeGame,
+      activeGameType: activeGame?.type,
+      shouldShowPlanta,
+      floorPlan: floorPlan ? 'carregado' : 'não carregado',
+      eventoAtual,
+      floorPlanUrl: floorPlan?.substring(0, 50) + '...'
+    });
+  }, [activeGame, shouldShowPlanta, floorPlan, eventoAtual]);
 
   // Carregar zonas do backend com polling
   useEffect(() => {
@@ -328,7 +340,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           <img 
             src={floorPlan} 
             alt="Planta do espaço" 
-            className="absolute inset-0 h-full w-full object-contain opacity-35 z-0"
+            className="absolute inset-0 h-full w-full object-contain opacity-70 z-0"
           />
         )}
         
