@@ -70,6 +70,7 @@ export default function DisplayMain() {
   const [treasureStatus, setTreasureStatus] = useState<TreasureArenaStatus | null>(null);
   const [lastTreasureEvent, setLastTreasureEvent] = useState<TreasureArenaEvent | null>(null);
   const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
+  const [floorPlan, setFloorPlan] = useState<string | null>(null);
 
   const topParticipants = useMemo(() => [...children]
     .filter(child => child.status === 'active')
@@ -125,6 +126,31 @@ export default function DisplayMain() {
       setTreasureStatus(null);
     }
   }, [selectedEventId]);
+
+  // Carregar planta baixa quando necessário
+  useEffect(() => {
+    if (!selectedEventId || selectedGameType !== 'treasure_hunt') {
+      setFloorPlan(null);
+      return;
+    }
+
+    const loadFloorPlan = async () => {
+      try {
+        const { api } = await import('../../services/api');
+        const floorPlanData = await api.getFloorPlan(selectedEventId);
+        if (floorPlanData?.dataUrl) {
+          setFloorPlan(floorPlanData.dataUrl);
+        } else {
+          setFloorPlan(null);
+        }
+      } catch (e) {
+        console.warn('⚠️ Planta não disponível:', e);
+        setFloorPlan(null);
+      }
+    };
+
+    loadFloorPlan();
+  }, [selectedEventId, selectedGameType]);
 
   const refreshMonsterStatus = useCallback(async () => {
     if (!selectedEventId) {
@@ -637,6 +663,7 @@ export default function DisplayMain() {
                 checkpoints={checkpoints}
                 teams={teams}
                 lastEvent={lastTreasureEvent}
+                floorPlan={floorPlan}
               />
             </div>
           )}

@@ -69,6 +69,7 @@ interface TreasureArenaProps {
   checkpoints: Checkpoint[];
   teams: Team[];
   lastEvent?: TreasureArenaEvent | null;
+  floorPlan?: string | null;
 }
 
 const MAP_WIDTH = 450;
@@ -93,7 +94,7 @@ function getPosition(checkpoint: Checkpoint, checkpoints: Checkpoint[], index: n
   };
 }
 
-export function TreasureArena({ status, checkpoints, teams, lastEvent }: TreasureArenaProps) {
+export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan }: TreasureArenaProps) {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -150,7 +151,16 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent }: Treasur
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="relative min-h-[430px] overflow-hidden rounded-2xl border border-amber-200/20 bg-[#17131d] p-3">
-          <div className="pointer-events-none absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(#8b642844 1px, transparent 1px), linear-gradient(90deg, #8b642844 1px, transparent 1px)', backgroundSize: '42px 42px' }} />
+          {/* Planta baixa como background se disponível, senão grid pattern */}
+          {floorPlan ? (
+            <img 
+              src={floorPlan}
+              alt="Planta do espaço"
+              className="pointer-events-none absolute inset-0 h-full w-full object-contain opacity-40"
+            />
+          ) : (
+            <div className="pointer-events-none absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(#8b642844 1px, transparent 1px), linear-gradient(90deg, #8b642844 1px, transparent 1px)', backgroundSize: '42px 42px' }} />
+          )}
           <div className="relative h-[400px]">
             <div className="absolute left-1/2 top-3 -translate-x-1/2 text-center">
               <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-amber-200/70">Mapa da expedição</p>
