@@ -302,49 +302,44 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
 
   // Determinar cor da zona baseado no último checkpoint conquistado nela (DEVE SER DEPOIS DE checkpointPositions)
   const zoneColorByOwnership = useMemo(() => {
-    const colorMap = new Map<string, string>();
+    const colorMap = new Map<string, { color: string; teamName?: string }>();
     const NEUTRAL_COLOR = '#94A3B8'; // Cinza neutro
-    const DISPUTE_COLOR = '#F59E0B'; // Âmbar para disputa
+    const DISPUTE_COLOR_PRIMARY = '#FFFFFF'; // Branco para disputa
+    const DISPUTE_COLOR_FALLBACK = '#9CA3AF'; // Cinza mais claro se equipe usar branco
     
     console.log('🔍 Calculando cores das zonas...');
-    console.log('Zonas:', zones);
-    console.log('Checkpoints:', checkpoints);
-    console.log('Checkpoint positions:', checkpointPositions);
     
     for (const zone of zones) {
       // Encontrar checkpoints que estão DENTRO desta zona (por posição geométrica)
       const checkpointsInZone = checkpointPositions
         .filter(({ x, y }) => {
-          // Verificar se checkpoint está dentro dos limites da zona (retângulo)
           const isInZone = 
             x >= zone.x && 
             x <= zone.x + zone.width &&
             y >= zone.y && 
             y <= zone.y + zone.height;
-          
-          console.log(`  Checkpoint em (${x}, ${y}): ${isInZone ? 'DENTRO' : 'FORA'} de ${zone.name}`);
           return isInZone;
         })
         .map(({ checkpoint }) => checkpoint);
       
-      console.log(`📍 Zona "${zone.name}" (${zone.x}, ${zone.y}, ${zone.width}x${zone.height}): ${checkpointsInZone.length} checkpoints`);
+      console.log(`📍 Zona "${zone.name}": ${checkpointsInZone.length} checkpoints`);
       
       // Coletar todos os owners únicos de checkpoints conquistados nesta zona
-      const ownerTeams = new Set<string>();
+      const ownerTeams = new Map<string, { color: string; name: string }>();
       let lastConquestTeamColor = NEUTRAL_COLOR;
+      let lastConquestTeamName = '';
       let mostRecentTimestamp = -1;
       
       for (const checkpoint of checkpointsInZone) {
         const ownerId = checkpointOwnerById.get(String(checkpoint.id));
-        console.log(`  Checkpoint ${checkpoint.id}: ownerId=${ownerId}, type=${typeof ownerId}, isObject=${ownerId && typeof ownerId === 'object'}`);
         
         if (ownerId) {
           // Se ownerId é um objeto (Team), usá-lo diretamente
           const owner = typeof ownerId === 'object' ? ownerId : teamById.get(String(ownerId).toLowerCase());
-          console.log(`    Owner direto:`, owner);
           
           if (owner) {
-            ownerTeams.add(String(owner.id).toLowerCase());
+            const ownerKey = String(owner.id).toLowerCase();
+            ownerTeams.set(ownerKey, { color: owner.color, name: owner.name });
             
             // Encontrar o scoreLog mais recente para este checkpoint
             const latestEntry = scoreLog
@@ -357,25 +352,43 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
             
             if (latestEntry) {
               const timestamp = new Date(latestEntry.timestamp || latestEntry.created_at || 0).getTime();
-              console.log(`    Score: ${latestEntry.timestamp}, Time: ${timestamp}, Color: ${owner.color}`);
               if (timestamp > mostRecentTimestamp) {
                 mostRecentTimestamp = timestamp;
                 lastConquestTeamColor = owner.color;
-                console.log(`    ✅ Novo mais recente! Cor: ${owner.color}`);
+                lastConquestTeamName = owner.name;
               }
             }
           }
         }
       }
       
-      console.log(`  Owners: ${ownerTeams.size}, Cor final: ${ownerTeams.size > 1 ? DISPUTE_COLOR : lastConquestTeamColor}`);
+      // Determinar cor e nome final
+      let finalColor = NEUTRAL_COLOR;
+      let finalTeamName = '';
       
-      // Se há múltiplas equipes com checkpoints nesta zona = DISPUTA
       if (ownerTeams.size > 1) {
-        colorMap.set(normalizeZoneName(zone.name), DISPUTE_COLOR);
+        // DISPUTA: múltiplas equipes
+        // Verificar se alguma equipe tem cor branca
+        const hasWhiteTeam = Array.from(ownerTeams.values()).some(
+          (team) => team.color.toUpperCase() === '#FFFFFF' || 
+                    team.color.toUpperCase() === '#FFF' ||
+                    team.color.toUpperCase() === 'WHITE'
+        );
+        
+        finalColor = hasWhiteTeam ? DISPUTE_COLOR_FALLBACK : DISPUTE_COLOR_PRIMARY;
+        finalTeamName = 'DISPUTA';
+      } else if (ownerTeams.size === 1) {
+        // UMA EQUIPE: zona dominada
+        finalColor = lastConquestTeamColor;
+        finalTeamName = lastConquestTeamName;
       } else {
-        colorMap.set(normalizeZoneName(zone.name), lastConquestTeamColor);
+        // NENHUMA EQUIPE: zona neutra
+        finalColor = NEUTRAL_COLOR;
+        finalTeamName = '';
       }
+      
+      console.log(`  Owners: ${ownerTeams.size}, Cor: ${finalColor}, Time: ${finalTeamName}`);
+      colorMap.set(normalizeZoneName(zone.name), { color: finalColor, teamName: finalTeamName });
     }
     
     console.log('✅ Mapa de cores final:', colorMap);
@@ -428,8 +441,11 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
         >
           {/* Zonas em coordenadas de pixels (como AdminMap) - só mostrar em modo zona */}
           {activeGame?.type !== 'treasure_hunt' && zones.map((zone) => {
-            const zoneOwnerColor = zoneColorByOwnership.get(normalizeZoneName(zone.name)) || '#94A3B8';
-            const isDisputed = zoneOwnerColor === '#F59E0B'; // Cor de disputa = âmbar
+            const zoneData = zoneColorByOwnership.get(normalizeZoneName(zone.name));
+            const zoneOwnerColor = zoneData?.color || '#94A3B8';
+            const zoneTeamName = zoneData?.teamName || '';
+            const isDisputed = zoneTeamName === 'DISPUTA';
+            const isDominated = zoneTeamName && !isDisputed;
             
             return (
               <g key={zone.id}>
@@ -439,15 +455,15 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
                   width={zone.width}
                   height={zone.height}
                   fill={zoneOwnerColor}
-                  fillOpacity={isDisputed ? 0.25 : 0.15}
+                  fillOpacity={isDisputed ? 0.2 : (isDominated ? 0.25 : 0.15)}
                   stroke={zoneOwnerColor}
-                  strokeWidth={isDisputed ? 3 : 2}
-                  strokeDasharray={isDisputed ? "4 4" : "6 3"}
+                  strokeWidth={isDisputed ? 2 : (isDominated ? 2.5 : 2)}
+                  strokeDasharray={isDisputed ? "8 4" : "6 3"}
                   rx={8}
                 />
                 <text
                   x={zone.x + zone.width / 2}
-                  y={zone.y + zone.height / 2}
+                  y={zone.y + zone.height / 2 - 8}
                   textAnchor="middle"
                   dominantBaseline="middle"
                   fill={zoneOwnerColor}
@@ -457,17 +473,30 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
                 >
                   {zone.name}
                 </text>
+                {isDominated && (
+                  <text
+                    x={zone.x + zone.width / 2}
+                    y={zone.y + zone.height / 2 + 10}
+                    textAnchor="middle"
+                    fill={zoneOwnerColor}
+                    fontSize={10}
+                    fontWeight={700}
+                    fontFamily="system-ui"
+                  >
+                    {zoneTeamName}
+                  </text>
+                )}
                 {isDisputed && (
                   <text
                     x={zone.x + zone.width / 2}
-                    y={zone.y + zone.height / 2 + 16}
+                    y={zone.y + zone.height / 2 + 8}
                     textAnchor="middle"
-                    fill={zoneOwnerColor}
-                    fontSize={9}
-                    fontStyle="italic"
+                    fill="#000000"
+                    fontSize={10}
+                    fontWeight={700}
                     fontFamily="system-ui"
                   >
-                    em disputa
+                    EM DISPUTA
                   </text>
                 )}
               </g>
