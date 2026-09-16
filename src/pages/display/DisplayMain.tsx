@@ -680,7 +680,7 @@ export default function DisplayMain() {
 
         {shouldShowMap && !monsterStatus?.active && !treasureStatus?.active && (
           <div className="mb-8" aria-live="polite">
-            <DisplayMap embedded />
+            <DisplayMap embedded gameType={selectedGameType} floorPlan={(floorPlan as any)} />
           </div>
         )}
 

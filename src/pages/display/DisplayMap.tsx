@@ -98,29 +98,32 @@ function ChildAvatar({
 
 interface DisplayMapProps {
   embedded?: boolean;
+  gameType?: string;
+  floorPlan?: string | null;
 }
 
-export default function DisplayMap({ embedded = false }: DisplayMapProps) {
+export default function DisplayMap({ embedded = false, gameType, floorPlan }: DisplayMapProps) {
   const { children, checkpoints, scoreLog, teams } = usePulynStore();
   const eventoAtual = usePulynStore((state: any) => state.eventoAtualId);
   const activeGame = usePulynStore((state: any) => state.activeGame);
   const [zones, setZones] = useState<Zone[]>(DEFAULT_ZONES);
-  const [floorPlan, setFloorPlan] = useState<string | null>(null);
+  const [localFloorPlan, setLocalFloorPlan] = useState<string | null>(floorPlan || null);
 
-  // Determinar se deve mostrar planta (zona ou tesouro)
-  const shouldShowPlanta = activeGame?.type === 'team' || activeGame?.type === 'treasure_hunt';
+  // Usar gameType da prop se disponível
+  const isTreasureMode = gameType === 'treasure_hunt';
+  const shouldShowPlanta = gameType === 'team' || gameType === 'treasure_hunt' || activeGame?.type === 'team' || activeGame?.type === 'treasure_hunt';
   
   // Debug: verificar estado
   useEffect(() => {
     console.log('DisplayMap Debug:', {
-      activeGame,
-      activeGameType: activeGame?.type,
+      gameType,
+      isTreasureMode,
       shouldShowPlanta,
-      floorPlan: floorPlan ? 'carregado' : 'não carregado',
+      localFloorPlan: localFloorPlan ? 'carregado' : 'não carregado',
       eventoAtual,
-      floorPlanUrl: floorPlan?.substring(0, 50) + '...'
+      floorPlanUrl: localFloorPlan?.substring(0, 50) + '...'
     });
-  }, [activeGame, shouldShowPlanta, floorPlan, eventoAtual]);
+  }, [gameType, isTreasureMode, shouldShowPlanta, localFloorPlan, eventoAtual]);
 
   // Carregar zonas do backend com polling
   useEffect(() => {
@@ -128,7 +131,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
       try {
         if (!eventoAtual) {
           setZones(DEFAULT_ZONES);
-          setFloorPlan(null);
+          setLocalFloorPlan(null);
           return;
         }
 
@@ -175,21 +178,21 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           try {
             const floorPlanData = await api.getFloorPlan(eventoAtual);
             if (floorPlanData?.dataUrl) {
-              setFloorPlan(floorPlanData.dataUrl);
+              setLocalFloorPlan(floorPlanData.dataUrl);
             } else {
-              setFloorPlan(null);
+              setLocalFloorPlan(null);
             }
           } catch (e) {
             console.warn('⚠️ Planta não disponível (pode ser permissão):', e);
-            setFloorPlan(null);
+            setLocalFloorPlan(null);
           }
         } else {
-          setFloorPlan(null);
+          setLocalFloorPlan(null);
         }
       } catch (error) {
         console.error('Erro ao carregar dados do mapa:', error);
         setZones(DEFAULT_ZONES);
-        setFloorPlan(null);
+        setLocalFloorPlan(null);
       }
     };
 
@@ -336,9 +339,9 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
         : 'relative z-10 mx-8 my-6 flex-1 overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'}>
         
         {/* Planta baixa como background */}
-        {floorPlan && (
+        {localFloorPlan && (
           <img 
-            src={floorPlan} 
+            src={localFloorPlan} 
             alt="Planta do espaço" 
             className="absolute inset-0 h-full w-full object-contain opacity-70 z-0"
           />
