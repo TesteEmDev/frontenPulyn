@@ -230,74 +230,6 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
     return zoneMap;
   }, [scoreLog, checkpoints, zones]);
 
-  // Determinar cor da zona baseado no último checkpoint conquistado nela
-  const zoneColorByOwnership = useMemo(() => {
-    const colorMap = new Map<string, string>();
-    const NEUTRAL_COLOR = '#94A3B8'; // Cinza neutro
-    const DISPUTE_COLOR = '#F59E0B'; // Âmbar para disputa
-    
-    console.log('🔍 Calculando cores das zonas...');
-    console.log('Zonas:', zones);
-    console.log('Checkpoints:', checkpoints);
-    console.log('Ownership:', checkpointOwnerById);
-    console.log('ScoreLog:', scoreLog);
-    
-    for (const zone of zones) {
-      // Encontrar checkpoints que estão nesta zona
-      const checkpointsInZone = checkpoints.filter(
-        (cp) => normalizeZoneName(cp.zone) === normalizeZoneName(zone.name)
-      );
-      
-      console.log(`📍 Zona "${zone.name}":`, checkpointsInZone);
-      
-      // Coletar todos os owners únicos de checkpoints conquistados nesta zona
-      const ownerTeams = new Set<string>();
-      let lastConquestTeamColor = NEUTRAL_COLOR;
-      let mostRecentTimestamp = -1;
-      
-      for (const checkpoint of checkpointsInZone) {
-        const ownerId = checkpointOwnerById.get(String(checkpoint.id));
-        console.log(`  Checkpoint ${checkpoint.id}: ownerId=${ownerId}`);
-        
-        if (ownerId) {
-          ownerTeams.add(String(ownerId).toLowerCase());
-          
-          const owner = teamById.get(String(ownerId).toLowerCase());
-          if (owner) {
-            // Encontrar o scoreLog mais recente para este checkpoint
-            const latestEntry = scoreLog
-              .filter((entry: any) => String(entry.checkpointId || entry.checkpoint_id) === String(checkpoint.id))
-              .sort((a: any, b: any) => {
-                const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
-                const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
-                return timeB - timeA;
-              })[0];
-            
-            if (latestEntry) {
-              const timestamp = new Date(latestEntry.timestamp || latestEntry.created_at || 0).getTime();
-              if (timestamp > mostRecentTimestamp) {
-                mostRecentTimestamp = timestamp;
-                lastConquestTeamColor = owner.color;
-              }
-            }
-          }
-        }
-      }
-      
-      console.log(`  Owners: ${ownerTeams.size}, Color: ${ownerTeams.size > 1 ? DISPUTE_COLOR : lastConquestTeamColor}`);
-      
-      // Se há múltiplas equipes com checkpoints nesta zona = DISPUTA
-      if (ownerTeams.size > 1) {
-        colorMap.set(normalizeZoneName(zone.name), DISPUTE_COLOR);
-      } else {
-        colorMap.set(normalizeZoneName(zone.name), lastConquestTeamColor);
-      }
-    }
-    
-    console.log('✅ Mapa de cores final:', colorMap);
-    return colorMap;
-  }, [zones, checkpoints, checkpointOwnerById, teamById, scoreLog]);
-
   // Avatares acompanham o último checkpoint conquistado. Quando ainda não
   // existe uma conquista, continuam distribuídos na zona de entrada/zona atual.
   const childPositions = useMemo(() => {
@@ -367,6 +299,85 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
     checkpoint,
     ...getCheckpointDisplayPosition(checkpoint, checkpoints, zones),
   })), [checkpoints, zones]);
+
+  // Determinar cor da zona baseado no último checkpoint conquistado nela (DEVE SER DEPOIS DE checkpointPositions)
+  const zoneColorByOwnership = useMemo(() => {
+    const colorMap = new Map<string, string>();
+    const NEUTRAL_COLOR = '#94A3B8'; // Cinza neutro
+    const DISPUTE_COLOR = '#F59E0B'; // Âmbar para disputa
+    
+    console.log('🔍 Calculando cores das zonas...');
+    console.log('Zonas:', zones);
+    console.log('Checkpoints:', checkpoints);
+    console.log('Checkpoint positions:', checkpointPositions);
+    
+    for (const zone of zones) {
+      // Encontrar checkpoints que estão DENTRO desta zona (por posição geométrica)
+      const checkpointsInZone = checkpointPositions
+        .filter(({ x, y }) => {
+          // Verificar se checkpoint está dentro dos limites da zona (retângulo)
+          const isInZone = 
+            x >= zone.x && 
+            x <= zone.x + zone.width &&
+            y >= zone.y && 
+            y <= zone.y + zone.height;
+          
+          console.log(`  Checkpoint em (${x}, ${y}): ${isInZone ? 'DENTRO' : 'FORA'} de ${zone.name}`);
+          return isInZone;
+        })
+        .map(({ checkpoint }) => checkpoint);
+      
+      console.log(`📍 Zona "${zone.name}" (${zone.x}, ${zone.y}, ${zone.width}x${zone.height}): ${checkpointsInZone.length} checkpoints`);
+      
+      // Coletar todos os owners únicos de checkpoints conquistados nesta zona
+      const ownerTeams = new Set<string>();
+      let lastConquestTeamColor = NEUTRAL_COLOR;
+      let mostRecentTimestamp = -1;
+      
+      for (const checkpoint of checkpointsInZone) {
+        const ownerId = checkpointOwnerById.get(String(checkpoint.id));
+        console.log(`  Checkpoint ${checkpoint.id}: ownerId=${ownerId}`);
+        
+        if (ownerId) {
+          ownerTeams.add(String(ownerId).toLowerCase());
+          
+          const owner = teamById.get(String(ownerId).toLowerCase());
+          if (owner) {
+            // Encontrar o scoreLog mais recente para este checkpoint
+            const latestEntry = scoreLog
+              .filter((entry: any) => String(entry.checkpointId || entry.checkpoint_id) === String(checkpoint.id))
+              .sort((a: any, b: any) => {
+                const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+                const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+                return timeB - timeA;
+              })[0];
+            
+            if (latestEntry) {
+              const timestamp = new Date(latestEntry.timestamp || latestEntry.created_at || 0).getTime();
+              console.log(`    Score: ${latestEntry.timestamp}, Time: ${timestamp}`);
+              if (timestamp > mostRecentTimestamp) {
+                mostRecentTimestamp = timestamp;
+                lastConquestTeamColor = owner.color;
+                console.log(`    Novo mais recente! Cor: ${owner.color}`);
+              }
+            }
+          }
+        }
+      }
+      
+      console.log(`  Owners: ${ownerTeams.size}, Cor final: ${ownerTeams.size > 1 ? DISPUTE_COLOR : lastConquestTeamColor}`);
+      
+      // Se há múltiplas equipes com checkpoints nesta zona = DISPUTA
+      if (ownerTeams.size > 1) {
+        colorMap.set(normalizeZoneName(zone.name), DISPUTE_COLOR);
+      } else {
+        colorMap.set(normalizeZoneName(zone.name), lastConquestTeamColor);
+      }
+    }
+    
+    console.log('✅ Mapa de cores final:', colorMap);
+    return colorMap;
+  }, [zones, checkpointPositions, checkpointOwnerById, teamById, scoreLog]);
 
   const ownedTeams = useMemo(() => {
     const seen = new Set<string>();
