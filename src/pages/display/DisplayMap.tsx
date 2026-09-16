@@ -230,6 +230,52 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
     return zoneMap;
   }, [scoreLog, checkpoints, zones]);
 
+  // Determinar cor da zona baseado no último checkpoint conquistado nela
+  const zoneColorByOwnership = useMemo(() => {
+    const colorMap = new Map<string, string>();
+    const NEUTRAL_COLOR = '#94A3B8'; // Cinza neutro
+    
+    for (const zone of zones) {
+      // Encontrar checkpoints que estão nesta zona
+      const checkpointsInZone = checkpoints.filter(
+        (cp) => normalizeZoneName(cp.zone) === normalizeZoneName(zone.name)
+      );
+      
+      // Buscar o checkpoint mais recentemente conquistado nesta zona
+      let lastConquestTeamColor = NEUTRAL_COLOR;
+      let mostRecentTimestamp = -1;
+      
+      for (const checkpoint of checkpointsInZone) {
+        const ownerId = checkpointOwnerById.get(String(checkpoint.id));
+        if (ownerId) {
+          const owner = teamById.get(String(ownerId).toLowerCase());
+          if (owner) {
+            // Encontrar o scoreLog mais recente para este checkpoint
+            const latestEntry = scoreLog
+              .filter((entry: any) => String(entry.checkpointId || entry.checkpoint_id) === String(checkpoint.id))
+              .sort((a: any, b: any) => {
+                const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+                const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+                return timeB - timeA;
+              })[0];
+            
+            if (latestEntry) {
+              const timestamp = new Date(latestEntry.timestamp || latestEntry.created_at || 0).getTime();
+              if (timestamp > mostRecentTimestamp) {
+                mostRecentTimestamp = timestamp;
+                lastConquestTeamColor = owner.color;
+              }
+            }
+          }
+        }
+      }
+      
+      colorMap.set(normalizeZoneName(zone.name), lastConquestTeamColor);
+    }
+    
+    return colorMap;
+  }, [zones, checkpoints, checkpointOwnerById, teamById, scoreLog]);
+
   // Avatares acompanham o último checkpoint conquistado. Quando ainda não
   // existe uma conquista, continuam distribuídos na zona de entrada/zona atual.
   const childPositions = useMemo(() => {
@@ -346,6 +392,8 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
         >
           {/* Zonas em coordenadas de pixels (como AdminMap) - só mostrar em modo zona */}
           {activeGame?.type !== 'treasure_hunt' && zones.map((zone) => {
+            const zoneOwnerColor = zoneColorByOwnership.get(normalizeZoneName(zone.name)) || '#94A3B8';
+            
             return (
               <g key={zone.id}>
                 <rect
@@ -353,9 +401,9 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
                   y={zone.y}
                   width={zone.width}
                   height={zone.height}
-                  fill={zone.color}
+                  fill={zoneOwnerColor}
                   fillOpacity={0.15}
-                  stroke={zone.color}
+                  stroke={zoneOwnerColor}
                   strokeWidth={2}
                   strokeDasharray="6 3"
                   rx={8}
@@ -365,7 +413,7 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
                   y={zone.y + zone.height / 2}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  fill={zone.color}
+                  fill={zoneOwnerColor}
                   fontSize={12}
                   fontWeight={600}
                   fontFamily="system-ui"
