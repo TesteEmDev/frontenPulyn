@@ -79,12 +79,15 @@ function getPosition(checkpoint: Checkpoint, checkpoints: Checkpoint[], index: n
   const storedX = Number(checkpoint.map_x ?? checkpoint.mapX);
   const storedY = Number(checkpoint.map_y ?? checkpoint.mapY);
   if (Number.isFinite(storedX) && Number.isFinite(storedY)) {
+    // Os valores já estão em pixels, converter para percentual baseado no tamanho do container
+    // O container tem 100% de width e height, então precisamos calcular a proporção
     return {
-      x: Math.min(Math.max((storedX / MAP_WIDTH) * 100, 5), 95),
-      y: Math.min(Math.max((storedY / MAP_HEIGHT) * 100, 8), 92),
+      x: (storedX / MAP_WIDTH) * 100,
+      y: (storedY / MAP_HEIGHT) * 100,
     };
   }
 
+  // Fallback: distribuir em grid
   const columns = Math.min(4, Math.max(1, checkpoints.length));
   const column = index % columns;
   const row = Math.floor(index / columns);
