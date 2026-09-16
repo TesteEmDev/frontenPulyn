@@ -336,13 +336,16 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
       
       for (const checkpoint of checkpointsInZone) {
         const ownerId = checkpointOwnerById.get(String(checkpoint.id));
-        console.log(`  Checkpoint ${checkpoint.id}: ownerId=${ownerId}`);
+        console.log(`  Checkpoint ${checkpoint.id}: ownerId=${ownerId}, type=${typeof ownerId}, isObject=${ownerId && typeof ownerId === 'object'}`);
         
         if (ownerId) {
-          ownerTeams.add(String(ownerId).toLowerCase());
+          // Se ownerId é um objeto (Team), usá-lo diretamente
+          const owner = typeof ownerId === 'object' ? ownerId : teamById.get(String(ownerId).toLowerCase());
+          console.log(`    Owner direto:`, owner);
           
-          const owner = teamById.get(String(ownerId).toLowerCase());
           if (owner) {
+            ownerTeams.add(String(owner.id).toLowerCase());
+            
             // Encontrar o scoreLog mais recente para este checkpoint
             const latestEntry = scoreLog
               .filter((entry: any) => String(entry.checkpointId || entry.checkpoint_id) === String(checkpoint.id))
@@ -354,11 +357,11 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
             
             if (latestEntry) {
               const timestamp = new Date(latestEntry.timestamp || latestEntry.created_at || 0).getTime();
-              console.log(`    Score: ${latestEntry.timestamp}, Time: ${timestamp}`);
+              console.log(`    Score: ${latestEntry.timestamp}, Time: ${timestamp}, Color: ${owner.color}`);
               if (timestamp > mostRecentTimestamp) {
                 mostRecentTimestamp = timestamp;
                 lastConquestTeamColor = owner.color;
-                console.log(`    Novo mais recente! Cor: ${owner.color}`);
+                console.log(`    ✅ Novo mais recente! Cor: ${owner.color}`);
               }
             }
           }
