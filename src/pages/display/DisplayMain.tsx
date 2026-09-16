@@ -331,6 +331,7 @@ export default function DisplayMain() {
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
+        setFloorPlan(null);  // Limpar planta quando jogo termina
       } else if ((event.type === 'TREASURE_PROGRESS' || event.type === 'TREASURE_ROUND_COMPLETED') && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
         const payload = event.payload || {};
         setMonsterStatus(null);
@@ -445,7 +446,7 @@ export default function DisplayMain() {
     || /\b(zona|zone|territor)/.test(normalizedGameContext);
 
   // Também mostrar mapa em tesouro
-  const shouldShowMap = isZoneGame || selectedGameType === 'treasure_hunt';
+  const shouldShowMap = selectedGameType && (isZoneGame || selectedGameType === 'treasure_hunt');
 
   const monsterCards = monsterStatus?.monsters?.length
     ? monsterStatus.monsters
