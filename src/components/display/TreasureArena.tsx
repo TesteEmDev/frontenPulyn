@@ -165,9 +165,9 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
                 <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
                   {isTarget && (
                     <>
-                      {/* X em vermelho no centro do checkpoint - maior que o checkpoint */}
-                      <text x={0} y={6} textAnchor="middle" dominantBaseline="middle" fill="#EF4444" fontSize={28} fontWeight={900} fontFamily="Arial">
-                        ✕
+                      {/* Caveira pirata em vermelho no centro do checkpoint - bem grande */}
+                      <text x={0} y={4} textAnchor="middle" dominantBaseline="middle" fill="#EF4444" fontSize={48} fontWeight={900} fontFamily="serif" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5)', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
+                        ☠
                       </text>
                       {/* Aura ao redor do alvo */}
                       <circle r={25} fill="none" stroke={markerColor} strokeWidth={1.5} opacity="0.4" />
