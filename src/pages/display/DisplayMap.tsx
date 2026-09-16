@@ -103,7 +103,6 @@ interface DisplayMapProps {
 export default function DisplayMap({ embedded = false }: DisplayMapProps) {
   const { children, checkpoints, scoreLog, teams } = usePulynStore();
   const eventoAtual = usePulynStore((state: any) => state.eventoAtualId);
-  const treasureStatus = usePulynStore((state: any) => state.treasureStatus);
   const [zones, setZones] = useState<Zone[]>(DEFAULT_ZONES);
   const [floorPlan, setFloorPlan] = useState<string | null>(null);
 
@@ -287,16 +286,6 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
     ...getCheckpointDisplayPosition(checkpoint, checkpoints, zones),
   })), [checkpoints, zones]);
 
-  // Encontrar a posição do checkpoint denominado "checkpoint" para usar como posição do alvo de tesouro
-  const targetCheckpointPosition = useMemo(() => {
-    const targetCp = checkpoints.find((cp) => normalizeZoneName(cp.name) === normalizeZoneName('checkpoint'));
-    if (!targetCp) return null;
-    return {
-      checkpoint: targetCp,
-      ...getCheckpointDisplayPosition(targetCp, checkpoints, zones),
-    };
-  }, [checkpoints, zones]);
-
   const ownedTeams = useMemo(() => {
     const seen = new Set<string>();
     return checkpoints
@@ -388,18 +377,6 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
               </g>
             );
           })}
-
-          {/* Alvo do Caça ao Tesouro - sempre na posição do checkpoint "checkpoint" */}
-          {treasureStatus?.active && targetCheckpointPosition && (
-            <g transform={`translate(${targetCheckpointPosition.x} ${targetCheckpointPosition.y})`}>
-              {/* Círculo de alvo com pulsação */}
-              <circle r={25} fill="none" stroke="#FFD700" strokeWidth={2} opacity={0.6} />
-              <circle r={20} fill="none" stroke="#FFD700" strokeWidth={1.5} opacity={0.4} />
-              <text y={-30} textAnchor="middle" fill="#FFD700" fontSize={11} fontWeight={700}>
-                🎯 ALVO
-              </text>
-            </g>
-          )}
 
           {/* Avatares como foreignObject dentro do SVG (mesmas coordenadas em pixels) */}
           {childPositions.map((position) => (
