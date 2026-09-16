@@ -202,9 +202,6 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
                     <>
                       {/* Onda animada pulsante */}
                       <circle cx={0} cy={0} r={5} fill="none" stroke={markerColor} strokeWidth={2} className="treasure-wave" />
-                      {/* Aura ao redor do alvo */}
-                      <circle r={25} fill="none" stroke={markerColor} strokeWidth={1.5} opacity="0.4" />
-                      <circle r={20} fill="none" stroke={markerColor} strokeWidth={1.5} opacity="0.2" />
                     </>
                   )}
                 </g>
