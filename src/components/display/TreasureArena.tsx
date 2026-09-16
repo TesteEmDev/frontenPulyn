@@ -165,8 +165,8 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
                 <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
                   {isTarget && (
                     <>
-                      {/* X em vermelho sob o checkpoint alvo */}
-                      <text x={0} y={28} textAnchor="middle" fill="#EF4444" fontSize={20} fontWeight={900} fontFamily="Arial">
+                      {/* X em vermelho no centro do checkpoint - maior que o checkpoint */}
+                      <text x={0} y={6} textAnchor="middle" dominantBaseline="middle" fill="#EF4444" fontSize={28} fontWeight={900} fontFamily="Arial">
                         ✕
                       </text>
                       {/* Aura ao redor do alvo */}
