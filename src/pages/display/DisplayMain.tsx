@@ -134,8 +134,12 @@ export default function DisplayMain() {
       return;
     }
 
-    // Carregar planta para AMBOS os modos
-    const shouldLoadFloorPlan = selectedGameType === 'treasure_hunt' || selectedGameType === 'team';
+    // Carregar planta para AMBOS os modos (zona e tesouro)
+    const shouldLoadFloorPlan = selectedGameType === 'treasure_hunt' 
+      || selectedGameType === 'zone' 
+      || selectedGameType === 'zone_conquest' 
+      || selectedGameType === 'territory' 
+      || selectedGameType === 'territory_conquest';
     
     if (!shouldLoadFloorPlan) {
       setFloorPlan(null);

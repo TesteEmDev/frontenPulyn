@@ -111,7 +111,8 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
 
   // Usar gameType da prop se disponível
   const isTreasureMode = gameType === 'treasure_hunt';
-  const shouldShowPlanta = gameType === 'team' || gameType === 'treasure_hunt' || activeGame?.type === 'team' || activeGame?.type === 'treasure_hunt';
+  const isZoneMode = gameType === 'zone' || gameType === 'zone_conquest' || gameType === 'territory' || gameType === 'territory_conquest';
+  const shouldShowPlanta = isZoneMode || isTreasureMode || activeGame?.type === 'team' || activeGame?.type === 'treasure_hunt';
   
   // Debug: verificar estado
   useEffect(() => {
