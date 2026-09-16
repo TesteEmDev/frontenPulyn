@@ -321,19 +321,18 @@ export default function AdminMap() {
     
     try {
       setSavingCheckpointId(checkpointId);
-      await api.saveCheckpointConfig(checkpointId, { name: newName.trim() }, selectedEventId);
+      console.log(`💾 Salvando nome do checkpoint ${checkpointId} para: ${newName.trim()}`);
+      const result = await api.saveCheckpointConfig(checkpointId, { name: newName.trim() }, selectedEventId);
+      console.log('✅ Resposta do servidor:', result);
       
-      // Atualizar no estado local
-      const state = usePulynStore.getState();
-      const updatedCheckpoints = state.checkpoints.map((cp) =>
-        cp.id === checkpointId ? { ...cp, name: newName.trim() } : cp
-      );
-      usePulynStore.setState({ checkpoints: updatedCheckpoints });
+      // Recarregar checkpoints para refletir a mudança
+      await loadCheckpoints(selectedEventId);
       
       setEditingCheckpointName(null);
       setNewCheckpointName('');
+      console.log('✅ Nome do checkpoint atualizado com sucesso');
     } catch (err) {
-      console.error('Erro ao salvar nome do checkpoint:', err);
+      console.error('❌ Erro ao salvar nome do checkpoint:', err);
       setError('Erro ao salvar nome do checkpoint');
     } finally {
       setSavingCheckpointId(null);
