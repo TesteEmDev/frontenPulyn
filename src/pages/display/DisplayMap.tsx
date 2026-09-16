@@ -103,8 +103,12 @@ interface DisplayMapProps {
 export default function DisplayMap({ embedded = false }: DisplayMapProps) {
   const { children, checkpoints, scoreLog, teams } = usePulynStore();
   const eventoAtual = usePulynStore((state: any) => state.eventoAtualId);
+  const activeGame = usePulynStore((state: any) => state.activeGame);
   const [zones, setZones] = useState<Zone[]>(DEFAULT_ZONES);
   const [floorPlan, setFloorPlan] = useState<string | null>(null);
+
+  // Determinar se deve mostrar planta (zona ou tesouro)
+  const shouldShowPlanta = activeGame?.type === 'team' || activeGame?.type === 'treasure_hunt';
 
   // Carregar zonas do backend com polling
   useEffect(() => {
@@ -154,16 +158,20 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           }
         }
 
-        // Buscar planta baixa do evento
-        try {
-          const floorPlanData = await api.getFloorPlan(eventoAtual);
-          if (floorPlanData?.dataUrl) {
-            setFloorPlan(floorPlanData.dataUrl);
-          } else {
+        // Buscar planta baixa do evento (mostrar em zona e tesouro)
+        if (shouldShowPlanta) {
+          try {
+            const floorPlanData = await api.getFloorPlan(eventoAtual);
+            if (floorPlanData?.dataUrl) {
+              setFloorPlan(floorPlanData.dataUrl);
+            } else {
+              setFloorPlan(null);
+            }
+          } catch (e) {
+            console.warn('⚠️ Planta não disponível (pode ser permissão):', e);
             setFloorPlan(null);
           }
-        } catch (e) {
-          console.warn('⚠️ Planta não disponível (pode ser permissão):', e);
+        } else {
           setFloorPlan(null);
         }
       } catch (error) {
@@ -179,7 +187,7 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
     // Polling a cada 2 segundos para sincronizar mudanças de zona
     const interval = setInterval(loadData, 2000);
     return () => clearInterval(interval);
-  }, [eventoAtual]);
+  }, [eventoAtual, shouldShowPlanta]);
 
   const teamById = useMemo(() => {
     const map = new Map<string, Team>();
@@ -302,9 +310,13 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
       ? 'relative flex flex-col overflow-hidden rounded-3xl border border-primary-400/20 bg-dark-card/75 p-4 shadow-[0_18px_50px_rgba(2,10,24,0.2)] backdrop-blur-xl sm:p-6'
       : 'fixed inset-0 flex flex-col overflow-hidden bg-gradient-dark'}>
       <div className={`relative z-10 border-b border-dark-border/50 text-center ${embedded ? 'pb-4' : 'py-6'}`}>
-        <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary-300">Brincadeira Zona</p>
+        <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary-300">
+          {activeGame?.type === 'treasure_hunt' ? 'Caça ao Tesouro' : 'Brincadeira Zona'}
+        </p>
         <h1 className="font-display text-3xl text-slate-100">Mapa do Espaço</h1>
-        <p className="mt-1 text-sm uppercase tracking-widest text-slate-500">Domínio dos territórios em tempo real</p>
+        <p className="mt-1 text-sm uppercase tracking-widest text-slate-500">
+          {activeGame?.type === 'treasure_hunt' ? 'Localização dos checkpoints em tempo real' : 'Domínio dos territórios em tempo real'}
+        </p>
       </div>
 
       <div className={embedded
@@ -326,8 +338,8 @@ export default function DisplayMap({ embedded = false }: DisplayMapProps) {
           viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
           preserveAspectRatio="xMidYMid meet"
         >
-          {/* Zonas em coordenadas de pixels (como AdminMap) */}
-          {zones.map((zone) => {
+          {/* Zonas em coordenadas de pixels (como AdminMap) - só mostrar em modo zona */}
+          {activeGame?.type !== 'treasure_hunt' && zones.map((zone) => {
             return (
               <g key={zone.id}>
                 <rect
