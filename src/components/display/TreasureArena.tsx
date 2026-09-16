@@ -2,6 +2,33 @@ import { useEffect, useMemo, useState } from 'react';
 import { Compass, Gem, TimerReset, Trophy } from 'lucide-react';
 import type { Checkpoint, Team } from '../../store/mockData';
 
+// Estilos CSS para animação de onda
+const treasureWaveStyles = `
+  @keyframes treasureWave {
+    0% {
+      r: 5;
+      stroke-width: 2;
+      opacity: 1;
+    }
+    100% {
+      r: 25;
+      stroke-width: 1;
+      opacity: 0;
+    }
+  }
+  
+  .treasure-wave {
+    animation: treasureWave 1.5s ease-out infinite;
+  }
+`;
+
+// Injetar estilos no documento
+if (typeof document !== 'undefined') {
+  const styleSheet = document.createElement('style');
+  styleSheet.textContent = treasureWaveStyles;
+  document.head.appendChild(styleSheet);
+}
+
 export interface TreasureCheckpointOwnership {
   checkpointId: string;
   teamId?: string | null;
@@ -173,6 +200,8 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
                   </text>
                   {isTarget && (
                     <>
+                      {/* Onda animada pulsante */}
+                      <circle cx={0} cy={0} r={5} fill="none" stroke={markerColor} strokeWidth={2} className="treasure-wave" />
                       {/* Aura ao redor do alvo */}
                       <circle r={25} fill="none" stroke={markerColor} strokeWidth={1.5} opacity="0.4" />
                       <circle r={20} fill="none" stroke={markerColor} strokeWidth={1.5} opacity="0.2" />
