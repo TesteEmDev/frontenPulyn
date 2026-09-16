@@ -259,8 +259,10 @@ export default function DisplayMain() {
     (event) => {
       // Processar eventos do WebSocket
       if (event.type === 'GAME_SELECTED' && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
-        setSelectedGameType(event.payload?.gameType || null);
+        // NÃO setar selectedGameType aqui - apenas quando GAME_STARTED
+        // setSelectedGameType(event.payload?.gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
+        // Limpar status quando seleciona novo jogo (mas não mostra mapa ainda)
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
