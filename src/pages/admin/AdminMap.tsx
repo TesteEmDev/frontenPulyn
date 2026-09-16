@@ -107,6 +107,8 @@ export default function AdminMap() {
   const [loadingCheckpoints, setLoadingCheckpoints] = useState(false);
   const [savingCheckpointId, setSavingCheckpointId] = useState<string | null>(null);
   const [selectedCheckpointId, setSelectedCheckpointId] = useState<string | null>(null);
+  const [editingCheckpointName, setEditingCheckpointName] = useState<string | null>(null);
+  const [newCheckpointName, setNewCheckpointName] = useState<string>('');
   const [error, setError] = useState('');
   const [zones, setZones] = useState<Zone[]>(initialZones);
   const [editingZone, setEditingZone] = useState<string | null>(null);
@@ -312,6 +314,30 @@ export default function AdminMap() {
 
   const updateZone = (id: string, field: keyof Zone, value: string | number) => {
     setZones((prev) => prev.map((zone) => zone.id === id ? { ...zone, [field]: value } : zone));
+  };
+
+  const saveCheckpointName = async (checkpointId: string, newName: string) => {
+    if (!selectedEventId || !newName.trim()) return;
+    
+    try {
+      setSavingCheckpointId(checkpointId);
+      await api.saveCheckpointConfig(checkpointId, { name: newName.trim() }, selectedEventId);
+      
+      // Atualizar no estado local
+      const state = usePulynStore.getState();
+      const updatedCheckpoints = state.checkpoints.map((cp) =>
+        cp.id === checkpointId ? { ...cp, name: newName.trim() } : cp
+      );
+      usePulynStore.setState({ checkpoints: updatedCheckpoints });
+      
+      setEditingCheckpointName(null);
+      setNewCheckpointName('');
+    } catch (err) {
+      console.error('Erro ao salvar nome do checkpoint:', err);
+      setError('Erro ao salvar nome do checkpoint');
+    } finally {
+      setSavingCheckpointId(null);
+    }
   };
 
   const removeZone = (id: string) => {
@@ -1090,7 +1116,44 @@ export default function AdminMap() {
                 <div className="mt-4 rounded-lg border border-primary/30 bg-primary/10 p-3">
                   <div className="flex items-center gap-2">
                     <Save size={15} className="text-primary" />
-                    <p className="text-sm font-semibold text-white">{selectedCheckpoint.name}</p>
+                    {editingCheckpointName === selectedCheckpoint.id ? (
+                      <div className="flex flex-1 gap-2">
+                        <Input
+                          value={newCheckpointName}
+                          onChange={(e) => setNewCheckpointName(e.target.value)}
+                          placeholder="Nome do checkpoint"
+                          className="text-sm"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => saveCheckpointName(selectedCheckpoint.id, newCheckpointName)}
+                          disabled={savingCheckpointId === selectedCheckpoint.id}
+                          className="rounded px-2 py-1 bg-primary text-white hover:bg-primary/80 text-xs font-semibold disabled:opacity-50"
+                        >
+                          {savingCheckpointId === selectedCheckpoint.id ? '...' : 'OK'}
+                        </button>
+                        <button
+                          onClick={() => setEditingCheckpointName(null)}
+                          className="rounded px-2 py-1 text-gray-400 hover:text-white text-xs"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm font-semibold text-white flex-1">{selectedCheckpoint.name}</p>
+                        <button
+                          onClick={() => {
+                            setEditingCheckpointName(selectedCheckpoint.id);
+                            setNewCheckpointName(selectedCheckpoint.name);
+                          }}
+                          className="rounded p-1 text-gray-400 hover:text-white"
+                          title="Editar nome"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      </>
+                    )}
                   </div>
                   <p className="mt-1 text-xs text-gray-400">Posição: {Math.round(checkpointPositions[selectedCheckpoint.id]?.x || 0)} × {Math.round(checkpointPositions[selectedCheckpoint.id]?.y || 0)}</p>
                   <p className="mt-1 text-xs text-gray-500">Status: {selectedCheckpoint.status === 'online' ? 'Online' : 'Offline'} · {selectedCheckpoint.points || 0} pontos</p>
