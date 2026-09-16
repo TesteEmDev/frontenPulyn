@@ -390,7 +390,8 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
     ...getCheckpointDisplayPosition(checkpoint, checkpoints, zones),
   })), [checkpoints, zones]);
 
-  // Determinar cor da zona baseado no último checkpoint conquistado nela (DEVE SER DEPOIS DE checkpointPositions)
+  // Determinar cor da zona baseado em TODOS os checkpoints dentro dela
+  // REGRA: Zona é dominada APENAS se TODOS os checkpoints forem dominados pela MESMA equipe
   const zoneColorByOwnership = useMemo(() => {
     const colorMap = new Map<string, { color: string; teamName?: string }>();
     const NEUTRAL_COLOR = '#94A3B8'; // Cinza neutro
@@ -398,6 +399,7 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
     const DISPUTE_COLOR_FALLBACK = '#9CA3AF'; // Cinza mais claro se equipe usar branco
     
     console.log('🔍 Calculando cores das zonas...');
+    console.log(`📊 Total de zonas: ${zones.length}`);
     
     for (const zone of zones) {
       // Encontrar checkpoints que estão DENTRO desta zona (por posição geométrica)
@@ -412,76 +414,82 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
         })
         .map(({ checkpoint }) => checkpoint);
       
-      console.log(`📍 Zona "${zone.name}": ${checkpointsInZone.length} checkpoints`);
+      console.log(`\n  📍 Zona "${zone.name}": ${checkpointsInZone.length} checkpoints dentro`);
       
-      // Coletar todos os owners únicos de checkpoints conquistados nesta zona
-      const ownerTeams = new Map<string, { color: string; name: string }>();
-      let lastConquestTeamColor = NEUTRAL_COLOR;
-      let lastConquestTeamName = '';
-      let mostRecentTimestamp = -1;
+      if (checkpointsInZone.length === 0) {
+        // Zona sem checkpoints = neutra
+        colorMap.set(normalizeZoneName(zone.name), { color: NEUTRAL_COLOR, teamName: '' });
+        console.log(`    ⭕ Sem checkpoints → NEUTRO`);
+        continue;
+      }
       
-      for (const checkpoint of checkpointsInZone) {
-        const ownerId = checkpointOwnerById.get(String(checkpoint.id));
+      // Coletar owners de todos os checkpoints nesta zona
+      const checkpointOwners = checkpointsInZone
+        .map((checkpoint) => {
+          const owner = checkpointOwnerById.get(String(checkpoint.id));
+          return { checkpoint, owner };
+        });
+      
+      // Log detalhado
+      checkpointOwners.forEach(({ checkpoint, owner }) => {
+        console.log(`    ├─ Checkpoint #${checkpoint.id}: ${owner ? `Dominado por ${owner.name}` : 'NEUTRO'}`);
+      });
+      
+      // Verificar se TODOS os checkpoints têm dono
+      const allHaveOwners = checkpointOwners.every(({ owner }) => owner !== undefined);
+      
+      if (!allHaveOwners) {
+        // Se algum checkpoint está neutro = zona em disputa
+        colorMap.set(normalizeZoneName(zone.name), { 
+          color: DISPUTE_COLOR_PRIMARY, 
+          teamName: 'EM DISPUTA' 
+        });
+        console.log(`    🔔 Nem todos dominados → EM DISPUTA`);
+        continue;
+      }
+      
+      // Todos têm dono - verificar se são da MESMA equipe
+      const uniqueOwners = new Set(
+        checkpointOwners
+          .filter(({ owner }) => owner !== undefined)
+          .map(({ owner }) => String(owner!.id).toLowerCase())
+      );
+      
+      if (uniqueOwners.size === 1) {
+        // TODOS dominados pela MESMA equipe
+        const dominantTeam = checkpointOwners.find(({ owner }) => owner !== undefined)?.owner;
         
-        if (ownerId) {
-          // Se ownerId é um objeto (Team), usá-lo diretamente
-          const owner = typeof ownerId === 'object' ? ownerId : teamById.get(String(ownerId).toLowerCase());
-          
-          if (owner) {
-            const ownerKey = String(owner.id).toLowerCase();
-            ownerTeams.set(ownerKey, { color: owner.color, name: owner.name });
-            
-            // Encontrar o scoreLog mais recente para este checkpoint
-            const latestEntry = scoreLog
-              .filter((entry: any) => String(entry.checkpointId || entry.checkpoint_id) === String(checkpoint.id))
-              .sort((a: any, b: any) => {
-                const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
-                const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
-                return timeB - timeA;
-              })[0];
-            
-            if (latestEntry) {
-              const timestamp = new Date(latestEntry.timestamp || latestEntry.created_at || 0).getTime();
-              if (timestamp > mostRecentTimestamp) {
-                mostRecentTimestamp = timestamp;
-                lastConquestTeamColor = owner.color;
-                lastConquestTeamName = owner.name;
-              }
-            }
-          }
+        if (dominantTeam) {
+          colorMap.set(normalizeZoneName(zone.name), { 
+            color: dominantTeam.color, 
+            teamName: dominantTeam.name 
+          });
+          console.log(`    ✅ Todos dominados por ${dominantTeam.name} → COR: ${dominantTeam.color}`);
         }
-      }
-      
-      // Determinar cor e nome final
-      let finalColor = NEUTRAL_COLOR;
-      let finalTeamName = '';
-      
-      if (ownerTeams.size > 1) {
-        // DISPUTA: múltiplas equipes
-        // Verificar se alguma equipe tem cor branca
-        const hasWhiteTeam = Array.from(ownerTeams.values()).some(
-          (team) => team.color.toUpperCase() === '#FFFFFF' || 
-                    team.color.toUpperCase() === '#FFF' ||
-                    team.color.toUpperCase() === 'WHITE'
-        );
-        
-        finalColor = hasWhiteTeam ? DISPUTE_COLOR_FALLBACK : DISPUTE_COLOR_PRIMARY;
-        finalTeamName = 'DISPUTA';
-      } else if (ownerTeams.size === 1) {
-        // UMA EQUIPE: zona dominada
-        finalColor = lastConquestTeamColor;
-        finalTeamName = lastConquestTeamName;
       } else {
-        // NENHUMA EQUIPE: zona neutra
-        finalColor = NEUTRAL_COLOR;
-        finalTeamName = '';
+        // Checkpoints dominados por EQUIPES DIFERENTES = disputa
+        const teamsInZone = Array.from(uniqueOwners)
+          .map(teamId => checkpointOwners.find(({ owner }) => owner && String(owner.id).toLowerCase() === teamId)?.owner?.name)
+          .filter(Boolean)
+          .join(' vs ');
+        
+        const hasWhiteTeam = checkpointOwners
+          .filter(({ owner }) => owner !== undefined)
+          .some(({ owner }) => {
+            const color = owner!.color.toUpperCase();
+            return color === '#FFFFFF' || color === '#FFF' || color === 'WHITE';
+          });
+        
+        colorMap.set(normalizeZoneName(zone.name), { 
+          color: hasWhiteTeam ? DISPUTE_COLOR_FALLBACK : DISPUTE_COLOR_PRIMARY, 
+          teamName: 'EM DISPUTA' 
+        });
+        console.log(`    ⚔️ Disputa: ${teamsInZone} → COR: ${hasWhiteTeam ? DISPUTE_COLOR_FALLBACK : DISPUTE_COLOR_PRIMARY}`);
       }
-      
-      console.log(`  Owners: ${ownerTeams.size}, Cor: ${finalColor}, Time: ${finalTeamName}`);
-      colorMap.set(normalizeZoneName(zone.name), { color: finalColor, teamName: finalTeamName });
     }
     
-    console.log('✅ Mapa de cores final:', colorMap);
+    console.log('\n✅ Mapa de cores final:');
+    console.log(colorMap);
     return colorMap;
   }, [zones, checkpointPositions, checkpointOwnerById, teamById, scoreLog]);
 
