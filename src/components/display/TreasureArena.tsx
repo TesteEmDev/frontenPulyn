@@ -148,9 +148,6 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
             viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
             preserveAspectRatio="xMidYMid meet"
           >
-            {/* Linha decorativa do mapa */}
-            <path d="M10 72 C28 42, 37 79, 52 48 S75 35, 92 70" fill="none" stroke="#D6A84F" strokeDasharray="2 2" strokeWidth="0.5" opacity="0.5" />
-            
             {/* Checkpoints em coordenadas de pixels */}
             {checkpoints.map((checkpoint) => {
               const storedX = Number(checkpoint.map_x ?? checkpoint.mapX);
