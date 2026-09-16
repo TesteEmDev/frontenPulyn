@@ -234,6 +234,7 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
   const zoneColorByOwnership = useMemo(() => {
     const colorMap = new Map<string, string>();
     const NEUTRAL_COLOR = '#94A3B8'; // Cinza neutro
+    const DISPUTE_COLOR = '#F59E0B'; // Âmbar para disputa
     
     for (const zone of zones) {
       // Encontrar checkpoints que estão nesta zona
@@ -241,13 +242,16 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
         (cp) => normalizeZoneName(cp.zone) === normalizeZoneName(zone.name)
       );
       
-      // Buscar o checkpoint mais recentemente conquistado nesta zona
+      // Coletar todos os owners únicos de checkpoints conquistados nesta zona
+      const ownerTeams = new Set<string>();
       let lastConquestTeamColor = NEUTRAL_COLOR;
       let mostRecentTimestamp = -1;
       
       for (const checkpoint of checkpointsInZone) {
         const ownerId = checkpointOwnerById.get(String(checkpoint.id));
         if (ownerId) {
+          ownerTeams.add(String(ownerId).toLowerCase());
+          
           const owner = teamById.get(String(ownerId).toLowerCase());
           if (owner) {
             // Encontrar o scoreLog mais recente para este checkpoint
@@ -270,7 +274,12 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
         }
       }
       
-      colorMap.set(normalizeZoneName(zone.name), lastConquestTeamColor);
+      // Se há múltiplas equipes com checkpoints nesta zona = DISPUTA
+      if (ownerTeams.size > 1) {
+        colorMap.set(normalizeZoneName(zone.name), DISPUTE_COLOR);
+      } else {
+        colorMap.set(normalizeZoneName(zone.name), lastConquestTeamColor);
+      }
     }
     
     return colorMap;
@@ -393,6 +402,7 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
           {/* Zonas em coordenadas de pixels (como AdminMap) - só mostrar em modo zona */}
           {activeGame?.type !== 'treasure_hunt' && zones.map((zone) => {
             const zoneOwnerColor = zoneColorByOwnership.get(normalizeZoneName(zone.name)) || '#94A3B8';
+            const isDisputed = zoneOwnerColor === '#F59E0B'; // Cor de disputa = âmbar
             
             return (
               <g key={zone.id}>
@@ -402,10 +412,10 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
                   width={zone.width}
                   height={zone.height}
                   fill={zoneOwnerColor}
-                  fillOpacity={0.15}
+                  fillOpacity={isDisputed ? 0.25 : 0.15}
                   stroke={zoneOwnerColor}
-                  strokeWidth={2}
-                  strokeDasharray="6 3"
+                  strokeWidth={isDisputed ? 3 : 2}
+                  strokeDasharray={isDisputed ? "4 4" : "6 3"}
                   rx={8}
                 />
                 <text
@@ -420,6 +430,19 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
                 >
                   {zone.name}
                 </text>
+                {isDisputed && (
+                  <text
+                    x={zone.x + zone.width / 2}
+                    y={zone.y + zone.height / 2 + 16}
+                    textAnchor="middle"
+                    fill={zoneOwnerColor}
+                    fontSize={9}
+                    fontStyle="italic"
+                    fontFamily="system-ui"
+                  >
+                    em disputa
+                  </text>
+                )}
               </g>
             );
           })}
