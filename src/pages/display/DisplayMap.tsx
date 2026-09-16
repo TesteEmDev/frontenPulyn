@@ -206,7 +206,9 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
   const checkpointOwnerById = useMemo(() => {
     const owners = new Map<string, Team | undefined>();
     
-    console.log('🔍 Calculando proprietário de checkpoints por leituras...');
+    console.log('🔍 === CALCULANDO PROPRIETÁRIO DE CHECKPOINTS POR LEITURAS ===');
+    console.log(`📊 Total de scoreLog entries: ${scoreLog.length}`);
+    console.log(`📍 Total de checkpoints: ${checkpoints.length}`);
     
     // Criar map de childId -> teamId para buscar equipe rápido
     const childToTeam = new Map<string, Team>();
@@ -219,6 +221,7 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
         }
       }
     }
+    console.log(`👶 Crianças mapeadas: ${childToTeam.size}`);
     
     for (const checkpoint of checkpoints) {
       // Contar leituras por checkpoint por equipe
@@ -249,12 +252,16 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
         }
       }
       
+      // Log detalhado
       if (readingsByTeam.size > 0) {
-        console.log(`📍 Checkpoint ${checkpoint.id}:`, 
-          Array.from(readingsByTeam.entries()).map(([, stats]) => 
-            `${stats.team.name}: ${stats.count} leituras`
-          ).join(', ')
-        );
+        const checkpointName = checkpoint.name || `#${checkpoint.id}`;
+        console.log(`\n  📍 Checkpoint "${checkpointName}" (ID: ${checkpoint.id}):`);
+        
+        const entries = Array.from(readingsByTeam.entries()).map(([, stats]) => {
+          const firstReadTime = new Date(stats.firstTimestamp).toLocaleTimeString('pt-BR');
+          return `      • ${stats.team.name}: ${stats.count} leitura(s) - Primeira: ${firstReadTime}`;
+        });
+        entries.forEach(e => console.log(e));
       }
       
       // Determinar proprietário
@@ -277,11 +284,18 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
       }
       
       if (dominingTeam) {
-        console.log(`  ✅ Dominado por: ${dominingTeam.name} (${maxReadings} leituras)`);
+        const checkpointName = checkpoint.name || `#${checkpoint.id}`;
+        console.log(`    ✅ DOMINADO POR: ${dominingTeam.name} (${maxReadings} leitura${maxReadings !== 1 ? 's' : ''})`);
+      } else if (readingsByTeam.size > 0) {
+        console.log(`    ⭕ NEUTRO (sem leituras ou desempate não resolvido)`);
       }
       
       owners.set(String(checkpoint.id), dominingTeam);
     }
+    
+    console.log('\n📊 === RESULTADO FINAL ===');
+    console.log(`Checkpoints dominados: ${Array.from(owners.values()).filter(Boolean).length}`);
+    console.log(`Checkpoints neutros: ${Array.from(owners.values()).filter(t => !t).length}`);
     
     return owners;
   }, [checkpoints, scoreLog, children, teamById]);
