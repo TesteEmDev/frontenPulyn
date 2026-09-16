@@ -201,14 +201,90 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
     return map;
   }, [teams]);
 
+  // Nova lógica: checkpoint é dominado pela equipe com maior número de leituras
+  // Em caso de empate, equipe que chegou primeiro (timestamp mais antigo)
   const checkpointOwnerById = useMemo(() => {
     const owners = new Map<string, Team | undefined>();
-    checkpoints.forEach((checkpoint) => {
-      const ownerId = checkpoint.territory_owner_time_id;
-      owners.set(String(checkpoint.id), ownerId ? teamById.get(String(ownerId).toLowerCase()) : undefined);
-    });
+    
+    console.log('🔍 Calculando proprietário de checkpoints por leituras...');
+    
+    // Criar map de childId -> teamId para buscar equipe rápido
+    const childToTeam = new Map<string, Team>();
+    for (const child of children) {
+      const teamId = child.teamId ?? child.team_id ?? child.time_id;
+      if (teamId) {
+        const team = teamById.get(String(teamId).toLowerCase());
+        if (team) {
+          childToTeam.set(String(child.id), team);
+        }
+      }
+    }
+    
+    for (const checkpoint of checkpoints) {
+      // Contar leituras por checkpoint por equipe
+      const readingsByTeam = new Map<string, { count: number; firstTimestamp: number; team: Team }>();
+      
+      for (const entry of scoreLog) {
+        const entryCheckpointId = entry.checkpointId ?? entry.checkpoint_id ?? entry.checkpoint;
+        if (String(entryCheckpointId) !== String(checkpoint.id)) continue;
+        
+        const childId = entry.childId ?? entry.child_id;
+        if (!childId) continue;
+        
+        const team = childToTeam.get(String(childId));
+        if (!team) continue;
+        
+        const teamKey = String(team.id).toLowerCase();
+        const timestamp = new Date(entry.timestamp || entry.created_at || 0).getTime();
+        
+        if (!readingsByTeam.has(teamKey)) {
+          readingsByTeam.set(teamKey, { count: 0, firstTimestamp: timestamp, team });
+        }
+        
+        const stats = readingsByTeam.get(teamKey)!;
+        stats.count++;
+        // Manter timestamp mais antigo (primeira leitura)
+        if (timestamp < stats.firstTimestamp) {
+          stats.firstTimestamp = timestamp;
+        }
+      }
+      
+      if (readingsByTeam.size > 0) {
+        console.log(`📍 Checkpoint ${checkpoint.id}:`, 
+          Array.from(readingsByTeam.entries()).map(([, stats]) => 
+            `${stats.team.name}: ${stats.count} leituras`
+          ).join(', ')
+        );
+      }
+      
+      // Determinar proprietário
+      let dominingTeam: Team | undefined;
+      let maxReadings = 0;
+      let earliestTimestamp = Infinity;
+      
+      for (const [, stats] of readingsByTeam) {
+        if (stats.count > maxReadings) {
+          maxReadings = stats.count;
+          dominingTeam = stats.team;
+          earliestTimestamp = stats.firstTimestamp;
+        } else if (stats.count === maxReadings && stats.count > 0) {
+          // Em caso de empate, usar equipe que chegou primeiro
+          if (stats.firstTimestamp < earliestTimestamp) {
+            dominingTeam = stats.team;
+            earliestTimestamp = stats.firstTimestamp;
+          }
+        }
+      }
+      
+      if (dominingTeam) {
+        console.log(`  ✅ Dominado por: ${dominingTeam.name} (${maxReadings} leituras)`);
+      }
+      
+      owners.set(String(checkpoint.id), dominingTeam);
+    }
+    
     return owners;
-  }, [checkpoints, teamById]);
+  }, [checkpoints, scoreLog, children, teamById]);
 
   // Determine each child's last checkpoint zone.
   const childLastZone = useMemo(() => {
