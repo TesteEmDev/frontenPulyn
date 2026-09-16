@@ -163,25 +163,21 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
               
               return (
                 <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
-                  {isTarget && (
-                    <>
-                      {/* Caveira pirata em vermelho no centro do checkpoint - bem grande */}
-                      <text x={0} y={4} textAnchor="middle" dominantBaseline="middle" fill="#EF4444" fontSize={48} fontWeight={900} fontFamily="serif" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5)', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
-                        ☠
-                      </text>
-                      {/* Aura ao redor do alvo */}
-                      <circle r={25} fill="none" stroke={markerColor} strokeWidth={1.5} opacity="0.4" />
-                      <circle r={20} fill="none" stroke={markerColor} strokeWidth={1.5} opacity="0.2" />
-                    </>
-                  )}
                   <circle r={11} fill={markerColor} fillOpacity={0.18} stroke={markerColor} strokeWidth={2} />
                   <circle r={5} fill={markerColor} />
                   <text y={-16} textAnchor="middle" fill="#FFFFFF" fontSize={10} fontWeight={600}>
                     {checkpoint.id}
                   </text>
                   <text y={18} textAnchor="middle" fill="#D1D5DB" fontSize={8}>
-                    {checkpoint.name}
+                    {isTarget ? 'TESOURO' : checkpoint.name}
                   </text>
+                  {isTarget && (
+                    <>
+                      {/* Aura ao redor do alvo */}
+                      <circle r={25} fill="none" stroke={markerColor} strokeWidth={1.5} opacity="0.4" />
+                      <circle r={20} fill="none" stroke={markerColor} strokeWidth={1.5} opacity="0.2" />
+                    </>
+                  )}
                 </g>
               );
             })}
