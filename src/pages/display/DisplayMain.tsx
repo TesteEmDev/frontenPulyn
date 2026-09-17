@@ -334,6 +334,16 @@ export default function DisplayMain() {
         setLastTreasureEvent(null);
         setMonsterStatus(null);
         setFloorPlan(null);  // Limpar planta quando jogo termina
+      } else if (event.type === 'ZONE_CHECKPOINT_SCANNED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        // 📍 Evento de scan de checkpoint para zone conquest
+        // Frontend já possui dados em scoreLog via loadScoreLog()
+        // Este evento só dispara notificação/feedback visual
+        console.log('📍 Zone Checkpoint Scanned:', event.payload);
+        
+        // Recarregar scoreLog para atualizar mapa com nova leitura
+        if (loadScoreLog) {
+          loadScoreLog().catch(err => console.error('Erro ao recarregar scoreLog:', err));
+        }
       } else if ((event.type === 'TREASURE_PROGRESS' || event.type === 'TREASURE_ROUND_COMPLETED') && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
         const payload = event.payload || {};
         setMonsterStatus(null);
