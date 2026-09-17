@@ -321,8 +321,9 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
   loadScoreLog: async () => {
     try {
       const eventId = get().eventoAtualId;
+      const activeGame = get().activeGame;
       if (!eventId) return;
-      const history = await api.getScoreHistory(eventId, 100);
+      const history = await api.getScoreHistory(eventId, 100, activeGame?.id);
       if (get().eventoAtualId !== eventId) return;
 
       const normalizedHistory = (Array.isArray(history) ? history : []).map((entry: any) => ({

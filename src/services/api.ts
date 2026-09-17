@@ -413,8 +413,12 @@ export const api = {
     return res.json();
   },
 
-  async getScoreHistory(eventoId: string, limit = 100) {
-    const res = await fetch(`${API_URL}/leituras/eventos/${encodeURIComponent(eventoId)}/historico?limit=${limit}`, {
+  async getScoreHistory(eventoId: string, limit = 100, brincadeiraId?: string) {
+    let url = `${API_URL}/leituras/eventos/${encodeURIComponent(eventoId)}/historico?limit=${limit}`;
+    if (brincadeiraId) {
+      url += `&brincadeiraId=${encodeURIComponent(brincadeiraId)}`;
+    }
+    const res = await fetch(url, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
