@@ -293,6 +293,12 @@ export default function DisplayMain() {
         const gameType = event.payload?.gameType;
         setSelectedGameType(gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
+        
+        // 🆕 Resetar scoreLog quando novo jogo inicia
+        if (loadScoreLog) {
+          loadScoreLog().catch(err => console.error('Erro ao recarregar scoreLog:', err));
+        }
+        
         if (gameType === 'treasure_hunt') {
           setMonsterStatus(null);
           if (treasure?.startingTeamName) {
