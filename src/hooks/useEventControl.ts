@@ -70,7 +70,10 @@ export function useEventControl(
           // Ignorar mensagens inválidas do canal de controle.
         }
       };
-      socket.onerror = () => socket?.close();
+      socket.onerror = (err) => {
+        console.warn('⚠️ Erro no WebSocket de controle:', err);
+        // Não fechar aqui - deixar onclose fazer a reconexão
+      };
       socket.onclose = () => {
         if (disposed) return;
         const delay = Math.min(1000 * 2 ** reconnectAttempts, 30000);
