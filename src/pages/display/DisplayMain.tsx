@@ -311,7 +311,7 @@ export default function DisplayMain() {
         setSelectedGameType(gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
         
-        // 🆕 Limpar scoreLog imediatamente quando novo jogo inicia
+        // 🆕 Limpar scoreLog imediatamente quando novo jogo inicia (para todos os tipos de jogo)
         const { clearScoreLog } = usePulynStore.getState();
         clearScoreLog();
         
