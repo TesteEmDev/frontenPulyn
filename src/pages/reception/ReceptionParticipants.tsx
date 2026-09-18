@@ -269,15 +269,12 @@ export default function ReceptionParticipants() {
       setQrCodeError(null);
       setQrCodeDataUrl(null);
 
-      console.log(`📊 Carregando QR Code para criança ${childId}`);
       const response = await api.generateQRCode(childId);
       
       if (response?.qrCodeDataUrl) {
-        console.log(`✅ QR Code gerado com sucesso`);
         setQrCodeDataUrl(response.qrCodeDataUrl);
       } else if (response?.url) {
         // Se o backend retornar uma URL em vez de data URL
-        console.log(`✅ QR Code URL recebida`);
         setQrCodeDataUrl(response.url);
       } else {
         throw new Error('Formato de resposta inválido');
@@ -301,11 +298,9 @@ export default function ReceptionParticipants() {
           throw new Error('Evento não selecionado');
         }
 
-        console.log(`🗑️ Excluindo participante ${modalChild}`);
         await api.deleteCrianca(selectedEventId, modalChild);
       } else if (modalAction === 'unlink') {
         // Desvincular pulseira
-        console.log(`🔗 Desvinculando pulseira da criança ${modalChild}`);
         await api.unassignBracelet(modalChild);
       } else if (modalAction === 'edit-name') {
         // Editar nome
@@ -322,7 +317,6 @@ export default function ReceptionParticipants() {
           return;
         }
 
-        console.log(`✏️ Editando criança ${child.name} → ${editingName}`);
         
         await api.updateCrianca(selectedEventId, modalChild, {
           name: editingName.trim(),
@@ -331,40 +325,22 @@ export default function ReceptionParticipants() {
           avatar: child.avatar,
           braceletCode: child.bracelet_code,
           timeId: child.time_id
-        });
-
-        console.log(`✅ Criança ${editingName} atualizada com sucesso`);
-      } else if (modalAction === 'change') {
+        });} else if (modalAction === 'change') {
         // Trocar pulseira - LÓGICA ORIGINAL
-        const inputValue = braceletInput;
-        console.log(`📊 [START] handleConfirmModal - braceletInput: "${inputValue}"`);
-
-        if (!inputValue || !inputValue.trim()) {
+        const inputValue = braceletInput;if (!inputValue || !inputValue.trim()) {
           console.error(`❌ inputValue vazio: "${inputValue}"`);
           alert('Leia a pulseira antes de confirmar');
           setSaving(false);
           return;
         }
 
-        const normalizedInput = inputValue.trim().toUpperCase();
-        console.log(`🔄 Procurando pulseira: ${normalizedInput}`);
-
-        const pulseiras = await api.getPulseiras();
-        console.log(`📋 Pulseiras carregadas: ${pulseiras.length}`);
-        
-        let pulseira = pulseiras.find(p =>
+        const normalizedInput = inputValue.trim().toUpperCase();const pulseiras = await api.getPulseiras();let pulseira = pulseiras.find(p =>
           p.code.trim().toUpperCase() === normalizedInput
         );
 
-        if (!pulseira) {
-          console.log(`📝 Pulseira não cadastrada. Cadastrando ${normalizedInput}...`);
-          await api.createPulseira(normalizedInput);
+        if (!pulseira) {await api.createPulseira(normalizedInput);
           pulseira = { code: normalizedInput, status: 'disponivel' };
-        }
-
-        console.log(`✅ Pulseira disponível para vínculo:`, pulseira);
-
-        if (pulseira.status !== 'disponivel') {
+        }if (pulseira.status !== 'disponivel') {
           console.error(`❌ Pulseira indisponível: ${pulseira.status}`);
           alert(`Pulseira indisponível. Status: ${pulseira.status}`);
           setSaving(false);
@@ -384,13 +360,7 @@ export default function ReceptionParticipants() {
           alert('Evento não selecionado');
           setSaving(false);
           return;
-        }
-
-        console.log(`📝 Atualizando pulseira da criança ${child.name} para ${normalizedInput}`);
-        
-        if (child.bracelet_code && child.bracelet_code.trim().toUpperCase() !== normalizedInput) {
-          console.log(`   → Desvinculando pulseira anterior: ${child.bracelet_code}`);
-          await api.unassignBracelet(modalChild);
+        }if (child.bracelet_code && child.bracelet_code.trim().toUpperCase() !== normalizedInput) {await api.unassignBracelet(modalChild);
         }
 
         await api.updateCrianca(selectedEventId, modalChild, {
@@ -400,26 +370,11 @@ export default function ReceptionParticipants() {
           avatar: child.avatar,
           braceletCode: normalizedInput,
           timeId: child.time_id
-        });
-        
-        console.log(`✅ Pulseira ${normalizedInput} vinculada a ${child.name}`);
-      }
+        });}
 
       // Recarregar dados
-      if (selectedEventId) {
-        console.log(`🔄 Recarregando dados do evento`);
-        const criancasData = await api.getCriancas(selectedEventId);
-        console.log(`📋 Crianças recarregadas:`, criancasData);
-        
-        const updatedChild = criancasData?.find((c: Child) => c.id === modalChild);
-        if (updatedChild) {
-          console.log(`✅ Criança ${updatedChild.name} atualizada:`, {
-            id: updatedChild.id,
-            name: updatedChild.name,
-            bracelet_code: updatedChild.bracelet_code,
-            time_id: updatedChild.time_id
-          });
-        }
+      if (selectedEventId) {const criancasData = await api.getCriancas(selectedEventId);const updatedChild = criancasData?.find((c: Child) => c.id === modalChild);
+        if (updatedChild) {}
         
         setChildren(criancasData || []);
         
@@ -893,3 +848,4 @@ export default function ReceptionParticipants() {
     </div>
   );
 }
+

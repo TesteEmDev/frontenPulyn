@@ -357,7 +357,11 @@ export default function DisplayMain() {
         setZoneConquestStatus(null);
         setFloorPlan(null);  // Limpar planta quando jogo termina
       } else if (event.type === 'ZONE_CONQUEST_INDIVIDUAL_SCAN' && sameEventId(event.payload?.eventoId, selectedEventId)) {
-        // 🆕 Zone Conquest INDIVIDUAL - Atualizar status com os dados do broadcast
+        // 🎯 Log único e limpo quando checkpoint é conquistado
+        const { criancaName, pointsGained, checkpointId } = event.payload;
+        const checkpoint = checkpoints.find(cp => cp.id === checkpointId);
+        console.log(`✅ ${criancaName} conquistou ${checkpoint?.name || 'Checkpoint'} e ganhou ${pointsGained} pontos!`);
+        
         const payload = event.payload || {};
         setZoneConquestStatus((prev) => {
           if (!prev || prev.mode !== 'individual') return prev;
@@ -369,14 +373,13 @@ export default function DisplayMain() {
         });
 
         // Mostrar notificação animada com cor do participante
-        const { criancaName, checkpointId, participantColor, pointsGained } = event.payload;
-        const checkpoint = checkpoints.find(cp => cp.id === checkpointId);
+        const { criancaName: name, participantColor, pointsGained: points } = event.payload;
         const checkpointName = checkpoint?.name || `Checkpoint ${checkpointId}`;
 
         setNotificationData({
-          name: criancaName,
+          name,
           checkpoint: checkpointName,
-          points: pointsGained,
+          points,
           color: participantColor || '#1E9BD7'
         });
         setShowNotification(true);

@@ -103,7 +103,7 @@ export function useZoneConquestGame(eventoId: string | null) {
         lastPartidaIdRef.current = null;
       }
     } catch (err) {
-      console.warn('⚠️ Erro ao carregar status de Zone Conquest:', err);
+      // Erro silencioso - pode ser que o jogo não está em modo INDIVIDUAL
       setStatus(null);
       setIsIndividualMode(false);
       // Não considerar erro se o jogo simplesmente não está em modo INDIVIDUAL

@@ -110,12 +110,8 @@ export default function ReceptionBracelets() {
       );
       
       if (pulseira) {
-        setErrorMessage(`⚠️ Pulseira já cadastrada com status: ${STATUS_LABEL[pulseira.status]}`);
-        console.log(`✅ Pulseira encontrada no sistema:`, pulseira);
-      } else {
-        setErrorMessage('');
-        console.log(`⚠️ Pulseira não encontrada. Código detectado: ${normalizedCode}`);
-        console.log(`📋 Total de pulseiras carregadas: ${bracelets.length}`);
+        setErrorMessage(`⚠️ Pulseira já cadastrada com status: ${STATUS_LABEL[pulseira.status]}`);} else {
+        setErrorMessage('');console.log(`📋 Total de pulseiras carregadas: ${bracelets.length}`);
         console.log(`🔍 Códigos disponíveis:`, bracelets.map(p => p.code.toUpperCase()));
       }
     }
@@ -133,20 +129,14 @@ export default function ReceptionBracelets() {
   const loadBracelets = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await loadPulseiras();
-      console.log(`📋 Pulseiras carregadas:`, data);
-      
-      // Mapear para o formato esperado
+      const data = await loadPulseiras();// Mapear para o formato esperado
       const mapped = Array.isArray(data) ? data.map(p => ({
         code: p.code,
         status: (p.status === 'em_uso' ? 'em uso' : p.status || 'disponivel') as BraceletStatus,
         crianca_id: p.crianca_id || null,
         crianca_name: p.crianca_name || null,
         childId: p.crianca_id || null
-      })) : [];
-      
-      console.log(`✅ ${mapped.length} pulseiras mapeadas:`, mapped);
-      setBracelets(mapped);
+      })) : [];setBracelets(mapped);
     } catch (error) {
       console.error('❌ Erro ao carregar pulseiras:', error);
       setBracelets([]);
@@ -187,23 +177,15 @@ export default function ReceptionBracelets() {
 
     try {
       if (modalAction === 'release' && modalBracelet.childId) {
-        // 🔴 IMPORTANTE: Chamar unassignBracelet (que atualiza status para disponível)
-        console.log(`🔗 Desvinculando pulseira ${modalBracelet.code} da criança ${modalBracelet.childId}`);
-        await api.unassignBracelet(modalBracelet.childId);
+        // 🔴 IMPORTANTE: Chamar unassignBracelet (que atualiza status para disponível)await api.unassignBracelet(modalBracelet.childId);
       } else if (modalAction === 'lost' || modalAction === 'block') {
         // Para perdida ou bloqueada, usar updatePulseiraStatus
-        const status = modalAction === 'lost' ? 'perdida' : 'bloqueada';
-        console.log(`📝 Atualizando status da pulseira ${modalBracelet.code} para ${status}`);
-        await api.updatePulseiraStatus(modalBracelet.code, status);
+        const status = modalAction === 'lost' ? 'perdida' : 'bloqueada';await api.updatePulseiraStatus(modalBracelet.code, status);
       } else if (modalAction === 'release' && !modalBracelet.childId) {
-        // Se for release mas não tem criança (pulseira já estava disponível), apenas atualizar status
-        console.log(`📝 Pulseira ${modalBracelet.code} sem criança vinculada, apenas atualizando status`);
-        await api.updatePulseiraStatus(modalBracelet.code, 'disponivel');
+        // Se for release mas não tem criança (pulseira já estava disponível), apenas atualizar statusawait api.updatePulseiraStatus(modalBracelet.code, 'disponivel');
       }
       
-      // Recarregar dados
-      console.log(`🔄 Recarregando dados após ação`);
-      await loadBracelets();
+      // Recarregar dadosawait loadBracelets();
       await loadChildren();
       
     } catch (error: any) {
@@ -237,17 +219,12 @@ export default function ReceptionBracelets() {
       return;
     }
     
-    try {
-      console.log(`📝 Cadastrando pulseira: ${code}`);
-      await api.createPulseira(code);
+    try {await api.createPulseira(code);
       await loadBracelets();
       
       setNovaPulseiraCode('');
       setCadastrarModalOpen(false);
-      alert(`✅ Pulseira ${code} cadastrada com sucesso!`);
-      console.log(`✅ Pulseira ${code} cadastrada`);
-      
-    } catch (error: any) {
+      alert(`✅ Pulseira ${code} cadastrada com sucesso!`);} catch (error: any) {
       console.error('❌ Erro ao cadastrar:', error);
       setErrorMessage(error.message || 'Erro ao cadastrar pulseira');
     } finally {
