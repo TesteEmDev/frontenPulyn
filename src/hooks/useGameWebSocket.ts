@@ -37,12 +37,10 @@ export function useGameWebSocket(
 
     if (!eventoId) {
       setConnectionStatus('offline');
-      console.log('⚠️ WebSocket: evento_id não definido ainda');
       return;
     }
 
     if (socketRef.current?.readyState === WebSocket.OPEN) {
-      console.log('✅ WebSocket já está conectado');
       return;
     }
 
@@ -54,12 +52,8 @@ export function useGameWebSocket(
       const token = localStorage.getItem('authToken');
       const ws = createAuthenticatedWebSocket(wsUrl, token);
 
-      console.log(`🔗 Conectando ao WebSocket do evento ${eventoId}`);
-
       ws.onopen = () => {
         if (disposedRef.current || socketRef.current !== ws) return;
-
-        console.log(`✅ WebSocket conectado com sucesso (evento: ${eventoId})`);
         setIsConnected(true);
         setConnectionStatus('connected');
         setReconnectAttempt(0);
@@ -106,7 +100,6 @@ export function useGameWebSocket(
       ws.onclose = () => {
         if (disposedRef.current || socketRef.current !== ws) return;
 
-        console.log('⚠️ WebSocket desconectado');
         socketRef.current = null;
         setIsConnected(false);
         setConnectionStatus(autoConnect ? 'reconnecting' : 'offline');
@@ -115,7 +108,6 @@ export function useGameWebSocket(
           const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
           reconnectAttemptsRef.current++;
           setReconnectAttempt(reconnectAttemptsRef.current);
-          console.log(`🔄 Reconectando em ${delay}ms (tentativa ${reconnectAttemptsRef.current})`);
           reconnectTimeoutRef.current = setTimeout(connect, delay);
         }
       };
@@ -175,8 +167,6 @@ export function useGameWebSocket(
         payload,
         timestamp: new Date().toISOString()
       }));
-    } else {
-      console.warn('⚠️ WebSocket não está conectado. Não é possível enviar:', type);
     }
   }, []);
 
