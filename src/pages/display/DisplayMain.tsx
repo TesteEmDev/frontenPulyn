@@ -51,6 +51,15 @@ export default function DisplayMain() {
     points: number;
     color: string;
   } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [displayMessages, setDisplayMessages] = useState<any[]>([]);
+  const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
+  const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
+  const [treasureStatus, setTreasureStatus] = useState<TreasureArenaStatus | null>(null);
+  const [lastTreasureEvent, setLastTreasureEvent] = useState<TreasureArenaEvent | null>(null);
+  const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
+  const [zoneConquestStatus, setZoneConquestStatus] = useState<ZoneConquestStatus | null>(null);
+  const [floorPlan, setFloorPlan] = useState<string | null>(null);
 
   const {
     eventoAtualId,
@@ -66,17 +75,8 @@ export default function DisplayMain() {
   } = usePulynStore();
   const selectedEventId = eventoAtualId || '';
   
-  // 🆕 Hook para Zone Conquest INDIVIDUAL
+  // 🆕 Hook para Zone Conquest INDIVIDUAL - DEVE VIR APÓS TODOS OS useState
   const { status: zoneConquestGameStatus, isIndividualMode } = useZoneConquestGame(selectedEventId || null);
-  const [loading, setLoading] = useState(true);
-  const [displayMessages, setDisplayMessages] = useState<any[]>([]);
-  const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
-  const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
-  const [treasureStatus, setTreasureStatus] = useState<TreasureArenaStatus | null>(null);
-  const [lastTreasureEvent, setLastTreasureEvent] = useState<TreasureArenaEvent | null>(null);
-  const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
-  const [zoneConquestStatus, setZoneConquestStatus] = useState<ZoneConquestStatus | null>(null);
-  const [floorPlan, setFloorPlan] = useState<string | null>(null);
 
   const topParticipants = useMemo(() => [...children]
     .filter(child => child.status === 'active')
@@ -258,6 +258,15 @@ export default function DisplayMain() {
     }, 2000);
     return () => window.clearInterval(interval);
   }, [selectedEventId, refreshTreasureStatus, refreshMonsterStatus]);
+
+  // 🆕 Sincronizar Zone Conquest status do hook com estado local
+  useEffect(() => {
+    if (isIndividualMode && zoneConquestGameStatus) {
+      setZoneConquestStatus(zoneConquestGameStatus);
+    } else {
+      setZoneConquestStatus(null);
+    }
+  }, [zoneConquestGameStatus, isIndividualMode]);
 
   // WebSocket para eventos em tempo real
   const { connectionStatus, lastMessageAt } = useGameWebSocket(
