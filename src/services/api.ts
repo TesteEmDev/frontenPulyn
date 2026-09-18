@@ -731,6 +731,16 @@ export const api = {
     return res.json();
   },
 
+  async getZoneConquestStatus(eventoId: string) {
+    const res = await fetch(`${API_URL}/leituras/${encodeURIComponent(eventoId)}/zone-conquest/status`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      throw new Error(`Erro ao consultar Zone Conquest (${res.status})`);
+    }
+    return res.json();
+  },
+
   async getGameState(eventoId: string) {
     const res = await fetch(`${API_URL}/debug/game-state/${encodeURIComponent(eventoId)}`, {
       headers: getAuthHeaders(),

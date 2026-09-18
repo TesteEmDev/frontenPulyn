@@ -189,6 +189,25 @@ export default function DisplayMain() {
     }
   }, [selectedEventId]);
 
+  const refreshZoneConquestStatus = useCallback(async () => {
+    if (!selectedEventId) {
+      setZoneConquestStatus(null);
+      return;
+    }
+    try {
+      const { api } = await import('../../services/api');
+      const status = await api.getZoneConquestStatus(selectedEventId);
+      setZoneConquestStatus(
+        status?.gameRunning && status?.mode
+          ? status
+          : null
+      );
+    } catch (err) {
+      console.error('Erro ao atualizar status do Zone Conquest no telão:', err);
+      setZoneConquestStatus(null);
+    }
+  }, [selectedEventId]);
+
   // A fonte de dados do telão é o store compartilhado. Ao trocar o evento,
   // carrega somente o contexto atual e ignora respostas atrasadas.
   useEffect(() => {
@@ -318,14 +337,16 @@ export default function DisplayMain() {
         // Recarregar scoreLog (que agora está vazio no backend)
         loadScoreLog();
         
-        // 🆕 Se é Zone Conquest INDIVIDUAL, sincronizar status via hook
-        if (gameType === 'zone_conquest_individual' || event.payload?.gameName?.toLowerCase().includes('individual')) {
-          // O hook useZoneConquestGame vai fazer o polling automático
+        // 🆕 Se é Zone Conquest, resetar e recarregar status
+        if (gameType?.toLowerCase().includes('zone_conquest')) {
           setZoneConquestStatus(null); // Resetar estado para forçar recarregamento
           setMonsterStatus(null);
           setTreasureStatus(null);
+          // Chamar refresh para recarregar dados frescos do backend
+          refreshZoneConquestStatus();
         } else if (gameType === 'treasure_hunt') {
           setMonsterStatus(null);
+          setZoneConquestStatus(null);
           if (treasure?.startingTeamName) {
             setTreasureStatus({
               active: true,
@@ -344,6 +365,7 @@ export default function DisplayMain() {
           refreshTreasureStatus();
         } else if (gameType === 'monster_hunt') {
           setTreasureStatus(null);
+          setZoneConquestStatus(null);
           const monsterStart = event.payload?.monster;
           setMonsterStatus({
             active: true,
@@ -357,6 +379,7 @@ export default function DisplayMain() {
         } else {
           setTreasureStatus(null);
           setMonsterStatus(null);
+          setZoneConquestStatus(null);
         }
       } else if (event.type === 'GAME_STOPPED' && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
         setSelectedGameType(null);
