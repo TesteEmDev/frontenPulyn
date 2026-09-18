@@ -128,20 +128,11 @@ export default function DisplayMap({
   
   // Debug: verificar estado
   useEffect(() => {
-    console.log('DisplayMap Debug:', {
-      gameType,
-      isTreasureMode,
-      shouldShowPlanta,
-      localFloorPlan: localFloorPlan ? 'carregado' : 'não carregado',
-      eventoAtual,
-      floorPlanUrl: localFloorPlan?.substring(0, 50) + '...'
-    });
   }, [gameType, isTreasureMode, shouldShowPlanta, localFloorPlan, eventoAtual]);
 
   // Sincronizar floorPlan prop com localFloorPlan state
   useEffect(() => {
     if (floorPlan) {
-      console.log('✅ DisplayMap: Sincronizando floorPlan prop:', floorPlan.substring(0, 50) + '...');
       setLocalFloorPlan(floorPlan);
     }
   }, [floorPlan]);
@@ -158,33 +149,27 @@ export default function DisplayMap({
 
         // Buscar zonas do backend (com fallback localStorage)
         try {
-          console.log('🔄 Carregando zonas do backend...');
           const zonesData = await api.getZones(eventoAtual);
           if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
-            console.log('✅ Zonas carregadas do backend:', zonesData);
             setZones(zonesData);
             // Atualizar localStorage como cache
             localStorage.setItem(`zones_${eventoAtual}`, JSON.stringify(zonesData));
           } else {
-            console.log('📝 Nenhuma zona no backend, tentando localStorage...');
             const key = `zones_${eventoAtual}`;
             const stored = localStorage.getItem(key);
             if (stored) {
               const parsed = JSON.parse(stored);
-              console.log('✅ Zonas carregadas do localStorage:', parsed);
               setZones(parsed);
             } else {
               setZones(DEFAULT_ZONES);
             }
           }
         } catch (apiError) {
-          console.warn('⚠️ Erro ao carregar do backend, tentando localStorage...');
           const key = `zones_${eventoAtual}`;
           const stored = localStorage.getItem(key);
           if (stored) {
             try {
               const parsed = JSON.parse(stored);
-              console.log('✅ Zonas carregadas do localStorage (fallback):', parsed);
               setZones(parsed);
             } catch (e) {
               setZones(DEFAULT_ZONES);
