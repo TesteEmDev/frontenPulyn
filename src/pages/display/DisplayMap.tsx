@@ -410,9 +410,6 @@ export default function DisplayMap({
     const DISPUTE_COLOR_PRIMARY = '#FFFFFF'; // Branco para disputa
     const DISPUTE_COLOR_FALLBACK = '#9CA3AF'; // Cinza mais claro se equipe usar branco
     
-    console.log('🔍 Calculando cores das zonas...');
-    console.log(`📊 Total de zonas: ${zones.length}`);
-    
     for (const zone of zones) {
       // Encontrar checkpoints que estão DENTRO desta zona (por posição geométrica)
       const checkpointsInZone = checkpointPositions
@@ -426,12 +423,9 @@ export default function DisplayMap({
         })
         .map(({ checkpoint }) => checkpoint);
       
-      console.log(`\n  📍 Zona "${zone.name}": ${checkpointsInZone.length} checkpoints dentro`);
-      
       if (checkpointsInZone.length === 0) {
         // Zona sem checkpoints = neutra
         colorMap.set(normalizeZoneName(zone.name), { color: NEUTRAL_COLOR, teamName: '' });
-        console.log(`    ⭕ Sem checkpoints → NEUTRO`);
         continue;
       }
       
@@ -442,11 +436,6 @@ export default function DisplayMap({
           return { checkpoint, owner };
         });
       
-      // Log detalhado
-      checkpointOwners.forEach(({ checkpoint, owner }) => {
-        console.log(`    ├─ Checkpoint #${checkpoint.id}: ${owner ? `Dominado por ${owner.name}` : 'NEUTRO'}`);
-      });
-      
       // Verificar se TODOS os checkpoints têm dono
       const allHaveOwners = checkpointOwners.every(({ owner }) => owner !== undefined);
       
@@ -456,7 +445,6 @@ export default function DisplayMap({
           color: DISPUTE_COLOR_PRIMARY, 
           teamName: 'EM DISPUTA' 
         });
-        console.log(`    🔔 Nem todos dominados → EM DISPUTA`);
         continue;
       }
       
@@ -476,15 +464,9 @@ export default function DisplayMap({
             color: dominantTeam.color, 
             teamName: dominantTeam.name 
           });
-          console.log(`    ✅ Todos dominados por ${dominantTeam.name} → COR: ${dominantTeam.color}`);
         }
       } else {
         // Checkpoints dominados por EQUIPES DIFERENTES = disputa
-        const teamsInZone = Array.from(uniqueOwners)
-          .map(teamId => checkpointOwners.find(({ owner }) => owner && String(owner.id).toLowerCase() === teamId)?.owner?.name)
-          .filter(Boolean)
-          .join(' vs ');
-        
         const hasWhiteTeam = checkpointOwners
           .filter(({ owner }) => owner !== undefined)
           .some(({ owner }) => {
@@ -496,12 +478,9 @@ export default function DisplayMap({
           color: hasWhiteTeam ? DISPUTE_COLOR_FALLBACK : DISPUTE_COLOR_PRIMARY, 
           teamName: 'EM DISPUTA' 
         });
-        console.log(`    ⚔️ Disputa: ${teamsInZone} → COR: ${hasWhiteTeam ? DISPUTE_COLOR_FALLBACK : DISPUTE_COLOR_PRIMARY}`);
       }
     }
     
-    console.log('\n✅ Mapa de cores final:');
-    console.log(colorMap);
     return colorMap;
   }, [zones, checkpointPositions, checkpointOwnerById, teamById, scoreLog]);
 

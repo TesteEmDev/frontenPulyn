@@ -81,7 +81,6 @@ export function useGameWebSocket(
 
           if (!isHeartbeat) {
             setLastMessageAt(new Date());
-            console.log(`📨 Evento recebido: ${msg.type}`);
           }
 
           // O backend pode enviar o mesmo evento global e por sala. Evitar
