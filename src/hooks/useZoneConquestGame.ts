@@ -51,12 +51,14 @@ export function useZoneConquestGame(eventoId: string | null) {
   const [error, setError] = useState<string | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout>();
   const [isIndividualMode, setIsIndividualMode] = useState(false);
+  const lastPartidaIdRef = useRef<string | null>(null);
 
   // Carregar status atual
   const loadStatus = useCallback(async () => {
     if (!eventoId) {
       setStatus(null);
       setIsIndividualMode(false);
+      lastPartidaIdRef.current = null;
       return;
     }
 
@@ -77,12 +79,28 @@ export function useZoneConquestGame(eventoId: string | null) {
       const data = await res.json();
 
       if (data?.gameRunning && data?.mode === 'individual') {
-        setStatus(data);
-        setIsIndividualMode(true);
-        setError(null);
+        // ✅ Detectar se é uma nova partida
+        const currentPartidaId = data.partida_id;
+        if (lastPartidaIdRef.current && lastPartidaIdRef.current !== currentPartidaId) {
+          // Nova partida iniciada - resetar status
+          console.log('🔄 Nova partida Zone Conquest detectada - resetando UI');
+          setStatus(null);
+          setTimeout(() => {
+            setStatus(data);
+            lastPartidaIdRef.current = currentPartidaId;
+            setIsIndividualMode(true);
+            setError(null);
+          }, 100);
+        } else {
+          setStatus(data);
+          lastPartidaIdRef.current = currentPartidaId;
+          setIsIndividualMode(true);
+          setError(null);
+        }
       } else {
         setStatus(null);
         setIsIndividualMode(false);
+        lastPartidaIdRef.current = null;
       }
     } catch (err) {
       console.warn('⚠️ Erro ao carregar status de Zone Conquest:', err);
