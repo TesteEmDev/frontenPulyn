@@ -255,7 +255,7 @@ export default function DisplayMain() {
     const interval = window.setInterval(() => {
       refreshTreasureStatus();
       refreshMonsterStatus();
-    }, 2000);
+    }, 5000); // Atualizar a cada 5 segundos (reduzido de 2s para economizar conexões)
     return () => window.clearInterval(interval);
   }, [selectedEventId, refreshTreasureStatus, refreshMonsterStatus]);
 

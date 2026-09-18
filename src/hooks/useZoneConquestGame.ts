@@ -106,7 +106,7 @@ export function useZoneConquestGame(eventoId: string | null) {
     }
   }, [eventoId]);
 
-  // Polling: atualizar status a cada 2 segundos
+  // Polling: atualizar status a cada 3 segundos (reduzido de 2s para economizar pool de conexões)
   useEffect(() => {
     if (!eventoId) {
       if (pollingIntervalRef.current) {
@@ -119,8 +119,8 @@ export function useZoneConquestGame(eventoId: string | null) {
     // Carregar imediatamente na primeira vez
     loadStatus();
 
-    // Depois polling a cada 2 segundos
-    pollingIntervalRef.current = setInterval(loadStatus, 2000);
+    // Depois polling a cada 3 segundos
+    pollingIntervalRef.current = setInterval(loadStatus, 3000);
 
     return () => {
       if (pollingIntervalRef.current) {

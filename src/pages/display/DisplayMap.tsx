@@ -202,8 +202,8 @@ export default function DisplayMap({
     // Carregar imediatamente
     loadData();
     
-    // Polling a cada 2 segundos para sincronizar mudanças de zona
-    const interval = setInterval(loadData, 2000);
+    // Polling a cada 5 segundos para sincronizar mudanças de zona (reduzido frequência para economizar conexões)
+    const interval = setInterval(loadData, 5000);
     return () => clearInterval(interval);
   }, [eventoAtual, shouldShowPlanta]);
 

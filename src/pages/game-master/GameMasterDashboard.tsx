@@ -478,7 +478,7 @@ export default function GameMasterDashboard() {
       
       const interval = setInterval(() => {
         loadTerritoriesStatus();
-      }, 2000); // Atualizar a cada 2 segundos
+      }, 5000); // Atualizar a cada 5 segundos (reduzido de 2s para economizar conexões)
       
       return () => clearInterval(interval);
     }
@@ -492,7 +492,7 @@ export default function GameMasterDashboard() {
     const interval = setInterval(() => {
       loadTreasureStatus();
       loadMonsterStatus();
-    }, 2000);
+    }, 5000); // Atualizar a cada 5 segundos (reduzido de 2s para economizar conexões)
     return () => clearInterval(interval);
   }, [selectedEventId, loadTreasureStatus, loadMonsterStatus]);
 
