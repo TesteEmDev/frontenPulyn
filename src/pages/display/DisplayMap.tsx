@@ -200,8 +200,27 @@ export default function DisplayMap({
 
   // Nova lógica: checkpoint é dominado pela equipe com maior número de leituras
   // Em caso de empate, equipe que chegou primeiro (timestamp mais antigo)
+  // 🆕 Para Zone Conquest INDIVIDUAL, usar zoneConquestCheckpoints diretamente
   const checkpointOwnerById = useMemo(() => {
     const owners = new Map<string, Team | undefined>();
+    
+    // 🆕 Se é Zone Conquest, usar dados diretos de zoneConquestCheckpoints
+    if (zoneConquestCheckpoints && zoneConquestCheckpoints.length > 0) {
+      for (const zcCheckpoint of zoneConquestCheckpoints) {
+        if (zcCheckpoint.participantId) {
+          // Criar um "team" virtual para o participante
+          const participantTeam: Team = {
+            id: zcCheckpoint.participantId,
+            name: zcCheckpoint.participantName || 'Unknown',
+            color: zcCheckpoint.participantColor || '#999999',
+          };
+          owners.set(String(zcCheckpoint.id), participantTeam);
+        } else {
+          owners.set(String(zcCheckpoint.id), undefined);
+        }
+      }
+      return owners;
+    }
     
     // Criar map de childId -> teamId para buscar equipe rápido
     const childToTeam = new Map<string, Team>();
@@ -267,11 +286,18 @@ export default function DisplayMap({
     }
     
     return owners;
-  }, [checkpoints, scoreLog, children, teamById]);
+  }, [checkpoints, scoreLog, children, teamById, zoneConquestCheckpoints]);
 
   // Determine each child's last checkpoint zone.
   const childLastZone = useMemo(() => {
     const zoneMap: Record<string, { zone: string; checkpointId: string }> = {};
+    
+    // 🆕 Para Zone Conquest, não usar scoreLog (que está vazio). Apenas mostrar avatares em zonas neutras
+    if (zoneConquestCheckpoints && zoneConquestCheckpoints.length > 0) {
+      // Zone Conquest: não rastrear últimos checkpoints, avatares ficam em zonas de entrada
+      return zoneMap;
+    }
+    
     const sorted = [...scoreLog].reverse();
 
     for (const entry of sorted) {
@@ -287,7 +313,7 @@ export default function DisplayMap({
     }
 
     return zoneMap;
-  }, [scoreLog, checkpoints, zones]);
+  }, [scoreLog, checkpoints, zones, zoneConquestCheckpoints]);
 
   // Avatares acompanham o último checkpoint conquistado. Quando ainda não
   // existe uma conquista, continuam distribuídos na zona de entrada/zona atual.
