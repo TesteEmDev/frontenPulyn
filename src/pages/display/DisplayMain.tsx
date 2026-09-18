@@ -311,6 +311,13 @@ export default function DisplayMain() {
         setSelectedGameType(gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
         
+        // 🆕 Limpar scoreLog imediatamente quando novo jogo inicia
+        const { clearScoreLog } = usePulynStore.getState();
+        clearScoreLog();
+        
+        // Recarregar scoreLog (que agora está vazio no backend)
+        loadScoreLog();
+        
         // 🆕 Se é Zone Conquest INDIVIDUAL, sincronizar status via hook
         if (gameType === 'zone_conquest_individual' || event.payload?.gameName?.toLowerCase().includes('individual')) {
           // O hook useZoneConquestGame vai fazer o polling automático

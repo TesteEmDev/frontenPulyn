@@ -178,6 +178,7 @@ interface PulynStore {
   loadBrincadeiras: () => Promise<any[]>;
   loadGames: () => Promise<Game[]>;
   loadScoreLog: () => Promise<void>;
+  clearScoreLog: () => void;
   loadClientes: () => Promise<any[]>;
   loadTimes: () => Promise<void>;
   loadPulseiras: () => Promise<any[]>;
@@ -340,6 +341,9 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
       console.error('❌ Erro ao carregar histórico de pontuações:', error);
     }
   },
+
+  // 🆕 Resetar scoreLog quando novo jogo começa
+  clearScoreLog: () => set({ scoreLog: [] }),
 
   loadEventos: async () => {
     try {
