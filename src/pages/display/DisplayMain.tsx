@@ -262,8 +262,10 @@ export default function DisplayMain() {
   // 🆕 Sincronizar Zone Conquest status do hook com estado local
   useEffect(() => {
     if (isIndividualMode && zoneConquestGameStatus) {
+      // Cada vez que uma nova partida é detectada (partida_id mudou), reseta tudo
       setZoneConquestStatus(zoneConquestGameStatus);
-    } else {
+    } else if (!isIndividualMode) {
+      // Se não está em modo individual, limpar estado
       setZoneConquestStatus(null);
     }
   }, [zoneConquestGameStatus, isIndividualMode]);
@@ -312,6 +314,7 @@ export default function DisplayMain() {
         // 🆕 Se é Zone Conquest INDIVIDUAL, sincronizar status via hook
         if (gameType === 'zone_conquest_individual' || event.payload?.gameName?.toLowerCase().includes('individual')) {
           // O hook useZoneConquestGame vai fazer o polling automático
+          setZoneConquestStatus(null); // Resetar estado para forçar recarregamento
           setMonsterStatus(null);
           setTreasureStatus(null);
         } else if (gameType === 'treasure_hunt') {

@@ -82,15 +82,11 @@ export function useZoneConquestGame(eventoId: string | null) {
         // ✅ Detectar se é uma nova partida
         const currentPartidaId = data.partida_id;
         if (lastPartidaIdRef.current && lastPartidaIdRef.current !== currentPartidaId) {
-          // Nova partida iniciada - resetar status
-          console.log('🔄 Nova partida Zone Conquest detectada - resetando UI');
-          setStatus(null);
-          setTimeout(() => {
-            setStatus(data);
-            lastPartidaIdRef.current = currentPartidaId;
-            setIsIndividualMode(true);
-            setError(null);
-          }, 100);
+          // Nova partida iniciada - resetar status imediatamente
+          lastPartidaIdRef.current = currentPartidaId;
+          setStatus(data);
+          setIsIndividualMode(true);
+          setError(null);
         } else {
           setStatus(data);
           lastPartidaIdRef.current = currentPartidaId;
