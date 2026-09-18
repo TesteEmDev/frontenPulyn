@@ -4,6 +4,9 @@ import { DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
 import type { Checkpoint, Team } from '../../store/mockData';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
+import { ZoneConquestIndividualZones } from '../../components/display/ZoneConquestIndividualZones';
+import { CheckpointProtectionIndicator } from '../../components/display/CheckpointProtectionIndicator';
+import type { ZoneState, CheckpointState } from '../../hooks/useZoneConquestGame';
 
 interface Zone {
   id: string;
@@ -100,9 +103,18 @@ interface DisplayMapProps {
   embedded?: boolean;
   gameType?: string;
   floorPlan?: string | null;
+  // 🆕 Zone Conquest INDIVIDUAL
+  zoneConquestZones?: ZoneState[] | null;
+  zoneConquestCheckpoints?: CheckpointState[] | null;
 }
 
-export default function DisplayMap({ embedded = false, gameType, floorPlan }: DisplayMapProps) {
+export default function DisplayMap({ 
+  embedded = false, 
+  gameType, 
+  floorPlan,
+  zoneConquestZones,
+  zoneConquestCheckpoints,
+}: DisplayMapProps) {
   const { children, checkpoints, scoreLog, teams } = usePulynStore();
   const eventoAtual = usePulynStore((state: any) => state.eventoAtualId);
   const activeGame = usePulynStore((state: any) => state.activeGame);
@@ -537,67 +549,92 @@ export default function DisplayMap({ embedded = false, gameType, floorPlan }: Di
           viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
           preserveAspectRatio="xMidYMid meet"
         >
-          {/* Zonas em coordenadas de pixels (como AdminMap) - só mostrar em modo zona */}
-          {activeGame?.type !== 'treasure_hunt' && zones.map((zone) => {
-            const zoneData = zoneColorByOwnership.get(normalizeZoneName(zone.name));
-            const zoneOwnerColor = zoneData?.color || '#94A3B8';
-            const zoneTeamName = zoneData?.teamName || '';
-            const isDisputed = zoneTeamName === 'DISPUTA';
-            const isDominated = zoneTeamName && !isDisputed;
+          {/* 🆕 Zonas do Zone Conquest INDIVIDUAL */}
+          {zoneConquestZones && zoneConquestZones.length > 0 ? (
+            <ZoneConquestIndividualZones zones={zoneConquestZones} width={MAP_WIDTH} height={MAP_HEIGHT} />
+          ) : (
+            <>
+              {/* Zonas em coordenadas de pixels (como AdminMap) - só mostrar em modo zona */}
+              {activeGame?.type !== 'treasure_hunt' && zones.map((zone) => {
+                const zoneData = zoneColorByOwnership.get(normalizeZoneName(zone.name));
+                const zoneOwnerColor = zoneData?.color || '#94A3B8';
+                const zoneTeamName = zoneData?.teamName || '';
+                const isDisputed = zoneTeamName === 'DISPUTA';
+                const isDominated = zoneTeamName && !isDisputed;
+                
+                return (
+                  <g key={zone.id}>
+                    <rect
+                      x={zone.x}
+                      y={zone.y}
+                      width={zone.width}
+                      height={zone.height}
+                      fill={zoneOwnerColor}
+                      fillOpacity={isDisputed ? 0.2 : (isDominated ? 0.25 : 0.15)}
+                      stroke={zoneOwnerColor}
+                      strokeWidth={isDisputed ? 2 : (isDominated ? 2.5 : 2)}
+                      strokeDasharray={isDisputed ? "8 4" : "6 3"}
+                      rx={8}
+                    />
+                    <text
+                      x={zone.x + zone.width / 2}
+                      y={zone.y + zone.height / 2 - 8}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill={zoneOwnerColor}
+                      fontSize={12}
+                      fontWeight={600}
+                      fontFamily="system-ui"
+                    >
+                      {zone.name}
+                    </text>
+                    {isDominated && (
+                      <text
+                        x={zone.x + zone.width / 2}
+                        y={zone.y + zone.height / 2 + 10}
+                        textAnchor="middle"
+                        fill={zoneOwnerColor}
+                        fontSize={10}
+                        fontWeight={700}
+                        fontFamily="system-ui"
+                      >
+                        {zoneTeamName}
+                      </text>
+                    )}
+                    {isDisputed && (
+                      <text
+                        x={zone.x + zone.width / 2}
+                        y={zone.y + zone.height / 2 + 8}
+                        textAnchor="middle"
+                        fill="#000000"
+                        fontSize={10}
+                        fontWeight={700}
+                        fontFamily="system-ui"
+                      >
+                        EM DISPUTA
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </>
+          )}
+
+          {/* 🆕 Indicadores de Proteção do Zone Conquest INDIVIDUAL */}
+          {zoneConquestCheckpoints && zoneConquestCheckpoints.map((cp) => {
+            const position = checkpointPositions.find(p => p.checkpoint.id === cp.id);
+            if (!position || !cp.isProtected) return null;
             
             return (
-              <g key={zone.id}>
-                <rect
-                  x={zone.x}
-                  y={zone.y}
-                  width={zone.width}
-                  height={zone.height}
-                  fill={zoneOwnerColor}
-                  fillOpacity={isDisputed ? 0.2 : (isDominated ? 0.25 : 0.15)}
-                  stroke={zoneOwnerColor}
-                  strokeWidth={isDisputed ? 2 : (isDominated ? 2.5 : 2)}
-                  strokeDasharray={isDisputed ? "8 4" : "6 3"}
-                  rx={8}
-                />
-                <text
-                  x={zone.x + zone.width / 2}
-                  y={zone.y + zone.height / 2 - 8}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fill={zoneOwnerColor}
-                  fontSize={12}
-                  fontWeight={600}
-                  fontFamily="system-ui"
-                >
-                  {zone.name}
-                </text>
-                {isDominated && (
-                  <text
-                    x={zone.x + zone.width / 2}
-                    y={zone.y + zone.height / 2 + 10}
-                    textAnchor="middle"
-                    fill={zoneOwnerColor}
-                    fontSize={10}
-                    fontWeight={700}
-                    fontFamily="system-ui"
-                  >
-                    {zoneTeamName}
-                  </text>
-                )}
-                {isDisputed && (
-                  <text
-                    x={zone.x + zone.width / 2}
-                    y={zone.y + zone.height / 2 + 8}
-                    textAnchor="middle"
-                    fill="#000000"
-                    fontSize={10}
-                    fontWeight={700}
-                    fontFamily="system-ui"
-                  >
-                    EM DISPUTA
-                  </text>
-                )}
-              </g>
+              <CheckpointProtectionIndicator
+                key={`protection-${cp.id}`}
+                checkpointId={cp.id}
+                participantName={cp.participantName}
+                participantColor={cp.participantColor}
+                protectedUntil={cp.protectedUntil}
+                x={position.x}
+                y={position.y}
+              />
             );
           })}
 
