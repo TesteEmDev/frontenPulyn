@@ -528,7 +528,28 @@ export const api = {
         throw new Error(message);
       }
       const data = await res.json();
-      return Array.isArray(data) ? data : [];
+      
+      // ✅ Extrai array do wrapper object se necessário
+      if (Array.isArray(data)) {
+        return data;
+      }
+      
+      // Tenta extrair de diferentes possíveis estruturas
+      if (data?.eventos && Array.isArray(data.eventos)) {
+        return data.eventos;
+      }
+      if (data?.data && Array.isArray(data.data)) {
+        return data.data;
+      }
+      if (data?.payload && Array.isArray(data.payload)) {
+        return data.payload;
+      }
+      if (data?.events && Array.isArray(data.events)) {
+        return data.events;
+      }
+      
+      console.warn('⚠️ getEventos: Resposta inesperada:', data);
+      return [];
     } catch (err) {
       console.error('❌ Erro ao buscar eventos:', err);
       throw err;
