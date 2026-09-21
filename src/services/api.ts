@@ -413,8 +413,12 @@ export const api = {
     return res.json();
   },
 
-  async getScoreHistory(eventoId: string, limit = 100) {
-    const res = await fetch(`${API_URL}/leituras/eventos/${encodeURIComponent(eventoId)}/historico?limit=${limit}`, {
+  async getScoreHistory(eventoId: string, limit = 100, brincadeiraId?: string) {
+    let url = `${API_URL}/leituras/eventos/${encodeURIComponent(eventoId)}/historico?limit=${limit}`;
+    if (brincadeiraId) {
+      url += `&brincadeiraId=${encodeURIComponent(brincadeiraId)}`;
+    }
+    const res = await fetch(url, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -1233,6 +1237,45 @@ export const api = {
       return res.json();
     } catch (error) {
       console.error('❌ Erro ao buscar QR Code:', error);
+      throw error;
+    }
+  },
+
+  // ==================== ZONAS DO MAPA ====================
+  async getZones(eventoId: string) {
+    try {
+      const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/zones`, {
+        headers: getAuthHeaders(),
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao carregar zonas (${res.status})`);
+      }
+      
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao carregar zonas:', error);
+      throw error;
+    }
+  },
+
+  async saveZones(eventoId: string, zones: any[]) {
+    try {
+      const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/zones`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ zones }),
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao salvar zonas (${res.status})`);
+      }
+      
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao salvar zonas:', error);
       throw error;
     }
   },

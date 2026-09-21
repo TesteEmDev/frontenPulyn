@@ -207,7 +207,7 @@ export function useNFCOtimizado(
         
         // Poll mais frequente mas com menos dados
         poll();
-        receptionPoll = setInterval(poll, 1500); // Reduzido de 2000
+        receptionPoll = setInterval(poll, 1000); // Reduzido de 2000ms para 1000ms
       }
     } else {
       setIsConnected(false);
