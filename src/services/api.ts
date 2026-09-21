@@ -583,7 +583,25 @@ export const api = {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erro ao carregar times (${res.status})`);
-    return Array.isArray(data) ? data : [];
+    
+    // ✅ Extrai array do wrapper object se necessário
+    if (Array.isArray(data)) {
+      return data;
+    }
+    
+    // Tenta extrair de diferentes possíveis estruturas
+    if (data?.teams && Array.isArray(data.teams)) {
+      return data.teams;
+    }
+    if (data?.data && Array.isArray(data.data)) {
+      return data.data;
+    }
+    if (data?.payload && Array.isArray(data.payload)) {
+      return data.payload;
+    }
+    
+    console.warn('⚠️ getKioskTeams: Resposta inesperada:', data);
+    return [];
   },
 
   async getKioskBracelet(code: string) {
@@ -802,7 +820,27 @@ export const api = {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || `Erro ao carregar times (${res.status})`);
       }
-      return await res.json();
+      
+      const data = await res.json();
+      
+      // ✅ Extrai array do wrapper object se necessário
+      if (Array.isArray(data)) {
+        return data;
+      }
+      
+      // Tenta extrair de diferentes possíveis estruturas
+      if (data?.times && Array.isArray(data.times)) {
+        return data.times;
+      }
+      if (data?.data && Array.isArray(data.data)) {
+        return data.data;
+      }
+      if (data?.payload && Array.isArray(data.payload)) {
+        return data.payload;
+      }
+      
+      console.warn('⚠️ getTimes: Resposta inesperada:', data);
+      return [];
     } catch (err) {
       console.error('❌ Erro ao buscar times:', err);
       throw err;

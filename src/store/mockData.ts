@@ -234,11 +234,15 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
     try {
       const state = get();
       if (!state.eventoAtualId) {
+        console.warn('⚠️ loadTeams: Nenhum evento selecionado');
         return;
       }
       const eventId = state.eventoAtualId;
       const teams = await api.getTimes(eventId);
       if (get().eventoAtualId !== eventId) return;
+      
+      console.log(`✅ loadTeams: ${(Array.isArray(teams) ? teams : []).length} times carregados`);
+      
       const normalizedTeams = (Array.isArray(teams) ? teams : []).map((team: any) => ({
         ...team,
         points: Number(team.points ?? team.score ?? 0),
@@ -247,8 +251,8 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
         icon: team.icon || '🏆',
       }));
       set({ teams: normalizedTeams });
-    } catch {
-      // Erro silencioso
+    } catch (error) {
+      console.error('❌ Erro ao carregar times:', error);
     }
   },
 
