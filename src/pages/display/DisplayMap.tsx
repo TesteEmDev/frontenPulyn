@@ -6,6 +6,9 @@ import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import { ZoneConquestIndividualZones } from '../../components/display/ZoneConquestIndividualZones';
 import { CheckpointProtectionIndicator } from '../../components/display/CheckpointProtectionIndicator';
+import { ZoneConquestTeamRenderer } from '../../components/display/ZoneConquestTeamRenderer';
+import { ZoneConquestIndividualRenderer } from '../../components/display/ZoneConquestIndividualRenderer';
+import { useZoneRenderingMode } from '../../hooks/useZoneConquestMode';
 import type { ZoneState, CheckpointState } from '../../hooks/useZoneConquestGame';
 
 interface Zone {
@@ -117,9 +120,16 @@ export default function DisplayMap({
 }: DisplayMapProps) {
   const { children, checkpoints, scoreLog, teams } = usePulynStore();
   const eventoAtual = usePulynStore((state: any) => state.eventoAtualId);
+  const currentPartidaId = usePulynStore((state: any) => state.currentPartidaId);
   const activeGame = usePulynStore((state: any) => state.activeGame);
   const [zones, setZones] = useState<Zone[]>(DEFAULT_ZONES);
   const [localFloorPlan, setLocalFloorPlan] = useState<string | null>(floorPlan || null);
+  
+  // 🆕 Detectar modo Zone Conquest (TEAM ou INDIVIDUAL)
+  const { renderMode, isTeam, isIndividual, isActive: isZoneModeActive } = useZoneRenderingMode(
+    eventoAtual,
+    gameType
+  );
 
   // Usar gameType da prop se disponível
   const isTreasureMode = gameType === 'treasure_hunt';
@@ -137,66 +147,91 @@ export default function DisplayMap({
     }
   }, [floorPlan]);
 
-  // Carregar zonas do backend com polling
+  // 🆕 Quando currentPartidaId muda (novo jogo), limpar scoreLog visual
   useEffect(() => {
+    if (currentPartidaId) {
+      // Força recarregamento do scoreLog para esta partida
+      const { clearScoreLog } = usePulynStore.getState();
+      clearScoreLog(); // Limpar completamente para nova sessão
+      console.log(`🎯 [DisplayMap] Nova partida detectada: ${currentPartidaId}`);
+    }
+  }, [currentPartidaId]);
+
+  // Carregar scoreLog quando sessionId muda (novo jogo começou)
+  // + Polling a cada 2 segundos enquanto jogo está ativo
+  useEffect(() => {
+    if (!currentPartidaId || !eventoAtual) return;
+    
     const loadData = async () => {
+      const { loadScoreLog } = usePulynStore.getState();
+      await loadScoreLog();
+    };
+    
+    // Carrega imediatamente
+    loadData();
+    
+    // Polling a cada 2 segundos (muito mais rápido que antes)
+    const interval = setInterval(loadData, 2000);
+    return () => clearInterval(interval);
+  }, [currentPartidaId, eventoAtual]);
+
+  // 🆕 Carregar zonas do backend quando evento muda
+  useEffect(() => {
+    const loadZones = async () => {
       try {
         if (!eventoAtual) {
           setZones(DEFAULT_ZONES);
-          setLocalFloorPlan(null);
           return;
         }
 
-        // Buscar zonas do backend (com fallback localStorage)
-        try {
-          const zonesData = await api.getZones(eventoAtual);
-          if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
-            setZones(zonesData);
-            // Atualizar localStorage como cache
-            localStorage.setItem(`zones_${eventoAtual}`, JSON.stringify(zonesData));
-          } else {
-            const key = `zones_${eventoAtual}`;
-            const stored = localStorage.getItem(key);
-            if (stored) {
-              const parsed = JSON.parse(stored);
-              setZones(parsed);
-            } else {
-              setZones(DEFAULT_ZONES);
-            }
-          }
-        } catch (apiError) {
-          const key = `zones_${eventoAtual}`;
-          const stored = localStorage.getItem(key);
-          if (stored) {
-            try {
-              const parsed = JSON.parse(stored);
-              setZones(parsed);
-            } catch (e) {
-              setZones(DEFAULT_ZONES);
-            }
+        const zonesData = await api.getZones(eventoAtual);
+        if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
+          setZones(zonesData);
+          // Cache em localStorage
+          localStorage.setItem(`zones_${eventoAtual}`, JSON.stringify(zonesData));
+        } else {
+          // Tentar recuperar do cache
+          const cached = localStorage.getItem(`zones_${eventoAtual}`);
+          if (cached) {
+            setZones(JSON.parse(cached));
           } else {
             setZones(DEFAULT_ZONES);
           }
         }
-      } catch (error) {
-        console.error('Erro ao carregar dados do mapa:', error);
-        setZones(DEFAULT_ZONES);
+      } catch (err) {
+        console.error('Erro ao carregar zonas:', err);
+        const cached = localStorage.getItem(`zones_${eventoAtual}`);
+        if (cached) {
+          setZones(JSON.parse(cached));
+        } else {
+          setZones(DEFAULT_ZONES);
+        }
       }
     };
 
-    // Carregar imediatamente
-    loadData();
-    
-    // Polling a cada 5 segundos para sincronizar mudanças de zona (reduzido frequência para economizar conexões)
-    const interval = setInterval(loadData, 5000);
-    return () => clearInterval(interval);
-  }, [eventoAtual, shouldShowPlanta]);
+    loadZones();
+  }, [eventoAtual]);
 
   const teamById = useMemo(() => {
     const map = new Map<string, Team>();
     teams.forEach((team) => map.set(String(team.id).toLowerCase(), team));
     return map;
   }, [teams]);
+
+  // 🆕 Filtrar scoreLog para apenas incluir da sessão atual
+  const scoreLogCurrentSession = useMemo(() => {
+    console.log(`📊 [DisplayMap] Recalculando scoreLog: ${scoreLog.length} entries, currentPartidaId=${currentPartidaId}`);
+    if (!scoreLog) return [];
+    
+    // Se temos currentPartidaId, filtrar scoreLog para apenas essa sessão
+    if (!currentPartidaId) return [];
+    
+    return scoreLog.filter(entry => {
+      const entrySessionId = (entry as any).session_id || (entry as any).sessionId;
+      if (!entrySessionId) return true;  // Compatibilidade com dados antigos
+      return entrySessionId === currentPartidaId;
+    });
+  }, [scoreLog, currentPartidaId]);
 
   // Nova lógica: checkpoint é dominado pela equipe com maior número de leituras
   // Em caso de empate, equipe que chegou primeiro (timestamp mais antigo)
@@ -238,7 +273,7 @@ export default function DisplayMap({
       // Contar leituras por checkpoint por equipe
       const readingsByTeam = new Map<string, { count: number; firstTimestamp: number; team: Team }>();
       
-      for (const entry of scoreLog) {
+      for (const entry of scoreLogCurrentSession) {
         const entryCheckpointId = entry.checkpointId ?? entry.checkpoint_id ?? entry.checkpoint;
         if (String(entryCheckpointId) !== String(checkpoint.id)) continue;
         
@@ -484,11 +519,11 @@ export default function DisplayMap({
       : 'fixed inset-0 flex flex-col overflow-hidden bg-gradient-dark'}>
       <div className={`relative z-10 border-b border-dark-border/50 text-center ${embedded ? 'pb-4' : 'py-6'}`}>
         <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary-300">
-          {activeGame?.type === 'treasure_hunt' ? 'Caça ao Tesouro' : 'Brincadeira Zona'}
+          {activeGame?.type === 'treasure_hunt' ? 'Caça ao Tesouro' : isTeam ? 'Zona - Modo Equipe' : isIndividual ? 'Zona - Modo Individual' : 'Brincadeira Zona'}
         </p>
         <h1 className="font-display text-3xl text-slate-100">Mapa do Espaço</h1>
         <p className="mt-1 text-sm uppercase tracking-widest text-slate-500">
-          {activeGame?.type === 'treasure_hunt' ? 'Localização dos checkpoints em tempo real' : 'Domínio dos territórios em tempo real'}
+          {activeGame?.type === 'treasure_hunt' ? 'Localização dos checkpoints em tempo real' : isTeam ? 'Domínio de zonas por equipe' : isIndividual ? 'Competição individual por checkpoints' : 'Domínio dos territórios em tempo real'}
         </p>
       </div>
 
@@ -504,17 +539,40 @@ export default function DisplayMap({
             className="absolute inset-0 h-full w-full object-contain opacity-40 z-0 pointer-events-none"
           />
         )}
-        
         {/* SVG com viewBox em pixels, mantendo proporções sem esticar */}
         <svg
           className="absolute inset-0 w-full h-full z-10"
           viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
           preserveAspectRatio="xMidYMid meet"
         >
-          {/* 🆕 Zonas do Zone Conquest INDIVIDUAL */}
-          {zoneConquestZones && zoneConquestZones.length > 0 ? (
-            <ZoneConquestIndividualZones zones={zoneConquestZones} width={MAP_WIDTH} height={MAP_HEIGHT} />
+          {/* 🆕 Renderizadores específicos por modo Zone Conquest */}
+          {isZoneModeActive && isTeam ? (
+            // MODO TEAM: usar ZoneConquestTeamRenderer
+            <ZoneConquestTeamRenderer
+              zones={zones}
+              checkpoints={checkpoints}
+              children={children}
+              teams={teams}
+              scoreLog={scoreLog}
+              checkpointPositions={checkpointPositions}
+              MAP_WIDTH={MAP_WIDTH}
+              MAP_HEIGHT={MAP_HEIGHT}
+            />
+          ) : isZoneModeActive && isIndividual ? (
+            // MODO INDIVIDUAL: usar ZoneConquestIndividualRenderer
+            <ZoneConquestIndividualRenderer
+              zones={zones}
+              checkpoints={checkpoints}
+              children={children}
+              teams={teams}
+              zoneConquestZones={zoneConquestZones}
+              zoneConquestCheckpoints={zoneConquestCheckpoints}
+              checkpointPositions={checkpointPositions}
+              MAP_WIDTH={MAP_WIDTH}
+              MAP_HEIGHT={MAP_HEIGHT}
+            />
           ) : (
+            // FALLBACK: renderização padrão (para outros modos de jogo)
             <>
               {/* Zonas em coordenadas de pixels (como AdminMap) - só mostrar em modo zona */}
               {activeGame?.type !== 'treasure_hunt' && zones.map((zone) => {
@@ -579,66 +637,48 @@ export default function DisplayMap({
                   </g>
                 );
               })}
+
+              {/* Checkpoints em coordenadas de pixels (como AdminMap) */}
+              {checkpointPositions.map(({ checkpoint, x, y }) => {
+                const owner = checkpointOwnerById.get(String(checkpoint.id));
+                const isOnline = checkpoint.status === 'online';
+                const color = owner?.color || (isOnline ? '#22C55E' : '#EF4444');
+                
+                return (
+                  <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
+                    <circle r={17} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={2} />
+                    <circle r={5} fill={color} />
+                    <text y={-22} textAnchor="middle" fill="#FFFFFF" fontSize={10} fontWeight={600}>
+                      {checkpoint.id}
+                    </text>
+                    <text y={30} textAnchor="middle" fill="#D1D5DB" fontSize={9}>
+                      {checkpoint.name}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Avatares como foreignObject dentro do SVG (mesmas coordenadas em pixels) */}
+              {childPositions.map((position) => (
+                <foreignObject
+                  key={position.id}
+                  x={position.x - 28}
+                  y={position.y - 60}
+                  width={56}
+                  height={150}
+                >
+                  <div className="flex flex-col items-center w-full pointer-events-none" style={{ transform: 'scale(0.8)' }}>
+                    <div className="animate-float">
+                      <Avatar emoji={position.avatar || DEFAULT_AVATAR_ID} size="sm" decorative />
+                    </div>
+                    <span className="whitespace-normal text-center font-display text-[11px] text-slate-300 leading-tight px-1">
+                      {position.nickname || 'Participante'}
+                    </span>
+                  </div>
+                </foreignObject>
+              ))}
             </>
           )}
-
-          {/* 🆕 Indicadores de Proteção do Zone Conquest INDIVIDUAL */}
-          {zoneConquestCheckpoints && zoneConquestCheckpoints.map((cp) => {
-            const position = checkpointPositions.find(p => p.checkpoint.id === cp.id);
-            if (!position || !cp.isProtected) return null;
-            
-            return (
-              <CheckpointProtectionIndicator
-                key={`protection-${cp.id}`}
-                checkpointId={cp.id}
-                participantName={cp.participantName}
-                participantColor={cp.participantColor}
-                protectedUntil={cp.protectedUntil}
-                x={position.x}
-                y={position.y}
-              />
-            );
-          })}
-
-          {/* Checkpoints em coordenadas de pixels (como AdminMap) */}
-          {checkpointPositions.map(({ checkpoint, x, y }) => {
-            const owner = checkpointOwnerById.get(String(checkpoint.id));
-            const isOnline = checkpoint.status === 'online';
-            const color = owner?.color || (isOnline ? '#22C55E' : '#EF4444');
-            
-            return (
-              <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
-                <circle r={17} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={2} />
-                <circle r={5} fill={color} />
-                <text y={-22} textAnchor="middle" fill="#FFFFFF" fontSize={10} fontWeight={600}>
-                  {checkpoint.id}
-                </text>
-                <text y={30} textAnchor="middle" fill="#D1D5DB" fontSize={9}>
-                  {checkpoint.name}
-                </text>
-              </g>
-            );
-          })}
-
-          {/* Avatares como foreignObject dentro do SVG (mesmas coordenadas em pixels) */}
-          {childPositions.map((position) => (
-            <foreignObject
-              key={position.id}
-              x={position.x - 28}
-              y={position.y - 60}
-              width={56}
-              height={150}
-            >
-              <div className="flex flex-col items-center w-full pointer-events-none" style={{ transform: 'scale(0.8)' }}>
-                <div className="animate-float">
-                  <Avatar emoji={position.avatar || DEFAULT_AVATAR_ID} size="sm" decorative />
-                </div>
-                <span className="whitespace-normal text-center font-display text-[11px] text-slate-300 leading-tight px-1">
-                  {position.nickname || 'Participante'}
-                </span>
-              </div>
-            </foreignObject>
-          ))}
         </svg>
       </div>
 
