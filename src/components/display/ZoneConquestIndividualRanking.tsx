@@ -53,7 +53,7 @@ export function ZoneConquestIndividualRanking({ participants, compact = false }:
             {/* Points */}
             <div className="text-right">
               <p className="text-lg font-bold" style={{ color: participant.color }}>
-                {participant.totalPoints.toFixed(1)}
+                {(participant.totalPoints ?? 0).toFixed(1)}
               </p>
               <p className="text-xs text-gray-500">pts</p>
             </div>
@@ -83,7 +83,7 @@ export function ZoneConquestIndividualRanking({ participants, compact = false }:
               </div>
               <p className="text-sm font-semibold text-white mt-2 text-center">{sorted[1].name}</p>
               <p className="text-lg font-bold" style={{ color: sorted[1].color }}>
-                {sorted[1].totalPoints.toFixed(1)}
+                {(sorted[1].totalPoints ?? 0).toFixed(1)}
               </p>
             </div>
           )}
@@ -100,7 +100,7 @@ export function ZoneConquestIndividualRanking({ participants, compact = false }:
               </div>
               <p className="text-sm font-bold text-white mt-2 text-center">{sorted[0].name}</p>
               <p className="text-xl font-bold" style={{ color: sorted[0].color }}>
-                {sorted[0].totalPoints.toFixed(1)}
+                {(sorted[0].totalPoints ?? 0).toFixed(1)}
               </p>
             </div>
           )}
@@ -117,7 +117,7 @@ export function ZoneConquestIndividualRanking({ participants, compact = false }:
               </div>
               <p className="text-sm font-semibold text-white mt-2 text-center">{sorted[2].name}</p>
               <p className="text-lg font-bold" style={{ color: sorted[2].color }}>
-                {sorted[2].totalPoints.toFixed(1)}
+                {(sorted[2].totalPoints ?? 0).toFixed(1)}
               </p>
             </div>
           )}
@@ -152,7 +152,7 @@ export function ZoneConquestIndividualRanking({ participants, compact = false }:
             {/* Points */}
             <div className="text-right flex-shrink-0">
               <p className="text-xl font-bold" style={{ color: participant.color }}>
-                {participant.totalPoints.toFixed(1)}
+                {(participant.totalPoints ?? 0).toFixed(1)}
               </p>
               <p className="text-xs text-gray-500">pontos</p>
             </div>
