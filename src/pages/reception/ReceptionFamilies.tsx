@@ -69,13 +69,28 @@ export default function ReceptionFamilies() {
       setError('');
       const result = await api.createFamilyInvite({ eventoId: eventId });
       
+      // Debug: log o que a API retorna
+      console.log('🔍 API Response:', result);
+      console.log('🔍 Token recebido:', result.token);
+      
       // Se result.token já é uma URL, extrair apenas o token
       let token = result.token;
+      
+      // Estratégia 1: Se contém /, pega a última parte
       if (token && token.includes('/')) {
-        // Extrai a última parte após a última barra
         token = token.split('/').pop() || token;
+        console.log('✂️ Extraído com split: ', token);
       }
       
+      // Estratégia 2: Se ainda contém "://" ou "https", é URL completa - extrai só o final
+      if (token && (token.includes('://') || token.includes('https'))) {
+        // Extrai após o último /
+        const parts = token.split('/');
+        token = parts[parts.length - 1];
+        console.log('✂️ Extraído URL completa: ', token);
+      }
+      
+      console.log('✅ Token final: ', token);
       setInviteUrl(`${window.location.origin}/family/invite/${token}`);
       setCopied(false);
     } catch (err: any) {
