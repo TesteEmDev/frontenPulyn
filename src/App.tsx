@@ -112,6 +112,11 @@ function App() {
   
   const { isAuthenticated, user } = useAuth();
 
+  // Log todas as mudanças de rota
+  useEffect(() => {
+    console.log('📍 Rota atual:', window.location.pathname);
+  }, []);
+
   // Restaurar sessão ao iniciar a app
   useEffect(() => {
     const token = localStorage.getItem('authToken');

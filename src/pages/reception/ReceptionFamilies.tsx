@@ -69,17 +69,9 @@ export default function ReceptionFamilies() {
       setError('');
       const result = await api.createFamilyInvite({ eventoId: eventId });
       
-      console.log('🔍 API Full Response:', result);
-      console.log('🔍 result.token:', result.token);
-      console.log('🔍 result.inviteUrl:', result.inviteUrl);
-      
       // Sempre usar result.token e reconstruir com window.location.origin
       const token = result.token;
       const correctUrl = `${window.location.origin}/family/invite/${token}`;
-      
-      console.log('✅ Token simples: ', token);
-      console.log('✅ Window origin: ', window.location.origin);
-      console.log('✅ URL final: ', correctUrl);
       
       setInviteUrl(correctUrl);
       setCopied(false);
