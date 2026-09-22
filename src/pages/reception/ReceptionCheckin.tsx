@@ -158,11 +158,15 @@ export default function ReceptionCheckin() {
     const loadData = async () => {
       setLoading(true);
       try {
+        console.log('🔍 [ReceptionCheckin] Iniciando carregamento de dados...');
         const [eventosData, controlData] = await Promise.all([
           loadEventos(),
           api.getActiveEventControl().catch(() => ({ event: null })),
         ]);
+        console.log('📊 [ReceptionCheckin] eventosData:', eventosData);
+        console.log('📊 [ReceptionCheckin] controlData:', controlData);
         const availableEvents = eventosData || [];
+        console.log('📊 [ReceptionCheckin] availableEvents:', availableEvents);
         setEvents(availableEvents);
         const controlledEvent = controlData?.event
           ? availableEvents.find(event => String(event.id) === String(controlData.event.id))

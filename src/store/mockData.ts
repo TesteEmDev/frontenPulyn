@@ -348,11 +348,13 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
 
   loadEventos: async () => {
     try {
+      console.log('🔍 [loadEventos] Chamando api.getEventos()...');
       const eventos = await api.getEventos();
+      console.log('✅ [loadEventos] Resposta recebida:', eventos);
       set({ events: eventos });
       return eventos;
     } catch (error) {
-      console.error('❌ Erro ao carregar eventos:', error);
+      console.error('❌ [loadEventos] Erro ao carregar eventos:', error);
       return [];
     }
   },
