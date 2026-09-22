@@ -69,11 +69,22 @@ export default function ReceptionFamilies() {
       setError('');
       const result = await api.createFamilyInvite({ eventoId: eventId });
       
-      // A API já retorna a URL completa e correta
-      // Usa result.inviteUrl que já está no domínio correto
-      const inviteLink = result.inviteUrl || `${window.location.origin}/family/invite/${result.token}`;
+      // A API retorna inviteUrl, mas pode estar com localhost hardcoded
+      // Extrair o token e reconstruir com o domínio atual
+      let inviteLink = result.inviteUrl;
       
-      console.log('✅ Invite URL final: ', inviteLink);
+      if (inviteLink) {
+        // Extrai apenas o token (última parte após /)
+        const token = inviteLink.split('/').pop();
+        // Reconstrói com o domínio atual
+        inviteLink = `${window.location.origin}/family/invite/${token}`;
+        console.log('✅ Invite URL (corrigida): ', inviteLink);
+      } else {
+        // Fallback se inviteUrl não vier
+        inviteLink = `${window.location.origin}/family/invite/${result.token}`;
+        console.log('✅ Invite URL (fallback): ', inviteLink);
+      }
+      
       setInviteUrl(inviteLink);
       setCopied(false);
     } catch (err: any) {
