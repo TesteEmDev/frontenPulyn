@@ -7,7 +7,7 @@ import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
-import QRCode from 'qrcode.react';
+import * as QRCodeReact from 'qrcode.react';
 
 const navItems = [
   { icon: <span>▦</span>, label: 'Dashboard', path: '/reception' },
@@ -29,7 +29,6 @@ export default function ReceptionFamilies() {
   const [working, setWorking] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [showQRModal, setShowQRModal] = useState(false);
-  const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
 
   const loadFamilyData = async (selectedEvent = eventId) => {
     try {
@@ -227,7 +226,7 @@ export default function ReceptionFamilies() {
             </div>
             <div className="bg-white p-4 rounded-lg mb-4 flex justify-center">
               <div id="invite-qr-code">
-                <QRCode value={inviteUrl} size={200} level="H" />
+                <QRCodeReact.QRCode value={inviteUrl} size={200} level="H" />
               </div>
             </div>
             <p className="text-sm text-gray-400 mb-4 text-center">
