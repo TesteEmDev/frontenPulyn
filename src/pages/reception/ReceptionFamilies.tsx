@@ -7,7 +7,7 @@ import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
-import * as QRCodeReact from 'qrcode.react';
+import QRCode from 'qrcode.react/lib/esm/index.js';
 
 const navItems = [
   { icon: <span>▦</span>, label: 'Dashboard', path: '/reception' },
@@ -234,7 +234,7 @@ export default function ReceptionFamilies() {
             </div>
             <div className="bg-white p-4 rounded-lg mb-4 flex justify-center">
               <div id="invite-qr-code">
-                <QRCodeReact.QRCode value={inviteUrl} size={200} level="H" />
+                <QRCode value={inviteUrl} size={200} level="H" />
               </div>
             </div>
             <p className="text-sm text-gray-400 mb-4 text-center">
