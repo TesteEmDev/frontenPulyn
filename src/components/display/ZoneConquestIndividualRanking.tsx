@@ -7,6 +7,12 @@ interface ZoneConquestIndividualRankingProps {
   compact?: boolean;
 }
 
+// Helper para garantir que é número
+const toNumber = (val: any): number => {
+  const num = Number(val);
+  return isNaN(num) ? 0 : num;
+};
+
 export function ZoneConquestIndividualRanking({ participants, compact = false }: ZoneConquestIndividualRankingProps) {
   if (!participants || participants.length === 0) {
     return (
@@ -53,7 +59,7 @@ export function ZoneConquestIndividualRanking({ participants, compact = false }:
             {/* Points */}
             <div className="text-right">
               <p className="text-lg font-bold" style={{ color: participant.color }}>
-                {(participant.totalPoints ?? 0).toFixed(1)}
+                {toNumber(participant.totalPoints).toFixed(1)}
               </p>
               <p className="text-xs text-gray-500">pts</p>
             </div>
@@ -83,7 +89,7 @@ export function ZoneConquestIndividualRanking({ participants, compact = false }:
               </div>
               <p className="text-sm font-semibold text-white mt-2 text-center">{sorted[1].name}</p>
               <p className="text-lg font-bold" style={{ color: sorted[1].color }}>
-                {(sorted[1].totalPoints ?? 0).toFixed(1)}
+                {toNumber(sorted[1].totalPoints).toFixed(1)}
               </p>
             </div>
           )}
@@ -100,7 +106,7 @@ export function ZoneConquestIndividualRanking({ participants, compact = false }:
               </div>
               <p className="text-sm font-bold text-white mt-2 text-center">{sorted[0].name}</p>
               <p className="text-xl font-bold" style={{ color: sorted[0].color }}>
-                {(sorted[0].totalPoints ?? 0).toFixed(1)}
+                {toNumber(sorted[0].totalPoints).toFixed(1)}
               </p>
             </div>
           )}
@@ -117,7 +123,7 @@ export function ZoneConquestIndividualRanking({ participants, compact = false }:
               </div>
               <p className="text-sm font-semibold text-white mt-2 text-center">{sorted[2].name}</p>
               <p className="text-lg font-bold" style={{ color: sorted[2].color }}>
-                {(sorted[2].totalPoints ?? 0).toFixed(1)}
+                {toNumber(sorted[2].totalPoints).toFixed(1)}
               </p>
             </div>
           )}
@@ -152,7 +158,7 @@ export function ZoneConquestIndividualRanking({ participants, compact = false }:
             {/* Points */}
             <div className="text-right flex-shrink-0">
               <p className="text-xl font-bold" style={{ color: participant.color }}>
-                {(participant.totalPoints ?? 0).toFixed(1)}
+                {toNumber(participant.totalPoints).toFixed(1)}
               </p>
               <p className="text-xs text-gray-500">pontos</p>
             </div>
