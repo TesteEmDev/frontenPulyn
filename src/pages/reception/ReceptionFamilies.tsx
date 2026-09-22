@@ -7,7 +7,7 @@ import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
-import QRCode from 'qrcode.react/lib/esm/index.js';
+import { QRCodeSVG as QRCode } from 'qrcode.react';
 
 const navItems = [
   { icon: <span>▦</span>, label: 'Dashboard', path: '/reception' },
