@@ -413,8 +413,15 @@ export const api = {
     return res.json();
   },
 
-  async getScoreHistory(eventoId: string, limit = 100) {
-    const res = await fetch(`${API_URL}/leituras/eventos/${encodeURIComponent(eventoId)}/historico?limit=${limit}`, {
+  async getScoreHistory(eventoId: string, limit = 100, sessionId?: string) {
+    let url = `${API_URL}/leituras/eventos/${encodeURIComponent(eventoId)}/historico?limit=${limit}`;
+    
+    // 🆕 Adicionar sessionId como query param se fornecido
+    if (sessionId) {
+      url += `&sessionId=${encodeURIComponent(sessionId)}`;
+    }
+    
+    const res = await fetch(url, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -761,11 +768,11 @@ export const api = {
     return data;
   },
 
-  async startGame(gameId: string, gameName: string, eventoId: string) {
+  async startGame(gameId: string, gameName: string, eventoId: string, zoneConquestMode?: string) {
     const res = await fetch(`${API_URL}/debug/start-game`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ gameId, gameName, eventoId }),
+      body: JSON.stringify({ gameId, gameName, eventoId, zoneConquestMode: zoneConquestMode || 'team' }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao iniciar jogo');
@@ -1282,6 +1289,240 @@ export const api = {
       return res.json();
     } catch (error) {
       console.error('❌ Erro ao salvar zonas:', error);
+      throw error;
+    }
+  },
+
+  // ==================== ZONE CONQUEST STATE ====================
+  
+  /**
+   * Inicializa os estados de checkpoint e zona para uma nova partida
+   */
+  async initializeZoneConquestState(
+    eventoId: string,
+    partidaId: string,
+    empresaId: string,
+    gameType: 'team' | 'individual' = 'team'
+  ) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/initialize/${encodeURIComponent(eventoId)}/${encodeURIComponent(partidaId)}?gameType=${gameType}`,
+        {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ empresaId }),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao inicializar zone conquest state (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao inicializar zone conquest state:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Recupera todos os estados de checkpoint para uma partida
+   */
+  async getCheckpointStates(eventoId: string, partidaId: string) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/checkpoint-states/${encodeURIComponent(eventoId)}/${encodeURIComponent(partidaId)}`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao carregar checkpoint states (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao carregar checkpoint states:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Recupera estado de um checkpoint específico
+   */
+  async getCheckpointState(eventoId: string, checkpointId: string, partidaId: string) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/checkpoint-state/${encodeURIComponent(eventoId)}/${encodeURIComponent(checkpointId)}/${encodeURIComponent(partidaId)}`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao carregar checkpoint state (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao carregar checkpoint state:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Atualiza o estado de um checkpoint
+   */
+  async updateCheckpointState(stateId: string, updates: any) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/checkpoint-state/${encodeURIComponent(stateId)}`,
+        {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(updates),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao atualizar checkpoint state (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao atualizar checkpoint state:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Recupera todos os estados de zona para uma partida
+   */
+  async getZoneStates(eventoId: string, partidaId: string) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/zone-states/${encodeURIComponent(eventoId)}/${encodeURIComponent(partidaId)}`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao carregar zone states (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao carregar zone states:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Recupera estado de uma zona específica
+   */
+  async getZoneState(eventoId: string, zoneId: string, partidaId: string) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/zone-state/${encodeURIComponent(eventoId)}/${encodeURIComponent(zoneId)}/${encodeURIComponent(partidaId)}`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao carregar zone state (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao carregar zone state:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Atualiza o estado de uma zona
+   */
+  async updateZoneState(stateId: string, updates: any) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/zone-state/${encodeURIComponent(stateId)}`,
+        {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(updates),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao atualizar zone state (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao atualizar zone state:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Recupera todas as partidas TEAM para um evento
+   */
+  async getZoneConquestTeamPartidas(eventoId: string) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/team-partidas/${encodeURIComponent(eventoId)}`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao carregar partidas TEAM (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao carregar partidas TEAM:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Recupera todas as partidas INDIVIDUAL para um evento
+   */
+  async getZoneConquestIndividualPartidas(eventoId: string) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/individual-partidas/${encodeURIComponent(eventoId)}`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao carregar partidas INDIVIDUAL (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao carregar partidas INDIVIDUAL:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Limpa todos os estados de uma partida
+   */
+  async clearZoneConquestState(eventoId: string, partidaId: string) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/clear/${encodeURIComponent(eventoId)}/${encodeURIComponent(partidaId)}`,
+        {
+          method: 'DELETE',
+          headers: getAuthHeaders(),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao limpar zone conquest state (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao limpar zone conquest state:', error);
       throw error;
     }
   },
