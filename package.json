@@ -1,0 +1,27 @@
+{
+  "name": "pulyn-monorepo",
+  "version": "1.0.0",
+  "description": "Pulyn - Plataforma de Eventos Interativos",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:frontend\"",
+    "dev:api": "cd api/server && npm run dev",
+    "dev:frontend": "cd front-pulyn && npm run dev",
+    "build": "npm run build:api && npm run build:frontend",
+    "build:api": "cd api/server && npm install",
+    "build:frontend": "cd front-pulyn && npm install && npm run build",
+    "install:all": "npm install && cd api/server && npm install && cd ../../front-pulyn && npm install",
+    "start": "npm run dev",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "pulyn",
+    "eventos",
+    "interativo"
+  ],
+  "author": "",
+  "license": "ISC"
+}
