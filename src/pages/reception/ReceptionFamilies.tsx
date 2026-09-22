@@ -68,7 +68,15 @@ export default function ReceptionFamilies() {
     try {
       setError('');
       const result = await api.createFamilyInvite({ eventoId: eventId });
-      setInviteUrl(`${window.location.origin}/family/invite/${result.token}`);
+      
+      // Se result.token já é uma URL, extrair apenas o token
+      let token = result.token;
+      if (token && token.includes('/')) {
+        // Extrai a última parte após a última barra
+        token = token.split('/').pop() || token;
+      }
+      
+      setInviteUrl(`${window.location.origin}/family/invite/${token}`);
       setCopied(false);
     } catch (err: any) {
       setError(err.message || 'Não foi possível criar o convite.');
