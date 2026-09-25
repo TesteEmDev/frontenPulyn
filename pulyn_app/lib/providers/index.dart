@@ -1,0 +1,409 @@
+// Providers locais definidos aqui
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:async';
+import 'auth_provider.dart';
+import 'websocket_provider.dart';
+import '../models/family_models.dart';
+import '../utils/logger.dart';
+
+// ✅ Exporta providers externos
+export 'auth_provider.dart' show apiServiceProvider, authProvider, authInitProvider;
+export 'websocket_provider.dart' show webSocketConnectionProvider, webSocketServiceProvider, webSocketStatusProvider;
+export 'events_provider.dart' show currentEventProvider, upcomingEventsProvider, eventDetailsProvider, eventResultsProvider, certificateProvider;
+
+// ✅ Exporta providers locais
+export 'index.dart' show activeEventProvider, activeGameProvider, mapChildrenRealtimeProvider, checkpointsByEventProvider, checkpointsCacheProvider, mapRefreshProvider, scoreLogProvider, childLastCheckpointProvider;
+
+// ✅ Provider para evento ativo (StreamProvider com polling a cada 5 segundos)
+// MUDADO DE FutureProvider PARA StreamProvider para refetch automático!
+final activeEventProvider = StreamProvider.autoDispose<Map<String, dynamic>?>((ref) async* {
+  final apiService = ref.read(apiServiceProvider);
+  await apiService.init();
+  
+  // Carrega INICIALMENTE
+  try {
+    final event = await apiService.getActiveEvent();
+    log.i('[EVENT] 📅 Evento ativo: ${event?['name'] ?? 'NENHUM'}');
+    yield event;
+  } catch (e) {
+    log.w('[EVENT] ⚠️ Erro ao carregar evento: $e');
+    yield null;
+  }
+  
+  // Polling automático a cada 5 segundos
+  while (true) {
+    await Future.delayed(const Duration(seconds: 5));
+    try {
+      final event = await apiService.getActiveEvent();
+      yield event;
+    } catch (e) {
+      // silencioso no polling
+    }
+  }
+});
+
+// ✅ Provider para jogo ativo do evento (StreamProvider com polling a cada 5 segundos)
+// MUDADO DE FutureProvider PARA StreamProvider para refetch automático!
+final activeGameProvider = StreamProvider.autoDispose<Map<String, dynamic>?>((ref) async* {
+  final apiService = ref.read(apiServiceProvider);
+  await apiService.init();
+  
+  // Carrega INICIALMENTE
+  try {
+    final activeGame = await apiService.getActiveGame();
+    
+    if (activeGame == null) {
+      log.i('[GAME] 🎮 Jogo ativo: NENHUM');
+      yield null;
+    } else {
+      // 🎯 Usar gameName (nome da brincadeira ativa), não name (nome do evento)
+      final gameName = activeGame['gameName'] ?? 'Nenhum jogo em andamento';
+      log.i('[GAME] 🎮 Jogo ativo: $gameName');
+      yield {
+        'id': activeGame['id'],
+        'name': activeGame['name'], // Nome do evento
+        'gameName': gameName, // Nome da brincadeira ativa
+        'gameId': activeGame['gameId'],
+        'description': activeGame['gameDescription'] ?? 'Jogo em andamento',
+        'type': activeGame['gameType'] ?? 'standard',
+        'duration': activeGame['duration'],
+        'default_points': activeGame['default_points'],
+        'hasActiveGame': activeGame['hasActiveGame'] ?? false,
+      };
+    }
+  } catch (e) {
+    log.w('[GAME] ⚠️ Erro ao carregar jogo: $e');
+    yield null;
+  }
+  
+  // Polling automático a cada 5 segundos
+  while (true) {
+    await Future.delayed(const Duration(seconds: 5));
+    try {
+      final activeGame = await apiService.getActiveGame();
+      if (activeGame != null) {
+        final gameName = activeGame['gameName'] ?? 'Nenhum jogo em andamento';
+        yield {
+          'id': activeGame['id'],
+          'name': activeGame['name'],
+          'gameName': gameName,
+          'gameId': activeGame['gameId'],
+          'description': activeGame['gameDescription'] ?? 'Jogo em andamento',
+          'type': activeGame['gameType'] ?? 'standard',
+          'duration': activeGame['duration'],
+          'default_points': activeGame['default_points'],
+          'hasActiveGame': activeGame['hasActiveGame'] ?? false,
+        };
+      } else {
+        yield null;
+      }
+    } catch (e) {
+      // silencioso no polling
+    }
+  }
+});
+
+// ✅ Provider para atualização de crianças em tempo real via polling + WebSocket trigger
+// Exatamente igual ao childrenProvider do home_screen.dart que FUNCIONA!
+final mapChildrenRealtimeProvider = StreamProvider.autoDispose<List<Child>>((ref) async* {
+  final apiService = ref.read(apiServiceProvider);
+  await apiService.init();
+  
+  // ✅ Watch o refresh notifier para refetch quando necessário
+  ref.watch(mapRefreshProvider);
+  
+  // ✅ Carrega dados INICIALMENTE
+  log.i('[MAP_PROVIDER] 🔄 Carregando filhos (inicial)...');
+  try {
+    final children = await apiService.getChildren();
+    log.i('[MAP_PROVIDER] ✅ Filhos carregados: ${children.length}');
+    yield children;
+  } catch (e) {
+    log.e('[MAP_PROVIDER] ❌ Erro ao carregar: $e');
+    yield [];
+  }
+  
+  // ✅ Polling automático a cada 5 segundos
+  while (true) {
+    await Future.delayed(const Duration(seconds: 5));
+    try {
+      final children = await apiService.getChildren();
+      log.i('[MAP_PROVIDER] 📡 Dados atualizados via polling');
+      yield children;
+    } catch (e) {
+      log.e('[MAP_PROVIDER] ❌ Erro no polling: $e');
+    }
+  }
+});
+
+/// Notifier para trigger manual de refresh do mapa
+class MapRefreshNotifier extends StateNotifier<int> {
+  MapRefreshNotifier() : super(0);
+  
+  void refresh() {
+    state++;
+    log.i('[MAP] 🔄 Trigger refresh: $state');
+  }
+}
+
+final mapRefreshProvider = StateNotifierProvider((ref) {
+  return MapRefreshNotifier();
+});
+
+// ✅ Provider para scoreLog - rastreia conquistas em tempo real
+final scoreLogProvider = StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) async* {
+  final apiService = ref.read(apiServiceProvider);
+  await apiService.init();
+  
+  // ✅ Watch o refresh notifier para refetch quando necessário
+  ref.watch(mapRefreshProvider);
+  
+  // ✅ Carrega histórico INICIALMENTE
+  try {
+    final activeEvent = await apiService.getActiveEvent();
+    if (activeEvent != null) {
+      final history = await apiService.getScoreHistory(activeEvent['id']);
+      yield history;
+    } else {
+      yield [];
+    }
+  } catch (e) {
+    yield [];
+  }
+  
+  // ✅ Polling automático a cada 10 segundos
+  while (true) {
+    await Future.delayed(const Duration(seconds: 10));
+    try {
+      final activeEvent = await apiService.getActiveEvent();
+      if (activeEvent != null) {
+        final history = await apiService.getScoreHistory(activeEvent['id']);
+        yield history;
+      }
+    } catch (e) {
+      // silencioso
+    }
+  }
+});
+
+/// Provider que calcula o ÚLTIMO checkpoint conquistado de cada criança
+final childLastCheckpointProvider = Provider.autoDispose<Map<String, Map<String, dynamic>>>((ref) {
+  final scoreLogAsync = ref.watch(scoreLogProvider);
+  
+  return scoreLogAsync.whenData((scoreLog) {
+    final lastCheckpointMap = <String, Map<String, dynamic>>{};
+    
+    if (scoreLog.isEmpty) {
+      return lastCheckpointMap;
+    }
+    
+    // Inverte a lista (mais recentes primeiro)
+    final sorted = [...scoreLog].reversed.toList();
+    
+    for (final entry in sorted) {
+      try {
+        // ✅ Tentar TODOS os possíveis nomes de campo
+        String? childId;
+        if (entry.containsKey('child_id')) childId = entry['child_id'] as String?;
+        else if (entry.containsKey('childId')) childId = entry['childId'] as String?;
+        else if (entry.containsKey('crianca_id')) childId = entry['crianca_id'] as String?;
+        
+        String? checkpointId;
+        if (entry.containsKey('checkpoint_id')) checkpointId = entry['checkpoint_id'] as String?;
+        else if (entry.containsKey('checkpointId')) checkpointId = entry['checkpointId'] as String?;
+        else if (entry.containsKey('checkpoint')) checkpointId = entry['checkpoint'] as String?;
+        
+        String? checkpointName;
+        if (entry.containsKey('checkpoint_name')) checkpointName = entry['checkpoint_name'] as String?;
+        else if (entry.containsKey('checkpointName')) checkpointName = entry['checkpointName'] as String?;
+        
+        if (childId == null) {
+          continue;
+        }
+        
+        // Se já tem um registro para essa criança, pula
+        if (lastCheckpointMap.containsKey(childId)) {
+          continue;
+        }
+        
+        if (checkpointId != null) {
+          lastCheckpointMap[childId] = {
+            'checkpointId': checkpointId,
+            'checkpointName': checkpointName,
+            'timestamp': entry['created_at'] ?? DateTime.now().toIso8601String(),
+            'points': entry['points'] ?? 0,
+          };
+        }
+      } catch (e) {
+        // sem log
+      }
+    }
+    
+    return lastCheckpointMap;
+  }).value ?? {};
+});
+
+/// Provider para cache de checkpoints por evento
+final checkpointsCacheProvider = StateNotifierProvider<CheckpointsCacheNotifier, Map<String, List<Map<String, dynamic>>>>((ref) {
+  return CheckpointsCacheNotifier();
+});
+
+class CheckpointsCacheNotifier extends StateNotifier<Map<String, List<Map<String, dynamic>>>> {
+  CheckpointsCacheNotifier() : super({});
+
+  void setCheckpoints(String eventoId, List<Map<String, dynamic>> checkpoints) {
+    state = {...state, eventoId: checkpoints};
+  }
+
+  List<Map<String, dynamic>>? getCheckpoints(String eventoId) {
+    return state[eventoId];
+  }
+
+  void clearCache() {
+    state = {};
+  }
+}
+
+/// Provider para buscar checkpoints com cache
+final checkpointsByEventProvider = FutureProvider.family<List<Map<String, dynamic>>, String>((ref, eventoId) async {
+  final cache = ref.read(checkpointsCacheProvider);
+  final cachedCheckpoints = cache[eventoId];
+  
+  // Se tem no cache, retorna sem log
+  if (cachedCheckpoints != null) {
+    return cachedCheckpoints;
+  }
+
+  // Se não tem no cache, busca da API (só loga uma vez)
+  final apiService = ref.read(apiServiceProvider);
+  await apiService.init();
+  
+  final checkpoints = await apiService.getCheckpointsByEvent(eventoId);
+  
+  // Salva no cache
+  ref.read(checkpointsCacheProvider.notifier).setCheckpoints(eventoId, checkpoints);
+  
+  return checkpoints;
+});
+
+
+// ✅ Provider para rastreamento em TEMPO REAL via WebSocket
+// Escuta eventos de SCORE_UPDATE e atualiza posições de crianças instantaneamente
+final realtimeCheckpointTrackingProvider = StateNotifierProvider<RealtimeTrackingNotifier, Map<String, CheckpointReading>>((ref) {
+  final notifier = RealtimeTrackingNotifier();
+  
+  // ✅ Setup listener de WebSocket quando o provider é criado
+  Future.microtask(() {
+    final webSocketService = ref.read(webSocketServiceProvider);
+    
+    // Escuta evento SCORE_UPDATE quando criança lê uma pulseira
+    webSocketService.on('SCORE_UPDATE', (data) {
+      log.i('⚡ PULSEIRA LIDA - Criança: ${data['child_name'] ?? 'N/A'} | Checkpoint: ${data['checkpoint_name'] ?? 'N/A'} | Pontos: ${data['points'] ?? 0}');
+      
+      try {
+        final childId = data['child_id'] ?? data['childId'];
+        final checkpointId = data['checkpoint_id'] ?? data['checkpointId'] ?? data['checkpoint'];
+        final checkpointName = data['checkpoint_name'] ?? data['checkpointName'] ?? '';
+        final points = data['points'] ?? 0;
+        
+        if (childId != null && checkpointId != null) {
+          notifier.updateChildCheckpoint(
+            childId.toString(),
+            checkpointId.toString(),
+            checkpointName.toString(),
+            points,
+          );
+        }
+      } catch (e) {
+        // erro silencioso
+      }
+    });
+    
+    // Escuta evento TERRITORY_CONQUERED (zona conquistada)
+    webSocketService.on('TERRITORY_CONQUERED', (data) {
+      log.i('🏆 TERRITÓRIO CONQUISTADO - Time: ${data['teamName'] ?? 'N/A'} | Checkpoint: ${data['checkpoint_name'] ?? 'N/A'}');
+      
+      try {
+        final childId = data['crianca_id'] ?? data['child_id'] ?? data['childId'];
+        final checkpointId = data['checkpoint_id'] ?? data['checkpointId'];
+        final checkpointName = data['checkpoint_name'] ?? data['checkpointName'] ?? '';
+        final teamColor = data['teamColor'] ?? '#FFFFFF';
+        
+        if (childId != null && checkpointId != null) {
+          notifier.updateChildCheckpoint(
+            childId.toString(),
+            checkpointId.toString(),
+            checkpointName.toString(),
+            10, // default points
+            teamColor: teamColor.toString(),
+          );
+        }
+      } catch (e) {
+        // erro silencioso
+      }
+    });
+  });
+  
+  return notifier;
+});
+
+/// Classe para armazenar informações de leitura de checkpoint
+class CheckpointReading {
+  final String checkpointId;
+  final String checkpointName;
+  final int points;
+  final DateTime timestamp;
+  final String? teamColor;
+  
+  CheckpointReading({
+    required this.checkpointId,
+    required this.checkpointName,
+    required this.points,
+    DateTime? timestamp,
+    this.teamColor,
+  }) : timestamp = timestamp ?? DateTime.now();
+}
+
+/// Notifier para rastreamento em tempo real
+class RealtimeTrackingNotifier extends StateNotifier<Map<String, CheckpointReading>> {
+  RealtimeTrackingNotifier() : super({});
+  
+  /// Atualiza a posição de uma criança quando ela lê uma pulseira
+  void updateChildCheckpoint(
+    String childId,
+    String checkpointId,
+    String checkpointName,
+    int points, {
+    String? teamColor,
+  }) {
+    log.i('[TRACKING_NOTIFIER] 📍 Atualizando criança $childId → checkpoint $checkpointName');
+    
+    state = {
+      ...state,
+      childId: CheckpointReading(
+        checkpointId: checkpointId,
+        checkpointName: checkpointName,
+        points: points,
+        teamColor: teamColor,
+      ),
+    };
+    
+    log.i('[TRACKING_NOTIFIER] ✅ Estado atualizado. Total: ${state.length} crianças rastreadas');
+  }
+  
+  /// Obtém o último checkpoint de uma criança
+  CheckpointReading? getChildLastCheckpoint(String childId) {
+    return state[childId];
+  }
+  
+  /// Limpa o rastreamento de uma criança (ou de todas)
+  void clearTracking({String? childId}) {
+    if (childId != null) {
+      state = {...state}..remove(childId);
+      log.i('[TRACKING_NOTIFIER] 🗑️ Rastreamento de $childId removido');
+    } else {
+      state = {};
+      log.i('[TRACKING_NOTIFIER] 🗑️ Todos os rastreamentos removidos');
+    }
+  }
+}
