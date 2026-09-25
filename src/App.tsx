@@ -86,7 +86,7 @@ function DisplayRealtimeBridge({ enabled }: { enabled: boolean }) {
       );
     }
 
-    if (['TERRITORY_CONQUERED', 'TREASURE_PROGRESS', 'TREASURE_ROUND_COMPLETED', 'MONSTER_PROGRESS', 'MONSTER_SPECIAL_ATTACK', 'MONSTER_TEAM_DEFEATED', 'MONSTER_DEFEATED'].includes(event.type)) {
+    if (['TERRITORY_CONQUERED', 'TERRITORY_RESET', 'TREASURE_PROGRESS', 'TREASURE_ROUND_COMPLETED', 'MONSTER_PROGRESS', 'MONSTER_SPECIAL_ATTACK', 'MONSTER_TEAM_DEFEATED', 'MONSTER_DEFEATED'].includes(event.type)) {
       await Promise.all([loadTeams(), loadChildren(), loadCheckpoints(), loadScoreLog()]);
     }
   }, [eventId, applyTerritoryConquest, loadTeams, loadChildren, loadCheckpoints, loadScoreLog]);
