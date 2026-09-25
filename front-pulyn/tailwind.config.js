@@ -172,7 +172,7 @@ export default {
         },
         float: {
           '0%, 100%': { transform: 'translateY(0)' },
-          '50%': { transform: 'translateY(-10px)' },
+          '50%': { transform: 'translateY(-5px)' },
         },
         slideUp: {
           '0%': { transform: 'translateY(20px)', opacity: '0' },

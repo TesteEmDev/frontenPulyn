@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map, FileText, RefreshCw, Settings, Upload, CreditCard as Edit3, Trash2, Plus, Save, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map, FileText, RefreshCw, Settings, Upload, Pencil, Trash2, Plus, Save, Loader2 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
@@ -51,9 +51,7 @@ const initialZones: Zone[] = [
   { id: '4', name: 'Área Central', color: '#F59E0B', x: 200, y: 200, width: 200, height: 100 },
 ];
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
-}
+// Função clamp removida - checkpoints e zonas podem usar todo o espaço do mapa
 
 async function optimizeFloorPlan(file: File): Promise<string> {
   const source = await new Promise<string>((resolve, reject) => {
@@ -99,6 +97,8 @@ export default function AdminMap() {
   const draggingCheckpointRef = useRef<string | null>(null);
   const dragStartPositionRef = useRef<MapPosition | null>(null);
   const dragPositionRef = useRef<MapPosition | null>(null);
+  const dragOffsetRef = useRef<MapPosition | null>(null);
+  const renderTimerRef = useRef<number | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -107,14 +107,35 @@ export default function AdminMap() {
   const [loadingCheckpoints, setLoadingCheckpoints] = useState(false);
   const [savingCheckpointId, setSavingCheckpointId] = useState<string | null>(null);
   const [selectedCheckpointId, setSelectedCheckpointId] = useState<string | null>(null);
+  const [editingCheckpointName, setEditingCheckpointName] = useState<string | null>(null);
+  const [newCheckpointName, setNewCheckpointName] = useState<string>('');
   const [error, setError] = useState('');
   const [zones, setZones] = useState<Zone[]>(initialZones);
   const [editingZone, setEditingZone] = useState<string | null>(null);
   const [floorPlanUrl, setFloorPlanUrl] = useState<string | null>(null);
   const [floorPlanName, setFloorPlanName] = useState<string | null>(null);
   const [uploadingFloorPlan, setUploadingFloorPlan] = useState(false);
+  const [, forceRender] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { setEventoAtual } = usePulynStore();
+  
+  // Estados para criação de zona
+  const [creatingZone, setCreatingZone] = useState(false);
+  const [newZoneName, setNewZoneName] = useState('');
+  const [newZoneColor, setNewZoneColor] = useState('#1E9BD7');
+  const [drawingZone, setDrawingZone] = useState(false);
+  const [zoneStartPos, setZoneStartPos] = useState<MapPosition | null>(null);
+  const [zoneEndPos, setZoneEndPos] = useState<MapPosition | null>(null);
+  
+  // Estados para edição de zona
+  const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
+  const [resizingZone, setResizingZone] = useState(false);
+  const [resizeStart, setResizeStart] = useState<MapPosition | null>(null);
+  const [resizeEnd, setResizeEnd] = useState<MapPosition | null>(null);
+  const [movingZone, setMovingZone] = useState(false);
+  const [moveStart, setMoveStart] = useState<MapPosition | null>(null);
+  const [zoneOriginalSize, setZoneOriginalSize] = useState<{ width: number; height: number } | null>(null);
+  const [previewZoneSize, setPreviewZoneSize] = useState<{ width: number; height: number } | null>(null);
 
   const loadCheckpoints = useCallback(async (eventId: string | null) => {
     if (!eventId) {
@@ -126,7 +147,29 @@ export default function AdminMap() {
     setError('');
     try {
       const data = await api.getCheckpoints(eventId);
-      setCheckpoints(Array.isArray(data) ? data : []);
+      let checkpoints = Array.isArray(data) ? data : [];
+      
+      // Proteção: recuperar checkpoints perdidos fora da área visível
+      const centerX = MAP_WIDTH / 2;
+      const centerY = MAP_HEIGHT / 2;
+      
+      checkpoints = checkpoints.map((checkpoint) => {
+        const x = Number(checkpoint.map_x ?? checkpoint.mapX);
+        const y = Number(checkpoint.map_y ?? checkpoint.mapY);
+        
+        // Validar apenas se é número válido
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          return {
+            ...checkpoint,
+            map_x: centerX,
+            map_y: centerY,
+          };
+        }
+        
+        return checkpoint;
+      });
+      
+      setCheckpoints(checkpoints);
     } catch (err: any) {
       console.error('❌ Erro ao carregar checkpoints do mapa:', err);
       setCheckpoints([]);
@@ -180,6 +223,61 @@ export default function AdminMap() {
     }
   }, []);
 
+  // Carregar zonas do backend (com fallback localStorage)
+  useEffect(() => {
+    const loadZones = async () => {
+      try {
+        if (!selectedEventId) {
+          setZones(initialZones);
+          return;
+        }
+
+        // Tentar carregar da API primeiro
+        try {
+          console.log('🔄 Carregando zonas da API...');
+          const zonesData = await api.getZones(selectedEventId);
+          if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
+            console.log('✅ Zonas carregadas da API:', zonesData);
+            setZones(zonesData);
+            // Atualizar localStorage como cache
+            localStorage.setItem(`zones_${selectedEventId}`, JSON.stringify(zonesData));
+          } else {
+            console.log('📝 Nenhuma zona na API, tentando localStorage...');
+            const key = `zones_${selectedEventId}`;
+            const stored = localStorage.getItem(key);
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              console.log('✅ Zonas carregadas do localStorage:', parsed);
+              setZones(parsed);
+            } else {
+              setZones(initialZones);
+            }
+          }
+        } catch (apiError) {
+          console.warn('⚠️ Erro ao carregar da API, tentando localStorage...');
+          const key = `zones_${selectedEventId}`;
+          const stored = localStorage.getItem(key);
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              console.log('✅ Zonas carregadas do localStorage (fallback):', parsed);
+              setZones(parsed);
+            } catch (e) {
+              setZones(initialZones);
+            }
+          } else {
+            setZones(initialZones);
+          }
+        }
+      } catch (e) {
+        console.error('❌ Erro ao carregar zonas:', e);
+        setZones(initialZones);
+      }
+    };
+
+    loadZones();
+  }, [selectedEventId]);
+
   useEffect(() => {
     setSelectedCheckpointId(null);
     loadCheckpoints(selectedEventId);
@@ -187,8 +285,58 @@ export default function AdminMap() {
     if (selectedEventId) setEventoAtual(selectedEventId);
   }, [loadCheckpoints, loadFloorPlan, selectedEventId, setEventoAtual]);
 
+  // Salvar zonas no backend (com fallback localStorage)
+  useEffect(() => {
+    if (!selectedEventId || zones.length === 0) return;
+
+    const saveZones = async () => {
+      try {
+        // Tentar salvar na API
+        try {
+          console.log('💾 Salvando zonas na API:', zones);
+          await api.saveZones(selectedEventId, zones);
+          console.log('✅ Zonas salvas na API com sucesso');
+          // Atualizar localStorage como cache
+          localStorage.setItem(`zones_${selectedEventId}`, JSON.stringify(zones));
+        } catch (apiError) {
+          console.warn('⚠️ Erro ao salvar na API, salvando no localStorage...');
+          localStorage.setItem(`zones_${selectedEventId}`, JSON.stringify(zones));
+          console.log('✅ Zonas salvas no localStorage (fallback)');
+        }
+      } catch (err) {
+        console.error('❌ Erro ao salvar zonas:', err);
+      }
+    };
+
+    const debounceTimer = setTimeout(saveZones, 500);
+    return () => clearTimeout(debounceTimer);
+  }, [zones, selectedEventId]);
+
   const updateZone = (id: string, field: keyof Zone, value: string | number) => {
     setZones((prev) => prev.map((zone) => zone.id === id ? { ...zone, [field]: value } : zone));
+  };
+
+  const saveCheckpointName = async (checkpointId: string, newName: string) => {
+    if (!selectedEventId || !newName.trim()) return;
+    
+    try {
+      setSavingCheckpointId(checkpointId);
+      console.log(`💾 Salvando nome do checkpoint ${checkpointId} para: ${newName.trim()}`);
+      const result = await api.saveCheckpointConfig(checkpointId, { name: newName.trim() }, selectedEventId);
+      console.log('✅ Resposta do servidor:', result);
+      
+      // Recarregar checkpoints para refletir a mudança
+      await loadCheckpoints(selectedEventId);
+      
+      setEditingCheckpointName(null);
+      setNewCheckpointName('');
+      console.log('✅ Nome do checkpoint atualizado com sucesso');
+    } catch (err) {
+      console.error('❌ Erro ao salvar nome do checkpoint:', err);
+      setError('Erro ao salvar nome do checkpoint');
+    } finally {
+      setSavingCheckpointId(null);
+    }
   };
 
   const removeZone = (id: string) => {
@@ -196,16 +344,195 @@ export default function AdminMap() {
   };
 
   const addZone = () => {
+    setCreatingZone(true);
+    setNewZoneName('');
+    setDrawingZone(false);
+    setZoneStartPos(null);
+    setZoneEndPos(null);
+  };
+
+  const startDrawingZone = () => {
+    if (!newZoneName.trim()) {
+      setError('Digite um nome para a zona');
+      return;
+    }
+    setDrawingZone(true);
+    setZoneStartPos(null);
+    setZoneEndPos(null);
+  };
+
+  const handleZoneDrawStart = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!drawingZone) return;
+    const pos = getPointerPosition(event);
+    if (pos) {
+      setZoneStartPos(pos);
+      setZoneEndPos(pos);
+    }
+  };
+
+  const handleZoneDrawMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!drawingZone || !zoneStartPos) return;
+    const pos = getPointerPosition(event);
+    if (pos) {
+      setZoneEndPos(pos);
+    }
+  };
+
+  const handleZoneDrawEnd = () => {
+    if (!drawingZone || !zoneStartPos || !zoneEndPos) return;
+    
+    const x = Math.min(zoneStartPos.x, zoneEndPos.x);
+    const y = Math.min(zoneStartPos.y, zoneEndPos.y);
+    const width = Math.abs(zoneEndPos.x - zoneStartPos.x);
+    const height = Math.abs(zoneEndPos.y - zoneStartPos.y);
+
+    if (width < 20 || height < 20) {
+      setError('Zona muito pequena. Desenhe uma zona maior.');
+      return;
+    }
+
     const newId = String(Date.now());
     setZones((prev) => [...prev, {
       id: newId,
-      name: 'Nova Zona',
-      color: '#1E9BD7',
-      x: 50,
-      y: 50,
-      width: 100,
-      height: 80,
+      name: newZoneName,
+      color: newZoneColor,
+      x: Math.round(x),
+      y: Math.round(y),
+      width: Math.round(width),
+      height: Math.round(height),
     }]);
+
+    setCreatingZone(false);
+    setDrawingZone(false);
+    setNewZoneName('');
+    setZoneStartPos(null);
+    setZoneEndPos(null);
+    setError('');
+  };
+
+  const cancelZoneCreation = () => {
+    setCreatingZone(false);
+    setDrawingZone(false);
+    setNewZoneName('');
+    setZoneStartPos(null);
+    setZoneEndPos(null);
+    setError('');
+  };
+
+  const startEditingZone = (zoneId: string) => {
+    setEditingZoneId(zoneId);
+    setResizingZone(false);
+    setMovingZone(false);
+    setResizeStart(null);
+    setResizeEnd(null);
+    setMoveStart(null);
+    setZoneOriginalSize(null);
+  };
+
+  const startMovingZone = (event: React.PointerEvent<SVGRectElement>, zoneId: string) => {
+    event.stopPropagation();
+    setEditingZoneId(zoneId);
+    setMovingZone(true);
+    setResizingZone(false);
+    const pos = getPointerPosition(event as any);
+    if (pos) {
+      setMoveStart(pos);
+    }
+  };
+
+  const startResizingZone = (event: React.PointerEvent<SVGElement>, zoneId: string) => {
+    event.stopPropagation();
+    const zone = zones.find((z) => z.id === zoneId);
+    if (!zone) return;
+    
+    setEditingZoneId(zoneId);
+    setResizingZone(true);
+    setMovingZone(false);
+    setZoneOriginalSize({ width: zone.width, height: zone.height });
+    
+    const pos = getPointerPosition(event as any);
+    if (pos) {
+      setResizeStart(pos);
+      setResizeEnd(pos);
+    }
+  };
+
+  const handleMoveZone = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!movingZone || !editingZoneId || !moveStart) return;
+    const pos = getPointerPosition(event);
+    if (!pos) return;
+
+    const zone = zones.find((z) => z.id === editingZoneId);
+    if (!zone) return;
+
+    const deltaX = pos.x - moveStart.x;
+    const deltaY = pos.y - moveStart.y;
+
+    const newX = zone.x + deltaX;
+    const newY = zone.y + deltaY;
+
+    updateZone(editingZoneId, 'x', Math.round(newX));
+    updateZone(editingZoneId, 'y', Math.round(newY));
+
+    setMoveStart(pos);
+  };
+
+  const handleMoveEnd = () => {
+    setMovingZone(false);
+    setMoveStart(null);
+  };
+
+  const handleResizeMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!resizingZone || !editingZoneId || !resizeStart || !zoneOriginalSize) return;
+    const pos = getPointerPosition(event);
+    if (pos) {
+      setResizeEnd(pos);
+      
+      // Calcular preview de tamanho
+      const deltaX = pos.x - resizeStart.x;
+      const deltaY = pos.y - resizeStart.y;
+      
+      const newWidth = Math.max(20, zoneOriginalSize.width + deltaX);
+      const newHeight = Math.max(20, zoneOriginalSize.height + deltaY);
+      
+      setPreviewZoneSize({ width: newWidth, height: newHeight });
+    }
+  };
+
+  const handleResizeEnd = () => {
+    if (!resizingZone || !editingZoneId || !resizeStart || !resizeEnd || !zoneOriginalSize) return;
+
+    const zone = zones.find((z) => z.id === editingZoneId);
+    if (!zone) return;
+
+    // Calcular mudança de tamanho em relação ao canto clicado
+    const deltaX = resizeEnd.x - resizeStart.x;
+    const deltaY = resizeEnd.y - resizeStart.y;
+
+    const newWidth = Math.max(20, zoneOriginalSize.width + deltaX);
+    const newHeight = Math.max(20, zoneOriginalSize.height + deltaY);
+
+    // Atualizar apenas ao soltar
+    updateZone(editingZoneId, 'width', Math.round(newWidth));
+    updateZone(editingZoneId, 'height', Math.round(newHeight));
+
+    setResizingZone(false);
+    setResizeStart(null);
+    setResizeEnd(null);
+    setZoneOriginalSize(null);
+    setPreviewZoneSize(null);
+    setError('');
+  };
+
+  const cancelEditingZone = () => {
+    setEditingZoneId(null);
+    setResizingZone(false);
+    setMovingZone(false);
+    setResizeStart(null);
+    setResizeEnd(null);
+    setMoveStart(null);
+    setZoneOriginalSize(null);
+    setPreviewZoneSize(null);
   };
 
   const fallbackPosition = useCallback((checkpoint: any, index: number): MapPosition => {
@@ -213,8 +540,8 @@ export default function AdminMap() {
     const storedY = Number(checkpoint.map_y ?? checkpoint.mapY);
     if (Number.isFinite(storedX) && Number.isFinite(storedY)) {
       return {
-        x: clamp(storedX, 16, MAP_WIDTH - 16),
-        y: clamp(storedY, 22, MAP_HEIGHT - 16),
+        x: storedX,
+        y: storedY,
       };
     }
 
@@ -239,21 +566,46 @@ export default function AdminMap() {
   const getPointerPosition = (event: React.PointerEvent<SVGSVGElement>): MapPosition | null => {
     const svg = svgRef.current;
     if (!svg) return null;
-    const bounds = svg.getBoundingClientRect();
-    if (!bounds.width || !bounds.height) return null;
-    return {
-      x: clamp(((event.clientX - bounds.left) / bounds.width) * MAP_WIDTH, 16, MAP_WIDTH - 16),
-      y: clamp(((event.clientY - bounds.top) / bounds.height) * MAP_HEIGHT, 22, MAP_HEIGHT - 16),
-    };
+    
+    try {
+      // Usar SVG native methods para transformação mais precisa e rápida
+      const pt = svg.createSVGPoint();
+      pt.x = event.clientX;
+      pt.y = event.clientY;
+      const screenCTM = svg.getScreenCTM();
+      if (!screenCTM) return null;
+      const ctm = screenCTM.inverse();
+      const svgPt = pt.matrixTransform(ctm);
+      
+      return {
+        x: svgPt.x,
+        y: svgPt.y,
+      };
+    } catch (e) {
+      return null;
+    }
   };
 
   const handlePointerDown = (event: React.PointerEvent<SVGGElement>, checkpointId: string) => {
     event.preventDefault();
     event.stopPropagation();
+    
+    const checkpointPosition = checkpointPositions[checkpointId];
+    if (!checkpointPosition) return;
+
     draggingCheckpointRef.current = checkpointId;
-    const initialPosition = checkpointPositions[checkpointId];
-    dragStartPositionRef.current = initialPosition ? { ...initialPosition } : null;
-    dragPositionRef.current = initialPosition ? { ...initialPosition } : null;
+    dragStartPositionRef.current = checkpointPosition ? { ...checkpointPosition } : null;
+    dragPositionRef.current = checkpointPosition ? { ...checkpointPosition } : null;
+    
+    // Calcular o offset: diferença entre onde clicou e o centro do checkpoint
+    const clickPosition = getPointerPosition(event as any);
+    if (clickPosition) {
+      dragOffsetRef.current = {
+        x: clickPosition.x - checkpointPosition.x,
+        y: clickPosition.y - checkpointPosition.y,
+      };
+    }
+    
     setSelectedCheckpointId(checkpointId);
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
@@ -261,28 +613,58 @@ export default function AdminMap() {
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
     const checkpointId = draggingCheckpointRef.current;
     if (!checkpointId) return;
-    const position = getPointerPosition(event);
-    if (!position) return;
+    const cursorPosition = getPointerPosition(event);
+    if (!cursorPosition) return;
 
-    const roundedPosition = { x: Math.round(position.x), y: Math.round(position.y) };
-    dragPositionRef.current = roundedPosition;
-    setCheckpoints((current) => current.map((checkpoint) => checkpoint.id === checkpointId
-      ? { ...checkpoint, map_x: roundedPosition.x, map_y: roundedPosition.y }
-      : checkpoint));
+    // Subtrair o offset: posição do checkpoint = posição do cursor - offset
+    const checkpointPosition = {
+      x: cursorPosition.x - (dragOffsetRef.current?.x || 0),
+      y: cursorPosition.y - (dragOffsetRef.current?.y || 0),
+    };
+
+    dragPositionRef.current = checkpointPosition;
+    
+    // Usar requestAnimationFrame para render sincronizado com tela
+    if (renderTimerRef.current !== null) {
+      cancelAnimationFrame(renderTimerRef.current);
+    }
+    renderTimerRef.current = requestAnimationFrame(() => {
+      forceRender((prev) => prev + 1);
+      renderTimerRef.current = null;
+    });
   };
 
   const handlePointerUp = async () => {
     const checkpointId = draggingCheckpointRef.current;
     const startPosition = dragStartPositionRef.current;
-    const finalPosition = dragPositionRef.current;
+    let finalPosition = dragPositionRef.current;
     draggingCheckpointRef.current = null;
     dragStartPositionRef.current = null;
     dragPositionRef.current = null;
+    dragOffsetRef.current = null;
+    
+    if (renderTimerRef.current !== null) {
+      cancelAnimationFrame(renderTimerRef.current);
+      renderTimerRef.current = null;
+    }
+    forceRender((prev) => prev + 1);
+
     if (!checkpointId || !selectedEventId || !finalPosition) return;
 
     const checkpoint = checkpoints.find((item) => item.id === checkpointId);
     if (!checkpoint) return;
     if (startPosition && startPosition.x === finalPosition.x && startPosition.y === finalPosition.y) return;
+
+    // Arredondar e salvar posição final (sem limitações de barreira)
+    finalPosition = {
+      x: Math.round(finalPosition.x),
+      y: Math.round(finalPosition.y),
+    };
+
+    // Atualizar o estado com a posição final
+    setCheckpoints((current) => current.map((item) => item.id === checkpointId
+      ? { ...item, map_x: finalPosition.x, map_y: finalPosition.y }
+      : item));
 
     setSavingCheckpointId(checkpointId);
     try {
@@ -451,7 +833,7 @@ export default function AdminMap() {
 
               <div className="relative overflow-hidden rounded-lg bg-surface" style={{ height: 420 }}>
                 {floorPlanUrl && (
-                  <img src={floorPlanUrl} alt="Planta do espaço" className="absolute inset-0 h-full w-full object-cover opacity-35" />
+                  <img src={floorPlanUrl} alt="Planta do espaço" className="absolute inset-0 h-full w-full object-contain opacity-35" />
                 )}
                 <svg
                   ref={svgRef}
@@ -459,30 +841,139 @@ export default function AdminMap() {
                   height="100%"
                   viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
                   className="relative z-10 touch-none"
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                  onPointerLeave={handlePointerUp}
+                  onPointerMove={(e) => {
+                    if (drawingZone) handleZoneDrawMove(e);
+                    else if (resizingZone) handleResizeMove(e);
+                    else if (movingZone) handleMoveZone(e);
+                    else handlePointerMove(e);
+                  }}
+                  onPointerUp={() => {
+                    if (drawingZone) handleZoneDrawEnd();
+                    else if (resizingZone) handleResizeEnd();
+                    else if (movingZone) handleMoveEnd();
+                    else handlePointerUp();
+                  }}
+                  onPointerDown={(e) => {
+                    // Se clicar no SVG vazio (não em um elemento), desselecionar
+                    if (e.target === e.currentTarget) {
+                      setEditingZoneId(null);
+                      setSelectedCheckpointId(null);
+                    }
+                    if (drawingZone) handleZoneDrawStart(e);
+                  }}
+                  onPointerLeave={() => {
+                    if (drawingZone) handleZoneDrawEnd();
+                    else handlePointerUp();
+                  }}
                 >
-                  {[...Array(9)].map((_, index) => (
-                    <line key={`h${index}`} x1="0" y1={index * 40} x2={MAP_WIDTH} y2={index * 40} stroke="#1E1B2E" strokeWidth="1" />
-                  ))}
-                  {[...Array(12)].map((_, index) => (
-                    <line key={`v${index}`} x1={index * 40} y1="0" x2={index * 40} y2={MAP_HEIGHT} stroke="#1E1B2E" strokeWidth="1" />
-                  ))}
+                  {/* Grid removido - agora igual ao DisplayMap */}
 
                   {zones.map((zone) => (
-                    <g key={zone.id}>
-                      <rect x={zone.x} y={zone.y} width={zone.width} height={zone.height} fill={zone.color} fillOpacity={0.15} stroke={zone.color} strokeWidth={2} strokeDasharray="6 3" rx={8} />
-                      <text x={zone.x + zone.width / 2} y={zone.y + zone.height / 2} textAnchor="middle" dominantBaseline="middle" fill={zone.color} fontSize={12} fontWeight="600">
+                    <g key={zone.id} onClick={() => startEditingZone(zone.id)} className="cursor-pointer">
+                      <rect
+                        x={zone.x}
+                        y={zone.y}
+                        width={zone.width}
+                        height={zone.height}
+                        fill={zone.color}
+                        fillOpacity={editingZoneId === zone.id ? 0.25 : 0.15}
+                        stroke={editingZoneId === zone.id ? '#FFFFFF' : zone.color}
+                        strokeWidth={editingZoneId === zone.id ? 3 : 2}
+                        strokeDasharray="6 3"
+                        rx={8}
+                        className={editingZoneId === zone.id && !resizingZone ? 'cursor-move' : ''}
+                        onPointerDown={(e) => {
+                          if (editingZoneId === zone.id && !resizingZone) startMovingZone(e, zone.id);
+                        }}
+                      />
+                      <text
+                        x={zone.x + zone.width / 2}
+                        y={zone.y + zone.height / 2}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fill={zone.color}
+                        fontSize={12}
+                        fontWeight="600"
+                        pointerEvents="none"
+                      >
                         {zone.name}
                       </text>
+                      
+                      {editingZoneId === zone.id && (
+                        <>
+                          {/* Handles nos cantos */}
+                          <circle cx={zone.x + zone.width} cy={zone.y + zone.height} r={5} fill="#FFFFFF" stroke={zone.color} strokeWidth={2} className="cursor-nwse-resize" onPointerDown={(e) => startResizingZone(e, zone.id)} />
+                        </>
+                      )}
                     </g>
                   ))}
 
+                  {resizingZone && zoneOriginalSize && previewZoneSize && editingZoneId && (
+                    <g>
+                      {/* Zona com novo tamanho (preview) */}
+                      <rect
+                        x={zones.find((z) => z.id === editingZoneId)?.x || 0}
+                        y={zones.find((z) => z.id === editingZoneId)?.y || 0}
+                        width={previewZoneSize.width}
+                        height={previewZoneSize.height}
+                        fill="rgba(255, 255, 255, 0.05)"
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
+                        strokeDasharray="4 4"
+                        rx={8}
+                      />
+                      {/* Texto mostrando novo tamanho */}
+                      <text
+                        x={(zones.find((z) => z.id === editingZoneId)?.x || 0) + previewZoneSize.width / 2}
+                        y={(zones.find((z) => z.id === editingZoneId)?.y || 0) + previewZoneSize.height / 2}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fill="#FFFFFF"
+                        fontSize={11}
+                        fontWeight="600"
+                        fillOpacity={0.8}
+                      >
+                        {Math.round(previewZoneSize.width)}×{Math.round(previewZoneSize.height)}
+                      </text>
+                    </g>
+                  )}
+
+                  {drawingZone && zoneStartPos && zoneEndPos && (
+                    <g>
+                      <rect
+                        x={Math.min(zoneStartPos.x, zoneEndPos.x)}
+                        y={Math.min(zoneStartPos.y, zoneEndPos.y)}
+                        width={Math.abs(zoneEndPos.x - zoneStartPos.x)}
+                        height={Math.abs(zoneEndPos.y - zoneStartPos.y)}
+                        fill={newZoneColor}
+                        fillOpacity={0.25}
+                        stroke={newZoneColor}
+                        strokeWidth={2}
+                        rx={8}
+                      />
+                      <text
+                        x={(Math.min(zoneStartPos.x, zoneEndPos.x) + Math.max(zoneStartPos.x, zoneEndPos.x)) / 2}
+                        y={(Math.min(zoneStartPos.y, zoneEndPos.y) + Math.max(zoneStartPos.y, zoneEndPos.y)) / 2}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fill={newZoneColor}
+                        fontSize={12}
+                        fontWeight="600"
+                      >
+                        {newZoneName}
+                      </text>
+                    </g>
+                  )}
+
                   {checkpoints.map((checkpoint, index) => {
-                    const position = checkpointPositions[checkpoint.id] || fallbackPosition(checkpoint, index);
+                    const storedPosition = checkpointPositions[checkpoint.id] || fallbackPosition(checkpoint, index);
+                    // Se está sendo arrastado, usar dragPositionRef (renderiza em tempo real), caso contrário usar a posição armazenada
+                    const position = (draggingCheckpointRef.current === checkpoint.id && dragPositionRef.current)
+                      ? dragPositionRef.current
+                      : storedPosition;
                     const isSelected = selectedCheckpointId === checkpoint.id;
                     const color = checkpoint.status === 'online' ? '#22C55E' : '#EF4444';
+                    const circleRadius = isSelected ? 17 : 14;
                     return (
                       <g
                         key={checkpoint.id}
@@ -491,7 +982,7 @@ export default function AdminMap() {
                         onPointerDown={(event) => handlePointerDown(event, checkpoint.id)}
                         onClick={() => setSelectedCheckpointId(checkpoint.id)}
                       >
-                        <circle r={isSelected ? 17 : 14} fill={color} fillOpacity={0.18} stroke={isSelected ? '#FFFFFF' : color} strokeWidth={isSelected ? 3 : 2} />
+                        <circle r={circleRadius} fill={color} fillOpacity={0.18} stroke={isSelected ? '#FFFFFF' : color} strokeWidth={isSelected ? 3 : 2} />
                         <circle r="5" fill={color} />
                         <text y="-22" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="600">{checkpoint.id}</text>
                         <text y="30" textAnchor="middle" fill="#D1D5DB" fontSize="9">{checkpoint.name}</text>
@@ -512,8 +1003,62 @@ export default function AdminMap() {
             <Card>
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="font-display text-lg text-white">Zonas</h3>
-                <Button variant="ghost" size="sm" onClick={addZone} title="Adicionar zona"><Plus size={14} /></Button>
+                <Button variant="ghost" size="sm" onClick={addZone} title="Adicionar zona" disabled={creatingZone}><Plus size={14} /></Button>
               </div>
+
+              {creatingZone && (
+                <div className="mb-4 rounded-lg border border-primary/50 bg-primary/10 p-3">
+                  <p className="mb-2 text-sm font-semibold text-white">Criar nova zona</p>
+                  
+                  {!drawingZone ? (
+                    <div className="space-y-2">
+                      <div>
+                        <label className="mb-1 block text-xs text-gray-400">Nome da zona</label>
+                        <Input
+                          value={newZoneName}
+                          onChange={(e) => setNewZoneName(e.target.value)}
+                          placeholder="Ex: Entrada, Área Verde..."
+                          className="text-sm"
+                          autoFocus
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-gray-400">Cor</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={newZoneColor}
+                            onChange={(e) => setNewZoneColor(e.target.value)}
+                            className="h-10 w-10 cursor-pointer rounded border border-border bg-surface"
+                          />
+                          <span className="text-xs text-gray-500">{newZoneColor}</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="primary" size="sm" onClick={startDrawingZone}>Desenhar no mapa</Button>
+                        <Button variant="ghost" size="sm" onClick={cancelZoneCreation}>Cancelar</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-400">Clique e arraste no mapa para desenhar a zona "<strong>{newZoneName}</strong>"</p>
+                      <Button variant="ghost" size="sm" onClick={cancelZoneCreation}>Cancelar desenho</Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {editingZoneId && (
+                <div className="mb-4 rounded-lg border border-warning/50 bg-warning/10 p-3">
+                  <p className="mb-2 text-sm font-semibold text-white">Editando zona</p>
+                  <div className="space-y-2 text-xs text-gray-400">
+                    <p>🖱️ <strong>Mover:</strong> Arraste a zona para outra posição</p>
+                    <p>📐 <strong>Redimensionar:</strong> Clique no handle do canto inferior direito e arraste</p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={cancelEditingZone} className="mt-2">Concluir edição</Button>
+                </div>
+              )}
+
               <div className="space-y-3">
                 {zones.map((zone) => (
                   <div key={zone.id} className="rounded-lg bg-surface/50 p-3">
@@ -533,7 +1078,7 @@ export default function AdminMap() {
                           <p className="truncate text-sm font-semibold text-white">{zone.name}</p>
                           <p className="text-xs text-gray-500">{zone.width}x{zone.height}px</p>
                         </div>
-                        <button onClick={() => setEditingZone(zone.id)} className="rounded p-1 text-gray-400 hover:text-white" title="Editar zona"><Edit3 size={14} /></button>
+                        <button onClick={() => setEditingZone(zone.id)} className="rounded p-1 text-gray-400 hover:text-white" title="Editar zona"><Pencil size={14} /></button>
                         <button onClick={() => removeZone(zone.id)} className="rounded p-1 text-gray-400 hover:text-danger" title="Remover zona"><Trash2 size={14} /></button>
                       </div>
                     )}
@@ -570,7 +1115,44 @@ export default function AdminMap() {
                 <div className="mt-4 rounded-lg border border-primary/30 bg-primary/10 p-3">
                   <div className="flex items-center gap-2">
                     <Save size={15} className="text-primary" />
-                    <p className="text-sm font-semibold text-white">{selectedCheckpoint.name}</p>
+                    {editingCheckpointName === selectedCheckpoint.id ? (
+                      <div className="flex flex-1 gap-2">
+                        <Input
+                          value={newCheckpointName}
+                          onChange={(e) => setNewCheckpointName(e.target.value)}
+                          placeholder="Nome do checkpoint"
+                          className="text-sm"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => saveCheckpointName(selectedCheckpoint.id, newCheckpointName)}
+                          disabled={savingCheckpointId === selectedCheckpoint.id}
+                          className="rounded px-2 py-1 bg-primary text-white hover:bg-primary/80 text-xs font-semibold disabled:opacity-50"
+                        >
+                          {savingCheckpointId === selectedCheckpoint.id ? '...' : 'OK'}
+                        </button>
+                        <button
+                          onClick={() => setEditingCheckpointName(null)}
+                          className="rounded px-2 py-1 text-gray-400 hover:text-white text-xs"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm font-semibold text-white flex-1">{selectedCheckpoint.name}</p>
+                        <button
+                          onClick={() => {
+                            setEditingCheckpointName(selectedCheckpoint.id);
+                            setNewCheckpointName(selectedCheckpoint.name);
+                          }}
+                          className="rounded p-1 text-gray-400 hover:text-white"
+                          title="Editar nome"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      </>
+                    )}
                   </div>
                   <p className="mt-1 text-xs text-gray-400">Posição: {Math.round(checkpointPositions[selectedCheckpoint.id]?.x || 0)} × {Math.round(checkpointPositions[selectedCheckpoint.id]?.y || 0)}</p>
                   <p className="mt-1 text-xs text-gray-500">Status: {selectedCheckpoint.status === 'online' ? 'Online' : 'Offline'} · {selectedCheckpoint.points || 0} pontos</p>

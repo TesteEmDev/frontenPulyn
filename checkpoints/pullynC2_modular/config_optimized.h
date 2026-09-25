@@ -28,7 +28,7 @@ const char* SERVER_BASE_URL = "https://backendpulyn.onrender.com";
 #endif
 
 // ID do checkpoint cadastrado no banco de produção.
-const char* CHECKPOINT_ID = "15";
+const char* CHECKPOINT_ID = "3";
 
 // ==================== TIMERS OTIMIZADOS ====================
 const unsigned long MODE_CHECK_INTERVAL = 10000;      // Checar modo a cada 10s (aumentado)

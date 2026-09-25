@@ -1,6 +1,33 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Compass, Crown, Gem, MapPinned, TimerReset, Trophy } from 'lucide-react';
+import { Compass, Gem, TimerReset, Trophy } from 'lucide-react';
 import type { Checkpoint, Team } from '../../store/mockData';
+
+// Estilos CSS para animação de onda
+const treasureWaveStyles = `
+  @keyframes treasureWave {
+    0% {
+      r: 5;
+      stroke-width: 2;
+      opacity: 1;
+    }
+    100% {
+      r: 25;
+      stroke-width: 1;
+      opacity: 0;
+    }
+  }
+  
+  .treasure-wave {
+    animation: treasureWave 1.5s ease-out infinite;
+  }
+`;
+
+// Injetar estilos no documento
+if (typeof document !== 'undefined') {
+  const styleSheet = document.createElement('style');
+  styleSheet.textContent = treasureWaveStyles;
+  document.head.appendChild(styleSheet);
+}
 
 export interface TreasureCheckpointOwnership {
   checkpointId: string;
@@ -69,31 +96,13 @@ interface TreasureArenaProps {
   checkpoints: Checkpoint[];
   teams: Team[];
   lastEvent?: TreasureArenaEvent | null;
+  floorPlan?: string | null;
 }
 
 const MAP_WIDTH = 450;
 const MAP_HEIGHT = 320;
 
-function getPosition(checkpoint: Checkpoint, checkpoints: Checkpoint[], index: number) {
-  const storedX = Number(checkpoint.map_x ?? checkpoint.mapX);
-  const storedY = Number(checkpoint.map_y ?? checkpoint.mapY);
-  if (Number.isFinite(storedX) && Number.isFinite(storedY)) {
-    return {
-      x: Math.min(Math.max((storedX / MAP_WIDTH) * 100, 5), 95),
-      y: Math.min(Math.max((storedY / MAP_HEIGHT) * 100, 8), 92),
-    };
-  }
-
-  const columns = Math.min(4, Math.max(1, checkpoints.length));
-  const column = index % columns;
-  const row = Math.floor(index / columns);
-  return {
-    x: (100 / (columns + 1)) * (column + 1),
-    y: Math.min(22 + row * 22, 88),
-  };
-}
-
-export function TreasureArena({ status, checkpoints, teams, lastEvent }: TreasureArenaProps) {
+export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan }: TreasureArenaProps) {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -150,34 +159,55 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent }: Treasur
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="relative min-h-[430px] overflow-hidden rounded-2xl border border-amber-200/20 bg-[#17131d] p-3">
-          <div className="pointer-events-none absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(#8b642844 1px, transparent 1px), linear-gradient(90deg, #8b642844 1px, transparent 1px)', backgroundSize: '42px 42px' }} />
-          <div className="relative h-[400px]">
-            <div className="absolute left-1/2 top-3 -translate-x-1/2 text-center">
-              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-amber-200/70">Mapa da expedição</p>
-              <p className="mt-1 text-xs text-slate-400">Encontre o próximo tesouro</p>
-            </div>
-            <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-50" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <path d="M10 72 C28 42, 37 79, 52 48 S75 35, 92 70" fill="none" stroke="#D6A84F" strokeDasharray="2 2" strokeWidth="0.5" />
-            </svg>
-            {checkpoints.map((checkpoint, index) => {
-              const position = getPosition(checkpoint, checkpoints, index);
+          {/* Planta baixa como background se disponível, senão grid pattern */}
+          {floorPlan ? (
+            <img 
+              src={floorPlan}
+              alt="Planta do espaço"
+              className="pointer-events-none absolute inset-0 h-full w-full object-contain opacity-40"
+            />
+          ) : (
+            <div className="pointer-events-none absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(#8b642844 1px, transparent 1px), linear-gradient(90deg, #8b642844 1px, transparent 1px)', backgroundSize: '42px 42px' }} />
+          )}
+          {/* SVG com viewBox em pixels, mantendo proporções sem esticar - igual ao DisplayMap */}
+          <svg
+            className="absolute inset-0 w-full h-full z-10"
+            viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
+            preserveAspectRatio="xMidYMid meet"
+          >
+            {/* Checkpoints em coordenadas de pixels */}
+            {checkpoints.map((checkpoint) => {
+              const storedX = Number(checkpoint.map_x ?? checkpoint.mapX);
+              const storedY = Number(checkpoint.map_y ?? checkpoint.mapY);
+              const x = Number.isFinite(storedX) && Number.isFinite(storedY) ? storedX : (MAP_WIDTH / 2);
+              const y = Number.isFinite(storedX) && Number.isFinite(storedY) ? storedY : (MAP_HEIGHT / 2);
+              
               const ownerId = ownershipByCheckpoint.get(String(checkpoint.id));
               const owner = ownerId ? teamById.get(String(ownerId).toLowerCase()) : undefined;
               const isTarget = String(checkpoint.id) === String(status.targetCheckpointId);
               const isCompleted = completedIds.has(String(checkpoint.id));
               const markerColor = isTarget ? '#FBBF24' : owner?.color || (isCompleted ? '#F59E0B' : '#94A3B8');
+              
               return (
-                <div key={checkpoint.id} className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center" style={{ left: `${position.x}%`, top: `${position.y}%` }}>
-                  {isTarget && <div className="absolute h-16 w-16 animate-ping rounded-full bg-amber-300/20" />}
-                  <div className="relative flex h-11 w-11 items-center justify-center rounded-full border-2 bg-[#18131a] shadow-lg" style={{ borderColor: markerColor, boxShadow: `0 0 20px ${markerColor}66` }}>
-                    {isTarget ? <Gem size={22} style={{ color: markerColor }} /> : isCompleted ? <Crown size={19} style={{ color: markerColor }} /> : <MapPinned size={19} style={{ color: markerColor }} />}
-                  </div>
-                  <span className="mt-1 max-w-32 truncate whitespace-nowrap text-[11px] font-semibold text-white">{checkpoint.name}</span>
-                  <span className="max-w-32 truncate whitespace-nowrap text-[10px]" style={{ color: markerColor }}>{isTarget ? 'ALVO ATUAL' : owner?.name || (isCompleted ? 'Concluído' : 'Aguardando')}</span>
-                </div>
+                <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
+                  <circle r={11} fill={markerColor} fillOpacity={0.18} stroke={markerColor} strokeWidth={2} />
+                  <circle r={5} fill={markerColor} />
+                  <text y={-16} textAnchor="middle" fill="#FFFFFF" fontSize={10} fontWeight={600}>
+                    {checkpoint.id}
+                  </text>
+                  <text y={18} textAnchor="middle" fill="#D1D5DB" fontSize={8}>
+                    {isTarget ? 'TESOURO' : checkpoint.name}
+                  </text>
+                  {isTarget && (
+                    <>
+                      {/* Onda animada pulsante */}
+                      <circle cx={0} cy={0} r={5} fill="none" stroke={markerColor} strokeWidth={2} className="treasure-wave" />
+                    </>
+                  )}
+                </g>
               );
             })}
-          </div>
+          </svg>
         </div>
 
         <div className="space-y-4">

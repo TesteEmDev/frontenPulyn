@@ -70,6 +70,7 @@ export default function DisplayMain() {
   const [treasureStatus, setTreasureStatus] = useState<TreasureArenaStatus | null>(null);
   const [lastTreasureEvent, setLastTreasureEvent] = useState<TreasureArenaEvent | null>(null);
   const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
+  const [floorPlan, setFloorPlan] = useState<string | null>(null);
 
   const topParticipants = useMemo(() => [...children]
     .filter(child => child.status === 'active')
@@ -125,6 +126,43 @@ export default function DisplayMain() {
       setTreasureStatus(null);
     }
   }, [selectedEventId]);
+
+  // Carregar planta baixa quando necessário (zona E tesouro)
+  useEffect(() => {
+    if (!selectedEventId) {
+      setFloorPlan(null);
+      return;
+    }
+
+    // Carregar planta para AMBOS os modos (zona e tesouro)
+    const shouldLoadFloorPlan = selectedGameType === 'treasure_hunt' 
+      || selectedGameType === 'zone' 
+      || selectedGameType === 'zone_conquest' 
+      || selectedGameType === 'territory' 
+      || selectedGameType === 'territory_conquest';
+    
+    if (!shouldLoadFloorPlan) {
+      setFloorPlan(null);
+      return;
+    }
+
+    const loadFloorPlan = async () => {
+      try {
+        const { api } = await import('../../services/api');
+        const floorPlanData = await api.getFloorPlan(selectedEventId);
+        if (floorPlanData?.dataUrl) {
+          setFloorPlan(floorPlanData.dataUrl);
+        } else {
+          setFloorPlan(null);
+        }
+      } catch (e) {
+        console.warn('⚠️ Planta não disponível:', e);
+        setFloorPlan(null);
+      }
+    };
+
+    loadFloorPlan();
+  }, [selectedEventId, selectedGameType]);
 
   const refreshMonsterStatus = useCallback(async () => {
     if (!selectedEventId) {
@@ -221,8 +259,10 @@ export default function DisplayMain() {
     (event) => {
       // Processar eventos do WebSocket
       if (event.type === 'GAME_SELECTED' && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
-        setSelectedGameType(event.payload?.gameType || null);
+        // NÃO setar selectedGameType aqui - apenas quando GAME_STARTED
+        // setSelectedGameType(event.payload?.gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
+        // Limpar status quando seleciona novo jogo (mas não mostra mapa ainda)
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
@@ -253,6 +293,12 @@ export default function DisplayMain() {
         const gameType = event.payload?.gameType;
         setSelectedGameType(gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
+        
+        // 🆕 Resetar scoreLog quando novo jogo inicia
+        if (loadScoreLog) {
+          loadScoreLog().catch(err => console.error('Erro ao recarregar scoreLog:', err));
+        }
+        
         if (gameType === 'treasure_hunt') {
           setMonsterStatus(null);
           if (treasure?.startingTeamName) {
@@ -293,6 +339,17 @@ export default function DisplayMain() {
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
+        setFloorPlan(null);  // Limpar planta quando jogo termina
+      } else if (event.type === 'ZONE_CHECKPOINT_SCANNED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        // 📍 Evento de scan de checkpoint para zone conquest
+        // Frontend já possui dados em scoreLog via loadScoreLog()
+        // Este evento só dispara notificação/feedback visual
+        console.log('📍 Zone Checkpoint Scanned:', event.payload);
+        
+        // Recarregar scoreLog para atualizar mapa com nova leitura
+        if (loadScoreLog) {
+          loadScoreLog().catch(err => console.error('Erro ao recarregar scoreLog:', err));
+        }
       } else if ((event.type === 'TREASURE_PROGRESS' || event.type === 'TREASURE_ROUND_COMPLETED') && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
         const payload = event.payload || {};
         setMonsterStatus(null);
@@ -405,6 +462,9 @@ export default function DisplayMain() {
     .toLowerCase();
   const isZoneGame = ['zone_conquest', 'zone', 'territory', 'territory_conquest'].includes(selectedGameType || '')
     || /\b(zona|zone|territor)/.test(normalizedGameContext);
+
+  // Também mostrar mapa em tesouro
+  const shouldShowMap = selectedGameType && (isZoneGame || selectedGameType === 'treasure_hunt');
 
   const monsterCards = monsterStatus?.monsters?.length
     ? monsterStatus.monsters
@@ -634,6 +694,7 @@ export default function DisplayMain() {
                 checkpoints={checkpoints}
                 teams={teams}
                 lastEvent={lastTreasureEvent}
+                floorPlan={floorPlan}
               />
             </div>
           )}
@@ -648,9 +709,9 @@ export default function DisplayMain() {
           </div>
         </div>
 
-        {isZoneGame && !monsterStatus?.active && !treasureStatus?.active && (
+        {shouldShowMap && !monsterStatus?.active && !treasureStatus?.active && (
           <div className="mb-8" aria-live="polite">
-            <DisplayMap embedded />
+            <DisplayMap embedded gameType={selectedGameType} floorPlan={(floorPlan as any)} />
           </div>
         )}
 

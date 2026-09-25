@@ -401,12 +401,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           loading: () => _buildMapLoadingState(),
           error: (error, _) => _buildMapErrorState(),
           data: (children) {
+            // ✅ Log crítico: quantas crianças foram carregadas?
+            log.i('📍 [HOME_SCREEN] _buildEventMapSection - Crianças carregadas: ${children.length}');
+            if (children.isNotEmpty) {
+              children.forEach((child) {
+                log.i('   - ${child.nickname}: evento_id=${child.evento_id}');
+              });
+            }
+            
             if (children.isEmpty) {
               return _buildMapEmptyState();
             }
 
-            // ✅ Log essencial: está carregando dados
-            
             final activeEvent = activeEventAsync.value;
             final activeGame = activeGameAsync.value;
 
