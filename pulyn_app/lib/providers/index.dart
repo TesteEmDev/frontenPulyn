@@ -429,8 +429,9 @@ final avatarTrackingPositionsProvider = Provider.autoDispose<Map<String, Map<Str
         // Step 1: Encontrar último checkpoint de cada criança
         final childLastCheckpoint = <String, Map<String, dynamic>>{};
         
-        // Ordernar scoreLog por data (mais recentes primeiro)
-        final sorted = [...scoreLog].sort((a, b) {
+        // Ordenar scoreLog por data (mais recentes primeiro)
+        final sorted = [...scoreLog];
+        sorted.sort((a, b) {
           final aTime = DateTime.tryParse(a['timestamp']?.toString() ?? a['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
           final bTime = DateTime.tryParse(b['timestamp']?.toString() ?? b['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
           return bTime.compareTo(aTime);
@@ -465,8 +466,6 @@ final avatarTrackingPositionsProvider = Provider.autoDispose<Map<String, Map<Str
         final checkpointSlots = <String, int>{}; // Conta quantas crianças já estão em cada checkpoint
         
         for (final child in children) {
-          if (child.status != 'active') continue;
-          
           final lastInfo = childLastCheckpoint[child.id];
           
           if (lastInfo != null && lastInfo['mapX'] != null && lastInfo['mapY'] != null) {
@@ -512,8 +511,6 @@ final avatarTrackingPositionsProvider = Provider.autoDispose<Map<String, Map<Str
 /// Provider que retorna posições em tempo real quando scoreLog muda
 /// (dispara recalcuação automática)
 final liveAvatarPositionsProvider = StreamProvider.autoDispose<Map<String, Map<String, dynamic>>>((ref) async* {
-  final scoreLogAsync = ref.watch(scoreLogProvider);
-  
   // Emitir valor inicial
   final initialPositions = ref.read(avatarTrackingPositionsProvider);
   yield initialPositions;

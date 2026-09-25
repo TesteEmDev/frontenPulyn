@@ -152,6 +152,29 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
         ref.read(mapRefreshProvider.notifier).refresh();
       });
     });
+
+    // ✅ NOVO: Escutar mudanças no provider de posições de avatares (rastreio em tempo real)
+    Future.microtask(() {
+      ref.listen<Map<String, Map<String, dynamic>>>(
+        avatarTrackingPositionsProvider,
+        (previous, next) {
+          if (previous == null) return; // Skip na primeira vez
+          
+          log.i('[TRACKING_LISTENER] 🔄 Posições atualizadas! ${next.length} crianças');
+          
+          // Para cada criança com nova posição
+          next.forEach((childId, posData) {
+            final newX = (posData['x'] as num?)?.toDouble() ?? 175.0;
+            final newY = (posData['y'] as num?)?.toDouble() ?? 140.0;
+            
+            log.i('[TRACKING_LISTENER] 📍 $childId → ($newX, $newY)');
+            
+            // Animar avatar para nova posição
+            _animateAvatarToPosition(childId, newX, newY);
+          });
+        },
+      );
+    });
   }
   
   @override
@@ -264,7 +287,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
       late Offset checkpointPos;
       
       // ✨ NOVO: Se as coordenadas foram enviadas diretamente no evento, usa elas primeiro
-      if (directMapX != null && directMapY != null && directMapX! >= 0 && directMapY! >= 0) {
+      if (directMapX != null && directMapY != null && directMapX >= 0 && directMapY >= 0) {
         checkpointPos = Offset(directMapX, directMapY);
         log.i('✅ [MAP] Coordenadas diretas do evento: ($directMapX, $directMapY) pixels');
       } else {
@@ -1604,6 +1627,61 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
         ),
       ],
     );
+  }
+
+  /// 🎯 NOVO: Anima avatar de sua posição atual para uma nova posição
+  /// Usado pelo avatarTrackingPositionsProvider para rastreio em tempo real
+  /// Muito mais simples que _animateAvatarToCheckpoint - apenas move para coordenadas diretas
+  Future<void> _animateAvatarToPosition(String childId, double newX, double newY) async {
+    try {
+      log.i('🎬 [ANIMATE_POS] Animando $childId para ($newX, $newY)');
+      
+      // Se não existe avatar para essa criança, criar um na posição atual
+      if (!_avatarPositions.containsKey(childId)) {
+        log.i('🎬 [ANIMATE_POS] Avatar $childId não existe, criando em posição inicial');
+        _avatarPositions[childId] = AvatarPosition(
+          childId: childId,
+          childName: 'Criança',
+          teamColor: '#FFFFFF',
+          x: mapWidth / 2,
+          y: mapHeight / 2,
+        );
+      }
+      
+      final currentAvatar = _avatarPositions[childId]!;
+      final startX = currentAvatar.x;
+      final startY = currentAvatar.y;
+      
+      log.i('🎬 [ANIMATE_POS] De ($startX, $startY) para ($newX, $newY)');
+      
+      // Reset e play da animação
+      _avatarMoveController.reset();
+      await _avatarMoveController.forward();
+      
+      // Animar suavemente com Tween
+      final animationX = Tween<double>(begin: startX, end: newX).animate(
+        CurvedAnimation(parent: _avatarMoveController, curve: Curves.easeInOutCubic),
+      );
+      
+      final animationY = Tween<double>(begin: startY, end: newY).animate(
+        CurvedAnimation(parent: _avatarMoveController, curve: Curves.easeInOutCubic),
+      );
+      
+      // Listener para atualizar posição durante animação
+      _avatarMoveController.addListener(() {
+        if (mounted) {
+          setState(() {
+            currentAvatar.x = animationX.value;
+            currentAvatar.y = animationY.value;
+          });
+        }
+      });
+      
+      log.i('✅ [ANIMATE_POS] Animação concluída para $childId');
+    } catch (e, st) {
+      log.e('❌ [ANIMATE_POS] Erro ao animar: $e');
+      log.e('❌ [ANIMATE_POS] Stack: $st');
+    }
   }
 }
 
