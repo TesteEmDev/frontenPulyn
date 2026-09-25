@@ -4,11 +4,7 @@ import { DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
 import type { Checkpoint, Team } from '../../store/mockData';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
-import { ZoneConquestIndividualZones } from '../../components/display/ZoneConquestIndividualZones';
 import { CheckpointProtectionIndicator } from '../../components/display/CheckpointProtectionIndicator';
-import { ZoneConquestTeamRenderer } from '../../components/display/ZoneConquestTeamRenderer';
-import { ZoneConquestIndividualRenderer } from '../../components/display/ZoneConquestIndividualRenderer';
-import { useZoneRenderingMode } from '../../hooks/useZoneConquestMode';
 import type { ZoneState, CheckpointState } from '../../hooks/useZoneConquestGame';
 
 interface Zone {
@@ -39,10 +35,6 @@ function normalizeZoneName(value?: string | null) {
     .toLowerCase();
 }
 
-// Converter posição em px para % (não mais utilizado - avatares agora em foreignObject)
-// function pxToPercent(px: number, totalSize: number): number {
-//   return (px / totalSize) * 100;
-// }
 
 function getStoredMapPosition(checkpoint: Checkpoint) {
   const x = Number(checkpoint.map_x ?? checkpoint.mapX);
@@ -73,49 +65,26 @@ function getCheckpointDisplayPosition(checkpoint: Checkpoint, checkpoints: Check
   };
 }
 
-// ⚠️ ChildAvatar não mais utilizado - avatares agora renderizados como foreignObject dentro do SVG
-/*
-function ChildAvatar({
-  avatar,
-  nickname,
-  x,
-  y,
-}: {
-  avatar: string;
-  nickname: string;
-  x: number;
-  y: number;
-}) {
-  return (
-    <div
-      className="absolute z-10 flex flex-col items-center pointer-events-none transition-[left,top] duration-700 ease-out"
-      style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, 0%)' }}
-    >
-      <div className="animate-float">
-        <Avatar emoji={avatar || DEFAULT_AVATAR_ID} size="sm" decorative />
-      </div>
-      <span className="mt-0.5 whitespace-nowrap font-display text-[10px] text-slate-300">
-        {nickname || 'Participante'}
-      </span>
-    </div>
-  );
-}
-*/
 
 interface DisplayMapProps {
   embedded?: boolean;
   gameType?: string;
   floorPlan?: string | null;
   // 🆕 Zone Conquest INDIVIDUAL
+  // O backend só grava gameType='zone_conquest' para os dois modos (equipe e
+  // individual) — o modo real vem da partida ativa (zone_conquest_individual_partidas
+  // vs zone_conquest_team_partidas), então precisa ser informado explicitamente
+  // pelo componente pai. Nunca inferir isso a partir de `gameType`.
+  isIndividualMode?: boolean;
   zoneConquestZones?: ZoneState[] | null;
   zoneConquestCheckpoints?: CheckpointState[] | null;
 }
 
-export default function DisplayMap({ 
-  embedded = false, 
-  gameType, 
+export default function DisplayMap({
+  embedded = false,
+  gameType,
   floorPlan,
-  zoneConquestZones,
+  isIndividualMode = false,
   zoneConquestCheckpoints,
 }: DisplayMapProps) {
   const { children, checkpoints, scoreLog, teams } = usePulynStore();
@@ -124,16 +93,13 @@ export default function DisplayMap({
   const activeGame = usePulynStore((state: any) => state.activeGame);
   const [zones, setZones] = useState<Zone[]>(DEFAULT_ZONES);
   const [localFloorPlan, setLocalFloorPlan] = useState<string | null>(floorPlan || null);
-  
-  // 🆕 Detectar modo Zone Conquest (TEAM ou INDIVIDUAL)
-  const { renderMode, isTeam, isIndividual, isActive: isZoneModeActive } = useZoneRenderingMode(
-    eventoAtual,
-    gameType
-  );
 
   // Usar gameType da prop se disponível
   const isTreasureMode = gameType === 'treasure_hunt';
   const isZoneMode = gameType === 'zone' || gameType === 'zone_conquest' || gameType === 'territory' || gameType === 'territory_conquest';
+  // isIndividual vem sempre da prop (estado real da partida), nunca de `gameType`:
+  // o backend usa o mesmo valor 'zone_conquest' para os modos equipe e individual.
+  const isIndividual = isIndividualMode;
   const shouldShowPlanta = isZoneMode || isTreasureMode || activeGame?.type === 'team' || activeGame?.type === 'treasure_hunt';
   
   // Debug: verificar estado
@@ -326,13 +292,24 @@ export default function DisplayMap({
   // Determine each child's last checkpoint zone.
   const childLastZone = useMemo(() => {
     const zoneMap: Record<string, { zone: string; checkpointId: string }> = {};
-    
-    // 🆕 Para Zone Conquest, não usar scoreLog (que está vazio). Apenas mostrar avatares em zonas neutras
+
+    // Modo INDIVIDUAL: o scoreLog não reflete leituras individuais, mas
+    // zoneConquestCheckpoints já traz o dono atual de cada checkpoint — e
+    // "dono atual" é exatamente o último checkpoint que aquele participante
+    // conquistou. Usamos isso para os avatares seguirem a posição real.
     if (zoneConquestCheckpoints && zoneConquestCheckpoints.length > 0) {
-      // Zone Conquest: não rastrear últimos checkpoints, avatares ficam em zonas de entrada
+      for (const zcCheckpoint of zoneConquestCheckpoints) {
+        if (!zcCheckpoint.participantId) continue;
+        const cp = checkpoints.find((c) => String(c.id) === String(zcCheckpoint.id));
+        if (!cp) continue;
+        const knownZone = zones.some((zone) => normalizeZoneName(zone.name) === normalizeZoneName(cp.zone))
+          ? zones.find((zone) => normalizeZoneName(zone.name) === normalizeZoneName(cp.zone))?.name || 'Entrada'
+          : 'Entrada';
+        zoneMap[zcCheckpoint.participantId] = { zone: knownZone, checkpointId: cp.id };
+      }
       return zoneMap;
     }
-    
+
     const sorted = [...scoreLog].reverse();
 
     for (const entry of sorted) {
@@ -519,11 +496,11 @@ export default function DisplayMap({
       : 'fixed inset-0 flex flex-col overflow-hidden bg-gradient-dark'}>
       <div className={`relative z-10 border-b border-dark-border/50 text-center ${embedded ? 'pb-4' : 'py-6'}`}>
         <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary-300">
-          {activeGame?.type === 'treasure_hunt' ? 'Caça ao Tesouro' : isTeam ? 'Zona - Modo Equipe' : isIndividual ? 'Zona - Modo Individual' : 'Brincadeira Zona'}
+          {activeGame?.type === 'treasure_hunt' ? 'Caça ao Tesouro' : isIndividual ? 'Zona - Modo Individual' : isZoneMode ? 'Zona - Modo Equipe' : 'Brincadeira Zona'}
         </p>
         <h1 className="font-display text-3xl text-slate-100">Mapa do Espaço</h1>
         <p className="mt-1 text-sm uppercase tracking-widest text-slate-500">
-          {activeGame?.type === 'treasure_hunt' ? 'Localização dos checkpoints em tempo real' : isTeam ? 'Domínio de zonas por equipe' : isIndividual ? 'Competição individual por checkpoints' : 'Domínio dos territórios em tempo real'}
+          {activeGame?.type === 'treasure_hunt' ? 'Localização dos checkpoints em tempo real' : isIndividual ? 'Competição individual por checkpoints' : 'Domínio dos territórios em tempo real'}
         </p>
       </div>
 
@@ -545,43 +522,23 @@ export default function DisplayMap({
           viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
           preserveAspectRatio="xMidYMid meet"
         >
-          {/* 🆕 Renderizadores específicos por modo Zone Conquest */}
-          {isZoneModeActive && isTeam ? (
-            // MODO TEAM: usar ZoneConquestTeamRenderer
-            <ZoneConquestTeamRenderer
-              zones={zones}
-              checkpoints={checkpoints}
-              children={children}
-              teams={teams}
-              scoreLog={scoreLog}
-              checkpointPositions={checkpointPositions}
-              MAP_WIDTH={MAP_WIDTH}
-              MAP_HEIGHT={MAP_HEIGHT}
-            />
-          ) : isZoneModeActive && isIndividual ? (
-            // MODO INDIVIDUAL: usar ZoneConquestIndividualRenderer
-            <ZoneConquestIndividualRenderer
-              zones={zones}
-              checkpoints={checkpoints}
-              children={children}
-              teams={teams}
-              zoneConquestZones={zoneConquestZones}
-              zoneConquestCheckpoints={zoneConquestCheckpoints}
-              checkpointPositions={checkpointPositions}
-              MAP_WIDTH={MAP_WIDTH}
-              MAP_HEIGHT={MAP_HEIGHT}
-            />
-          ) : (
-            // FALLBACK: renderização padrão (para outros modos de jogo)
             <>
               {/* Zonas em coordenadas de pixels (como AdminMap) - só mostrar em modo zona */}
               {activeGame?.type !== 'treasure_hunt' && zones.map((zone) => {
                 const zoneData = zoneColorByOwnership.get(normalizeZoneName(zone.name));
                 const zoneOwnerColor = zoneData?.color || '#94A3B8';
                 const zoneTeamName = zoneData?.teamName || '';
-                const isDisputed = zoneTeamName === 'DISPUTA';
+                const isDisputed = zoneTeamName === 'EM DISPUTA';
                 const isDominated = zoneTeamName && !isDisputed;
-                
+              
+                // Zonas do modo INDIVIDUAL usam um traço pontilhado fino e o
+                // nome do participante prefixado com 👤, para nunca se
+                // confundir visualmente com a zona sólida do modo equipe.
+                const dominatedDash = isIndividual ? '2 3' : 'none';
+                const disputedDash = isIndividual ? '3 3' : '8 4';
+                const neutralDash = isIndividual ? '2 3' : '6 3';
+                const ownerLabel = isIndividual && isDominated ? `👤 ${zoneTeamName}` : zoneTeamName;
+
                 return (
                   <g key={zone.id}>
                     <rect
@@ -593,7 +550,7 @@ export default function DisplayMap({
                       fillOpacity={isDisputed ? 0.2 : (isDominated ? 0.25 : 0.15)}
                       stroke={zoneOwnerColor}
                       strokeWidth={isDisputed ? 2 : (isDominated ? 2.5 : 2)}
-                      strokeDasharray={isDisputed ? "8 4" : "6 3"}
+                      strokeDasharray={isDisputed ? disputedDash : (isDominated ? dominatedDash : neutralDash)}
                       rx={8}
                     />
                     <text
@@ -618,7 +575,7 @@ export default function DisplayMap({
                         fontWeight={700}
                         fontFamily="system-ui"
                       >
-                        {zoneTeamName}
+                        {ownerLabel}
                       </text>
                     )}
                     {isDisputed && (
@@ -638,25 +595,51 @@ export default function DisplayMap({
                 );
               })}
 
-              {/* Checkpoints em coordenadas de pixels (como AdminMap) */}
-              {checkpointPositions.map(({ checkpoint, x, y }) => {
-                const owner = checkpointOwnerById.get(String(checkpoint.id));
-                const isOnline = checkpoint.status === 'online';
-                const color = owner?.color || (isOnline ? '#22C55E' : '#EF4444');
-                
-                return (
-                  <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
-                    <circle r={17} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={2} />
-                    <circle r={5} fill={color} />
-                    <text y={-22} textAnchor="middle" fill="#FFFFFF" fontSize={10} fontWeight={600}>
-                      {checkpoint.id}
-                    </text>
-                    <text y={30} textAnchor="middle" fill="#D1D5DB" fontSize={9}>
-                      {checkpoint.name}
-                    </text>
-                  </g>
-                );
-              })}
+               {/* Indicadores de Proteção do Zone Conquest INDIVIDUAL */}
+          {zoneConquestCheckpoints && zoneConquestCheckpoints.map((cp) => {
+            const position = checkpointPositions.find(p => p.checkpoint.id === cp.id);
+            if (!position || !cp.isProtected) return null;
+            return (
+              <CheckpointProtectionIndicator
+                key={`protection-${cp.id}`}
+                checkpointId={cp.id}
+                participantName={cp.participantName}
+                participantColor={cp.participantColor}
+                protectedUntil={cp.protectedUntil}
+                x={position.x}
+                y={position.y}
+              />
+            );
+          })}
+
+          {/* Checkpoints em coordenadas de pixels (como AdminMap) */}
+          {checkpointPositions.map(({ checkpoint, x, y }) => {
+            const owner = checkpointOwnerById.get(String(checkpoint.id));
+            const isOnline = checkpoint.status === 'online';
+            const color = owner?.color || (isOnline ? '#22C55E' : '#EF4444');
+            // Checkpoint dominado por participante (modo individual) ganha um
+            // anel pontilhado em vez do anel sólido usado no domínio por equipe.
+            const ownedByIndividual = isIndividual && Boolean(owner);
+            return (
+              <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
+                <circle
+                  r={17}
+                  fill={color}
+                  fillOpacity={0.18}
+                  stroke={color}
+                  strokeWidth={2}
+                  strokeDasharray={ownedByIndividual ? '3 2' : 'none'}
+                />
+                <circle r={5} fill={color} />
+                <text y={-22} textAnchor="middle" fill="#FFFFFF" fontSize={10} fontWeight={600}>
+                  {checkpoint.id}
+                </text>
+                <text y={30} textAnchor="middle" fill="#D1D5DB" fontSize={9}>
+                  {checkpoint.name}
+                </text>
+              </g>
+            );
+          })}
 
               {/* Avatares como foreignObject dentro do SVG (mesmas coordenadas em pixels) */}
               {childPositions.map((position) => (
@@ -678,7 +661,6 @@ export default function DisplayMap({
                 </foreignObject>
               ))}
             </>
-          )}
         </svg>
       </div>
 
@@ -693,8 +675,11 @@ export default function DisplayMap({
         </div>
         {ownedTeams.map((team) => (
           <div key={team.id} className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: team.color, boxShadow: `0 0 8px ${team.color}80` }} />
-            <span className="text-xs text-slate-300">{team.name}</span>
+            <div
+              className={isIndividual ? "h-3 w-3 rounded-full border border-dashed border-white/60" : "h-3 w-3 rounded-full"}
+              style={{ backgroundColor: team.color, boxShadow: `0 0 8px ${team.color}80` }}
+            />
+            <span className="text-xs text-slate-300">{isIndividual ? `👤 ${team.name}` : team.name}</span>
           </div>
         ))}
         <div className="flex items-center gap-2">
