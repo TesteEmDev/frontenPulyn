@@ -293,23 +293,14 @@ export default function DisplayMap({
   const childLastZone = useMemo(() => {
     const zoneMap: Record<string, { zone: string; checkpointId: string }> = {};
 
-    // Modo INDIVIDUAL: o scoreLog não reflete leituras individuais, mas
-    // zoneConquestCheckpoints já traz o dono atual de cada checkpoint — e
-    // "dono atual" é exatamente o último checkpoint que aquele participante
-    // conquistou. Usamos isso para os avatares seguirem a posição real.
-    if (zoneConquestCheckpoints && zoneConquestCheckpoints.length > 0) {
-      for (const zcCheckpoint of zoneConquestCheckpoints) {
-        if (!zcCheckpoint.participantId) continue;
-        const cp = checkpoints.find((c) => String(c.id) === String(zcCheckpoint.id));
-        if (!cp) continue;
-        const knownZone = zones.some((zone) => normalizeZoneName(zone.name) === normalizeZoneName(cp.zone))
-          ? zones.find((zone) => normalizeZoneName(zone.name) === normalizeZoneName(cp.zone))?.name || 'Entrada'
-          : 'Entrada';
-        zoneMap[zcCheckpoint.participantId] = { zone: knownZone, checkpointId: cp.id };
-      }
-      return zoneMap;
-    }
-
+    // O dono ATUAL de um checkpoint (zoneConquestCheckpoints) não serve para
+    // posicionar avatares: quando outro participante toma o checkpoint, o
+    // dono anterior desaparece do mapa de donos e seu avatar "sumiria" de
+    // volta pra entrada. A posição do avatar é sobre a PRÓPRIA leitura do
+    // participante (scoreLog), não sobre quem domina o checkpoint agora — os
+    // scans de Zone Conquest INDIVIDUAL também gravam em `leituras` com o
+    // session_id da partida atual, então o mesmo caminho serve para os dois
+    // modos (equipe e individual).
     const sorted = [...scoreLog].reverse();
 
     for (const entry of sorted) {
@@ -325,7 +316,7 @@ export default function DisplayMap({
     }
 
     return zoneMap;
-  }, [scoreLog, checkpoints, zones, zoneConquestCheckpoints]);
+  }, [scoreLog, checkpoints, zones]);
 
   // Avatares acompanham o último checkpoint conquistado. Quando ainda não
   // existe uma conquista, continuam distribuídos na zona de entrada/zona atual.
