@@ -552,22 +552,11 @@ export default function GameMasterDashboard() {
     
     setActionLoading('start');
     try {
-      // Extrair o modo Zone Conquest do nome do jogo se aplicável
+      // O modo Zone Conquest (equipe/individual) é lido pelo backend a partir
+      // de brincadeiras.type, definido no AdminGameForm ao criar o jogo — não
+      // é mais adivinhado a partir do nome do jogo.
       const gameName = activeGame?.name || 'Jogo';
-      let zoneConquestMode: string | undefined;
-      const gameNameUpper = gameName.toUpperCase();
-      if (gameNameUpper.includes('INDIVIDUAL')) {
-        zoneConquestMode = 'individual';
-      } else if (gameNameUpper.includes('EQUIPE') || gameNameUpper.includes('TEAM')) {
-        zoneConquestMode = 'team';
-      }
-
-      const data = await api.startGame(
-        selectedGameId,
-        gameName,
-        selectedEventId,
-        zoneConquestMode
-      );
+      const data = await api.startGame(selectedGameId, gameName, selectedEventId);
       console.log('✅ Jogo iniciado:', data);
       resetGameTimer();
       setGameRunning(true);

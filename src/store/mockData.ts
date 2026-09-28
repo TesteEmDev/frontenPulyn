@@ -123,6 +123,7 @@ interface PulynStore {
   games: Game[];
   events: Event[];
   currentGameId: string | null;
+  currentPartidaId: string | null;
   readingsLog: ReadingLog[];
   scoreLog: ScoreLog[];
   activeGame: Game | null;
@@ -153,6 +154,7 @@ interface PulynStore {
   updateGame: (id: string, data: Partial<Game>) => void;
   deleteGame: (id: string) => void;
   setCurrentGame: (id: string | null) => void;
+  setCurrentPartida: (id: string | null) => void;
   
   addScore: (childId: string, checkpointId: string, points: number) => void;
   addScoreWithReason: (childId: string, checkpointId: string, points: number, justification?: string) => void;
@@ -207,6 +209,7 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
   games: mockGames,
   events: mockEvents,
   currentGameId: null,
+  currentPartidaId: null,
   readingsLog: [],
   scoreLog: [],
   activeGame: null,
@@ -322,8 +325,11 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
   loadScoreLog: async () => {
     try {
       const eventId = get().eventoAtualId;
+      const currentPartidaId = get().currentPartidaId;
       if (!eventId) return;
-      const history = await api.getScoreHistory(eventId, 100);
+      
+      // 🆕 Passar sessionId para filtrar apenas dados da sessão atual
+      const history = await api.getScoreHistory(eventId, 100, currentPartidaId);
       if (get().eventoAtualId !== eventId) return;
 
       const normalizedHistory = (Array.isArray(history) ? history : []).map((entry: any) => ({
@@ -554,6 +560,7 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
   deleteGame: (id) => set((state) => ({ games: state.games.filter((g) => g.id !== id) })),
   
   setCurrentGame: (id) => set({ currentGameId: id }),
+  setCurrentPartida: (id) => set({ currentPartidaId: id }),
 
   // ==================== SCORES ====================
   

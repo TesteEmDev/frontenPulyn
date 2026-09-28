@@ -331,11 +331,24 @@ export default function DisplayMain() {
         setSelectedGameName(event.payload?.gameName || null);
         
         // 🆕 Limpar scoreLog imediatamente quando novo jogo inicia (para todos os tipos de jogo)
-        const { clearScoreLog } = usePulynStore.getState();
+        const { clearScoreLog, loadCheckpoints, loadChildren, setCurrentPartida } = usePulynStore.getState();
         clearScoreLog();
         
-        // Recarregar scoreLog (que agora está vazio no backend)
-        loadScoreLog();
+        // 🆕 USAR O sessionId RECEBIDO DO BACKEND (não gerar localmente!)
+        const sessionId = event.payload?.sessionId;
+        if (sessionId) {
+          setCurrentPartida(sessionId);
+          console.log(`✅ [GAME_STARTED] Sessão setada: ${sessionId}`);
+        } else {
+          console.warn(`⚠️ [GAME_STARTED] Nenhum sessionId recebido do backend`);
+        }
+        
+        // Recarregar scoreLog + checkpoints + children (igual ao reset button)
+        Promise.all([
+          loadScoreLog(),
+          loadCheckpoints(),
+          loadChildren(),
+        ]);
         
         // 🆕 Se é Zone Conquest, resetar e recarregar status
         if (gameType?.toLowerCase().includes('zone_conquest')) {
@@ -790,11 +803,15 @@ export default function DisplayMain() {
 
         {shouldShowMap && !monsterStatus?.active && !treasureStatus?.active && (
           <div className="mb-8" aria-live="polite">
-            <DisplayMap 
-              embedded 
-              gameType={selectedGameType} 
+            <DisplayMap
+              embedded
+              gameType={selectedGameType}
               floorPlan={(floorPlan as any)}
               // 🆕 Zone Conquest INDIVIDUAL
+              // isIndividualMode vem da partida real (zone_conquest_individual_partidas ativa),
+              // nunca inferir isso a partir de gameType: o backend só grava 'zone_conquest'
+              // para os dois modos (equipe e individual).
+              isIndividualMode={isIndividualMode}
               zoneConquestZones={zoneConquestStatus?.zones || null}
               zoneConquestCheckpoints={zoneConquestStatus?.checkpoints || null}
             />
