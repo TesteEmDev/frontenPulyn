@@ -36,10 +36,9 @@ const navItems = [
 export default function AdminReports() {
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { 
-    children = [], 
-    teams = [], 
-    checkpoints = [], 
+  const {
+    children = [],
+    checkpoints = [],
     scoreLog = [], 
     games = [],
     events = [],
@@ -56,6 +55,7 @@ export default function AdminReports() {
 
   // Carregar dados da API
   useEffect(() => {
+    let disposed = false;
     const loadData = async () => {
       setLoading(true);
       await Promise.all([
@@ -64,34 +64,42 @@ export default function AdminReports() {
         loadCheckpoints(),
         loadGames(),
       ]);
-      
+      if (disposed) return;
+
+      // Ler o estado mais recente do store direto (em vez de "teams"/"checkpoints"
+      // capturados no closure deste efeito), para não precisar deles nas
+      // dependências — colocá-los ali causava um loop infinito, porque
+      // loadTeams()/loadCheckpoints() sempre retornam arrays novos e isso
+      // disparava o próprio efeito de novo a cada carregamento.
+      const state = usePulynStore.getState();
+
       // Gerar dados reais dos times
-      const safeTeams = Array.isArray(teams) ? teams : [];
+      const safeTeams = Array.isArray(state.teams) ? state.teams : [];
       const teamScores = safeTeams.map(team => ({
         name: team.name,
         pontos: team.points || 0,
         color: team.color
       }));
       setScoreByTeamData(teamScores.sort((a, b) => b.pontos - a.pontos));
-      
+
       // Gerar dados de engajamento por zona
-      const safeCheckpoints = Array.isArray(checkpoints) ? checkpoints : [];
-      const zoneMap = new Map<string, number>();
-      safeCheckpoints.forEach(cp => {
+      const safeCheckpointsForZones = Array.isArray(state.checkpoints) ? state.checkpoints : [];
+      const zoneCounts: Record<string, number> = {};
+      safeCheckpointsForZones.forEach(cp => {
         const zone = cp.zone || 'Sem zona';
-        const current = zoneMap.get(zone) || 0;
-        zoneMap.set(zone, current + 1);
+        zoneCounts[zone] = (zoneCounts[zone] || 0) + 1;
       });
-      const zoneData = Array.from(zoneMap.entries()).map(([zone, valor]) => ({
+      const zoneData = Object.entries(zoneCounts).map(([zone, valor]) => ({
         zone,
         valor: Math.min(valor * 20, 100) // Normalizar para escala 0-100
       }));
       setEngagementByZoneData(zoneData);
-      
+
       setLoading(false);
     };
     loadData();
-  }, [loadChildren, loadTeams, loadCheckpoints, loadGames, teams, checkpoints]);
+    return () => { disposed = true; };
+  }, [loadChildren, loadTeams, loadCheckpoints, loadGames]);
 
   const safeChildren = Array.isArray(children) ? children : [];
   const safeCheckpoints = Array.isArray(checkpoints) ? checkpoints : [];
