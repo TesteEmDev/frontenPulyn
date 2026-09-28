@@ -421,6 +421,12 @@ export const api = {
       url += `&sessionId=${encodeURIComponent(sessionId)}`;
     }
     
+=======
+  async getScoreHistory(eventoId: string, limit = 100, brincadeiraId?: string) {
+    let url = `${API_URL}/leituras/eventos/${encodeURIComponent(eventoId)}/historico?limit=${limit}`;
+    if (brincadeiraId) {
+      url += `&brincadeiraId=${encodeURIComponent(brincadeiraId)}`;
+    }
     const res = await fetch(url, {
       headers: getAuthHeaders(),
     });
@@ -521,9 +527,11 @@ export const api = {
   // ==================== EVENTOS ====================
   async getEventos() {
     try {
+      console.log('🔍 [api.getEventos] Fazendo fetch para:', `${API_URL}/eventos`);
       const res = await fetch(`${API_URL}/eventos`, {
         headers: getAuthHeaders()
       });
+      console.log('📡 [api.getEventos] Status:', res.status);
       if (!res.ok) {
         const errorText = await res.text();
         const message = `Erro ao buscar eventos (${res.status})`;
@@ -531,9 +539,36 @@ export const api = {
         throw new Error(message);
       }
       const data = await res.json();
-      return Array.isArray(data) ? data : [];
+      console.log('📊 [api.getEventos] Dados brutos recebidos:', data);
+      
+      // ✅ Extrai array do wrapper object se necessário
+      if (Array.isArray(data)) {
+        console.log('✅ [api.getEventos] Data é um array direto. Retornando:', data);
+        return data;
+      }
+      
+      // Tenta extrair de diferentes possíveis estruturas
+      if (data?.eventos && Array.isArray(data.eventos)) {
+        console.log('✅ [api.getEventos] Data tem .eventos. Retornando:', data.eventos);
+        return data.eventos;
+      }
+      if (data?.data && Array.isArray(data.data)) {
+        console.log('✅ [api.getEventos] Data tem .data. Retornando:', data.data);
+        return data.data;
+      }
+      if (data?.payload && Array.isArray(data.payload)) {
+        console.log('✅ [api.getEventos] Data tem .payload. Retornando:', data.payload);
+        return data.payload;
+      }
+      if (data?.events && Array.isArray(data.events)) {
+        console.log('✅ [api.getEventos] Data tem .events. Retornando:', data.events);
+        return data.events;
+      }
+      
+      console.warn('⚠️ [api.getEventos] Resposta inesperada:', data);
+      return [];
     } catch (err) {
-      console.error('❌ Erro ao buscar eventos:', err);
+      console.error('❌ [api.getEventos] Erro ao buscar eventos:', err);
       throw err;
     }
   },
@@ -586,7 +621,25 @@ export const api = {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erro ao carregar times (${res.status})`);
-    return Array.isArray(data) ? data : [];
+    
+    // ✅ Extrai array do wrapper object se necessário
+    if (Array.isArray(data)) {
+      return data;
+    }
+    
+    // Tenta extrair de diferentes possíveis estruturas
+    if (data?.teams && Array.isArray(data.teams)) {
+      return data.teams;
+    }
+    if (data?.data && Array.isArray(data.data)) {
+      return data.data;
+    }
+    if (data?.payload && Array.isArray(data.payload)) {
+      return data.payload;
+    }
+    
+    console.warn('⚠️ getKioskTeams: Resposta inesperada:', data);
+    return [];
   },
 
   async getKioskBracelet(code: string) {
@@ -815,7 +868,27 @@ export const api = {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || `Erro ao carregar times (${res.status})`);
       }
-      return await res.json();
+      
+      const data = await res.json();
+      
+      // ✅ Extrai array do wrapper object se necessário
+      if (Array.isArray(data)) {
+        return data;
+      }
+      
+      // Tenta extrair de diferentes possíveis estruturas
+      if (data?.times && Array.isArray(data.times)) {
+        return data.times;
+      }
+      if (data?.data && Array.isArray(data.data)) {
+        return data.data;
+      }
+      if (data?.payload && Array.isArray(data.payload)) {
+        return data.payload;
+      }
+      
+      console.warn('⚠️ getTimes: Resposta inesperada:', data);
+      return [];
     } catch (err) {
       console.error('❌ Erro ao buscar times:', err);
       throw err;

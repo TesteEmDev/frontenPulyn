@@ -345,6 +345,12 @@ export default function DisplayMain() {
           // Chamar refresh para recarregar dados frescos do backend
           refreshZoneConquestStatus();
         } else if (gameType === 'treasure_hunt') {
+        // 🆕 Resetar scoreLog quando novo jogo inicia
+        if (loadScoreLog) {
+          loadScoreLog().catch(err => console.error('Erro ao recarregar scoreLog:', err));
+        }
+        
+        if (gameType === 'treasure_hunt') {
           setMonsterStatus(null);
           setZoneConquestStatus(null);
           if (treasure?.startingTeamName) {
@@ -422,6 +428,16 @@ export default function DisplayMain() {
           setShowNotification(false);
         }, 3000);
         
+      } else if (event.type === 'ZONE_CHECKPOINT_SCANNED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        // 📍 Evento de scan de checkpoint para zone conquest
+        // Frontend já possui dados em scoreLog via loadScoreLog()
+        // Este evento só dispara notificação/feedback visual
+        console.log('📍 Zone Checkpoint Scanned:', event.payload);
+        
+        // Recarregar scoreLog para atualizar mapa com nova leitura
+        if (loadScoreLog) {
+          loadScoreLog().catch(err => console.error('Erro ao recarregar scoreLog:', err));
+        }
       } else if ((event.type === 'TREASURE_PROGRESS' || event.type === 'TREASURE_ROUND_COMPLETED') && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
         const payload = event.payload || {};
         setMonsterStatus(null);
