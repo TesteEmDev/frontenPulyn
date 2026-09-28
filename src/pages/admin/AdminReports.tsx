@@ -1,5 +1,5 @@
 // src/pages/admin/AdminReports.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map as MapIcon,
@@ -11,6 +11,7 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import { usePulynStore } from '../../store/mockData';
+import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
 import TopBar from '../../components/layout/TopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -36,76 +37,122 @@ const navItems = [
 export default function AdminReports() {
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const {
-    children = [],
-    checkpoints = [],
-    scoreLog = [], 
-    games = [],
-    events = [],
-    loadChildren,
-    loadTeams,
-    loadCheckpoints,
-    loadGames
-  } = usePulynStore();
-  
-  const [loading, setLoading] = useState(true);
-  const [selectedEvent, setSelectedEvent] = useState('');
-  const [scoreByTeamData, setScoreByTeamData] = useState<any[]>([]);
-  const [engagementByZoneData, setEngagementByZoneData] = useState<any[]>([]);
+  const { events = [], loadEvents } = usePulynStore();
 
-  // Carregar dados da API
+  const [loading, setLoading] = useState(true);
+  const [loadingEventData, setLoadingEventData] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState('');
+  const [children, setChildren] = useState<any[]>([]);
+  const [checkpoints, setCheckpoints] = useState<any[]>([]);
+  const [teams, setTeams] = useState<any[]>([]);
+  const [games, setGames] = useState<any[]>([]);
+  const [scoreLog, setScoreLog] = useState<any[]>([]);
+
+  // Carregar a lista de eventos da empresa (só para popular o dropdown)
   useEffect(() => {
-    let disposed = false;
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([
-        loadChildren(),
-        loadTeams(),
-        loadCheckpoints(),
-        loadGames(),
-      ]);
-      if (disposed) return;
-
-      // Ler o estado mais recente do store direto (em vez de "teams"/"checkpoints"
-      // capturados no closure deste efeito), para não precisar deles nas
-      // dependências — colocá-los ali causava um loop infinito, porque
-      // loadTeams()/loadCheckpoints() sempre retornam arrays novos e isso
-      // disparava o próprio efeito de novo a cada carregamento.
-      const state = usePulynStore.getState();
-
-      // Gerar dados reais dos times
-      const safeTeams = Array.isArray(state.teams) ? state.teams : [];
-      const teamScores = safeTeams.map(team => ({
-        name: team.name,
-        pontos: team.points || 0,
-        color: team.color
-      }));
-      setScoreByTeamData(teamScores.sort((a, b) => b.pontos - a.pontos));
-
-      // Gerar dados de engajamento por zona
-      const safeCheckpointsForZones = Array.isArray(state.checkpoints) ? state.checkpoints : [];
-      const zoneCounts: Record<string, number> = {};
-      safeCheckpointsForZones.forEach(cp => {
-        const zone = cp.zone || 'Sem zona';
-        zoneCounts[zone] = (zoneCounts[zone] || 0) + 1;
-      });
-      const zoneData = Object.entries(zoneCounts).map(([zone, valor]) => ({
-        zone,
-        valor: Math.min(valor * 20, 100) // Normalizar para escala 0-100
-      }));
-      setEngagementByZoneData(zoneData);
-
+      try {
+        if (loadEvents) await loadEvents();
+      } catch (error) {
+        console.error('Erro ao carregar eventos:', error);
+      }
       setLoading(false);
     };
     loadData();
+  }, [loadEvents]);
+
+  const safeEvents = Array.isArray(events) ? events : [];
+
+  // Selecionar um evento por padrão assim que a lista carregar: o ativo, ou
+  // o mais recente por data — nunca todos misturados (mesmo critério do
+  // Dashboard).
+  useEffect(() => {
+    if (selectedEventId || safeEvents.length === 0) return;
+    const active = safeEvents.find((e) => e?.status === 'active' || e?.status === 'ongoing');
+    if (active) {
+      setSelectedEventId(active.id);
+      return;
+    }
+    const mostRecent = [...safeEvents].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
+    setSelectedEventId(mostRecent?.id || '');
+  }, [safeEvents, selectedEventId]);
+
+  // Carregar os dados do evento selecionado direto da API — mesmo padrão do
+  // Dashboard: não depende do "eventoAtualId" global (evento operacional de
+  // recepção/game-master), e sim de uma seleção própria desta tela.
+  useEffect(() => {
+    if (!selectedEventId) {
+      setChildren([]);
+      setCheckpoints([]);
+      setTeams([]);
+      setGames([]);
+      setScoreLog([]);
+      return;
+    }
+
+    let disposed = false;
+    const loadEventData = async () => {
+      setLoadingEventData(true);
+      try {
+        const [criancasData, checkpointsData, timesData, gamesData, historyData] = await Promise.all([
+          api.getCriancas(selectedEventId).catch(() => []),
+          api.getCheckpoints(selectedEventId).catch(() => []),
+          api.getTimes(selectedEventId).catch(() => []),
+          api.getBrincadeiras(selectedEventId).catch(() => []),
+          api.getScoreHistory(selectedEventId, 200).catch(() => []),
+        ]);
+        if (disposed) return;
+        setChildren(Array.isArray(criancasData) ? criancasData : []);
+        setCheckpoints(Array.isArray(checkpointsData) ? checkpointsData : []);
+        setTeams(Array.isArray(timesData) ? timesData : []);
+        setGames(Array.isArray(gamesData) ? gamesData : []);
+        setScoreLog(Array.isArray(historyData) ? historyData : []);
+      } catch (error) {
+        console.error('Erro ao carregar dados do evento:', error);
+      } finally {
+        if (!disposed) setLoadingEventData(false);
+      }
+    };
+    loadEventData();
     return () => { disposed = true; };
-  }, [loadChildren, loadTeams, loadCheckpoints, loadGames]);
+  }, [selectedEventId]);
 
   const safeChildren = Array.isArray(children) ? children : [];
   const safeCheckpoints = Array.isArray(checkpoints) ? checkpoints : [];
+  const safeTeams = Array.isArray(teams) ? teams : [];
   const safeScoreLog = Array.isArray(scoreLog) ? scoreLog : [];
   const safeGames = Array.isArray(games) ? games : [];
-  const safeEvents = Array.isArray(events) ? events : [];
+
+  const eventOptions = useMemo(() => (
+    [...safeEvents]
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+      .map((e) => ({ value: e.id, label: `${e.name || 'Evento'} — ${e.date || 'sem data'}` }))
+  ), [safeEvents]);
+
+  const handleSelectEvent = useCallback((eventId: string) => {
+    setSelectedEventId(eventId);
+  }, []);
+
+  // Pontuação por equipe, dentro do evento selecionado
+  const scoreByTeamData = useMemo(() => (
+    [...safeTeams]
+      .map(team => ({ name: team.name, pontos: team.points || 0, color: team.color }))
+      .sort((a, b) => b.pontos - a.pontos)
+  ), [safeTeams]);
+
+  // Engajamento por zona, dentro do evento selecionado
+  const engagementByZoneData = useMemo(() => {
+    const zoneCounts: Record<string, number> = {};
+    safeCheckpoints.forEach(cp => {
+      const zone = cp.zone || 'Sem zona';
+      zoneCounts[zone] = (zoneCounts[zone] || 0) + 1;
+    });
+    return Object.entries(zoneCounts).map(([zone, valor]) => ({
+      zone,
+      valor: Math.min(valor * 20, 100), // Normalizar para escala 0-100
+    }));
+  }, [safeCheckpoints]);
 
   const totalParticipants = safeChildren.length;
   const avgPoints = safeChildren.length > 0
@@ -186,7 +233,7 @@ export default function AdminReports() {
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Relatórios"
-            description="Análise de dados e métricas do evento"
+            description="Análise de dados e métricas do evento selecionado"
             icon={<FileText size={28} />}
             action={
               <Button variant="accent" onClick={handleExportCSV}>
@@ -201,132 +248,137 @@ export default function AdminReports() {
             <Card>
               <Select
                 label="Selecionar Evento"
-                options={[
-                  { value: '', label: 'Todos os eventos' },
-                  ...safeEvents.map(e => ({ value: e.id, label: e.name }))
-                ]}
-                value={selectedEvent}
-                onChange={e => setSelectedEvent(e.target.value)}
+                options={eventOptions}
+                value={selectedEventId}
+                onChange={e => handleSelectEvent(e.target.value)}
               />
             </Card>
           )}
 
-          {/* KPIs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="text-center">
-              <p className="text-sm font-body text-gray-400 mb-1">Total participantes</p>
-              <p className="font-display text-3xl font-bold text-primary">{totalParticipants}</p>
-            </Card>
-            <Card className="text-center">
-              <p className="text-sm font-body text-gray-400 mb-1">Média de pontos</p>
-              <p className="font-display text-3xl font-bold text-secondary">{avgPoints}</p>
-            </Card>
-            <Card className="text-center">
-              <p className="text-sm font-body text-gray-400 mb-1">Checkpoint + visitado</p>
-              <p className="font-display text-lg font-bold text-accent">{mostVisited?.name || '--'}</p>
-            </Card>
-            <Card className="text-center">
-              <p className="text-sm font-body text-gray-400 mb-1">Jogo + popular</p>
-              <p className="font-display text-lg font-bold text-success">{mostPopular?.name || '--'}</p>
-            </Card>
-          </div>
-
-          {/* Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {!selectedEventId ? (
             <Card>
-              <h3 className="font-display text-lg text-white mb-4">Pontuação por Equipe</h3>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={scoreByTeamData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="name" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
-                  <YAxis tick={{ fill: '#9CA3AF', fontSize: 12 }} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#1E1B2E', border: '1px solid #374151', borderRadius: 8 }}
-                    labelStyle={{ color: '#fff' }}
-                  />
-                  <Bar dataKey="pontos" fill="#1E9BD7" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <p className="text-gray-500 text-sm text-center py-6">Nenhum evento cadastrado ainda.</p>
             </Card>
-
-            <Card>
-              <h3 className="font-display text-lg text-white mb-4">Engajamento por Zona</h3>
-              <ResponsiveContainer width="100%" height={280}>
-                <RadarChart data={engagementByZoneData}>
-                  <PolarGrid stroke="#374151" />
-                  <PolarAngleAxis dataKey="zone" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                  <PolarRadiusAxis tick={{ fill: '#9CA3AF', fontSize: 10 }} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#1E1B2E', border: '1px solid #374151', borderRadius: 8 }}
-                    labelStyle={{ color: '#fff' }}
-                  />
-                  <Radar
-                    name="Engajamento"
-                    dataKey="valor"
-                    stroke="#29B6F6"
-                    fill="#29B6F6"
-                    fillOpacity={0.3}
-                  />
-                </RadarChart>
-              </ResponsiveContainer>
-            </Card>
-          </div>
-
-          {/* Ranking Table */}
-          <Card>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Trophy size={20} className="text-accent" />
-                <h3 className="font-display text-lg text-white">Ranking</h3>
+          ) : (
+            <div className={loadingEventData ? 'space-y-6 opacity-60' : 'space-y-6'}>
+              {/* KPIs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card className="text-center">
+                  <p className="text-sm font-body text-gray-400 mb-1">Total participantes</p>
+                  <p className="font-display text-3xl font-bold text-primary">{totalParticipants}</p>
+                </Card>
+                <Card className="text-center">
+                  <p className="text-sm font-body text-gray-400 mb-1">Média de pontos</p>
+                  <p className="font-display text-3xl font-bold text-secondary">{avgPoints}</p>
+                </Card>
+                <Card className="text-center">
+                  <p className="text-sm font-body text-gray-400 mb-1">Checkpoint + visitado</p>
+                  <p className="font-display text-lg font-bold text-accent">{mostVisited?.name || '--'}</p>
+                </Card>
+                <Card className="text-center">
+                  <p className="text-sm font-body text-gray-400 mb-1">Jogo + popular</p>
+                  <p className="font-display text-lg font-bold text-success">{mostPopular?.name || '--'}</p>
+                </Card>
               </div>
-              <Badge variant="primary">Top 10</Badge>
+
+              {/* Charts */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <h3 className="font-display text-lg text-white mb-4">Pontuação por Equipe</h3>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={scoreByTeamData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="name" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                      <YAxis tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1E1B2E', border: '1px solid #374151', borderRadius: 8 }}
+                        labelStyle={{ color: '#fff' }}
+                      />
+                      <Bar dataKey="pontos" fill="#1E9BD7" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Card>
+
+                <Card>
+                  <h3 className="font-display text-lg text-white mb-4">Engajamento por Zona</h3>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <RadarChart data={engagementByZoneData}>
+                      <PolarGrid stroke="#374151" />
+                      <PolarAngleAxis dataKey="zone" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
+                      <PolarRadiusAxis tick={{ fill: '#9CA3AF', fontSize: 10 }} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1E1B2E', border: '1px solid #374151', borderRadius: 8 }}
+                        labelStyle={{ color: '#fff' }}
+                      />
+                      <Radar
+                        name="Engajamento"
+                        dataKey="valor"
+                        stroke="#29B6F6"
+                        fill="#29B6F6"
+                        fillOpacity={0.3}
+                      />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </Card>
+              </div>
+
+              {/* Ranking Table */}
+              <Card>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Trophy size={20} className="text-accent" />
+                    <h3 className="font-display text-lg text-white">Ranking</h3>
+                  </div>
+                  <Badge variant="primary">Top 10</Badge>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="pb-3 text-sm font-body font-semibold text-gray-400">#</th>
+                        <th className="pb-3 text-sm font-body font-semibold text-gray-400">Nome</th>
+                        <th className="pb-3 text-sm font-body font-semibold text-gray-400">Apelido</th>
+                        <th className="pb-3 text-sm font-body font-semibold text-gray-400">Idade</th>
+                        <th className="pb-3 text-sm font-body font-semibold text-gray-400">Pontuação</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {rankingData.map((child, index) => (
+                        <tr key={child.id} className="hover:bg-surface/50 transition-colors">
+                          <td className="py-3 pr-4">
+                            <span className={`font-mono text-lg font-bold ${
+                              index === 0 ? 'text-accent' : index === 1 ? 'text-gray-300' : index === 2 ? 'text-amber-700' : 'text-gray-500'
+                            }`}>
+                              {index + 1}
+                            </span>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <p className="text-sm font-semibold text-white">{child.name}</p>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <p className="text-sm text-gray-300">{child.nickname || child.name}</p>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <p className="text-sm text-gray-300">{child.age}</p>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <p className="text-sm font-bold text-primary">{child.scores || 0}</p>
+                          </td>
+                        </tr>
+                      ))}
+                      {rankingData.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-gray-500">
+                            Nenhum participante ativo
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="pb-3 text-sm font-body font-semibold text-gray-400">#</th>
-                    <th className="pb-3 text-sm font-body font-semibold text-gray-400">Nome</th>
-                    <th className="pb-3 text-sm font-body font-semibold text-gray-400">Apelido</th>
-                    <th className="pb-3 text-sm font-body font-semibold text-gray-400">Idade</th>
-                    <th className="pb-3 text-sm font-body font-semibold text-gray-400">Pontuação</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {rankingData.map((child, index) => (
-                    <tr key={child.id} className="hover:bg-surface/50 transition-colors">
-                      <td className="py-3 pr-4">
-                        <span className={`font-mono text-lg font-bold ${
-                          index === 0 ? 'text-accent' : index === 1 ? 'text-gray-300' : index === 2 ? 'text-amber-700' : 'text-gray-500'
-                        }`}>
-                          {index + 1}
-                        </span>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <p className="text-sm font-semibold text-white">{child.name}</p>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <p className="text-sm text-gray-300">{child.nickname || child.name}</p>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <p className="text-sm text-gray-300">{child.age}</p>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <p className="text-sm font-bold text-primary">{child.scores || 0}</p>
-                      </td>
-                    </tr>
-                  ))}
-                  {rankingData.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="py-8 text-center text-gray-500">
-                        Nenhum participante ativo
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+          )}
         </main>
       </div>
     </div>
