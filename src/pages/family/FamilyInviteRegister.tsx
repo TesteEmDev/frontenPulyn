@@ -33,7 +33,16 @@ export default function FamilyInviteRegister() {
   const [children, setChildren] = useState<ChildForm[]>([emptyChild()]);
 
   useEffect(() => {
-    api.getFamilyInvite(token)
+    console.log('🔍 FamilyInviteRegister - Token recebido:', token);
+    
+    // Se o token é uma URL completa, extrair apenas o token final
+    let cleanToken = token;
+    if (token && token.includes('/')) {
+      cleanToken = token.split('/').pop() || token;
+      console.log('✂️ Token extraído de URL completa:', cleanToken);
+    }
+    
+    api.getFamilyInvite(cleanToken)
       .then((data) => {
         setInvite(data);
         setForm((current) => ({ ...current, email: data.email || '' }));
