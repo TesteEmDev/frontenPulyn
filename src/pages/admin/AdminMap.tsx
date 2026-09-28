@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map, FileText, RefreshCw, Settings, Upload, Pencil, Trash2, Plus, Save, Loader2 } from 'lucide-react';
+import { MapPin, Map, RefreshCw, Upload, Pencil, Trash2, Plus, Save, Loader2 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
-import Sidebar from '../../components/layout/Sidebar';
+import AdminSidebar from '../../components/layout/AdminSidebar';
 import TopBar from '../../components/layout/TopBar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
@@ -11,20 +10,6 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import StatusDot from '../../components/ui/StatusDot';
-
-const navItems = [
-  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/admin' },
-  { icon: <Calendar size={20} />, label: 'Eventos', path: '/admin/events' },
-  { icon: <Users size={20} />, label: 'Crianças', path: '/admin/children' },
-  { icon: <Gamepad2 size={20} />, label: 'Jogos', path: '/admin/games' },
-  { icon: <MapPin size={20} />, label: 'Checkpoints', path: '/admin/checkpoints' },
-  { icon: <Map size={20} />, label: 'Mapa', path: '/admin/map' },
-  { icon: <Users size={20} />, label: 'Usuários', path: '/admin/users' },
-  { icon: <Users size={20} />, label: 'Times', path: '/admin/teams' },
-  { icon: <FileText size={20} />, label: 'Relatórios', path: '/admin/reports' },
-  { icon: <RefreshCw size={20} />, label: 'Sincronização', path: '/admin/sync' },
-  { icon: <Settings size={20} />, label: 'Configurações', path: '/admin/settings' },
-];
 
 interface Zone {
   id: string;
@@ -92,14 +77,12 @@ async function optimizeFloorPlan(file: File): Promise<string> {
 }
 
 export default function AdminMap() {
-  const location = useLocation();
   const svgRef = useRef<SVGSVGElement>(null);
   const draggingCheckpointRef = useRef<string | null>(null);
   const dragStartPositionRef = useRef<MapPosition | null>(null);
   const dragPositionRef = useRef<MapPosition | null>(null);
   const dragOffsetRef = useRef<MapPosition | null>(null);
   const renderTimerRef = useRef<number | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [checkpoints, setCheckpoints] = useState<any[]>([]);
@@ -736,14 +719,7 @@ export default function AdminMap() {
 
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">
-      <Sidebar
-        items={navItems}
-        activePath={location.pathname}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
-        title="Pulyn Admin"
-        accentColor="#1E9BD7"
-      />
+      <AdminSidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar title="Gestão do Buffet" subtitle="Mapa do Espaço" />

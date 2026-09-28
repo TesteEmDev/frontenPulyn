@@ -1,12 +1,10 @@
 // src/pages/admin/AdminSettings.tsx
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  FileText, RefreshCw, Settings, Upload, Save, Shield, Database, Monitor
+  Settings, Upload, Save, Shield, Database, Monitor
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
-import Sidebar from '../../components/layout/Sidebar';
+import AdminSidebar from '../../components/layout/AdminSidebar';
 import TopBar from '../../components/layout/TopBar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
@@ -16,23 +14,7 @@ import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import ProgressBar from '../../components/ui/ProgressBar';
 
-const navItems = [
-  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/admin' },
-  { icon: <Calendar size={20} />, label: 'Eventos', path: '/admin/events' },
-  { icon: <Users size={20} />, label: 'Crianças', path: '/admin/children' },
-  { icon: <Gamepad2 size={20} />, label: 'Jogos', path: '/admin/games' },
-  { icon: <MapPin size={20} />, label: 'Checkpoints', path: '/admin/checkpoints' },
-  { icon: <Map size={20} />, label: 'Mapa', path: '/admin/map' },
-  { icon: <Users size={20} />, label: 'Usuários', path: '/admin/users' },
-  { icon: <Users size={20} />, label: 'Times', path: '/admin/teams' },
-  { icon: <FileText size={20} />, label: 'Relatórios', path: '/admin/reports' },
-  { icon: <RefreshCw size={20} />, label: 'Sincronização', path: '/admin/sync' },
-  { icon: <Settings size={20} />, label: 'Configurações', path: '/admin/settings' },
-];
-
 export default function AdminSettings() {
-  const location = useLocation();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { loadSettings, updateSettings } = usePulynStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -118,14 +100,7 @@ export default function AdminSettings() {
   if (loading) {
     return (
       <div className="flex h-screen bg-dark text-white overflow-hidden">
-        <Sidebar
-          items={navItems}
-          activePath={location.pathname}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
-          title="Pulyn Admin"
-          accentColor="#1E9BD7"
-        />
+        <AdminSidebar />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
@@ -138,14 +113,7 @@ export default function AdminSettings() {
 
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">
-      <Sidebar
-        items={navItems}
-        activePath={location.pathname}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
-        title="Pulyn Admin"
-        accentColor="#1E9BD7"
-      />
+      <AdminSidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar title="Gestão do Buffet" subtitle="Configurações" />
