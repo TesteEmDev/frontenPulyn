@@ -821,11 +821,14 @@ export const api = {
     return data;
   },
 
-  async startGame(gameId: string, gameName: string, eventoId: string, zoneConquestMode?: string) {
+  // O modo equipe/individual do Zone Conquest não é mais enviado pelo
+  // cliente: o backend deriva isso de brincadeiras.type (escolhido no
+  // AdminGameForm ao criar o jogo), que é a fonte de verdade persistida.
+  async startGame(gameId: string, gameName: string, eventoId: string) {
     const res = await fetch(`${API_URL}/debug/start-game`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ gameId, gameName, eventoId, zoneConquestMode: zoneConquestMode || 'team' }),
+      body: JSON.stringify({ gameId, gameName, eventoId }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao iniciar jogo');
