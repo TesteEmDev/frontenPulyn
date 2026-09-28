@@ -238,11 +238,15 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
     try {
       const state = get();
       if (!state.eventoAtualId) {
+        console.warn('⚠️ loadTeams: Nenhum evento selecionado');
         return;
       }
       const eventId = state.eventoAtualId;
       const teams = await api.getTimes(eventId);
       if (get().eventoAtualId !== eventId) return;
+      
+      console.log(`✅ loadTeams: ${(Array.isArray(teams) ? teams : []).length} times carregados`);
+      
       const normalizedTeams = (Array.isArray(teams) ? teams : []).map((team: any) => ({
         ...team,
         points: Number(team.points ?? team.score ?? 0),
@@ -251,8 +255,8 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
         icon: team.icon || '🏆',
       }));
       set({ teams: normalizedTeams });
-    } catch {
-      // Erro silencioso
+    } catch (error) {
+      console.error('❌ Erro ao carregar times:', error);
     }
   },
 
@@ -327,7 +331,7 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
       const eventId = get().eventoAtualId;
       const currentPartidaId = get().currentPartidaId;
       if (!eventId) return;
-      
+
       // 🆕 Passar sessionId para filtrar apenas dados da sessão atual
       const history = await api.getScoreHistory(eventId, 100, currentPartidaId);
       if (get().eventoAtualId !== eventId) return;
@@ -353,11 +357,13 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
 
   loadEventos: async () => {
     try {
+      console.log('🔍 [loadEventos] Chamando api.getEventos()...');
       const eventos = await api.getEventos();
+      console.log('✅ [loadEventos] Resposta recebida:', eventos);
       set({ events: eventos });
       return eventos;
     } catch (error) {
-      console.error('❌ Erro ao carregar eventos:', error);
+      console.error('❌ [loadEventos] Erro ao carregar eventos:', error);
       return [];
     }
   },
