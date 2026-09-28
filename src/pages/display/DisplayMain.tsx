@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Trophy, Medal, Star, Zap, Target, Clock, MapPin, Users, ArrowLeft } from 'lucide-react';
 import { useGameWebSocket } from '../../hooks/useGameWebSocket';
+import { useZoneConquestGame, type ZoneConquestStatus } from '../../hooks/useZoneConquestGame';
+import { ZoneConquestIndividualRanking } from '../../components/display/ZoneConquestIndividualRanking';
 import { usePulynStore } from '../../store/mockData';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -49,6 +51,15 @@ export default function DisplayMain() {
     points: number;
     color: string;
   } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [displayMessages, setDisplayMessages] = useState<any[]>([]);
+  const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
+  const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
+  const [treasureStatus, setTreasureStatus] = useState<TreasureArenaStatus | null>(null);
+  const [lastTreasureEvent, setLastTreasureEvent] = useState<TreasureArenaEvent | null>(null);
+  const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
+  const [zoneConquestStatus, setZoneConquestStatus] = useState<ZoneConquestStatus | null>(null);
+  const [floorPlan, setFloorPlan] = useState<string | null>(null);
 
   const {
     eventoAtualId,
@@ -63,14 +74,9 @@ export default function DisplayMain() {
     loadScoreLog,
   } = usePulynStore();
   const selectedEventId = eventoAtualId || '';
-  const [loading, setLoading] = useState(true);
-  const [displayMessages, setDisplayMessages] = useState<any[]>([]);
-  const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
-  const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
-  const [treasureStatus, setTreasureStatus] = useState<TreasureArenaStatus | null>(null);
-  const [lastTreasureEvent, setLastTreasureEvent] = useState<TreasureArenaEvent | null>(null);
-  const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
-  const [floorPlan, setFloorPlan] = useState<string | null>(null);
+  
+  // 🆕 Hook para Zone Conquest INDIVIDUAL - DEVE VIR APÓS TODOS OS useState
+  const { status: zoneConquestGameStatus, isIndividualMode } = useZoneConquestGame(selectedEventId || null);
 
   const topParticipants = useMemo(() => [...children]
     .filter(child => child.status === 'active')
@@ -183,6 +189,25 @@ export default function DisplayMain() {
     }
   }, [selectedEventId]);
 
+  const refreshZoneConquestStatus = useCallback(async () => {
+    if (!selectedEventId) {
+      setZoneConquestStatus(null);
+      return;
+    }
+    try {
+      const { api } = await import('../../services/api');
+      const status = await api.getZoneConquestStatus(selectedEventId);
+      setZoneConquestStatus(
+        status?.gameRunning && status?.mode
+          ? status
+          : null
+      );
+    } catch (err) {
+      console.error('Erro ao atualizar status do Zone Conquest no telão:', err);
+      setZoneConquestStatus(null);
+    }
+  }, [selectedEventId]);
+
   // A fonte de dados do telão é o store compartilhado. Ao trocar o evento,
   // carrega somente o contexto atual e ignora respostas atrasadas.
   useEffect(() => {
@@ -249,9 +274,20 @@ export default function DisplayMain() {
     const interval = window.setInterval(() => {
       refreshTreasureStatus();
       refreshMonsterStatus();
-    }, 2000);
+    }, 5000); // Atualizar a cada 5 segundos (reduzido de 2s para economizar conexões)
     return () => window.clearInterval(interval);
   }, [selectedEventId, refreshTreasureStatus, refreshMonsterStatus]);
+
+  // 🆕 Sincronizar Zone Conquest status do hook com estado local
+  useEffect(() => {
+    if (isIndividualMode && zoneConquestGameStatus) {
+      // Cada vez que uma nova partida é detectada (partida_id mudou), reseta tudo
+      setZoneConquestStatus(zoneConquestGameStatus);
+    } else if (!isIndividualMode) {
+      // Se não está em modo individual, limpar estado
+      setZoneConquestStatus(null);
+    }
+  }, [zoneConquestGameStatus, isIndividualMode]);
 
   // WebSocket para eventos em tempo real
   const { connectionStatus, lastMessageAt } = useGameWebSocket(
@@ -294,6 +330,21 @@ export default function DisplayMain() {
         setSelectedGameType(gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
         
+        // 🆕 Limpar scoreLog imediatamente quando novo jogo inicia (para todos os tipos de jogo)
+        const { clearScoreLog } = usePulynStore.getState();
+        clearScoreLog();
+        
+        // Recarregar scoreLog (que agora está vazio no backend)
+        loadScoreLog();
+        
+        // 🆕 Se é Zone Conquest, resetar e recarregar status
+        if (gameType?.toLowerCase().includes('zone_conquest')) {
+          setZoneConquestStatus(null); // Resetar estado para forçar recarregamento
+          setMonsterStatus(null);
+          setTreasureStatus(null);
+          // Chamar refresh para recarregar dados frescos do backend
+          refreshZoneConquestStatus();
+        } else if (gameType === 'treasure_hunt') {
         // 🆕 Resetar scoreLog quando novo jogo inicia
         if (loadScoreLog) {
           loadScoreLog().catch(err => console.error('Erro ao recarregar scoreLog:', err));
@@ -301,6 +352,7 @@ export default function DisplayMain() {
         
         if (gameType === 'treasure_hunt') {
           setMonsterStatus(null);
+          setZoneConquestStatus(null);
           if (treasure?.startingTeamName) {
             setTreasureStatus({
               active: true,
@@ -319,6 +371,7 @@ export default function DisplayMain() {
           refreshTreasureStatus();
         } else if (gameType === 'monster_hunt') {
           setTreasureStatus(null);
+          setZoneConquestStatus(null);
           const monsterStart = event.payload?.monster;
           setMonsterStatus({
             active: true,
@@ -332,6 +385,7 @@ export default function DisplayMain() {
         } else {
           setTreasureStatus(null);
           setMonsterStatus(null);
+          setZoneConquestStatus(null);
         }
       } else if (event.type === 'GAME_STOPPED' && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
         setSelectedGameType(null);
@@ -339,7 +393,41 @@ export default function DisplayMain() {
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
+        setZoneConquestStatus(null);
         setFloorPlan(null);  // Limpar planta quando jogo termina
+      } else if (event.type === 'ZONE_CONQUEST_INDIVIDUAL_SCAN' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        // 🎯 Log único e limpo quando checkpoint é conquistado
+        const { criancaName, pointsGained, checkpointId } = event.payload;
+        const checkpoint = checkpoints.find(cp => cp.id === checkpointId);
+        console.log(`✅ ${criancaName} conquistou ${checkpoint?.name || 'Checkpoint'} e ganhou ${pointsGained} pontos!`);
+        
+        const payload = event.payload || {};
+        setZoneConquestStatus((prev) => {
+          if (!prev || prev.mode !== 'individual') return prev;
+          
+          return {
+            ...prev,
+            zones: payload.zones || prev.zones,
+          };
+        });
+
+        // Mostrar notificação animada com cor do participante
+        const { criancaName: name, participantColor, pointsGained: points } = event.payload;
+        const checkpointName = checkpoint?.name || `Checkpoint ${checkpointId}`;
+
+        setNotificationData({
+          name,
+          checkpoint: checkpointName,
+          points,
+          color: participantColor || '#1E9BD7'
+        });
+        setShowNotification(true);
+
+        // Esconder notificação após 3 segundos
+        setTimeout(() => {
+          setShowNotification(false);
+        }, 3000);
+        
       } else if (event.type === 'ZONE_CHECKPOINT_SCANNED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         // 📍 Evento de scan de checkpoint para zone conquest
         // Frontend já possui dados em scoreLog via loadScoreLog()
@@ -414,6 +502,13 @@ export default function DisplayMain() {
       }
     }
   );
+
+  // Sincronizar Zone Conquest INDIVIDUAL com o hook
+  useEffect(() => {
+    if (zoneConquestGameStatus && isIndividualMode) {
+      setZoneConquestStatus(zoneConquestGameStatus);
+    }
+  }, [zoneConquestGameStatus, isIndividualMode]);
 
   // Atualiza o relógio
   useEffect(() => {
@@ -711,7 +806,14 @@ export default function DisplayMain() {
 
         {shouldShowMap && !monsterStatus?.active && !treasureStatus?.active && (
           <div className="mb-8" aria-live="polite">
-            <DisplayMap embedded gameType={selectedGameType} floorPlan={(floorPlan as any)} />
+            <DisplayMap 
+              embedded 
+              gameType={selectedGameType} 
+              floorPlan={(floorPlan as any)}
+              // 🆕 Zone Conquest INDIVIDUAL
+              zoneConquestZones={zoneConquestStatus?.zones || null}
+              zoneConquestCheckpoints={zoneConquestStatus?.checkpoints || null}
+            />
           </div>
         )}
 
@@ -767,8 +869,19 @@ export default function DisplayMain() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-           {/* Ranking de Participantes */}
-           <Card variant="glow" className="overflow-hidden p-4 sm:p-5">
+          {/* 🆕 Ranking Zone Conquest INDIVIDUAL (substitui o ranking padrão) */}
+          {isIndividualMode && zoneConquestStatus ? (
+            <div className="lg:col-span-2">
+              <Card variant="glow" className="overflow-hidden p-4 sm:p-5">
+                <ZoneConquestIndividualRanking 
+                  participants={zoneConquestStatus.participants || []} 
+                />
+              </Card>
+            </div>
+          ) : (
+            <>
+              {/* Ranking de Participantes (TEAM mode) */}
+              <Card variant="glow" className="overflow-hidden p-4 sm:p-5">
              <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
                <div className="flex items-center gap-3">
                  <div className="rounded-xl border border-warning-400/20 bg-warning-500/10 p-2 text-warning-300"><Medal size={20} /></div>
@@ -878,6 +991,8 @@ export default function DisplayMain() {
               )}
             </div>
           </Card>
+          </>
+          )}
 
           {displayMessages.length > 0 && (
             <Card variant="secondary" className="lg:col-span-2">

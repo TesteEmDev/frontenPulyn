@@ -478,7 +478,7 @@ export default function GameMasterDashboard() {
       
       const interval = setInterval(() => {
         loadTerritoriesStatus();
-      }, 2000); // Atualizar a cada 2 segundos
+      }, 5000); // Atualizar a cada 5 segundos (reduzido de 2s para economizar conexões)
       
       return () => clearInterval(interval);
     }
@@ -492,7 +492,7 @@ export default function GameMasterDashboard() {
     const interval = setInterval(() => {
       loadTreasureStatus();
       loadMonsterStatus();
-    }, 2000);
+    }, 5000); // Atualizar a cada 5 segundos (reduzido de 2s para economizar conexões)
     return () => clearInterval(interval);
   }, [selectedEventId, loadTreasureStatus, loadMonsterStatus]);
 
@@ -552,10 +552,21 @@ export default function GameMasterDashboard() {
     
     setActionLoading('start');
     try {
+      // Extrair o modo Zone Conquest do nome do jogo se aplicável
+      const gameName = activeGame?.name || 'Jogo';
+      let zoneConquestMode: string | undefined;
+      const gameNameUpper = gameName.toUpperCase();
+      if (gameNameUpper.includes('INDIVIDUAL')) {
+        zoneConquestMode = 'individual';
+      } else if (gameNameUpper.includes('EQUIPE') || gameNameUpper.includes('TEAM')) {
+        zoneConquestMode = 'team';
+      }
+
       const data = await api.startGame(
         selectedGameId,
-        activeGame?.name || 'Jogo',
-        selectedEventId
+        gameName,
+        selectedEventId,
+        zoneConquestMode
       );
       console.log('✅ Jogo iniciado:', data);
       resetGameTimer();
