@@ -415,18 +415,14 @@ export const api = {
 
   async getScoreHistory(eventoId: string, limit = 100, sessionId?: string) {
     let url = `${API_URL}/leituras/eventos/${encodeURIComponent(eventoId)}/historico?limit=${limit}`;
-    
-    // 🆕 Adicionar sessionId como query param se fornecido
+
+    // 🆕 Adicionar sessionId como query param se fornecido — o backend filtra
+    // leituras.session_id por esse valor (routes/leituras.js), não por
+    // brincadeira_id, então esse é o único parâmetro que ele reconhece.
     if (sessionId) {
       url += `&sessionId=${encodeURIComponent(sessionId)}`;
     }
-    
-=======
-  async getScoreHistory(eventoId: string, limit = 100, brincadeiraId?: string) {
-    let url = `${API_URL}/leituras/eventos/${encodeURIComponent(eventoId)}/historico?limit=${limit}`;
-    if (brincadeiraId) {
-      url += `&brincadeiraId=${encodeURIComponent(brincadeiraId)}`;
-    }
+
     const res = await fetch(url, {
       headers: getAuthHeaders(),
     });

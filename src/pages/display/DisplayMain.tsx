@@ -358,12 +358,11 @@ export default function DisplayMain() {
           // Chamar refresh para recarregar dados frescos do backend
           refreshZoneConquestStatus();
         } else if (gameType === 'treasure_hunt') {
-        // 🆕 Resetar scoreLog quando novo jogo inicia
-        if (loadScoreLog) {
-          loadScoreLog().catch(err => console.error('Erro ao recarregar scoreLog:', err));
-        }
-        
-        if (gameType === 'treasure_hunt') {
+          // 🆕 Resetar scoreLog quando novo jogo inicia
+          if (loadScoreLog) {
+            loadScoreLog().catch(err => console.error('Erro ao recarregar scoreLog:', err));
+          }
+
           setMonsterStatus(null);
           setZoneConquestStatus(null);
           if (treasure?.startingTeamName) {

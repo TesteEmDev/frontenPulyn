@@ -327,7 +327,8 @@ export default function AdminGameForm() {
                       { value: 'treasure_hunt', label: 'Caça ao Tesouro' },
                       { value: 'monster_hunt', label: 'Caça ao Monstro' },
                     ]}
-                     onChange={e => updateField('type', e.target.value)}
+                    value={formData.type}
+                    onChange={e => updateField('type', e.target.value)}
                   />
                   <Input
                     label="Duração (minutos)"

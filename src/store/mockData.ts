@@ -331,7 +331,7 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
       const eventId = get().eventoAtualId;
       const currentPartidaId = get().currentPartidaId;
       if (!eventId) return;
-      
+
       // 🆕 Passar sessionId para filtrar apenas dados da sessão atual
       const history = await api.getScoreHistory(eventId, 100, currentPartidaId);
       if (get().eventoAtualId !== eventId) return;
