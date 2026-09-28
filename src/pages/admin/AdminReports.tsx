@@ -163,9 +163,11 @@ export default function AdminReports() {
   const checkpointCounts = safeCheckpoints.map(cp => ({
     id: cp.id,
     name: cp.name,
+    zone: cp.zone,
     count: safeScoreLog.filter(s => s.checkpoint === cp.id || s.checkpoint_id === cp.id).length,
   }));
   const mostVisited = checkpointCounts.sort((a, b) => b.count - a.count)[0];
+  const topCheckpoints = checkpointCounts.slice(0, 5);
 
   // Jogos mais populares
   const gameCounts = safeGames.map(g => ({
@@ -321,6 +323,31 @@ export default function AdminReports() {
                   </ResponsiveContainer>
                 </Card>
               </div>
+
+              {/* Checkpoints mais acessados */}
+              <Card>
+                <div className="flex items-center gap-2 mb-4">
+                  <MapPin size={20} className="text-secondary" />
+                  <h3 className="font-display text-lg text-white">Checkpoints mais acessados</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  {topCheckpoints.length > 0 ? (
+                    topCheckpoints.map((cp, index) => (
+                      <div key={cp.id} className="flex items-center gap-3 p-2 rounded-lg bg-surface/50">
+                        <span className="font-mono text-lg font-bold text-gray-500 w-6 text-center">{index + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-white truncate">{cp.name}</p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {cp.zone || 'Sem zona'} &middot; {cp.count} leituras
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-500 text-sm text-center py-4 col-span-full">Nenhum checkpoint cadastrado</p>
+                  )}
+                </div>
+              </Card>
 
               {/* Ranking Table */}
               <Card>

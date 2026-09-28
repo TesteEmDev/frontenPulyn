@@ -2,10 +2,10 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  FileText, RefreshCw, Settings, TrendingUp, Trophy, Shield
+  FileText, RefreshCw, Settings, Trophy, Shield
 } from 'lucide-react';
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { usePulynStore } from '../../store/mockData';
@@ -167,43 +167,43 @@ export default function AdminDashboard() {
     setSelectedEventId(eventId);
   }, []);
 
-  // Estatísticas do evento selecionado
-  const totalEvents = safeEvents.length;
+  // Estatísticas ao vivo do evento selecionado
   const totalChildren = safeChildren.length;
   const activeCheckpoints = safeCheckpoints.filter(cp => cp?.status === 'online').length;
   const conqueredCheckpoints = Object.values(territories).filter(t => t?.isLocked).length;
   const totalScores = safeChildren.reduce((sum, c) => sum + (c?.scores ?? c?.score ?? 0), 0);
 
-  // Jogos mais populares (baseado em checkpoints), dentro do evento selecionado
+  // Jogos disponíveis agora (status ao vivo), dentro do evento selecionado
   const topGames = [...safeGames]
     .sort((a, b) => (b?.checkpoints?.length || 0) - (a?.checkpoints?.length || 0))
     .slice(0, 3);
 
-  // Checkpoints mais acessados dentro do evento selecionado
-  const topCheckpoints = [...safeCheckpoints]
-    .sort((a, b) => {
-      const aCount = safeScoreLog.filter(s => s?.checkpoint === a.id || s?.checkpoint_id === a.id).length;
-      const bCount = safeScoreLog.filter(s => s?.checkpoint === b.id || s?.checkpoint_id === b.id).length;
-      return bCount - aCount;
-    })
-    .slice(0, 5);
+  // Status ao vivo de todos os checkpoints do evento (online/offline + quem
+  // domina agora) — a contagem histórica de leituras fica em Relatórios.
+  const checkpointsStatus = [...safeCheckpoints].sort((a, b) =>
+    String(a.zone || '').localeCompare(String(b.zone || '')) || String(a.name || '').localeCompare(String(b.name || ''))
+  );
 
-  // Participantes por time, dentro do evento selecionado (substitui a antiga
-  // comparação "por evento", que não fazia mais sentido com um evento por vez).
-  const participantsByTeamData = useMemo(() => {
-    const teamById: Record<string, any> = {};
-    for (const t of safeTeams) teamById[String(t.id)] = t;
-    const counts: Record<string, number> = {};
-    for (const child of safeChildren) {
-      const teamId = child.teamId ?? child.team_id ?? child.time_id;
-      const key = teamId ? String(teamId) : 'sem-time';
-      counts[key] = (counts[key] || 0) + 1;
-    }
-    return Object.entries(counts).map(([teamId, count]) => ({
-      name: teamId === 'sem-time' ? 'Sem time' : String(teamById[teamId]?.name || 'Time').substring(0, 15),
-      participantes: count,
-    }));
-  }, [safeChildren, safeTeams]);
+  const teamById = useMemo(() => {
+    const map: Record<string, any> = {};
+    for (const t of safeTeams) map[String(t.id)] = t;
+    return map;
+  }, [safeTeams]);
+
+  // Ranking ao vivo (top 5 por pontuação agora), dentro do evento selecionado.
+  // Substitui a antiga comparação "participantes por time", que quase não
+  // muda durante o evento e não ajuda a acompanhar quem está na frente.
+  const liveRanking = useMemo(() => (
+    [...safeChildren]
+      .filter((c) => c?.status === 'active')
+      .sort((a, b) => (b?.scores ?? b?.score ?? 0) - (a?.scores ?? a?.score ?? 0))
+      .slice(0, 5)
+      .map((child) => {
+        const teamId = child.teamId ?? child.team_id ?? child.time_id;
+        const team = teamId ? teamById[String(teamId)] : null;
+        return { ...child, teamName: team?.name || null, teamColor: team?.color || null };
+      })
+  ), [safeChildren, teamById]);
 
   // Dados de engajamento por hora (últimas 24h), dentro do evento selecionado
   const getEngagementData = () => {
@@ -223,11 +223,10 @@ export default function AdminDashboard() {
   const engagementOverTimeData = getEngagementData();
 
   const kpis = [
-    { label: 'Total de eventos', value: totalEvents, color: 'text-primary', icon: <Calendar size={24} /> },
     { label: 'Crianças no evento', value: totalChildren, color: 'text-secondary', icon: <Users size={24} /> },
     { label: 'Checkpoints ativos', value: activeCheckpoints, color: 'text-success', icon: <MapPin size={24} /> },
-    { label: 'Territórios conquistados', value: conqueredCheckpoints, color: 'text-accent', icon: <Shield size={24} /> },
-    { label: 'Pontuação total', value: totalScores, color: 'text-warning', icon: <Trophy size={24} /> },
+    { label: 'Territórios conquistados agora', value: conqueredCheckpoints, color: 'text-accent', icon: <Shield size={24} /> },
+    { label: 'Pontuação total até agora', value: totalScores, color: 'text-warning', icon: <Trophy size={24} /> },
   ];
 
   if (loading) {
@@ -288,7 +287,7 @@ export default function AdminDashboard() {
           ) : (
             <>
               {/* KPI Cards */}
-              <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 ${loadingEventData ? 'opacity-60' : ''}`}>
+              <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 ${loadingEventData ? 'opacity-60' : ''}`}>
                 {kpis.map(kpi => (
                   <Card key={kpi.label} className="flex items-center gap-4">
                     <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-dark-surface">
@@ -305,19 +304,33 @@ export default function AdminDashboard() {
               {/* Charts */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
-                  <h3 className="font-display text-lg text-white mb-4">Participantes por Time</h3>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={participantsByTeamData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                      <XAxis dataKey="name" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
-                      <YAxis tick={{ fill: '#9CA3AF', fontSize: 12 }} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: '#1E1B2E', border: '1px solid #374151', borderRadius: 8 }}
-                        labelStyle={{ color: '#fff' }}
-                      />
-                      <Bar dataKey="participantes" fill="#1E9BD7" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Trophy size={20} className="text-warning" />
+                    <h3 className="font-display text-lg text-white">Ranking ao Vivo</h3>
+                  </div>
+                  <div className="space-y-3">
+                    {liveRanking.length > 0 ? (
+                      liveRanking.map((child, index) => (
+                        <div key={child.id} className="flex items-center gap-3 p-2 rounded-lg bg-surface/50">
+                          <span className={`font-mono text-lg font-bold w-6 text-center ${
+                            index === 0 ? 'text-warning' : index === 1 ? 'text-gray-300' : index === 2 ? 'text-amber-700' : 'text-gray-500'
+                          }`}>
+                            {index + 1}
+                          </span>
+                          {child.teamColor && (
+                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: child.teamColor }} />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-white truncate">{child.nickname || child.name}</p>
+                            <p className="text-xs text-gray-500 truncate">{child.teamName || 'Sem time'}</p>
+                          </div>
+                          <p className="text-sm font-bold text-primary">{child.scores ?? child.score ?? 0}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 text-sm text-center py-4">Nenhum participante ativo ainda</p>
+                    )}
+                  </div>
                 </Card>
 
                 <Card>
@@ -391,31 +404,31 @@ export default function AdminDashboard() {
                   </div>
                 </Card>
 
-                {/* Checkpoints mais acessados */}
+                {/* Status ao vivo dos checkpoints */}
                 <Card>
                   <div className="flex items-center gap-2 mb-4">
-                    <TrendingUp size={20} className="text-secondary" />
-                    <h3 className="font-display text-lg text-white">Checkpoints mais acessados</h3>
+                    <MapPin size={20} className="text-secondary" />
+                    <h3 className="font-display text-lg text-white">Status dos Checkpoints</h3>
                   </div>
-                  <div className="space-y-3">
-                    {topCheckpoints.length > 0 ? (
-                      topCheckpoints.map((cp, index) => {
-                        const accessCount = safeScoreLog.filter(s => s?.checkpoint === cp.id || s?.checkpoint_id === cp.id).length;
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                    {checkpointsStatus.length > 0 ? (
+                      checkpointsStatus.map((cp) => {
                         const territory = territories[cp.id];
                         const isLocked = territory?.isLocked || false;
+                        const owningTeam = territory?.ownerTeam || null;
                         return (
                           <div key={cp.id} className="flex items-center gap-3 p-2 rounded-lg bg-surface/50">
-                            <span className="font-mono text-lg font-bold text-gray-500 w-6 text-center">{index + 1}</span>
-                            <div className="flex-1">
-                              <p className="text-sm font-semibold text-white">{cp.name}</p>
-                              <p className="text-xs text-gray-500">
-                                {cp.zone || 'Sem zona'} &middot; {accessCount} leituras
-                              </p>
+                            <StatusDot status={cp.status === 'online' ? 'online' : 'offline'} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-white truncate">{cp.name}</p>
+                              <p className="text-xs text-gray-500 truncate">{cp.zone || 'Sem zona'}</p>
                             </div>
                             {isLocked ? (
-                              <div className="w-2 h-2 rounded-full bg-accent animate-pulse" title="Conquistado" />
+                              <Badge variant="accent">
+                                {owningTeam?.name || 'Dominado'}
+                              </Badge>
                             ) : (
-                              <StatusDot status={cp.status === 'online' ? 'online' : 'offline'} />
+                              <span className="text-xs text-gray-500">Livre</span>
                             )}
                           </div>
                         );
