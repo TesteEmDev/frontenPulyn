@@ -4,6 +4,8 @@ import {
   Settings, Upload, Save, Shield, Database, Monitor
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
+import { api } from '../../services/api';
+import { maskCnpj, isValidCnpj, onlyDigits } from '../../utils/cnpj';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import TopBar from '../../components/layout/TopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -19,6 +21,11 @@ export default function AdminSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // CNPJ é um dado do próprio buffet (tabela empresas), não uma configuração genérica.
+  const [cnpj, setCnpj] = useState('');
+  const [cnpjError, setCnpjError] = useState('');
+  const [companyLoaded, setCompanyLoaded] = useState(false);
 
   const [unitSettings, setUnitSettings] = useState({
     unit_name: '',
@@ -45,6 +52,15 @@ export default function AdminSettings() {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
+      try {
+        const empresa = await api.getEmpresa();
+        setCnpj(empresa.cnpj || '');
+        setCompanyLoaded(true);
+      } catch (error) {
+        // Sem carregar, o campo fica bloqueado para não apagar um CNPJ já salvo.
+        console.error('Erro ao carregar dados do buffet:', error);
+        setCompanyLoaded(false);
+      }
       const loadedSettings = await loadSettings();
       if (loadedSettings) {
         setUnitSettings({
@@ -75,10 +91,21 @@ export default function AdminSettings() {
   };
 
   const handleSave = async () => {
-    setSaving(true);
     setSaveSuccess(false);
-    
+
+    if (companyLoaded && onlyDigits(cnpj) && !isValidCnpj(cnpj)) {
+      setCnpjError('CNPJ inválido. Confira os 14 dígitos.');
+      return;
+    }
+
+    setSaving(true);
     try {
+      if (companyLoaded) {
+        const saved = await api.updateEmpresa({ cnpj: onlyDigits(cnpj) });
+        setCnpj(saved.cnpj || '');
+        setCnpjError('');
+      }
+
       const allSettings = {
         ...unitSettings,
         ...displaySettings,
@@ -91,7 +118,8 @@ export default function AdminSettings() {
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);
-      alert('Erro ao salvar configurações. Tente novamente.');
+      if (error instanceof Error && error.message) setCnpjError(error.message);
+      alert(error instanceof Error && error.message ? error.message : 'Erro ao salvar configurações. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -152,6 +180,25 @@ export default function AdminSettings() {
                   value={unitSettings.unit_name}
                   onChange={e => updateUnit('unit_name', e.target.value)}
                 />
+                <div>
+                  <Input
+                    label="CNPJ"
+                    placeholder="00.000.000/0000-00"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={18}
+                    value={cnpj}
+                    disabled={!companyLoaded}
+                    error={cnpjError || undefined}
+                    onChange={e => { setCnpj(maskCnpj(e.target.value)); setCnpjError(''); }}
+                    onBlur={() => {
+                      if (onlyDigits(cnpj) && !isValidCnpj(cnpj)) setCnpjError('CNPJ inválido. Confira os 14 dígitos.');
+                    }}
+                  />
+                  {!companyLoaded && (
+                    <p className="mt-1 text-xs text-gray-500">Não foi possível carregar o CNPJ agora. Recarregue a página.</p>
+                  )}
+                </div>
                 <Input
                   label="Endereço"
                   value={unitSettings.unit_address}

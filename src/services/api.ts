@@ -1219,6 +1219,25 @@ export const api = {
     return res.json();
   },
 
+  // ==================== EMPRESA (dados do próprio buffet) ====================
+  async getEmpresa() {
+    const res = await fetch(`${API_URL}/empresa/me`, { headers: getAuthHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao carregar dados do buffet (${res.status})`);
+    return body as { id: string; name: string; cnpj: string; city: string; state: string; phone: string };
+  },
+
+  async updateEmpresa(data: { cnpj: string }) {
+    const res = await fetch(`${API_URL}/empresa/me`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar dados do buffet (${res.status})`);
+    return body as { updated: boolean; cnpj: string };
+  },
+
   // ==================== SETTINGS ====================
   async getSettings() {
     const res = await fetch(`${API_URL}/settings`, {
