@@ -151,7 +151,8 @@ export default function ReceptionKioskOtimizado() {
   const handleBraceletDetected = useMemoizedCallback((code: string) => {
     const normalizedCode = normalizeUid(code);
     const currentState = kioskStateRef.current;
-    
+    console.log('📇 Kiosk: pulseira recebida', normalizedCode, '| estado atual:', currentState);
+
     if (!normalizedCode || currentState === 'reading' || currentState === 'saving' || currentState === 'success') return;
 
     const now = Date.now();
