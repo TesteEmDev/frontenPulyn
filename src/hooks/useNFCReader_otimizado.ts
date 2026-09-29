@@ -42,12 +42,11 @@ export function useNFCOtimizado(
     return true;
   };
 
+  // A deduplicação (shouldProcessBracelet) é feita por quem chama, uma única vez.
+  // Repetir a checagem aqui descartava TODA leitura: a primeira chamada já marca o
+  // código como "visto agora", então a segunda sempre caía no cooldown e o kiosk
+  // nunca abria a tela de cadastro.
   const handleBraceletDetectedOptimized = (code: string) => {
-    if (!shouldProcessBracelet(code)) {
-      console.log('🔁 Pulando releitura rápida:', code);
-      return;
-    }
-    
     // Debounce rápido para evitar flood
     setTimeout(() => {
       onBraceletDetectedRef.current(code);
@@ -119,7 +118,7 @@ export function useNFCOtimizado(
       const ws = createAuthenticatedWebSocket(wsUrl, token);
       socketRef.current = ws;
 
-      console.log(`🔗 NFC WS: evento ${eventoId}`);
+      console.log(`🔗 NFC WS: ${serverUrl} | evento ${eventoId}`);
 
       ws.onopen = () => {
         if (disposed || socketRef.current !== ws) return;
@@ -150,6 +149,16 @@ export function useNFCOtimizado(
           const isExpectedReceptionMessage = !expectedSource
             || msg.payload?.source === expectedSource
             || isLegacyReceptionMessage;
+
+          if (isNfcMessage) {
+            console.log('📨 NFC recebido:', {
+              codigo: msg.payload?.braceletCode || msg.payload?.code || msg.payload?.uid,
+              evento: messageEventId,
+              origem: msg.payload?.source,
+              doEventoSelecionado: belongsToSelectedEvent,
+              origemEsperada: isExpectedReceptionMessage,
+            });
+          }
 
           if (isNfcMessage && belongsToSelectedEvent && isExpectedReceptionMessage) {
             const code = msg.payload?.braceletCode || msg.payload?.code || msg.payload?.uid;
