@@ -701,7 +701,9 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao criar evento (${res.status})`);
+    return body;
   },
 
   async updateEvento(id: string, data: any) {
@@ -710,7 +712,30 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao atualizar evento (${res.status})`);
+    return body;
+  },
+
+  // Ciclo de vida do evento: agendado -> ativo -> encerrado
+  async startEvento(id: string) {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(id)}/start`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao iniciar evento (${res.status})`);
+    return body;
+  },
+
+  async finishEvento(id: string) {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(id)}/finish`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao encerrar evento (${res.status})`);
+    return body;
   },
 
   async deleteEvento(id: string) {
