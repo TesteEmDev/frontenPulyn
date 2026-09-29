@@ -22,16 +22,18 @@ export interface TimeBucket {
   // Início do intervalo (rótulo do eixo) e a faixa completa (dica ao passar o mouse).
   hora: string;
   faixa: string;
-  pontuacoes: number;
+  // null = intervalo que ainda não chegou (evento em andamento): sem ponto no gráfico.
+  pontuacoes: number | null;
 }
 
 const MINUTE_MS = 60000;
 const MAX_BUCKETS = 72;
-// Até 3 horas de evento: intervalos de 10 min (1h = 6 pontos, 3h = 18).
-// Acima de 3 horas: intervalos de 30 min, para o gráfico não ficar apertado.
-const LONG_EVENT_MINUTES = 180;
-const SHORT_BUCKET_MINUTES = 10;
-const LONG_BUCKET_MINUTES = 30;
+// O gráfico tem de 5 a 10 pontos (para eventos com pelo menos 5 minutos).
+const MIN_POINTS = 5;
+const MAX_POINTS = 10;
+const TARGET_POINTS = 8;
+// Intervalos possíveis, em minutos. Só valores fáceis de ler no eixo.
+const NICE_BUCKET_MINUTES = [1, 2, 3, 5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 480, 720, 1440];
 
 type Lifecycle = 'scheduled' | 'active' | 'finished';
 
@@ -92,23 +94,54 @@ export function getEventActiveWindow(
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-// Tamanho do intervalo pela duração do evento (configurada); sem duração, pelo
-// tamanho da janela. Não depende de quanto já passou, então não muda no meio do evento.
-export function getBucketMinutes(eventDurationMinutes: number | null | undefined, window: EventWindow): number {
-  const configured = Number(eventDurationMinutes);
-  const minutes = configured > 0
-    ? configured
-    : (window.end.getTime() - window.start.getTime()) / MINUTE_MS;
-  return minutes > LONG_EVENT_MINUTES ? LONG_BUCKET_MINUTES : SHORT_BUCKET_MINUTES;
+// Escolhe o intervalo para o gráfico ficar com 5 a 10 pontos: entre os
+// intervalos "redondos" que dão de 5 a 10 pontos, o que chega mais perto de 8
+// (em empate, o maior, que é mais fácil de ler). Como um tamanho da lista é no
+// máximo o dobro do anterior, sempre existe um assim para eventos de 5 min ou
+// mais; abaixo disso o menor intervalo (1 min) dá menos de 5 pontos.
+export function pickBucketMinutes(basisMinutes: number): number {
+  const basis = Math.max(1, Number.isFinite(basisMinutes) ? basisMinutes : 1);
+  let best: number | null = null;
+  let bestDistance = Infinity;
+  for (const size of NICE_BUCKET_MINUTES) {
+    const count = Math.ceil(basis / size);
+    if (count < MIN_POINTS || count > MAX_POINTS) continue;
+    const distance = Math.abs(count - TARGET_POINTS);
+    if (distance < bestDistance || (distance === bestDistance && best !== null && size > best)) {
+      best = size;
+      bestDistance = distance;
+    }
+  }
+  if (best !== null) return best;
+  return basis < MIN_POINTS ? NICE_BUCKET_MINUTES[0] : NICE_BUCKET_MINUTES[NICE_BUCKET_MINUTES.length - 1];
 }
 
-// Intervalos iguais contados a partir do início da janela, só até o fim dela.
-export function buildTimeBuckets(window: EventWindow, timestamps: Date[], bucketMinutes: number): TimeBucket[] {
+// Base do cálculo: evento em andamento usa a duração configurada (assim o
+// intervalo não muda no meio do evento); evento encerrado usa o tempo em que
+// realmente esteve ativo (um evento encerrado antes da hora continua com 5 a 10 pontos).
+export function getBucketMinutes(eventDurationMinutes: number | null | undefined, window: EventWindow): number {
+  const spanMinutes = (window.end.getTime() - window.start.getTime()) / MINUTE_MS;
+  const configured = Number(eventDurationMinutes);
+  const basis = window.ongoing && configured > 0 ? configured : spanMinutes;
+  return pickBucketMinutes(basis);
+}
+
+// Intervalos iguais contados a partir do início da janela. Em evento em
+// andamento, `plannedEnd` (início + duração) estende o eixo até o fim previsto:
+// os intervalos que ainda não chegaram ficam vazios (pontuacoes = null, sem ponto).
+export function buildTimeBuckets(
+  window: EventWindow,
+  timestamps: Date[],
+  bucketMinutes: number,
+  plannedEnd?: Date | null,
+): TimeBucket[] {
   const sizeMs = bucketMinutes * MINUTE_MS;
   const startMs = window.start.getTime();
-  const spanMs = Math.max(0, window.end.getTime() - startMs);
+  const endMs = window.end.getTime();
+  const axisEndMs = plannedEnd && plannedEnd.getTime() > endMs ? plannedEnd.getTime() : endMs;
+  const spanMs = Math.max(0, axisEndMs - startMs);
   const total = Math.min(MAX_BUCKETS, Math.max(1, Math.ceil(spanMs / sizeMs)));
-  const spansDays = window.start.toDateString() !== window.end.toDateString();
+  const spansDays = window.start.toDateString() !== new Date(axisEndMs).toDateString();
 
   const clock = (ms: number, withDay: boolean) => {
     const d = new Date(ms);
@@ -119,23 +152,23 @@ export function buildTimeBuckets(window: EventWindow, timestamps: Date[], bucket
   const buckets: TimeBucket[] = [];
   for (let i = 0; i < total; i += 1) {
     const from = startMs + i * sizeMs;
-    const to = Math.min(from + sizeMs, Math.max(window.end.getTime(), from));
+    const to = Math.min(from + sizeMs, Math.max(axisEndMs, from));
     buckets.push({
       hora: clock(from, spansDays),
       faixa: `${clock(from, spansDays)} – ${clock(to, false)}`,
-      pontuacoes: 0,
+      pontuacoes: from > endMs ? null : 0,
     });
   }
 
   for (const t of timestamps) {
     const ms = t.getTime();
-    if (Number.isNaN(ms) || ms < startMs || ms > window.end.getTime()) continue;
+    if (Number.isNaN(ms) || ms < startMs || ms > endMs) continue;
     let index = Math.floor((ms - startMs) / sizeMs);
     // O instante exato do fim pertence ao último intervalo; além do limite de
     // barras (evento muito longo), o que não cabe é descartado.
-    if (index === total && ms === window.end.getTime()) index = total - 1;
+    if (index === total && ms === endMs) index = total - 1;
     if (index >= total) continue;
-    buckets[index].pontuacoes += 1;
+    buckets[index].pontuacoes = (buckets[index].pontuacoes ?? 0) + 1;
   }
   return buckets;
 }

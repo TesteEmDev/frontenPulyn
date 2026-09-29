@@ -212,18 +212,23 @@ export default function AdminDashboard() {
   ), [safeChildren, teamById]);
 
   // Engajamento em intervalos de tempo, só dentro do período em que o evento
-  // esteve ativo (do início real até agora, ou até o encerramento). O intervalo
-  // depende da duração do evento: 10 min até 3h, 30 min acima disso.
+  // esteve ativo (do início real até o encerramento). O intervalo é escolhido
+  // pela duração para o gráfico ter de 5 a 10 pontos. Com o evento em andamento
+  // o eixo já cobre o evento inteiro e os intervalos futuros ficam sem ponto.
   const engagement = useMemo(() => {
     const times = safeScoreLog
       .map((entry) => (entry?.created_at ? new Date(entry.created_at) : null))
       .filter((date): date is Date => date !== null && !Number.isNaN(date.getTime()));
     const window = getEventActiveWindow(selectedEvent, times, now);
     const bucketMinutes = window ? getBucketMinutes(selectedEvent?.duration, window) : 0;
+    const duration = Number(selectedEvent?.duration);
+    const plannedEnd = window?.ongoing && duration > 0
+      ? new Date(window.start.getTime() + duration * 60000)
+      : null;
     return {
       window,
       bucketMinutes,
-      data: window ? buildTimeBuckets(window, times, bucketMinutes) : [],
+      data: window ? buildTimeBuckets(window, times, bucketMinutes, plannedEnd) : [],
     };
   }, [safeScoreLog, selectedEvent, now]);
 
@@ -345,9 +350,9 @@ export default function AdminDashboard() {
                   )}
                   {engagementOverTimeData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={250}>
-                    <LineChart data={engagementOverTimeData}>
+                    <LineChart data={engagementOverTimeData} margin={{ top: 5, right: 28, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                      <XAxis dataKey="hora" interval="preserveStartEnd" minTickGap={16} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                      <XAxis dataKey="hora" interval={0} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
                       <YAxis allowDecimals={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
                       <Tooltip
                         contentStyle={{ backgroundColor: '#1E1B2E', border: '1px solid #374151', borderRadius: 8 }}
