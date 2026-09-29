@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -68,8 +68,41 @@ const STATUS_COLORS: Record<string, string> = {
   trial: '#F59E0B',
 };
 
+interface MasterEvent {
+  id: string;
+  name: string;
+  clientId: string;
+  client: string;
+  childrenCount: number;
+  status: string;
+  date?: string;
+  elapsed: number;
+}
+
+interface MapFocus {
+  uf: string | null;
+  cityKey: string | null;
+  clientId: string | null;
+}
+
+const NO_FOCUS: MapFocus = { uf: null, cityKey: null, clientId: null };
+
+interface CityGroup {
+  key: string;
+  shape: BrazilStateShape;
+  city: string;
+  x: number;
+  y: number;
+  clients: MasterClient[];
+  events: MasterEvent[];
+}
+
+const cityKeyFor = (uf: string, city: string | null | undefined) => `${uf}|${normalizeText(city || '')}`;
+
 const FULL_VIEW = { x: 0, y: 0, w: 613, h: 639 };
 const MAP_ASPECT = FULL_VIEW.w / FULL_VIEW.h;
+const CITY_VIEW_W = 70;
+const EVENT_COLOR = '#8B5CF6';
 
 const viewForState = (shape: BrazilStateShape) => {
   const [x0, y0, x1, y1] = shape.bbox;
@@ -80,34 +113,102 @@ const viewForState = (shape: BrazilStateShape) => {
   return { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h };
 };
 
+const viewForPoint = (x: number, y: number, w: number) => {
+  const h = w / MAP_ASPECT;
+  return { x: x - w / 2, y: y - h / 2, w, h };
+};
+
 const STATUS_LABELS: Record<string, string> = { active: 'Ativo', blocked: 'Bloqueado', trial: 'Trial' };
 
-function BrazilMap({ clients }: { clients: MasterClient[] }) {
-  const clientsToRender = Array.isArray(clients) ? clients : [];
-  const [selectedUf, setSelectedUf] = useState<string | null>(null);
+const formatEventWhen = (event: MasterEvent) => {
+  if (event.status === 'active') return `em andamento há ${event.elapsed}min`;
+  if (!event.date) return 'agendado';
+  const day = new Date(event.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+  return `agendado para ${day}`;
+};
+
+function BrazilMap({
+  clients,
+  events,
+  focus,
+  onFocusChange,
+}: {
+  clients: MasterClient[];
+  events: MasterEvent[];
+  focus: MapFocus;
+  onFocusChange: (focus: MapFocus) => void;
+}) {
   const [hoveredUf, setHoveredUf] = useState<string | null>(null);
   const [view, setView] = useState(FULL_VIEW);
   const viewRef = useRef(FULL_VIEW);
 
-  const placed: { client: MasterClient; shape: BrazilStateShape }[] = [];
-  let unplaced = 0;
-  clientsToRender.forEach((client) => {
-    const shape = findStateShape(client.state);
-    if (shape) placed.push({ client, shape });
-    else unplaced += 1;
-  });
-  const statesWithClients = new Set(placed.map((p) => p.shape.uf));
-  const selectedShape = BRAZIL_STATES.find((s) => s.uf === selectedUf) || null;
-  const selectedClients = placed.filter((p) => p.shape.uf === selectedUf).map((p) => p.client);
+  // Agrupa clientes por cidade (cada cidade vira um marcador) e distribui as
+  // cidades do mesmo estado em volta do centro do estado, já que o cadastro
+  // só tem cidade/estado em texto, sem coordenadas.
+  const { groups, unplaced } = useMemo(() => {
+    const byKey = new Map<string, CityGroup>();
+    let missing = 0;
+    const eventsByClient = new Map<string, MasterEvent[]>();
+    (Array.isArray(events) ? events : []).forEach((event) => {
+      const list = eventsByClient.get(event.clientId) || [];
+      list.push(event);
+      eventsByClient.set(event.clientId, list);
+    });
 
-  // Anima a câmera (viewBox) até o estado escolhido, ou de volta ao Brasil todo.
+    (Array.isArray(clients) ? clients : []).forEach((client) => {
+      const shape = findStateShape(client.state);
+      if (!shape) {
+        missing += 1;
+        return;
+      }
+      const key = cityKeyFor(shape.uf, client.city);
+      let group = byKey.get(key);
+      if (!group) {
+        group = { key, shape, city: (client.city || '').trim(), x: shape.cx, y: shape.cy, clients: [], events: [] };
+        byKey.set(key, group);
+      }
+      group.clients.push(client);
+      group.events.push(...(eventsByClient.get(client.id) || []));
+    });
+
+    const perState: Record<string, CityGroup[]> = {};
+    Array.from(byKey.values()).forEach((group) => {
+      (perState[group.shape.uf] ||= []).push(group);
+    });
+    Object.values(perState).forEach((list) => {
+      list.sort((a, b) => a.city.localeCompare(b.city, 'pt-BR'));
+      list.forEach((group, index) => {
+        if (index === 0) return;
+        const angle = index * 2.4;
+        const radius = 8 + 3 * index;
+        group.x = group.shape.cx + Math.cos(angle) * radius;
+        group.y = group.shape.cy + Math.sin(angle) * radius;
+      });
+    });
+
+    return { groups: Array.from(byKey.values()), unplaced: missing };
+  }, [clients, events]);
+
+  const statesWithClients = new Set(groups.map((g) => g.shape.uf));
+  const focusShape = BRAZIL_STATES.find((s) => s.uf === focus.uf) || null;
+  const focusGroup = focus.cityKey ? groups.find((g) => g.key === focus.cityKey) || null : null;
+
+  const target = focusGroup
+    ? viewForPoint(focusGroup.x, focusGroup.y, CITY_VIEW_W)
+    : focusShape
+      ? viewForState(focusShape)
+      : FULL_VIEW;
+  const targetKey = `${target.x.toFixed(2)},${target.y.toFixed(2)},${target.w.toFixed(2)}`;
+
+  // Anima a câmera (viewBox) até o alvo: Brasil, estado ou cidade.
   useEffect(() => {
     const from = viewRef.current;
-    const to = selectedShape ? viewForState(selectedShape) : FULL_VIEW;
+    const to = target;
     const duration = 450;
-    const start = performance.now();
+    let start: number | null = null;
     let frame = 0;
     const tick = (now: number) => {
+      if (start === null) start = now;
       const t = Math.min((now - start) / duration, 1);
       const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
       const next = {
@@ -122,33 +223,72 @@ function BrazilMap({ clients }: { clients: MasterClient[] }) {
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [selectedShape]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetKey]);
 
   // Com o zoom, pontos e textos encolhem na mesma proporção para não ficarem gigantes.
   const k = view.w / FULL_VIEW.w;
-  const seenPerState: Record<string, number> = {};
+
+  const goUp = () => {
+    if (focus.cityKey && focus.uf) onFocusChange({ uf: focus.uf, cityKey: null, clientId: null });
+    else onFocusChange(NO_FOCUS);
+  };
+
+  const selectGroup = (group: CityGroup) =>
+    onFocusChange({
+      uf: group.shape.uf,
+      cityKey: group.key,
+      clientId: group.clients.length === 1 ? group.clients[0].id : null,
+    });
+
+  const selectState = (uf: string) =>
+    onFocusChange(focus.uf === uf && !focus.cityKey ? NO_FOCUS : { uf, cityKey: null, clientId: null });
+
+  const scopeGroups = focusShape ? groups.filter((g) => g.shape.uf === focusShape.uf) : [];
+  const listGroups = focusGroup ? [focusGroup] : scopeGroups;
+  const listClients = listGroups.flatMap((g) => g.clients.map((client) => ({ client, group: g })));
+  const clientEvents = (client: MasterClient) =>
+    (Array.isArray(events) ? events : []).filter((event) => event.clientId === client.id);
 
   return (
     <div>
-      <div className="flex items-center justify-between min-h-[28px] mb-2">
-        <p className="text-sm text-gray-400">
-          {selectedShape ? (
+      <div className="flex items-center justify-between gap-3 min-h-[28px] mb-2">
+        <p className="text-sm text-gray-400 min-w-0 truncate">
+          {focusShape ? (
             <>
-              <span className="text-white font-medium">{selectedShape.name}</span>
-              {' · '}
-              {selectedClients.length} {selectedClients.length === 1 ? 'cliente' : 'clientes'}
+              <button type="button" onClick={() => onFocusChange(NO_FOCUS)} className="hover:text-primary transition-colors">
+                Brasil
+              </button>
+              {' › '}
+              {focusGroup ? (
+                <button
+                  type="button"
+                  onClick={() => onFocusChange({ uf: focusShape.uf, cityKey: null, clientId: null })}
+                  className="hover:text-primary transition-colors"
+                >
+                  {focusShape.name}
+                </button>
+              ) : (
+                <span className="text-white font-medium">{focusShape.name}</span>
+              )}
+              {focusGroup && (
+                <>
+                  {' › '}
+                  <span className="text-white font-medium">{focusGroup.city || 'Cidade não informada'}</span>
+                </>
+              )}
             </>
           ) : (
-            'Clique em um estado para dar zoom'
+            'Clique em um estado ou cliente para dar zoom'
           )}
         </p>
-        {selectedShape && (
+        {focusShape && (
           <button
             type="button"
-            onClick={() => setSelectedUf(null)}
-            className="text-xs px-3 py-1 rounded-md border border-primary/40 text-primary hover:bg-primary/10 transition-colors"
+            onClick={goUp}
+            className="shrink-0 text-xs px-3 py-1 rounded-md border border-primary/40 text-primary hover:bg-primary/10 transition-colors"
           >
-            Ver Brasil inteiro
+            {focusGroup ? `Voltar para ${focusShape.name}` : 'Ver Brasil inteiro'}
           </button>
         )}
       </div>
@@ -158,11 +298,11 @@ function BrazilMap({ clients }: { clients: MasterClient[] }) {
         className="w-full h-auto max-h-[440px] mx-auto"
         role="group"
         aria-label="Mapa do Brasil com a localização dos clientes"
-        onClick={() => setSelectedUf(null)}
+        onClick={goUp}
       >
         {BRAZIL_STATES.map((state) => {
           const hasClients = statesWithClients.has(state.uf);
-          const isSelected = state.uf === selectedUf;
+          const isSelected = state.uf === focus.uf;
           const isHovered = state.uf === hoveredUf;
           const fill = isSelected
             ? 'rgba(30,155,215,0.38)'
@@ -188,12 +328,12 @@ function BrazilMap({ clients }: { clients: MasterClient[] }) {
               onMouseLeave={() => setHoveredUf(null)}
               onClick={(e) => {
                 e.stopPropagation();
-                setSelectedUf(isSelected ? null : state.uf);
+                selectState(state.uf);
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  setSelectedUf(isSelected ? null : state.uf);
+                  selectState(state.uf);
                 }
               }}
             >
@@ -201,23 +341,125 @@ function BrazilMap({ clients }: { clients: MasterClient[] }) {
             </path>
           );
         })}
-        {placed.map(({ client, shape }) => {
-          const indexInState = seenPerState[shape.uf] || 0;
-          seenPerState[shape.uf] = indexInState + 1;
-          const angle = indexInState * 2.4;
-          const radius = (indexInState === 0 ? 0 : 14 + indexInState * 5) * k;
-          const cx = shape.cx + Math.cos(angle) * radius;
-          const cy = shape.cy + Math.sin(angle) * radius;
-          const color = STATUS_COLORS[client.status] || STATUS_COLORS.trial;
+
+        {groups.map((group) => {
+          const isFocusedCity = focusGroup?.key === group.key;
+          const count = group.clients.length;
+          const single = count === 1 ? group.clients[0] : null;
+          const color = single ? STATUS_COLORS[single.status] || STATUS_COLORS.trial : '#1E9BD7';
+          const label = `${group.city || group.shape.uf}: ${count} ${count === 1 ? 'cliente' : 'clientes'}${
+            group.events.length ? `, ${group.events.length} ${group.events.length === 1 ? 'evento' : 'eventos'}` : ''
+          }`;
+
+          // Dentro da cidade, os clientes se abrem em leque para dar para escolher um por um.
+          if (isFocusedCity) {
+            const radius = count > 1 ? Math.max(48, count * 11) * k : 0;
+            return (
+              <g key={group.key}>
+                {count > 1 && (
+                  <circle cx={group.x} cy={group.y} r={radius} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={1 * k} strokeDasharray={`${4 * k} ${4 * k}`} style={{ pointerEvents: 'none' }} />
+                )}
+                {group.clients.map((client, index) => {
+                  const angle = count > 1 ? (2 * Math.PI * index) / count - Math.PI / 2 : 0;
+                  const cx = group.x + Math.cos(angle) * radius;
+                  const cy = group.y + Math.sin(angle) * radius;
+                  const clientColor = STATUS_COLORS[client.status] || STATUS_COLORS.trial;
+                  const isSelected = focus.clientId === client.id;
+                  const evs = clientEvents(client);
+                  const leftSide = Math.cos(angle) < -0.3;
+                  const select = () =>
+                    onFocusChange({ uf: group.shape.uf, cityKey: group.key, clientId: isSelected ? null : client.id });
+                  return (
+                    <g
+                      key={client.id}
+                      style={{ cursor: 'pointer' }}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`${client.name}${evs.length ? `, ${evs.length} eventos` : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        select();
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          select();
+                        }
+                      }}
+                    >
+                      <title>{`${client.name} — ${client.city || 'cidade não informada'}/${group.shape.uf}`}</title>
+                      <circle cx={cx} cy={cy} r={12 * k} fill="transparent" />
+                      <circle cx={cx} cy={cy} r={(isSelected ? 11 : 9) * k} fill={clientColor} opacity="0.3" />
+                      <circle cx={cx} cy={cy} r={5 * k} fill={clientColor} stroke={isSelected ? '#FFFFFF' : '#0B1220'} strokeWidth={(isSelected ? 2 : 1.5) * k} />
+                      {evs.length > 0 && (
+                        <g>
+                          <circle cx={cx + 7 * k} cy={cy - 7 * k} r={5.5 * k} fill={EVENT_COLOR} stroke="#0B1220" strokeWidth={1 * k} />
+                          <text x={cx + 7 * k} y={cy - 7 * k + 3 * k} textAnchor="middle" fontSize={8 * k} fontWeight="700" fill="#FFFFFF" fontFamily="sans-serif">
+                            {evs.length}
+                          </text>
+                        </g>
+                      )}
+                      <text
+                        x={leftSide ? cx - 9 * k : cx + 9 * k}
+                        y={cy + 4 * k}
+                        textAnchor={leftSide ? 'end' : 'start'}
+                        fill="rgba(255,255,255,0.95)"
+                        fontSize={13 * k}
+                        fontFamily="sans-serif"
+                        paintOrder="stroke"
+                        stroke="#0B1220"
+                        strokeWidth={3 * k}
+                      >
+                        {client.name}
+                      </text>
+                    </g>
+                  );
+                })}
+              </g>
+            );
+          }
+
+          const select = () => selectGroup(group);
           return (
-            <g key={client.id} style={{ pointerEvents: 'none' }}>
-              <circle cx={cx} cy={cy} r={9 * k} fill={color} opacity="0.3">
+            <g
+              key={group.key}
+              style={{ cursor: 'pointer' }}
+              tabIndex={0}
+              role="button"
+              aria-label={label}
+              onClick={(e) => {
+                e.stopPropagation();
+                select();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  select();
+                }
+              }}
+            >
+              <title>{label}</title>
+              <circle cx={group.x} cy={group.y} r={12 * k} fill="transparent" />
+              <circle cx={group.x} cy={group.y} r={(count > 1 ? 12 : 9) * k} fill={color} opacity="0.3">
                 <animate attributeName="opacity" values="0.3;0.08;0.3" dur="2s" repeatCount="indefinite" />
               </circle>
-              <circle cx={cx} cy={cy} r={5 * k} fill={color} stroke="#0B1220" strokeWidth={1.5 * k} />
+              <circle cx={group.x} cy={group.y} r={(count > 1 ? 8 : 5) * k} fill={color} stroke="#0B1220" strokeWidth={1.5 * k} />
+              {count > 1 && (
+                <text x={group.x} y={group.y + 4 * k} textAnchor="middle" fontSize={11 * k} fontWeight="700" fill="#0B1220" fontFamily="sans-serif">
+                  {count}
+                </text>
+              )}
+              {group.events.length > 0 && (
+                <g>
+                  <circle cx={group.x + 9 * k} cy={group.y - 9 * k} r={6 * k} fill={EVENT_COLOR} stroke="#0B1220" strokeWidth={1 * k} />
+                  <text x={group.x + 9 * k} y={group.y - 9 * k + 3 * k} textAnchor="middle" fontSize={8.5 * k} fontWeight="700" fill="#FFFFFF" fontFamily="sans-serif">
+                    {group.events.length}
+                  </text>
+                </g>
+              )}
               <text
-                x={cx + 9 * k}
-                y={cy + 4 * k}
+                x={group.x + (count > 1 ? 14 : 9) * k}
+                y={group.y + 4 * k}
                 fill="rgba(255,255,255,0.9)"
                 fontSize={13 * k}
                 fontFamily="sans-serif"
@@ -225,31 +467,73 @@ function BrazilMap({ clients }: { clients: MasterClient[] }) {
                 stroke="#0B1220"
                 strokeWidth={3 * k}
               >
-                {client.city || shape.uf}
+                {group.city || group.shape.uf}
               </text>
             </g>
           );
         })}
       </svg>
 
-      {selectedShape && (
+      {focusShape && (
         <div className="mt-3 border-t border-white/10 pt-3">
-          {selectedClients.length === 0 ? (
-            <p className="text-sm text-gray-500">Nenhum cliente em {selectedShape.name}.</p>
+          {listClients.length === 0 ? (
+            <p className="text-sm text-gray-500">Nenhum cliente em {focusShape.name}.</p>
           ) : (
             <ul className="space-y-2">
-              {selectedClients.map((client) => (
-                <li key={client.id} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="flex items-center gap-2 min-w-0">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: STATUS_COLORS[client.status] || STATUS_COLORS.trial }} />
-                    <span className="text-white truncate">{client.name}</span>
-                    <span className="text-gray-500 truncate">{client.city}</span>
-                  </span>
-                  <Badge variant={client.status === 'active' ? 'success' : client.status === 'blocked' ? 'danger' : 'warning'}>
-                    {STATUS_LABELS[client.status] || client.status}
-                  </Badge>
-                </li>
-              ))}
+              {listClients.map(({ client, group }) => {
+                const evs = clientEvents(client);
+                const isSelected = focus.clientId === client.id;
+                const expanded = !!focusGroup || isSelected;
+                return (
+                  <li
+                    key={client.id}
+                    className={`rounded-lg px-3 py-2 border transition-colors ${
+                      isSelected ? 'border-primary/60 bg-primary/10' : 'border-transparent hover:bg-white/5'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between gap-3 text-sm text-left"
+                      onClick={() =>
+                        onFocusChange({ uf: group.shape.uf, cityKey: group.key, clientId: isSelected && focusGroup ? null : client.id })
+                      }
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: STATUS_COLORS[client.status] || STATUS_COLORS.trial }} />
+                        <span className="text-white truncate">{client.name}</span>
+                        <span className="text-gray-500 truncate">{client.city}</span>
+                      </span>
+                      <span className="flex items-center gap-2 shrink-0">
+                        {evs.length > 0 && (
+                          <span className="text-xs font-semibold" style={{ color: EVENT_COLOR }}>
+                            {evs.length} {evs.length === 1 ? 'evento' : 'eventos'}
+                          </span>
+                        )}
+                        <Badge variant={client.status === 'active' ? 'success' : client.status === 'blocked' ? 'danger' : 'warning'}>
+                          {STATUS_LABELS[client.status] || client.status}
+                        </Badge>
+                      </span>
+                    </button>
+                    {expanded && (
+                      <ul className="mt-2 ml-5 space-y-1">
+                        {evs.length === 0 ? (
+                          <li className="text-xs text-gray-500">Nenhum evento ativo ou agendado</li>
+                        ) : (
+                          evs.map((event) => (
+                            <li key={event.id} className="text-xs text-gray-400 flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: EVENT_COLOR }} />
+                              <span className="text-gray-200 truncate">{event.name}</span>
+                              <span className="shrink-0">
+                                {event.childrenCount} crianças · {formatEventWhen(event)}
+                              </span>
+                            </li>
+                          ))
+                        )}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
@@ -276,7 +560,18 @@ export default function MasterDashboard() {
     totalClients: 0,
   });
   const [clients, setClients] = useState<MasterClient[]>([]);
-  const [activeEvents, setActiveEvents] = useState<any[]>([]);
+  const [activeEvents, setActiveEvents] = useState<MasterEvent[]>([]);
+  const [mapFocus, setMapFocus] = useState<MapFocus>(NO_FOCUS);
+  const mapCardRef = useRef<HTMLDivElement>(null);
+
+  // Clicar em um evento leva o mapa até a cidade do cliente dele.
+  const focusClientOnMap = (clientId: string) => {
+    const client = clients.find((c) => c.id === clientId);
+    const shape = client ? findStateShape(client.state) : undefined;
+    if (!client || !shape) return;
+    setMapFocus({ uf: shape.uf, cityKey: cityKeyFor(shape.uf, client.city), clientId: client.id });
+    mapCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
   const [alerts, setAlerts] = useState<MasterAlert[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -364,14 +659,14 @@ export default function MasterDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Brazil Map */}
             <Card variant="glow" className="lg:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
+              <div ref={mapCardRef} className="flex items-center gap-2 mb-4">
                 <MapPin size={20} className="text-primary" />
                 <h3 className="font-display text-lg text-white">Clientes no Brasil</h3>
                 <Badge variant="primary">{clients.length} unidades</Badge>
               </div>
               <div className="flex items-center justify-center py-4">
                 <div className="w-full max-w-md">
-                  <BrazilMap clients={clients} />
+                  <BrazilMap clients={clients} events={activeEvents} focus={mapFocus} onFocusChange={setMapFocus} />
                   <div className="flex items-center justify-center gap-6 mt-4">
                     <div className="flex items-center gap-2">
                       <span className="w-3 h-3 rounded-full bg-success" />
@@ -435,12 +730,25 @@ export default function MasterDashboard() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {Array.isArray(activeEvents) && activeEvents.length > 0 ? (
-                activeEvents.map((event: any) => {
-                  const client = clients.find(c => c.name === event.client);
+                activeEvents.map((event) => {
+                  const client = clients.find(c => c.id === event.clientId);
+                  const locatable = !!client && !!findStateShape(client.state);
                   return (
                     <div
                       key={event.id}
-                      className="rounded-lg border border-border p-4 bg-surface/30 hover:bg-surface/50 transition-colors"
+                      role={locatable ? 'button' : undefined}
+                      tabIndex={locatable ? 0 : undefined}
+                      title={locatable ? 'Ver no mapa' : 'Cliente sem estado cadastrado'}
+                      onClick={() => locatable && focusClientOnMap(event.clientId)}
+                      onKeyDown={(e) => {
+                        if (locatable && (e.key === 'Enter' || e.key === ' ')) {
+                          e.preventDefault();
+                          focusClientOnMap(event.clientId);
+                        }
+                      }}
+                      className={`rounded-lg border border-border p-4 bg-surface/30 hover:bg-surface/50 transition-colors ${
+                        locatable ? 'cursor-pointer' : ''
+                      }`}
                     >
                       <div className="flex items-center gap-2 mb-2">
                         <StatusDot status="online" size="sm" />
@@ -449,7 +757,9 @@ export default function MasterDashboard() {
                       <p className="text-xs text-gray-400 mb-1">{event.client}</p>
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-xs text-gray-500">{event.childrenCount} crianças</span>
-                        <span className="text-xs text-secondary font-mono">{event.elapsed}min</span>
+                        <span className="text-xs text-secondary font-mono">
+                          {event.status === 'active' ? `${event.elapsed}min` : 'agendado'}
+                        </span>
                       </div>
                       {client && (
                         <Badge
