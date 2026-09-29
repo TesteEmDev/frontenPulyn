@@ -15,6 +15,7 @@ import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import StatusDot from '../../components/ui/StatusDot';
 import Select from '../../components/ui/Select';
+import { getEventActiveWindow, buildHourlyBuckets, formatClock } from '../../utils/eventWindow';
 
 const STATUS_LABELS: Record<string, { label: string; variant: 'success' | 'warning' | 'muted' }> = {
   active: { label: 'Ativo', variant: 'success' },
@@ -37,6 +38,7 @@ export default function AdminDashboard() {
   const [scoreLog, setScoreLog] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [territories, setTerritories] = useState<Record<string, any>>({});
+  const [now, setNow] = useState(() => new Date());
 
   // Garantir que são arrays (segurança)
   const safeEvents = Array.isArray(events) ? events : [];
@@ -113,6 +115,28 @@ export default function AdminDashboard() {
     return () => { disposed = true; };
   }, [selectedEventId]);
 
+  // Com o evento ativo, o fim da janela do gráfico é "agora": avança o relógio e
+  // busca as pontuações novas a cada 30s para o gráfico acompanhar o evento.
+  const selectedStatus = safeEvents.find((e) => e.id === selectedEventId)?.status;
+  useEffect(() => {
+    if (!selectedEventId || (selectedStatus !== 'active' && selectedStatus !== 'ongoing')) return undefined;
+    let disposed = false;
+    const interval = setInterval(async () => {
+      if (document.hidden) return;
+      setNow(new Date());
+      try {
+        const history = await api.getScoreHistory(selectedEventId, 200);
+        if (!disposed && Array.isArray(history)) setScoreLog(history);
+      } catch {
+        // mantém os dados atuais até a próxima tentativa
+      }
+    }, 30000);
+    return () => {
+      disposed = true;
+      clearInterval(interval);
+    };
+  }, [selectedEventId, selectedStatus]);
+
   // Carregar status dos territórios do evento selecionado
   useEffect(() => {
     const loadTerritories = async () => {
@@ -187,22 +211,24 @@ export default function AdminDashboard() {
       })
   ), [safeChildren, teamById]);
 
-  // Dados de engajamento por hora (últimas 24h), dentro do evento selecionado
-  const getEngagementData = () => {
-    const hours = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'];
-    const lastReadings = safeScoreLog.slice(-100);
+  // Engajamento por hora, só nas horas em que o evento esteve ativo (do início
+  // real até agora, ou até o encerramento). Antes eram horas fixas 08h-18h, que
+  // mostravam horários fora do evento, e as pontuações eram agrupadas só pela
+  // hora do dia, sem considerar a data.
+  const engagement = useMemo(() => {
+    const times = safeScoreLog
+      .map((entry) => (entry?.created_at ? new Date(entry.created_at) : null))
+      .filter((date): date is Date => date !== null && !Number.isNaN(date.getTime()));
+    const window = getEventActiveWindow(selectedEvent, times, now);
+    return {
+      window,
+      data: window ? buildHourlyBuckets(window, times) : [],
+    };
+  }, [safeScoreLog, selectedEvent, now]);
 
-    return hours.map(hour => {
-      const hourNum = parseInt(hour.split(':')[0]);
-      const count = lastReadings.filter(r => {
-        const readingHour = r.created_at ? new Date(r.created_at).getHours() : hourNum;
-        return readingHour === hourNum;
-      }).length;
-      return { hora: hour, pontuacoes: count };
-    });
-  };
-
-  const engagementOverTimeData = getEngagementData();
+  const engagementOverTimeData = engagement.data;
+  const engagementWindow = engagement.window;
+  const isSelectedEventActive = selectedEvent?.status === 'active' || selectedEvent?.status === 'ongoing';
 
   const kpis = [
     { label: 'Crianças no evento', value: totalChildren, color: 'text-secondary', icon: <Users size={24} /> },
@@ -304,12 +330,22 @@ export default function AdminDashboard() {
                 </Card>
 
                 <Card>
-                  <h3 className="font-display text-lg text-white mb-4">Engajamento ao Longo do Tempo</h3>
+                  <h3 className="font-display text-lg text-white">Engajamento ao Longo do Tempo</h3>
+                  {engagementWindow && (
+                    <p className="mt-1 mb-4 text-xs text-gray-500">
+                      {isSelectedEventActive
+                        ? `Evento ativo desde ${formatClock(engagementWindow.start)}`
+                        : engagementWindow.source === 'readings'
+                          ? `Período com atividade: ${formatClock(engagementWindow.start)} às ${formatClock(engagementWindow.end)}`
+                          : `Evento ativo das ${formatClock(engagementWindow.start)} às ${formatClock(engagementWindow.end)}`}
+                    </p>
+                  )}
+                  {engagementOverTimeData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={250}>
                     <LineChart data={engagementOverTimeData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                       <XAxis dataKey="hora" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
-                      <YAxis tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                      <YAxis allowDecimals={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
                       <Tooltip
                         contentStyle={{ backgroundColor: '#1E1B2E', border: '1px solid #374151', borderRadius: 8 }}
                         labelStyle={{ color: '#fff' }}
@@ -318,6 +354,13 @@ export default function AdminDashboard() {
                       <Line type="monotone" dataKey="pontuacoes" stroke="#29B6F6" strokeWidth={2} dot={{ fill: '#29B6F6', r: 4 }} />
                     </LineChart>
                   </ResponsiveContainer>
+                  ) : (
+                    <div className="flex h-[250px] items-center justify-center text-center text-sm text-gray-500">
+                      {selectedEvent
+                        ? 'O evento ainda não foi iniciado. O gráfico aparece a partir do início do evento.'
+                        : 'Selecione um evento.'}
+                    </div>
+                  )}
                 </Card>
               </div>
 
