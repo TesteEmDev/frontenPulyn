@@ -40,8 +40,6 @@ interface MasterClient {
   state: string;
   status: 'active' | 'blocked' | 'trial';
   plan: 'starter' | 'professional' | 'enterprise';
-  lat: number;
-  lng: number;
 }
 
 interface MasterAlert {
@@ -52,6 +50,22 @@ interface MasterAlert {
   time: string;
 }
 
+// empresas nunca teve (e não tem) colunas de latitude/longitude — a query
+// que as lia quebrava em produção e o mapa nunca recebia nenhum cliente.
+// Posicionamos pelo centroide aproximado do estado (UF), que é um dado que
+// a empresa realmente preenche no cadastro.
+const BRAZIL_STATE_CENTROIDS: Record<string, { lat: number; lng: number }> = {
+  AC: { lat: -9.0, lng: -70.5 }, AL: { lat: -9.6, lng: -36.6 }, AP: { lat: 1.4, lng: -51.8 },
+  AM: { lat: -4.1, lng: -63.5 }, BA: { lat: -12.6, lng: -41.7 }, CE: { lat: -5.2, lng: -39.5 },
+  DF: { lat: -15.8, lng: -47.9 }, ES: { lat: -19.6, lng: -40.6 }, GO: { lat: -15.9, lng: -49.8 },
+  MA: { lat: -5.0, lng: -45.3 }, MT: { lat: -12.8, lng: -55.9 }, MS: { lat: -20.5, lng: -54.6 },
+  MG: { lat: -18.6, lng: -44.5 }, PA: { lat: -3.9, lng: -52.5 }, PB: { lat: -7.2, lng: -36.5 },
+  PR: { lat: -24.7, lng: -51.6 }, PE: { lat: -8.4, lng: -37.8 }, PI: { lat: -7.7, lng: -42.7 },
+  RJ: { lat: -22.2, lng: -42.7 }, RN: { lat: -5.8, lng: -36.6 }, RS: { lat: -29.7, lng: -53.4 },
+  RO: { lat: -10.9, lng: -62.8 }, RR: { lat: 2.0, lng: -61.4 }, SC: { lat: -27.3, lng: -50.2 },
+  SP: { lat: -22.2, lng: -48.6 }, SE: { lat: -10.6, lng: -37.4 }, TO: { lat: -10.2, lng: -48.3 },
+};
+
 function BrazilMap({ clients }: { clients: MasterClient[] }) {
   const mapW = 400;
   const mapH = 380;
@@ -60,6 +74,11 @@ function BrazilMap({ clients }: { clients: MasterClient[] }) {
   const projectY = (lat: number) => ((lat + 6) / 40) * mapH;
 
   const clientsToRender = Array.isArray(clients) ? clients : [];
+
+  // Vários clientes podem estar no mesmo estado — separa os pontos com um
+  // deslocamento pequeno e determinístico (mesmo cliente sempre no mesmo
+  // lugar), em vez de empilhar tudo exatamente no mesmo pixel.
+  const seenPerState: Record<string, number> = {};
 
   return (
     <svg viewBox={`0 0 ${mapW} ${mapH}`} className="w-full h-full max-w-md mx-auto">
@@ -78,8 +97,17 @@ function BrazilMap({ clients }: { clients: MasterClient[] }) {
       <line x1="150" y1="120" x2="300" y2="160" stroke="rgba(30,155,215,0.1)" strokeWidth="0.5" />
       {/* Client dots */}
       {clientsToRender.map(client => {
-        const cx = projectX(client.lng);
-        const cy = projectY(client.lat);
+        const uf = (client.state || '').trim().toUpperCase();
+        const centroid = BRAZIL_STATE_CENTROIDS[uf];
+        if (!centroid) return null; // sem UF cadastrada, não dá pra posicionar
+
+        const indexInState = seenPerState[uf] || 0;
+        seenPerState[uf] = indexInState + 1;
+        // Espalha em círculo ao redor do centroide conforme repete no estado
+        const angle = indexInState * 2.4; // radianos, espiral simples
+        const radius = indexInState === 0 ? 0 : 6 + indexInState * 3;
+        const cx = projectX(centroid.lng) + Math.cos(angle) * radius;
+        const cy = projectY(centroid.lat) + Math.sin(angle) * radius;
         const color = client.status === 'active' ? '#22C55E' : client.status === 'blocked' ? '#EF4444' : '#F59E0B';
         return (
           <g key={client.id}>
