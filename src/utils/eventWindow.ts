@@ -18,13 +18,20 @@ export interface EventWindow {
   ongoing: boolean;
 }
 
-export interface HourBucket {
+export interface TimeBucket {
+  // Início do intervalo (rótulo do eixo) e a faixa completa (dica ao passar o mouse).
   hora: string;
+  faixa: string;
   pontuacoes: number;
 }
 
-const HOUR_MS = 3600000;
+const MINUTE_MS = 60000;
 const MAX_BUCKETS = 72;
+// Até 3 horas de evento: intervalos de 10 min (1h = 6 pontos, 3h = 18).
+// Acima de 3 horas: intervalos de 30 min, para o gráfico não ficar apertado.
+const LONG_EVENT_MINUTES = 180;
+const SHORT_BUCKET_MINUTES = 10;
+const LONG_BUCKET_MINUTES = 30;
 
 type Lifecycle = 'scheduled' | 'active' | 'finished';
 
@@ -85,27 +92,50 @@ export function getEventActiveWindow(
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-// Uma barra por hora cheia entre o início e o fim da janela (e só elas).
-export function buildHourlyBuckets(window: EventWindow, timestamps: Date[]): HourBucket[] {
-  const firstHour = new Date(window.start);
-  firstHour.setMinutes(0, 0, 0);
+// Tamanho do intervalo pela duração do evento (configurada); sem duração, pelo
+// tamanho da janela. Não depende de quanto já passou, então não muda no meio do evento.
+export function getBucketMinutes(eventDurationMinutes: number | null | undefined, window: EventWindow): number {
+  const configured = Number(eventDurationMinutes);
+  const minutes = configured > 0
+    ? configured
+    : (window.end.getTime() - window.start.getTime()) / MINUTE_MS;
+  return minutes > LONG_EVENT_MINUTES ? LONG_BUCKET_MINUTES : SHORT_BUCKET_MINUTES;
+}
 
-  const startMs = firstHour.getTime();
-  const totalHours = Math.min(MAX_BUCKETS, Math.floor((window.end.getTime() - startMs) / HOUR_MS) + 1);
+// Intervalos iguais contados a partir do início da janela, só até o fim dela.
+export function buildTimeBuckets(window: EventWindow, timestamps: Date[], bucketMinutes: number): TimeBucket[] {
+  const sizeMs = bucketMinutes * MINUTE_MS;
+  const startMs = window.start.getTime();
+  const spanMs = Math.max(0, window.end.getTime() - startMs);
+  const total = Math.min(MAX_BUCKETS, Math.max(1, Math.ceil(spanMs / sizeMs)));
   const spansDays = window.start.toDateString() !== window.end.toDateString();
 
-  const buckets: HourBucket[] = [];
-  for (let i = 0; i < totalHours; i += 1) {
-    const hour = new Date(startMs + i * HOUR_MS);
-    const label = `${pad(hour.getHours())}:00`;
-    buckets.push({ hora: spansDays ? `${pad(hour.getDate())}/${pad(hour.getMonth() + 1)} ${label}` : label, pontuacoes: 0 });
+  const clock = (ms: number, withDay: boolean) => {
+    const d = new Date(ms);
+    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return withDay ? `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${time}` : time;
+  };
+
+  const buckets: TimeBucket[] = [];
+  for (let i = 0; i < total; i += 1) {
+    const from = startMs + i * sizeMs;
+    const to = Math.min(from + sizeMs, Math.max(window.end.getTime(), from));
+    buckets.push({
+      hora: clock(from, spansDays),
+      faixa: `${clock(from, spansDays)} – ${clock(to, false)}`,
+      pontuacoes: 0,
+    });
   }
 
   for (const t of timestamps) {
     const ms = t.getTime();
-    if (Number.isNaN(ms) || ms < window.start.getTime() || ms > window.end.getTime()) continue;
-    const index = Math.floor((ms - startMs) / HOUR_MS);
-    if (index >= 0 && index < buckets.length) buckets[index].pontuacoes += 1;
+    if (Number.isNaN(ms) || ms < startMs || ms > window.end.getTime()) continue;
+    let index = Math.floor((ms - startMs) / sizeMs);
+    // O instante exato do fim pertence ao último intervalo; além do limite de
+    // barras (evento muito longo), o que não cabe é descartado.
+    if (index === total && ms === window.end.getTime()) index = total - 1;
+    if (index >= total) continue;
+    buckets[index].pontuacoes += 1;
   }
   return buckets;
 }

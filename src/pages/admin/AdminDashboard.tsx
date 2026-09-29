@@ -15,7 +15,7 @@ import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import StatusDot from '../../components/ui/StatusDot';
 import Select from '../../components/ui/Select';
-import { getEventActiveWindow, buildHourlyBuckets, formatClock } from '../../utils/eventWindow';
+import { getEventActiveWindow, buildTimeBuckets, getBucketMinutes, formatClock } from '../../utils/eventWindow';
 
 const STATUS_LABELS: Record<string, { label: string; variant: 'success' | 'warning' | 'muted' }> = {
   active: { label: 'Ativo', variant: 'success' },
@@ -211,23 +211,25 @@ export default function AdminDashboard() {
       })
   ), [safeChildren, teamById]);
 
-  // Engajamento por hora, só nas horas em que o evento esteve ativo (do início
-  // real até agora, ou até o encerramento). Antes eram horas fixas 08h-18h, que
-  // mostravam horários fora do evento, e as pontuações eram agrupadas só pela
-  // hora do dia, sem considerar a data.
+  // Engajamento em intervalos de tempo, só dentro do período em que o evento
+  // esteve ativo (do início real até agora, ou até o encerramento). O intervalo
+  // depende da duração do evento: 10 min até 3h, 30 min acima disso.
   const engagement = useMemo(() => {
     const times = safeScoreLog
       .map((entry) => (entry?.created_at ? new Date(entry.created_at) : null))
       .filter((date): date is Date => date !== null && !Number.isNaN(date.getTime()));
     const window = getEventActiveWindow(selectedEvent, times, now);
+    const bucketMinutes = window ? getBucketMinutes(selectedEvent?.duration, window) : 0;
     return {
       window,
-      data: window ? buildHourlyBuckets(window, times) : [],
+      bucketMinutes,
+      data: window ? buildTimeBuckets(window, times, bucketMinutes) : [],
     };
   }, [safeScoreLog, selectedEvent, now]);
 
   const engagementOverTimeData = engagement.data;
   const engagementWindow = engagement.window;
+  const engagementBucketMinutes = engagement.bucketMinutes;
   const isSelectedEventActive = selectedEvent?.status === 'active' || selectedEvent?.status === 'ongoing';
 
   const kpis = [
@@ -333,22 +335,24 @@ export default function AdminDashboard() {
                   <h3 className="font-display text-lg text-white">Engajamento ao Longo do Tempo</h3>
                   {engagementWindow && (
                     <p className="mt-1 mb-4 text-xs text-gray-500">
-                      {isSelectedEventActive
+                      {(isSelectedEventActive
                         ? `Evento ativo desde ${formatClock(engagementWindow.start)}`
                         : engagementWindow.source === 'readings'
                           ? `Período com atividade: ${formatClock(engagementWindow.start)} às ${formatClock(engagementWindow.end)}`
-                          : `Evento ativo das ${formatClock(engagementWindow.start)} às ${formatClock(engagementWindow.end)}`}
+                          : `Evento ativo das ${formatClock(engagementWindow.start)} às ${formatClock(engagementWindow.end)}`)
+                        + ` · a cada ${engagementBucketMinutes} min`}
                     </p>
                   )}
                   {engagementOverTimeData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={250}>
                     <LineChart data={engagementOverTimeData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                      <XAxis dataKey="hora" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                      <XAxis dataKey="hora" interval="preserveStartEnd" minTickGap={16} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
                       <YAxis allowDecimals={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
                       <Tooltip
                         contentStyle={{ backgroundColor: '#1E1B2E', border: '1px solid #374151', borderRadius: 8 }}
                         labelStyle={{ color: '#fff' }}
+                        labelFormatter={(_label, payload) => payload?.[0]?.payload?.faixa ?? _label}
                       />
                       <Legend />
                       <Line type="monotone" dataKey="pontuacoes" stroke="#29B6F6" strokeWidth={2} dot={{ fill: '#29B6F6', r: 4 }} />
