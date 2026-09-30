@@ -1,7 +1,7 @@
 // src/pages/admin/AdminSettings.tsx
 import { useState, useEffect } from 'react';
 import {
-  Settings, Upload, Save, Database, Monitor
+  Settings, Upload, Save, Database
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
@@ -34,11 +34,6 @@ export default function AdminSettings() {
     unit_email: '',
   });
 
-  const [displaySettings, setDisplaySettings] = useState({
-    theme: 'dark',
-    update_interval: '5',
-  });
-
   const [backupSettings, setBackupSettings] = useState({
     backup_frequency: 'daily',
   });
@@ -63,10 +58,6 @@ export default function AdminSettings() {
           unit_address: loadedSettings.unit_address || 'Rua das Crianças, 123 - São Paulo, SP',
           unit_phone: loadedSettings.unit_phone || '(11) 3456-7890',
           unit_email: loadedSettings.unit_email || 'contato@buffetpulyn.com.br',
-        });
-        setDisplaySettings({
-          theme: loadedSettings.theme || 'dark',
-          update_interval: loadedSettings.update_interval || '5',
         });
         setBackupSettings({
           backup_frequency: loadedSettings.backup_frequency || 'daily',
@@ -99,7 +90,6 @@ export default function AdminSettings() {
 
       const allSettings = {
         ...unitSettings,
-        ...displaySettings,
         ...backupSettings,
       };
       
@@ -207,38 +197,6 @@ export default function AdminSettings() {
                     onChange={e => updateUnit('unit_email', e.target.value)}
                   />
                 </div>
-              </div>
-            </Card>
-
-            {/* Display Settings */}
-            <Card>
-              <div className="flex items-center gap-2 mb-4">
-                <Monitor size={20} className="text-secondary" />
-                <h2 className="font-display text-lg text-white">Configurações de Display</h2>
-              </div>
-              <div className="space-y-4">
-                <Select
-                  label="Tema"
-                  options={[
-                    { value: 'dark', label: 'Escuro' },
-                    { value: 'light', label: 'Claro' },
-                    { value: 'auto', label: 'Automático' },
-                  ]}
-                  value={displaySettings.theme}
-                  onChange={e => setDisplaySettings(prev => ({ ...prev, theme: e.target.value }))}
-                />
-                <Select
-                  label="Intervalo de atualização (segundos)"
-                  options={[
-                    { value: '1', label: '1s (Tempo real)' },
-                    { value: '3', label: '3s' },
-                    { value: '5', label: '5s' },
-                    { value: '10', label: '10s' },
-                    { value: '30', label: '30s' },
-                  ]}
-                  value={displaySettings.update_interval}
-                  onChange={e => setDisplaySettings(prev => ({ ...prev, update_interval: e.target.value }))}
-                />
               </div>
             </Card>
 
