@@ -10,6 +10,7 @@ import Monster3D from '../../components/display/Monster3D';
 import DisplayMap from './DisplayMap';
 import GameGuide, { type GuideGame } from '../../components/display/GameGuide';
 import GameRulesCard from '../../components/display/GameRulesCard';
+import FitToBox from '../../components/display/FitToBox';
 import { useTypewriterCycle } from '../../hooks/useTypewriterCycle';
 import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from '../../components/display/TreasureArena';
 
@@ -683,34 +684,28 @@ export default function DisplayMain() {
     );
   }
 
+  // Cada parte da tela cabe na altura disponível: o telão não rola. O palco (mapa/arenas) e as listas
+  // são reduzidos para caber (FitToBox) e as regras viram páginas que passam sozinhas (PagedItems).
+  const monsterStageVisible = selectedGameType === 'monster_hunt' && monsterStatus?.gameType === 'monster_hunt';
+  const treasureStageVisible = selectedGameType === 'treasure_hunt' && treasureStatus?.gameType === 'treasure_hunt'
+    && Boolean(treasureStatus.active || treasureStatus.completed);
+  const mapStageVisible = Boolean(shouldShowMap) && !monsterStatus?.active && !treasureStatus?.active;
+  const hasStage = monsterStageVisible || treasureStageVisible || mapStageVisible;
+  // Só o mapa: ele preenche o palco (as arenas é que são reduzidas para caber)
+  const mapOnly = mapStageVisible && !monsterStageVisible && !treasureStageVisible;
+  const waitingSelectedGame = Boolean(selectedGameType) && !gameActive && !monsterStatus?.active && !treasureStatus?.active;
+
+  const rankingRowText = 'text-[clamp(0.9rem,2vh,1.4rem)]';
+  const rankingSubText = 'text-[clamp(0.65rem,1.4vh,0.85rem)]';
+  const rankingScoreText = 'text-[clamp(1.1rem,2.6vh,1.9rem)]';
+  const panelTitle = 'font-display text-[clamp(1rem,2.4vh,1.5rem)] font-bold text-white';
+  const panelSubtitle = 'text-[clamp(0.6rem,1.3vh,0.8rem)] text-gray-500';
+  const panelHeader = 'mb-2 flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.06] pb-2';
+
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#08111f] px-4 pb-24 pt-5 text-white sm:px-6 lg:px-8">
+    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#08111f] px-3 py-3 text-white lg:h-screen lg:px-5 lg:py-4">
       <div className="pointer-events-none absolute -left-48 top-24 h-[32rem] w-[32rem] rounded-full bg-primary/10 blur-3xl" />
       <div className="pointer-events-none absolute -right-56 bottom-0 h-[34rem] w-[34rem] rounded-full bg-secondary/10 blur-3xl" />
-      {/* Participantes: mini display fixo no canto inferior direito */}
-      <div
-        className="fixed bottom-4 right-4 z-30 flex items-center gap-3 rounded-2xl border border-white/10 bg-dark-card/85 px-4 py-2.5 shadow-lg shadow-black/20 backdrop-blur-xl sm:bottom-6 sm:right-6"
-        role="status"
-        aria-label={`${activeParticipants} de ${totalParticipants} participantes ativos`}
-      >
-        <div className="rounded-lg border border-primary-400/20 bg-primary-500/10 p-1.5 text-primary-300"><Users size={18} /></div>
-        <div className="leading-tight">
-          <p className="font-display text-xl font-bold text-white">{activeParticipants}<span className="text-sm font-semibold text-gray-400">/{totalParticipants}</span></p>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">participantes</p>
-        </div>
-      </div>
-
-      {/* Botão de Sair - Canto superior esquerdo */}
-      <div className="absolute left-4 top-4 z-40 sm:left-6 sm:top-6">
-        <button
-          onClick={() => window.history.back()}
-          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-dark-card/80 px-3.5 py-2 text-sm font-semibold text-gray-300 shadow-lg shadow-black/10 backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-primary-400/40 hover:bg-dark-surface hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
-          title="Voltar (ESC)"
-        >
-          <ArrowLeft size={17} />
-          <span className="hidden sm:inline">Sair</span>
-        </button>
-      </div>
 
       {/* Notificação Animada de Conquista */}
       {showNotification && notificationData && (
@@ -785,60 +780,91 @@ export default function DisplayMain() {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto">
-        {/* Header com data/hora */}
-        <div className="relative mb-7 overflow-hidden rounded-3xl border border-white/10 bg-dark-card/75 p-5 text-center shadow-[0_18px_50px_rgba(2,10,24,0.2)] backdrop-blur-xl sm:p-7">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-300/70 to-transparent" />
-          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary-300/20 bg-primary-500/10 text-2xl shadow-[0_0_30px_rgba(30,155,215,0.15)]">⚡</div>
-            <h1 className="font-display text-4xl font-bold tracking-tight text-white sm:text-6xl">
-              Pulyn Arena
-            </h1>
-            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1.5" aria-live="polite">
-              <div className={`h-2.5 w-2.5 rounded-full ${
-                connectionStatus === 'connected'
-                  ? 'bg-success animate-pulse'
-                  : connectionStatus === 'reconnecting' || connectionStatus === 'connecting'
-                    ? 'bg-warning animate-pulse'
-                    : 'bg-danger'
-              }`} />
-              <span className="text-xs font-semibold text-gray-300">
-                {connectionStatus === 'connected'
-                  ? 'Ao vivo'
-                  : connectionStatus === 'reconnecting'
-                    ? 'Reconectando'
-                    : connectionStatus === 'connecting'
-                      ? 'Conectando'
-                      : 'Desconectado'}
-              </span>
-              {lastMessageAt && connectionStatus === 'connected' && (
-                <span className="hidden text-[11px] text-gray-500 sm:inline">
-                  · {lastMessageAt.toLocaleTimeString('pt-BR')}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
-            <p className="max-w-full truncate text-base font-semibold text-gray-200 sm:text-xl">
-              {events.find(e => e.id === selectedEventId)?.name || 'Evento selecionado'}
-            </p>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-secondary-400/20 bg-secondary-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-secondary-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-secondary-400" /> Recepção no controle
+      {/* Cabeçalho compacto */}
+      <header className="relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 overflow-hidden rounded-2xl border border-white/10 bg-dark-card/75 px-4 py-2 shadow-[0_12px_36px_rgba(2,10,24,0.2)] backdrop-blur-xl lg:h-[8vh] lg:min-h-[52px] lg:flex-nowrap">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-300/70 to-transparent" />
+        <div className="flex min-w-0 items-center gap-3">
+          <button
+            onClick={() => window.history.back()}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-dark-card/80 px-3 py-1.5 text-sm font-semibold text-gray-300 transition-colors duration-200 hover:border-primary-400/40 hover:bg-dark-surface hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
+            title="Voltar (ESC)"
+          >
+            <ArrowLeft size={16} />
+            <span className="hidden sm:inline">Sair</span>
+          </button>
+          <div className="flex h-[clamp(2rem,4.6vh,3rem)] w-[clamp(2rem,4.6vh,3rem)] shrink-0 items-center justify-center rounded-xl border border-primary-300/20 bg-primary-500/10 text-xl">⚡</div>
+          <h1 className="truncate font-display text-[clamp(1.4rem,4vh,3rem)] font-bold leading-none tracking-tight text-white">Pulyn Arena</h1>
+          <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1" aria-live="polite">
+            <div className={`h-2.5 w-2.5 rounded-full ${
+              connectionStatus === 'connected'
+                ? 'bg-success animate-pulse'
+                : connectionStatus === 'reconnecting' || connectionStatus === 'connecting'
+                  ? 'bg-warning animate-pulse'
+                  : 'bg-danger'
+            }`} />
+            <span className="text-xs font-semibold text-gray-300">
+              {connectionStatus === 'connected'
+                ? 'Ao vivo'
+                : connectionStatus === 'reconnecting'
+                  ? 'Reconectando'
+                  : connectionStatus === 'connecting'
+                    ? 'Conectando'
+                    : 'Desconectado'}
             </span>
+            {lastMessageAt && connectionStatus === 'connected' && (
+              <span className="hidden text-[11px] text-gray-500 xl:inline">
+                · {lastMessageAt.toLocaleTimeString('pt-BR')}
+              </span>
+            )}
           </div>
-          {selectedGameType && !gameActive && !monsterStatus?.active && !treasureStatus?.active && (
-            <div className="mx-auto mb-6 max-w-2xl rounded-2xl border border-primary-400/25 bg-primary-500/10 px-6 py-5 text-center shadow-[0_12px_35px_rgba(30,155,215,0.08)]" aria-live="polite">
-              <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-primary-500/15 text-lg">🎮</div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary-300">Jogo selecionado</p>
-              <p className="mt-1 font-display text-2xl font-bold text-white">
-                {selectedGameName || (selectedGameType === 'monster_hunt' ? 'Derrote o Monstro' : selectedGameType === 'treasure_hunt' ? 'Caça ao Tesouro' : 'Jogo de território')}
-              </p>
-              <p className="mt-1 text-sm text-gray-400">Aguardando o Game Master iniciar a partida</p>
-            </div>
-          )}
+        </div>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <p className="truncate text-[clamp(0.9rem,2.3vh,1.5rem)] font-semibold text-gray-200">
+            {events.find(e => e.id === selectedEventId)?.name || 'Evento selecionado'}
+          </p>
+          <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-secondary-400/20 bg-secondary-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-secondary-300 md:inline-flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-secondary-400" /> Recepção no controle
+          </span>
+        </div>
+      </header>
 
+      <main className="relative z-10 mt-3 flex min-h-0 flex-1 flex-col gap-3">
+        {/* Mensagem do recreacionista */}
+        {displayMessages.length > 0 && (
+          <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-2" role="status" aria-label="Mensagem do recreacionista">
+            <Zap size={22} className="shrink-0 text-accent" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[clamp(0.6rem,1.3vh,0.8rem)] font-bold uppercase tracking-[0.25em] text-accent">Mensagem do recreacionista</p>
+              <p className="line-clamp-2 font-display text-[clamp(1.1rem,3vh,2.2rem)] font-bold leading-tight text-white">{displayMessages[0].text}</p>
+            </div>
+            <p className="shrink-0 text-xs text-gray-400">{displayMessages[0].timestamp ? new Date(displayMessages[0].timestamp).toLocaleTimeString('pt-BR') : ''}</p>
+          </div>
+        )}
+
+        {/* Palco: mapa, arena do monstro ou do tesouro. Sem jogo em andamento, um aviso ocupa o lugar. */}
+        <section className="min-h-[360px] min-w-0 flex-1 overflow-hidden lg:min-h-0" aria-live="polite">
+          {hasStage ? (
+            mapOnly ? (
+          <div className="h-full" aria-live="polite">
+            <DisplayMap
+              embedded
+              fill
+              gameType={selectedGameType || undefined}
+              floorPlan={(floorPlan as any)}
+              // 🆕 Zone Conquest INDIVIDUAL
+              // isIndividualMode vem da partida real (zone_conquest_individual_partidas ativa),
+              // nunca inferir isso a partir de gameType: o backend só grava 'zone_conquest'
+              // para os dois modos (equipe e individual).
+              isIndividualMode={isIndividualMode}
+              zoneConquestZones={zoneConquestStatus?.zones || null}
+              zoneConquestCheckpoints={zoneConquestStatus?.checkpoints || null}
+            />
+          </div>
+            ) : (
+            <FitToBox align="center" minScale={0.3}>
+              <>
           {selectedGameType === 'monster_hunt' && monsterStatus?.gameType === 'monster_hunt' && (
-            <div className="mx-auto mb-6 max-w-6xl rounded-3xl border-2 border-danger/70 bg-gradient-to-br from-red-950/80 via-dark-surface/90 to-purple-950/70 p-5 shadow-2xl shadow-danger/20 sm:p-6" aria-live="polite">
+            <div className="mx-auto max-w-6xl rounded-3xl border-2 border-danger/70 bg-gradient-to-br from-red-950/80 via-dark-surface/90 to-purple-950/70 p-5 shadow-2xl shadow-danger/20 sm:p-6" aria-live="polite">
               <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-danger">Caça ao Monstro</p>
@@ -894,10 +920,9 @@ export default function DisplayMain() {
               </div>
             </div>
           )}
-
           {selectedGameType === 'treasure_hunt' && treasureStatus?.gameType === 'treasure_hunt' &&
             (treasureStatus.active || treasureStatus.completed) && (
-            <div className="mx-auto mb-6 max-w-6xl">
+            <div className="mx-auto max-w-6xl">
               <TreasureArena
                 status={treasureStatus}
                 checkpoints={checkpoints}
@@ -907,53 +932,54 @@ export default function DisplayMain() {
               />
             </div>
           )}
-
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 border-t border-white/[0.06] pt-4 text-center">
-            <div className="flex items-center gap-2">
-              <Clock size={16} className="text-primary-300" />
-              <p className="font-mono text-xl font-bold tracking-wide text-primary-300 sm:text-2xl">{formattedTime}</p>
+              </>
+            </FitToBox>
+            )
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              {waitingSelectedGame ? (
+                <div className="max-w-2xl rounded-2xl border border-primary-400/25 bg-primary-500/10 px-8 py-5 text-center shadow-[0_12px_35px_rgba(30,155,215,0.08)]" aria-live="polite">
+                  <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-primary-500/15 text-lg">🎮</div>
+                  <p className="text-[clamp(0.6rem,1.4vh,0.8rem)] font-bold uppercase tracking-[0.28em] text-primary-300">Jogo selecionado</p>
+                  <p className="mt-1 font-display text-[clamp(1.5rem,4vh,2.8rem)] font-bold text-white">
+                    {selectedGameName || (selectedGameType === 'monster_hunt' ? 'Derrote o Monstro' : selectedGameType === 'treasure_hunt' ? 'Caça ao Tesouro' : 'Jogo de território')}
+                  </p>
+                  <p className="mt-1 text-[clamp(0.8rem,1.8vh,1.1rem)] text-gray-400">Aguardando o Game Master iniciar a partida</p>
+                </div>
+              ) : (
+                <div className="max-w-4xl text-center">
+                  <p className="font-display text-[clamp(1.8rem,5vh,3.4rem)] font-bold text-white">
+                    {gameEverStarted ? 'Aguardando o próximo jogo' : 'Bem-vindos à Pulyn Arena'}
+                  </p>
+                  <p className="mt-2 text-[clamp(0.9rem,2vh,1.3rem)] text-gray-400">
+                    {gameEverStarted ? 'Fique de olho: o Game Master vai escolher a próxima brincadeira.' : 'O primeiro jogo começa em breve.'}
+                  </p>
+                </div>
+              )}
             </div>
-            <span className="hidden h-4 w-px bg-white/10 sm:block" />
-            <p className="text-xs capitalize text-gray-500 sm:text-sm">{formattedDate}</p>
-          </div>
-        </div>
+          )}
+        </section>
 
-        {shouldShowMap && !monsterStatus?.active && !treasureStatus?.active && (
-          <div className="mb-8" aria-live="polite">
-            <DisplayMap
-              embedded
-              gameType={selectedGameType}
-              floorPlan={(floorPlan as any)}
-              // 🆕 Zone Conquest INDIVIDUAL
-              // isIndividualMode vem da partida real (zone_conquest_individual_partidas ativa),
-              // nunca inferir isso a partir de gameType: o backend só grava 'zone_conquest'
-              // para os dois modos (equipe e individual).
-              isIndividualMode={isIndividualMode}
-              zoneConquestZones={zoneConquestStatus?.zones || null}
-              zoneConquestCheckpoints={zoneConquestStatus?.checkpoints || null}
-            />
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Faixa inferior: ranking · regras · atividades (altura fixa) */}
+        <div className="grid shrink-0 grid-cols-1 gap-3 lg:h-[38vh] lg:min-h-[250px] lg:grid-cols-[5fr_5fr_4fr]">
           {showGuideInsteadOfRanking ? (
             // Antes do primeiro jogo: o guia de regras no lugar dos rankings
-            <div className="lg:col-span-2">
+            <div className="h-[340px] min-h-0 lg:col-span-2 lg:h-full">
               <GameGuide games={guideGames} highlightName={selectedGameName} />
             </div>
           ) : (
             <>
-              {/* Ranking único (alterna entre times e participantes); com jogo rodando, divide a linha com as regras dele */}
-              <div className={runningGame ? '' : 'lg:col-span-2'}>
+              {/* Ranking único (alterna entre times e participantes); com jogo rodando, divide a faixa com as regras dele */}
+              <div className={`h-[340px] min-h-0 lg:h-full ${runningGame ? '' : 'lg:col-span-2'}`}>
                 {isIndividualMode && zoneConquestStatus ? (
-                  <Card variant="glow" className="overflow-hidden p-4 sm:p-5">
-                    <ZoneConquestIndividualRanking
-                      participants={zoneConquestStatus.participants || []}
-                    />
+                  <Card variant="glow" className="h-full overflow-hidden p-3 sm:p-4">
+                    <FitToBox minScale={0.4}>
+                      <ZoneConquestIndividualRanking participants={zoneConquestStatus.participants || []} />
+                    </FitToBox>
                   </Card>
                 ) : (
-                  <Card variant="glow" className="overflow-hidden p-4 sm:p-5">
-                    <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
+                  <Card variant="glow" className="flex h-full min-h-0 flex-col overflow-hidden p-3 sm:p-4">
+                    <div className={panelHeader}>
                       <div className="flex items-center gap-3">
                         {rankingView === 0 ? (
                           <div className="rounded-xl border border-primary-400/20 bg-primary-500/10 p-2 text-primary-300"><Trophy size={20} /></div>
@@ -961,190 +987,180 @@ export default function DisplayMain() {
                           <div className="rounded-xl border border-warning-400/20 bg-warning-500/10 p-2 text-warning-300"><Medal size={20} /></div>
                         )}
                         <div>
-                          <h2 className="min-h-[1.75rem] font-display text-xl font-bold text-white" aria-label={rankingTitles[rankingView]}>
+                          <h2 className={`min-h-[1.6em] ${panelTitle}`} aria-label={rankingTitles[rankingView]}>
                             <span aria-hidden="true">{rankingTitleText}</span>
-                            <span aria-hidden="true" className="ml-0.5 inline-block h-5 w-[2px] animate-pulse bg-primary-300 align-middle" />
+                            <span aria-hidden="true" className="ml-0.5 inline-block h-[1em] w-[2px] animate-pulse bg-primary-300 align-middle" />
                           </h2>
-                          <p className="mt-0.5 text-xs text-gray-500">
+                          <p className={panelSubtitle}>
                             {rankingView === 0 ? 'A disputa pelo primeiro lugar' : 'Quem está liderando a festa'}
                           </p>
                         </div>
                       </div>
                       <Badge variant={rankingView === 0 ? 'primary' : 'warning'}>Top 5</Badge>
                     </div>
-                    <div key={rankingView} className="animate-in fade-in duration-500" aria-live="polite">
-                      {rankingView === 0 ? (
-            <div className="space-y-3">
-              {topTeams.length > 0 ? (
-                topTeams.map((team) => {
-                  // Calcular pontos totais do time
-                  const teamMembers = children.filter(c => c.time_id === team.id || c.teamId === team.id);
-                  const teamTotalPoints = teamMembers.reduce((sum, c) => sum + (c.scores || 0), 0);
-                  
-                  return (
-                    <div
-                      key={team.id}
-                      className="flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-3.5 transition-all duration-200 hover:border-white/10 hover:bg-white/[0.05]"
-                    >
-                      <div 
-                        className="w-10 h-10 rounded-lg flex items-center justify-center"
-                        style={{ backgroundColor: team.color + '30' }}
-                      >
-                        <span className="text-xl">👥</span>
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-white">{team.name}</p>
-                        <div className="flex items-center gap-2">
-                          <div 
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: team.color }}
-                          />
-                          <p className="text-xs text-gray-400">
-                            {teamMembers.length} criança{teamMembers.length !== 1 ? 's' : ''}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xl font-bold text-secondary">
-                          {Number(team.points ?? team.score ?? teamTotalPoints)}
-                        </p>
-                        <p className="text-xs text-gray-500">pontos</p>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="text-gray-500 text-center py-8">
-                  Nenhum time cadastrado
-                </p>
-              )}
-            </div>
-                      ) : (
-             <div className="space-y-3">
-               {topParticipants.length > 0 ? (
-                 topParticipants.map((child, index) => (
-                   <div
-                     key={child.id}
-                     className={`flex items-center gap-3 rounded-2xl border p-4 transition-all duration-200 ${
-                       index === 0
-                         ? 'border-warning/50 bg-warning/10 shadow-[0_0_20px_rgba(245,166,35,0.2)]'
-                         : 'border-white/[0.06] bg-white/[0.025] hover:border-white/10 hover:bg-white/[0.05]'
-                     }`}
-                   >
-                     <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg" style={{
-                       backgroundColor: index === 0 ? 'rgba(245, 166, 35, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                       color: index === 0 ? '#F5A623' : '#9CA3AF'
-                     }}>
-                       {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
-                     </div>
-                     <div className="flex-1">
-                       <p className="font-semibold text-white text-xl">
-                         {child.nickname || child.name}
-                       </p>
-                       <p className="text-sm text-gray-400">
-                         {child.age} anos
-                       </p>
-                     </div>
-                     <div className="text-right">
-                       <p className={`font-bold text-2xl ${index === 0 ? 'text-warning' : 'text-primary'}`}>
-                         {child.scores || 0}
-                       </p>
-                       <p className="text-xs text-gray-500">pontos</p>
-                     </div>
-                   </div>
-                 ))
-               ) : (
-                 <p className="text-gray-500 text-center py-8">
-                   Nenhum participante cadastrado
-                 </p>
-               )}
-             </div>
-                      )}
+                    <div key={rankingView} className="min-h-0 flex-1 animate-in fade-in duration-500" aria-live="polite">
+                      <FitToBox minScale={0.4}>
+                        {rankingView === 0 ? (
+                          <div className="space-y-2">
+                            {topTeams.length > 0 ? (
+                              topTeams.map((team) => {
+                                const teamMembers = children.filter(c => c.time_id === team.id || c.teamId === team.id);
+                                const teamTotalPoints = teamMembers.reduce((sum, c) => sum + (c.scores || 0), 0);
+                                return (
+                                  <div key={team.id} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.025] p-2.5">
+                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: team.color + '30' }}>
+                                      <span className="text-lg">👥</span>
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className={`truncate font-semibold text-white ${rankingRowText}`}>{team.name}</p>
+                                      <div className="flex items-center gap-2">
+                                        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: team.color }} />
+                                        <p className={`text-gray-400 ${rankingSubText}`}>
+                                          {teamMembers.length} criança{teamMembers.length !== 1 ? 's' : ''}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className={`font-bold text-secondary ${rankingScoreText}`}>
+                                        {Number(team.points ?? team.score ?? teamTotalPoints)}
+                                      </p>
+                                      <p className={`text-gray-500 ${rankingSubText}`}>pontos</p>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <p className="py-8 text-center text-gray-500">Nenhum time cadastrado</p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {topParticipants.length > 0 ? (
+                              topParticipants.map((child, index) => (
+                                <div
+                                  key={child.id}
+                                  className={`flex items-center gap-3 rounded-xl border p-2.5 ${
+                                    index === 0
+                                      ? 'border-warning/50 bg-warning/10 shadow-[0_0_20px_rgba(245,166,35,0.2)]'
+                                      : 'border-white/[0.06] bg-white/[0.025]'
+                                  }`}
+                                >
+                                  <div
+                                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg font-bold"
+                                    style={{
+                                      backgroundColor: index === 0 ? 'rgba(245, 166, 35, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                                      color: index === 0 ? '#F5A623' : '#9CA3AF',
+                                    }}
+                                  >
+                                    {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className={`truncate font-semibold text-white ${rankingRowText}`}>{child.nickname || child.name}</p>
+                                    <p className={`text-gray-400 ${rankingSubText}`}>{child.age} anos</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className={`font-bold ${rankingScoreText} ${index === 0 ? 'text-warning' : 'text-primary'}`}>{child.scores || 0}</p>
+                                    <p className={`text-gray-500 ${rankingSubText}`}>pontos</p>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="py-8 text-center text-gray-500">Nenhum participante cadastrado</p>
+                            )}
+                          </div>
+                        )}
+                      </FitToBox>
                     </div>
                   </Card>
                 )}
               </div>
-              {runningGame && <GameRulesCard game={runningGame} />}
+              {runningGame && (
+                <div className="h-[340px] min-h-0 lg:h-full">
+                  <GameRulesCard game={runningGame} />
+                </div>
+              )}
             </>
           )}
 
-          {displayMessages.length > 0 && (
-            <Card variant="secondary" className="lg:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <Zap size={24} className="text-accent" />
-                <h2 className="font-display text-xl text-white">Mensagem do recreacionista</h2>
+          {/* Atividades recentes */}
+          <div className="h-[340px] min-h-0 lg:h-full">
+            <Card variant="glow" className="flex h-full min-h-0 flex-col overflow-hidden p-3 sm:p-4">
+              <div className={panelHeader}>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl border border-secondary-400/20 bg-secondary-500/10 p-2 text-secondary-300"><Clock size={20} /></div>
+                  <div>
+                    <h2 className={panelTitle}>Atividades Recentes</h2>
+                    <p className={panelSubtitle}>Últimas conquistas em tempo real</p>
+                  </div>
+                </div>
+                <span className="hidden rounded-full border border-success-400/20 bg-success-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-success-300 xl:inline-flex">Ao vivo</span>
               </div>
-              <div className="rounded-xl border border-accent/40 bg-accent/10 px-6 py-5 text-center">
-                <p className="font-display text-3xl font-bold text-white">{displayMessages[0].text}</p>
-                <p className="mt-2 text-xs text-gray-400">{displayMessages[0].timestamp ? new Date(displayMessages[0].timestamp).toLocaleTimeString('pt-BR') : ''}</p>
+              <div className="min-h-0 flex-1">
+                <FitToBox minScale={0.4}>
+                  <div className="space-y-1.5">
+                    {recentActivities.length > 0 ? (
+                      recentActivities.slice(0, 6).map((activity, index) => (
+                        <div
+                          key={activity.id}
+                          className={`flex items-center justify-between gap-2 rounded-lg p-2 ${
+                            index === 0
+                              ? 'border border-success/50 bg-success/10 animate-in fade-in slide-in-from-top-2'
+                              : 'bg-surface/30'
+                          }`}
+                        >
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <div
+                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${index === 0 ? 'animate-pulse' : ''}`}
+                              style={{
+                                backgroundColor: (activity.teamColor || '#FFFF00') + '30',
+                                borderWidth: index === 0 ? '2px' : '0px',
+                                borderColor: activity.teamColor || '#FFFF00',
+                              }}
+                            >
+                              <Star size={13} style={{ color: activity.teamColor || '#FFFF00' }} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-[clamp(0.8rem,1.8vh,1.15rem)] font-medium text-white">{activity.childName}</p>
+                              <p className="truncate text-[clamp(0.65rem,1.4vh,0.85rem)] text-gray-400">{activity.checkpoint}</p>
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <Badge variant="success" className="text-xs">+{activity.points} pts</Badge>
+                            <p className="mt-0.5 text-[clamp(0.6rem,1.2vh,0.75rem)] text-gray-500">{activity.timestamp}</p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="py-6 text-center text-gray-500">Nenhuma atividade registrada</p>
+                    )}
+                  </div>
+                </FitToBox>
               </div>
             </Card>
-          )}
-
-          <Card variant="glow" className="overflow-hidden p-4 sm:p-5 lg:col-span-2">
-            <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-xl border border-secondary-400/20 bg-secondary-500/10 p-2 text-secondary-300"><Clock size={20} /></div>
-                <div>
-                  <h2 className="font-display text-xl font-bold text-white">Atividades Recentes</h2>
-                  <p className="mt-0.5 text-xs text-gray-500">Últimas conquistas em tempo real</p>
-                </div>
-              </div>
-              <span className="hidden rounded-full border border-success-400/20 bg-success-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-success-300 sm:inline-flex">Ao vivo</span>
-            </div>
-            <div className="space-y-2 max-h-[300px] overflow-y-auto">
-              {recentActivities.length > 0 ? (
-                recentActivities.map((activity, index) => (
-                  <div
-                    key={activity.id}
-                    className={`flex items-center justify-between p-3 rounded-lg transition-all duration-300 ${
-                      index === 0
-                        ? 'bg-success/10 border border-success/50 animate-in fade-in slide-in-from-top-2'
-                        : 'bg-surface/30 hover:bg-surface/50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          index === 0 ? 'animate-pulse' : ''
-                        }`}
-                        style={{
-                          backgroundColor: (activity.teamColor || '#FFFF00') + '30',
-                          borderWidth: index === 0 ? '2px' : '0px',
-                          borderColor: activity.teamColor || '#FFFF00'
-                        }}
-                      >
-                        <Star size={14} style={{ color: activity.teamColor || '#FFFF00' }} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-white">
-                          {activity.childName}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {activity.checkpoint}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant="success" className="text-xs">
-                        +{activity.points} pts
-                      </Badge>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {activity.timestamp}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-500 text-center py-8">
-                  Nenhuma atividade registrada
-                </p>
-              )}
-            </div>
-          </Card>
-
+          </div>
         </div>
-      </div>
+      </main>
+
+      {/* Rodapé: relógio e participantes (mini display) */}
+      <footer className="relative z-10 mt-3 flex shrink-0 items-center justify-between gap-4 lg:h-[6vh] lg:min-h-[44px]">
+        <div className="flex items-center gap-3">
+          <Clock size={18} className="text-primary-300" />
+          <p className="font-mono text-[clamp(1.1rem,3vh,2rem)] font-bold tracking-wide text-primary-300">{formattedTime}</p>
+          <span className="hidden h-4 w-px bg-white/10 sm:block" />
+          <p className="hidden text-[clamp(0.7rem,1.6vh,1rem)] capitalize text-gray-500 sm:block">{formattedDate}</p>
+        </div>
+        <div
+          className="flex items-center gap-3 rounded-2xl border border-white/10 bg-dark-card/85 px-4 py-1.5 shadow-lg shadow-black/20 backdrop-blur-xl"
+          role="status"
+          aria-label={`${activeParticipants} de ${totalParticipants} participantes ativos`}
+        >
+          <div className="rounded-lg border border-primary-400/20 bg-primary-500/10 p-1.5 text-primary-300"><Users size={18} /></div>
+          <div className="leading-tight">
+            <p className="font-display text-xl font-bold text-white">{activeParticipants}<span className="text-sm font-semibold text-gray-400">/{totalParticipants}</span></p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">participantes</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

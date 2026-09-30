@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Clock, Gamepad2, Users, User } from 'lucide-react';
 import Card from '../ui/Card';
+import PagedItems, { type PagedItem } from './PagedItems';
 
 export interface GuideGame {
   id: string;
@@ -18,81 +19,75 @@ export const parseGuideRules = (rules: string | null | undefined): string[] =>
     .map((line) => line.replace(/^\s*(?:[-•*–]+|\d+\s*[.)\-–:])\s*/, '').trim())
     .filter(Boolean);
 
-// Quanto mais texto, mais tempo o jogo fica na tela (com mínimo e máximo).
-export const guideSlideDuration = (game: GuideGame) => {
-  const chars = (game.description || '').length + (game.rules || '').length + game.name.length;
-  return Math.min(Math.max(9000 + chars * 45, 10000), 30000);
-};
+// Tamanhos de texto que acompanham a altura da tela (o telão é visto de longe)
+const TEXT_DESCRIPTION = 'text-[clamp(0.9rem,2vh,1.5rem)]';
+const TEXT_RULE = 'text-[clamp(0.85rem,1.9vh,1.4rem)]';
 
-// Nome, tipo, duração, descrição e regras de um jogo. `compact` é para quando ele divide a tela com o ranking.
-export function GameGuideContent({
-  game,
-  position,
-  isNext = false,
-  compact = false,
-}: {
-  game: GuideGame;
-  // "Jogo 2 de 5" (só no carrossel)
-  position?: { current: number; total: number };
-  isNext?: boolean;
-  compact?: boolean;
-}) {
+// Descrição e regras de um jogo como itens que o painel divide em páginas (nada fica cortado)
+export const buildGameItems = (game: GuideGame): PagedItem[] => {
+  const items: PagedItem[] = [];
+  if (game.description) {
+    items.push({
+      key: 'description',
+      chars: game.description.length,
+      node: <p className={`leading-snug text-gray-200 ${TEXT_DESCRIPTION}`}>{game.description}</p>,
+    });
+  }
   const rules = parseGuideRules(game.rules);
-  const isTeam = String(game.type || 'team').toLowerCase() !== 'individual';
-
-  return (
-    <>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <h3 className={`font-display font-bold text-white ${compact ? 'text-3xl sm:text-4xl' : 'text-3xl sm:text-5xl'}`}>{game.name}</h3>
-        {isNext && (
-          <span className="rounded-full border border-warning-400/30 bg-warning-500/15 px-3 py-1 text-xs font-bold uppercase tracking-wide text-warning-300">
-            Próximo jogo
-          </span>
-        )}
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-300">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1">
-          {isTeam ? <Users size={14} /> : <User size={14} />}
-          {isTeam ? 'Em equipe' : 'Individual'}
-        </span>
-        {game.duration ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1">
-            <Clock size={14} />
-            {game.duration} min
-          </span>
-        ) : null}
-        {position && <span className="text-xs text-gray-500">Jogo {position.current} de {position.total}</span>}
-      </div>
-
-      {game.description ? (
-        <p className={`mt-5 max-w-4xl leading-relaxed text-gray-200 ${compact ? 'text-base sm:text-xl' : 'text-lg sm:text-2xl'}`}>{game.description}</p>
-      ) : null}
-
-      {rules.length > 0 && (
-        <div className={`mt-6 rounded-2xl border border-white/10 bg-black/20 ${compact ? 'p-3.5 sm:p-4' : 'p-4 sm:p-5'}`}>
-          <p className="mb-3 text-xs font-bold uppercase tracking-[0.25em] text-primary-300">Regras</p>
+  rules.forEach((rule, index) => {
+    items.push({
+      key: `rule-${index}`,
+      chars: rule.length,
+      node: (
+        <div>
+          {index === 0 && (
+            <p className="mb-1.5 text-[clamp(0.6rem,1.3vh,0.8rem)] font-bold uppercase tracking-[0.25em] text-primary-300">Regras</p>
+          )}
           {rules.length === 1 ? (
-            <p className={`leading-relaxed text-white ${compact ? 'text-base sm:text-lg' : 'text-lg sm:text-xl'}`}>{rules[0]}</p>
+            <p className={`leading-snug text-white ${TEXT_RULE}`}>{rule}</p>
           ) : (
-            <ol className="space-y-2.5">
-              {rules.map((rule, index) => (
-                <li key={`${index}-${rule}`} className={`flex gap-3 leading-snug text-white ${compact ? 'text-base sm:text-lg' : 'text-lg sm:text-xl'}`}>
-                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-500/20 text-sm font-bold text-primary-300">
-                    {index + 1}
-                  </span>
-                  <span>{rule}</span>
-                </li>
-              ))}
-            </ol>
+            <div className={`flex gap-2.5 leading-snug text-white ${TEXT_RULE}`}>
+              <span className="mt-0.5 flex h-[1.6em] w-[1.6em] shrink-0 items-center justify-center rounded-full bg-primary-500/20 text-[0.8em] font-bold text-primary-300">
+                {index + 1}
+              </span>
+              <span>{rule}</span>
+            </div>
           )}
         </div>
+      ),
+    });
+  });
+  return items;
+};
+
+// Nome do jogo com tipo e duração
+export function GameTitleRow({ game, isNext = false }: { game: GuideGame; isNext?: boolean }) {
+  const isTeam = String(game.type || 'team').toLowerCase() !== 'individual';
+  const chip = 'inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-0.5 text-[clamp(0.65rem,1.4vh,0.85rem)] text-gray-300';
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <h3 className="font-display text-[clamp(1.25rem,3.2vh,2.4rem)] font-bold leading-tight text-white">{game.name}</h3>
+      <span className={chip}>
+        {isTeam ? <Users size={12} /> : <User size={12} />}
+        {isTeam ? 'Em equipe' : 'Individual'}
+      </span>
+      {game.duration ? (
+        <span className={chip}>
+          <Clock size={12} />
+          {game.duration} min
+        </span>
+      ) : null}
+      {isNext && (
+        <span className="rounded-full border border-warning-400/30 bg-warning-500/15 px-2.5 py-0.5 text-[clamp(0.6rem,1.3vh,0.75rem)] font-bold uppercase tracking-wide text-warning-300">
+          Próximo jogo
+        </span>
       )}
-    </>
+    </div>
   );
 }
 
-// Guia em rodízio por todos os jogos (usado enquanto nenhum jogo foi iniciado no evento)
+// Guia em rodízio por todos os jogos (enquanto nenhum jogo foi iniciado no evento). Cada jogo fica o
+// tempo de passar todas as suas páginas; depois segue para o próximo.
 export default function GameGuide({
   games,
   highlightName,
@@ -108,13 +103,6 @@ export default function GameGuide({
 
   const count = games.length;
   const current = count > 0 ? games[index % count] : null;
-  const slideMs = current ? guideSlideDuration(current) : 0;
-
-  useEffect(() => {
-    if (count < 2) return undefined;
-    const timer = window.setTimeout(() => setIndex((value) => (value + 1) % count), slideMs);
-    return () => window.clearTimeout(timer);
-  }, [index, count, slideMs]);
 
   // Se o jogo escolhido mudar, o guia passa a mostrar ele
   useEffect(() => {
@@ -129,21 +117,20 @@ export default function GameGuide({
   const isNext = Boolean(highlightName) && current.name === highlightName;
 
   return (
-    <section aria-label="Guia dos jogos">
-      <Card variant="glow" className="relative overflow-hidden p-5 sm:p-7">
-        <style>{`@keyframes guide-progress { from { width: 0%; } to { width: 100%; } }`}</style>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
+    <section aria-label="Guia dos jogos" className="h-full min-h-0">
+      <Card variant="glow" className="flex h-full min-h-0 flex-col overflow-hidden p-3 sm:p-4">
+        <div className="mb-2 flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.06] pb-2">
           <div className="flex items-center gap-3">
             <div className="rounded-xl border border-primary-400/20 bg-primary-500/10 p-2 text-primary-300">
-              <Gamepad2 size={22} />
+              <Gamepad2 size={20} />
             </div>
             <div>
-              <h2 className="font-display text-xl font-bold text-white sm:text-2xl">Guia dos jogos</h2>
-              <p className="mt-0.5 text-xs text-gray-500">Conheça as brincadeiras e as regras enquanto o primeiro jogo não começa</p>
+              <h2 className="font-display text-[clamp(1rem,2.4vh,1.5rem)] font-bold text-white">Guia dos jogos</h2>
+              <p className="text-[clamp(0.6rem,1.3vh,0.8rem)] text-gray-500">Jogo {(index % count) + 1} de {count} · conheça as regras antes do primeiro jogo</p>
             </div>
           </div>
           {count > 1 && (
-            <div className="flex items-center gap-2" aria-hidden="true">
+            <div className="flex items-center gap-1.5" aria-hidden="true">
               {games.map((game, position) => (
                 <span
                   key={game.id}
@@ -154,19 +141,17 @@ export default function GameGuide({
           )}
         </div>
 
-        <div key={current.id} className="animate-in fade-in slide-in-from-right-4 duration-500" aria-live="polite">
-          <GameGuideContent game={current} position={{ current: (index % count) + 1, total: count }} isNext={isNext} />
+        <div className="mb-2 shrink-0" aria-live="polite">
+          <GameTitleRow game={current} isNext={isNext} />
         </div>
 
-        {count > 1 && (
-          <div className="absolute inset-x-0 bottom-0 h-1 bg-white/[0.06]" aria-hidden="true">
-            <div
-              key={`${current.id}-${index}`}
-              className="h-full bg-primary-400/70"
-              style={{ animation: `guide-progress ${slideMs}ms linear forwards` }}
-            />
-          </div>
-        )}
+        <div className="min-h-0 flex-1">
+          <PagedItems
+            items={buildGameItems(current)}
+            resetKey={current.id}
+            onCycle={() => setIndex((value) => (value + 1) % count)}
+          />
+        </div>
       </Card>
     </section>
   );

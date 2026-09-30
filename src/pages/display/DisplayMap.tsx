@@ -68,6 +68,8 @@ function getCheckpointDisplayPosition(checkpoint: Checkpoint, checkpoints: Check
 
 interface DisplayMapProps {
   embedded?: boolean;
+  // Com embedded: ocupa a altura da caixa onde está (em vez de altura fixa), para caber numa tela sem rolagem
+  fill?: boolean;
   gameType?: string;
   floorPlan?: string | null;
   // 🆕 Zone Conquest INDIVIDUAL
@@ -82,6 +84,7 @@ interface DisplayMapProps {
 
 export default function DisplayMap({
   embedded = false,
+  fill = false,
   gameType,
   floorPlan,
   isIndividualMode = false,
@@ -483,20 +486,22 @@ export default function DisplayMap({
 
   return (
     <div className={embedded
-      ? 'relative flex flex-col overflow-hidden rounded-3xl border border-primary-400/20 bg-dark-card/75 p-4 shadow-[0_18px_50px_rgba(2,10,24,0.2)] backdrop-blur-xl sm:p-6'
+      ? `relative flex flex-col overflow-hidden rounded-3xl border border-primary-400/20 bg-dark-card/75 shadow-[0_18px_50px_rgba(2,10,24,0.2)] backdrop-blur-xl ${fill ? 'h-full p-3' : 'p-4 sm:p-6'}`
       : 'fixed inset-0 flex flex-col overflow-hidden bg-gradient-dark'}>
-      <div className={`relative z-10 border-b border-dark-border/50 text-center ${embedded ? 'pb-4' : 'py-6'}`}>
+      <div className={`relative z-10 border-b border-dark-border/50 text-center ${embedded ? (fill ? 'pb-2' : 'pb-4') : 'py-6'}`}>
         <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary-300">
           {activeGame?.type === 'treasure_hunt' ? 'Caça ao Tesouro' : isIndividual ? 'Zona - Modo Individual' : isZoneMode ? 'Zona - Modo Equipe' : 'Brincadeira Zona'}
         </p>
-        <h1 className="font-display text-3xl text-slate-100">Mapa do Espaço</h1>
-        <p className="mt-1 text-sm uppercase tracking-widest text-slate-500">
+        <h1 className={`font-display text-slate-100 ${fill ? 'text-[clamp(1.25rem,3vh,2.2rem)] leading-tight' : 'text-3xl'}`}>Mapa do Espaço</h1>
+        <p className={`uppercase tracking-widest text-slate-500 ${fill ? 'mt-0.5 text-[clamp(0.6rem,1.3vh,0.8rem)]' : 'mt-1 text-sm'}`}>
           {activeGame?.type === 'treasure_hunt' ? 'Localização dos checkpoints em tempo real' : isIndividual ? 'Competição individual por checkpoints' : 'Domínio dos territórios em tempo real'}
         </p>
       </div>
 
       <div className={embedded
-        ? 'relative z-10 mt-5 h-[520px] overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'
+        ? (fill
+          ? 'relative z-10 mt-2 min-h-0 flex-1 overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'
+          : 'relative z-10 mt-5 h-[520px] overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30')
         : 'relative z-10 mx-8 my-6 flex-1 overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'}>
         
         {/* Planta baixa como background */}
@@ -655,7 +660,7 @@ export default function DisplayMap({
         </svg>
       </div>
 
-      <div className={`relative z-10 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 ${embedded ? 'pt-4' : 'px-6 pb-5'}`}>
+      <div className={`relative z-10 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 ${embedded ? (fill ? 'pt-2' : 'pt-4') : 'px-6 pb-5'}`}>
         <div className="flex items-center gap-2">
           <div className="h-3 w-3 rounded-full bg-success-500" style={{ boxShadow: '0 0 6px rgba(16,185,129,0.5)' }} />
           <span className="text-xs text-slate-400">Livre e online</span>
