@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
-  Calendar, Plus, Edit, Trash2, Play, Square, User
+  Calendar, CalendarClock, Plus, Edit, Trash2, Play, Square, User
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useEvento } from '../../contexts/EventoContext';
@@ -13,6 +13,8 @@ import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
+import Modal from '../../components/ui/Modal';
 
 type FilterTab = 'all' | 'scheduled' | 'active' | 'finished';
 type LifecycleStatus = 'scheduled' | 'active' | 'finished';
@@ -58,18 +60,30 @@ const formatDuration = (minutes?: number | null) => {
   return rest === 0 ? `${hours}h` : `${hours}h${pad(rest)}`;
 };
 
+const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
 // Linha pequena embaixo do status explicando o que vai acontecer com o evento.
 function describeLifecycle(event: any, status: LifecycleStatus): string | null {
   if (status === 'scheduled') {
-    if (!event.auto_start) return 'Início manual';
     const day = (event.date || '').split('T')[0];
     const time = String(event.time || '').slice(0, 5);
-    if (!day || !time) return 'Inicia sozinho no horário';
-    const start = new Date(`${day}T${time}:00`);
-    if (Number.isNaN(start.getTime())) return 'Inicia sozinho no horário';
-    return isSameDay(start, new Date())
+    const start = day && time ? new Date(`${day}T${time}:00`) : null;
+    const validStart = start && !Number.isNaN(start.getTime()) ? start : null;
+
+    // Janela inteira já passou sem o evento começar: ele não inicia sozinho.
+    const minutes = Number(event.duration);
+    if (validStart && minutes > 0 && Date.now() >= validStart.getTime() + minutes * 60000) {
+      return 'Horário já passou. Reagende ou inicie manualmente';
+    }
+
+    if (!event.auto_start) return 'Início manual';
+    if (!validStart) return 'Inicia sozinho no horário';
+    return isSameDay(validStart, new Date())
       ? `Inicia sozinho hoje às ${time}`
-      : `Inicia sozinho em ${formatDayMonth(start)} às ${time}`;
+      : `Inicia sozinho em ${formatDayMonth(validStart)} às ${time}`;
   }
 
   if (status === 'active') {
@@ -97,6 +111,12 @@ export default function AdminEvents() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  // Reagendar: evento aberto no modal e o formulário dele
+  const [rescheduling, setRescheduling] = useState<any | null>(null);
+  const [rescheduleForm, setRescheduleForm] = useState({ date: '', time: '', duration: '' });
+  const [rescheduleError, setRescheduleError] = useState('');
+  const [rescheduleSaving, setRescheduleSaving] = useState(false);
 
   const tabs: { key: FilterTab; label: string }[] = [
     { key: 'all', label: 'Todos' },
@@ -142,6 +162,59 @@ export default function AdminEvents() {
         console.error('Erro ao deletar evento:', error);
         alert('Erro ao deletar evento. Tente novamente.');
       }
+    }
+  };
+
+  const openReschedule = (e: React.MouseEvent, eventItem: any) => {
+    e.stopPropagation();
+    const day = String(eventItem.date || '').split('T')[0];
+    setRescheduling(eventItem);
+    setRescheduleError('');
+    setRescheduleForm({
+      // Evento que já passou começa sem data, para escolher a nova
+      date: day && day >= todayISO() ? day : '',
+      time: String(eventItem.time || '').slice(0, 5),
+      duration: eventItem.duration ? String(eventItem.duration) : '',
+    });
+  };
+
+  const closeReschedule = () => {
+    if (rescheduleSaving) return;
+    setRescheduling(null);
+    setRescheduleError('');
+  };
+
+  const submitReschedule = async () => {
+    if (!rescheduling || rescheduleSaving) return;
+    const { date, time, duration } = rescheduleForm;
+
+    if (!date || !time) {
+      setRescheduleError('Informe a nova data e o novo horário.');
+      return;
+    }
+    if (new Date(`${date}T${time}:00`).getTime() < new Date().setSeconds(0, 0)) {
+      setRescheduleError('A nova data e horário precisam estar no futuro.');
+      return;
+    }
+    const minutes = duration.trim() === '' ? null : Number(duration);
+    if (minutes !== null && (!Number.isInteger(minutes) || minutes < 5 || minutes > 1440)) {
+      setRescheduleError('A duração deve ser de 5 a 1440 minutos.');
+      return;
+    }
+
+    setRescheduleSaving(true);
+    setRescheduleError('');
+    try {
+      await api.rescheduleEvento(rescheduling.id, { date, time, duration: minutes });
+      await loadEventos();
+      toast.success('Evento reagendado');
+      setRescheduling(null);
+    } catch (error) {
+      setRescheduleError(error instanceof Error ? error.message : 'Não foi possível reagendar o evento.');
+      // O evento pode ter começado enquanto o modal estava aberto
+      await loadEventos();
+    } finally {
+      setRescheduleSaving(false);
     }
   };
 
@@ -287,6 +360,19 @@ export default function AdminEvents() {
                               {busy ? 'Iniciando...' : 'Iniciar'}
                             </Button>
                           )}
+                          {status === 'scheduled' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="border border-border"
+                              disabled={busy}
+                              title="Mudar a data e o horário do evento"
+                              onClick={(e) => openReschedule(e, event)}
+                            >
+                              <CalendarClock size={14} className="mr-1.5" />
+                              Reagendar
+                            </Button>
+                          )}
                           {status === 'active' && (
                             <Button
                               size="sm"
@@ -331,6 +417,68 @@ export default function AdminEvents() {
           </Card>
         </main>
       </div>
+
+      <Modal isOpen={rescheduling !== null} onClose={closeReschedule} title="Reagendar evento" size="md">
+        {rescheduling && (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border bg-surface/40 p-3">
+              <p className="text-sm font-semibold text-white">{rescheduling.name}</p>
+              <p className="mt-0.5 text-xs text-gray-400">
+                Agendado para {formatEventDate(rescheduling.date)}
+                {rescheduling.time ? ` às ${String(rescheduling.time).slice(0, 5)}` : ''}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Nova data"
+                type="date"
+                min={todayISO()}
+                value={rescheduleForm.date}
+                onChange={e => { setRescheduleForm(prev => ({ ...prev, date: e.target.value })); setRescheduleError(''); }}
+                required
+              />
+              <Input
+                label="Novo horário"
+                type="time"
+                value={rescheduleForm.time}
+                onChange={e => { setRescheduleForm(prev => ({ ...prev, time: e.target.value })); setRescheduleError(''); }}
+                required
+              />
+            </div>
+            <Input
+              label="Duração (minutos)"
+              type="number"
+              min={5}
+              max={1440}
+              value={rescheduleForm.duration}
+              onChange={e => { setRescheduleForm(prev => ({ ...prev, duration: e.target.value })); setRescheduleError(''); }}
+            />
+
+            <p className="text-xs text-gray-500">
+              {rescheduling.auto_start
+                ? 'O evento vai iniciar automaticamente na nova data e horário.'
+                : 'O evento continua com início manual: você inicia pelo botão Iniciar.'}
+            </p>
+
+            {rescheduleError && (
+              <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                {rescheduleError}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" className="border border-border" onClick={closeReschedule} disabled={rescheduleSaving}>
+                Cancelar
+              </Button>
+              <Button variant="primary" onClick={submitReschedule} disabled={rescheduleSaving}>
+                <CalendarClock size={16} className="mr-1.5" />
+                {rescheduleSaving ? 'Reagendando...' : 'Reagendar'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

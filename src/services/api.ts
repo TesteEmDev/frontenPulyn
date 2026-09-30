@@ -728,6 +728,17 @@ export const api = {
     return body;
   },
 
+  async rescheduleEvento(id: string, data: { date: string; time: string; duration?: number | null }) {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(id)}/reschedule`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao reagendar evento (${res.status})`);
+    return body;
+  },
+
   async finishEvento(id: string) {
     const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(id)}/finish`, {
       method: 'POST',
