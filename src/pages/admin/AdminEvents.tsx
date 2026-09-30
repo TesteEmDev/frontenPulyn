@@ -15,6 +15,7 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
+import TimeInput from '../../components/ui/TimeInput';
 
 type FilterTab = 'all' | 'scheduled' | 'active' | 'finished';
 type LifecycleStatus = 'scheduled' | 'active' | 'finished';
@@ -438,11 +439,10 @@ export default function AdminEvents() {
                 onChange={e => { setRescheduleForm(prev => ({ ...prev, date: e.target.value })); setRescheduleError(''); }}
                 required
               />
-              <Input
+              <TimeInput
                 label="Novo horário"
-                type="time"
                 value={rescheduleForm.time}
-                onChange={e => { setRescheduleForm(prev => ({ ...prev, time: e.target.value })); setRescheduleError(''); }}
+                onChange={time => { setRescheduleForm(prev => ({ ...prev, time })); setRescheduleError(''); }}
                 required
               />
             </div>

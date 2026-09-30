@@ -11,6 +11,7 @@ import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
+import TimeInput from '../../components/ui/TimeInput';
 
 const steps = [
   { number: 1, label: 'Informações' },
@@ -225,11 +226,10 @@ export default function AdminEventNew() {
                       onChange={e => updateField('date', e.target.value)}
                       required
                     />
-                    <Input
+                    <TimeInput
                       label="Horário"
-                      type="time"
                       value={formData.time}
-                      onChange={e => updateField('time', e.target.value)}
+                      onChange={time => updateField('time', time)}
                       required
                     />
                   </div>
