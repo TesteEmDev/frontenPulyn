@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, MapPin, Trophy, Shield
 } from 'lucide-react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { usePulynStore } from '../../store/mockData';
@@ -25,6 +25,22 @@ const STATUS_LABELS: Record<string, { label: string; variant: 'success' | 'warni
   finished: { label: 'Finalizado', variant: 'muted' },
   completed: { label: 'Finalizado', variant: 'muted' },
 };
+
+// Valor do seletor para ver todos os eventos juntos
+const ALL_EVENTS = 'all';
+
+const isActiveStatus = (status?: string | null) => status === 'active' || status === 'ongoing';
+const isClosedStatus = (status?: string | null) =>
+  ['finished', 'completed', 'cancelled', 'canceled'].includes(String(status || '').toLowerCase());
+
+// A API devolve a data como ISO (2026-09-30T03:00:00.000Z); mostra dd/mm/aaaa.
+const formatEventDate = (value?: string | null) => {
+  const day = String(value || '').split('T')[0];
+  const match = /^(d{4})-(d{2})-(d{2})$/.exec(day);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : 'sem data';
+};
+
+const shortName = (name: string, max = 16) => (name.length > max ? `${name.slice(0, max - 1)}…` : name);
 
 export default function AdminDashboard() {
   const { events = [], loadEvents } = usePulynStore();
@@ -75,6 +91,11 @@ export default function AdminDashboard() {
     setSelectedEventId(mostRecent?.id || '');
   }, [safeEvents, selectedEventId]);
 
+  const isAllEvents = selectedEventId === ALL_EVENTS;
+  // Eventos ainda abertos (agendados ou ativos): só eles têm checkpoints "ao vivo".
+  const openEvents = safeEvents.filter((e) => !isClosedStatus(e?.status));
+  const openEventsKey = openEvents.map((e) => `${e.id}:${e.status}`).join(',');
+
   // Carregar os dados do evento selecionado — direto da API, sem depender do
   // "eventoAtualId" global (que é o evento operacional em andamento em
   // outras telas, não necessariamente o que o admin quer analisar aqui).
@@ -86,6 +107,42 @@ export default function AdminDashboard() {
       setScoreLog([]);
       setTeams([]);
       return;
+    }
+
+    // Todos os eventos: crianças e jogos do buffet inteiro, e os checkpoints
+    // dos eventos abertos. Não há linha do tempo nem times (variam por evento).
+    if (selectedEventId === ALL_EVENTS) {
+      let disposedAll = false;
+      const loadAll = async () => {
+        setLoadingEventData(true);
+        try {
+          const [childrenData, gamesData, checkpointLists] = await Promise.all([
+            api.getAllCriancas().catch(() => []),
+            api.getBrincadeiras().catch(() => []),
+            Promise.all(openEvents.map((event) =>
+              api.getCheckpoints(event.id)
+                .then((list: any) => (Array.isArray(list) ? list : []).map((cp: any) => ({
+                  ...cp,
+                  evento_name: event.name,
+                  evento_status: event.status,
+                })))
+                .catch(() => [])
+            )),
+          ]);
+          if (disposedAll) return;
+          setChildren(Array.isArray(childrenData) ? childrenData : []);
+          setGames(Array.isArray(gamesData) ? gamesData : []);
+          setCheckpoints(checkpointLists.flat());
+          setScoreLog([]);
+          setTeams([]);
+        } catch (error) {
+          console.error('Erro ao carregar dados de todos os eventos:', error);
+        } finally {
+          if (!disposedAll) setLoadingEventData(false);
+        }
+      };
+      loadAll();
+      return () => { disposedAll = true; };
     }
 
     let disposed = false;
@@ -113,7 +170,28 @@ export default function AdminDashboard() {
     };
     loadEventData();
     return () => { disposed = true; };
-  }, [selectedEventId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEventId, openEventsKey]);
+
+  // Todos os eventos, com algum ativo: atualiza as crianças (pontuação) a cada 30s.
+  const anyEventActive = safeEvents.some((e) => isActiveStatus(e?.status));
+  useEffect(() => {
+    if (!isAllEvents || !anyEventActive) return undefined;
+    let disposed = false;
+    const interval = setInterval(async () => {
+      if (document.hidden) return;
+      try {
+        const data = await api.getAllCriancas();
+        if (!disposed && Array.isArray(data)) setChildren(data);
+      } catch {
+        // mantém os dados atuais até a próxima tentativa
+      }
+    }, 30000);
+    return () => {
+      disposed = true;
+      clearInterval(interval);
+    };
+  }, [isAllEvents, anyEventActive]);
 
   // Com o evento ativo, o fim da janela do gráfico é "agora": avança o relógio e
   // busca as pontuações novas a cada 30s para o gráfico acompanhar o evento.
@@ -137,11 +215,18 @@ export default function AdminDashboard() {
     };
   }, [selectedEventId, selectedStatus]);
 
-  // Carregar status dos territórios do evento selecionado
+  // Territórios: do evento selecionado; em "todos", só dos eventos ativos agora
+  // (nos encerrados/agendados não há disputa e seriam requisições à toa a cada 5s).
+  const territoryCheckpoints = useMemo(
+    () => (isAllEvents ? safeCheckpoints.filter((cp) => isActiveStatus(cp?.evento_status)) : safeCheckpoints),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [checkpoints, isAllEvents]
+  );
+
   useEffect(() => {
     const loadTerritories = async () => {
       const status: Record<string, any> = {};
-      for (const cp of safeCheckpoints) {
+      for (const cp of territoryCheckpoints) {
         try {
           const res = await fetch(`${API_URL}/checkpoints/${cp.id}/territory`);
           const data = await res.json();
@@ -153,21 +238,22 @@ export default function AdminDashboard() {
       setTerritories(status);
     };
 
-    if (safeCheckpoints.length > 0) {
+    if (territoryCheckpoints.length > 0) {
       loadTerritories();
       const interval = setInterval(loadTerritories, 5000);
       return () => clearInterval(interval);
     }
     setTerritories({});
-  }, [safeCheckpoints]);
+  }, [territoryCheckpoints]);
 
   const selectedEvent = safeEvents.find((e) => e.id === selectedEventId) || null;
 
-  const eventOptions = useMemo(() => (
-    [...safeEvents]
+  const eventOptions = useMemo(() => ([
+    { value: ALL_EVENTS, label: 'Todos os eventos' },
+    ...[...safeEvents]
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-      .map((e) => ({ value: e.id, label: `${e.name || 'Evento'} — ${e.date || 'sem data'}` }))
-  ), [safeEvents]);
+      .map((e) => ({ value: e.id, label: `${e.name || 'Evento'} — ${formatEventDate(e.date)}` })),
+  ]), [safeEvents]);
 
   const handleSelectEvent = useCallback((eventId: string) => {
     setSelectedEventId(eventId);
@@ -207,9 +293,43 @@ export default function AdminDashboard() {
       .map((child) => {
         const teamId = child.teamId ?? child.team_id ?? child.time_id;
         const team = teamId ? teamById[String(teamId)] : null;
-        return { ...child, teamName: team?.name || null, teamColor: team?.color || null };
+        return {
+          ...child,
+          teamName: team?.name || child.time_name || null,
+          teamColor: team?.color || child.time_color || null,
+        };
       })
   ), [safeChildren, teamById]);
+
+  // Todos os eventos: pontuação e participantes por evento (últimos 8 com crianças)
+  const eventScoreData = useMemo(() => {
+    if (!isAllEvents) return [];
+    const byEvent = new Map<string, { pontuacao: number; criancas: number }>();
+    for (const child of safeChildren) {
+      if (!child?.evento_id) continue;
+      const current = byEvent.get(child.evento_id) ?? { pontuacao: 0, criancas: 0 };
+      current.pontuacao += Number(child.scores ?? child.score ?? 0);
+      current.criancas += 1;
+      byEvent.set(child.evento_id, current);
+    }
+    return safeEvents
+      .filter((e) => byEvent.has(e.id))
+      .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+      .slice(-8)
+      .map((e) => ({
+        evento: shortName(e.name || 'Evento'),
+        nome: e.name || 'Evento',
+        pontuacao: byEvent.get(e.id)!.pontuacao,
+        criancas: byEvent.get(e.id)!.criancas,
+      }));
+  }, [isAllEvents, safeChildren, safeEvents]);
+
+  const eventsSummary = useMemo(() => ({
+    total: safeEvents.length,
+    active: safeEvents.filter((e) => isActiveStatus(e?.status)).length,
+    scheduled: safeEvents.filter((e) => !isActiveStatus(e?.status) && !isClosedStatus(e?.status)).length,
+    finished: safeEvents.filter((e) => isClosedStatus(e?.status)).length,
+  }), [safeEvents]);
 
   // Engajamento em intervalos de tempo, só dentro do período em que o evento
   // esteve ativo (do início real até o encerramento). O intervalo é escolhido
@@ -238,10 +358,10 @@ export default function AdminDashboard() {
   const isSelectedEventActive = selectedEvent?.status === 'active' || selectedEvent?.status === 'ongoing';
 
   const kpis = [
-    { label: 'Crianças no evento', value: totalChildren, color: 'text-secondary', icon: <Users size={24} /> },
-    { label: 'Checkpoints ativos', value: activeCheckpoints, color: 'text-success', icon: <MapPin size={24} /> },
+    { label: isAllEvents ? 'Crianças (todos os eventos)' : 'Crianças no evento', value: totalChildren, color: 'text-secondary', icon: <Users size={24} /> },
+    { label: isAllEvents ? 'Checkpoints ativos (eventos abertos)' : 'Checkpoints ativos', value: activeCheckpoints, color: 'text-success', icon: <MapPin size={24} /> },
     { label: 'Territórios conquistados agora', value: conqueredCheckpoints, color: 'text-accent', icon: <Shield size={24} /> },
-    { label: 'Pontuação total até agora', value: totalScores, color: 'text-warning', icon: <Trophy size={24} /> },
+    { label: isAllEvents ? 'Pontuação total (todos os eventos)' : 'Pontuação total até agora', value: totalScores, color: 'text-warning', icon: <Trophy size={24} /> },
   ];
 
   if (loading) {
@@ -268,7 +388,7 @@ export default function AdminDashboard() {
         <main className="min-w-0 flex-1 overflow-y-auto p-4 space-y-6 sm:p-6">
           <PageHeader
             title="Dashboard"
-            description="Visão geral do evento selecionado"
+            description={isAllEvents ? 'Visão geral de todos os eventos' : 'Visão geral do evento selecionado'}
             icon={<LayoutDashboard size={28} />}
             action={
               safeEvents.length > 0 ? (
@@ -325,7 +445,10 @@ export default function AdminDashboard() {
                           )}
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-white truncate">{child.nickname || child.name}</p>
-                            <p className="text-xs text-gray-500 truncate">{child.teamName || 'Sem time'}</p>
+                            <p className="text-xs text-gray-500 truncate">
+                              {child.teamName || 'Sem time'}
+                              {isAllEvents && child.evento_name ? ` · ${child.evento_name}` : ''}
+                            </p>
                           </div>
                           <p className="text-sm font-bold text-primary">{child.scores ?? child.score ?? 0}</p>
                         </div>
@@ -336,6 +459,38 @@ export default function AdminDashboard() {
                   </div>
                 </Card>
 
+                {isAllEvents ? (
+                <Card>
+                  <h3 className="font-display text-lg text-white">Pontuação por Evento</h3>
+                  <p className="mt-1 mb-4 text-xs text-gray-500">
+                    Últimos {eventScoreData.length || 0} eventos com participantes. Escolha um evento para ver o engajamento ao longo do tempo.
+                  </p>
+                  {eventScoreData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={eventScoreData} margin={{ top: 5, right: 12, left: 0, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                        <XAxis dataKey="evento" interval={0} tick={{ fill: '#9CA3AF', fontSize: 11 }} />
+                        <YAxis allowDecimals={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#1E1B2E', border: '1px solid #374151', borderRadius: 8 }}
+                          labelStyle={{ color: '#fff' }}
+                          labelFormatter={(_label, payload) => payload?.[0]?.payload?.nome ?? _label}
+                          formatter={(value, name, item) => (
+                            name === 'pontuacao'
+                              ? [`${value} (${item?.payload?.criancas ?? 0} crianças)`, 'Pontuação']
+                              : [value, name]
+                          )}
+                        />
+                        <Bar dataKey="pontuacao" name="pontuacao" fill="#29B6F6" radius={[6, 6, 0, 0]} isAnimationActive={false} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex h-[250px] items-center justify-center text-center text-sm text-gray-500">
+                      Nenhum evento com participantes ainda.
+                    </div>
+                  )}
+                </Card>
+                ) : (
                 <Card>
                   <h3 className="font-display text-lg text-white">Engajamento ao Longo do Tempo</h3>
                   {engagementWindow && (
@@ -371,6 +526,7 @@ export default function AdminDashboard() {
                     </div>
                   )}
                 </Card>
+                )}
               </div>
 
               {/* Bottom Row */}
@@ -378,13 +534,24 @@ export default function AdminDashboard() {
                 {/* Evento selecionado */}
                 <Card variant="glow">
                   <div className="flex items-center gap-2 mb-3">
-                    <StatusDot status={selectedEvent?.status === 'active' || selectedEvent?.status === 'ongoing' ? 'online' : 'offline'} size="lg" />
-                    <h3 className="font-display text-lg text-white">Evento Selecionado</h3>
+                    <StatusDot status={isAllEvents ? (eventsSummary.active > 0 ? 'online' : 'offline') : (selectedEvent?.status === 'active' || selectedEvent?.status === 'ongoing' ? 'online' : 'offline')} size="lg" />
+                    <h3 className="font-display text-lg text-white">{isAllEvents ? 'Todos os Eventos' : 'Evento Selecionado'}</h3>
                   </div>
-                  {selectedEvent ? (
+                  {isAllEvents ? (
+                    <div className="space-y-2">
+                      <p className="font-display text-xl text-white">
+                        {eventsSummary.total} {eventsSummary.total === 1 ? 'evento' : 'eventos'}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 mt-3">
+                        <Badge variant="success">{eventsSummary.active} {eventsSummary.active === 1 ? 'ativo' : 'ativos'}</Badge>
+                        <Badge variant="warning">{eventsSummary.scheduled} {eventsSummary.scheduled === 1 ? 'agendado' : 'agendados'}</Badge>
+                        <Badge variant="muted">{eventsSummary.finished} {eventsSummary.finished === 1 ? 'encerrado' : 'encerrados'}</Badge>
+                      </div>
+                    </div>
+                  ) : selectedEvent ? (
                     <div className="space-y-2">
                       <p className="font-display text-xl text-white">{selectedEvent.name}</p>
-                      <p className="text-sm text-gray-400">{selectedEvent.date}</p>
+                      <p className="text-sm text-gray-400">{formatEventDate(selectedEvent.date)}</p>
                       <p className="text-sm text-gray-400">{selectedEvent.location || 'Local não definido'}</p>
                       <div className="flex items-center gap-2 mt-3">
                         <Badge variant={STATUS_LABELS[selectedEvent.status]?.variant || 'muted'}>
@@ -443,7 +610,10 @@ export default function AdminDashboard() {
                             <StatusDot status={cp.status === 'online' ? 'online' : 'offline'} />
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-white truncate">{cp.name}</p>
-                              <p className="text-xs text-gray-500 truncate">{cp.zone || 'Sem zona'}</p>
+                              <p className="text-xs text-gray-500 truncate">
+                                {cp.zone || 'Sem zona'}
+                                {isAllEvents && cp.evento_name ? ` · ${cp.evento_name}` : ''}
+                              </p>
                             </div>
                             {isLocked ? (
                               <Badge variant="accent">
