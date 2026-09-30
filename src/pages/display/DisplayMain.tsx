@@ -9,6 +9,8 @@ import Badge from '../../components/ui/Badge';
 import Monster3D from '../../components/display/Monster3D';
 import DisplayMap from './DisplayMap';
 import GameGuide, { type GuideGame } from '../../components/display/GameGuide';
+import GameRulesCard from '../../components/display/GameRulesCard';
+import { useTypewriterCycle } from '../../hooks/useTypewriterCycle';
 import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from '../../components/display/TreasureArena';
 
 interface MonsterDisplayMonster {
@@ -63,6 +65,10 @@ export default function DisplayMain() {
   const [floorPlan, setFloorPlan] = useState<string | null>(null);
   // Há jogo rodando agora? (vem do estado persistido do evento e dos eventos GAME_STARTED/GAME_STOPPED)
   const [gameActive, setGameActive] = useState(false);
+  // Algum jogo já foi iniciado neste evento? Até lá o guia de regras ocupa o lugar dos rankings.
+  const [gameEverStarted, setGameEverStarted] = useState(false);
+  // Só decide entre guia e ranking depois de saber o estado do evento (evita piscar o guia ao abrir)
+  const [gameStateLoaded, setGameStateLoaded] = useState(false);
   // Jogos ativos do evento, para o guia que passa enquanto não há jogo rodando
   const [guideGames, setGuideGames] = useState<GuideGame[]>([]);
 
@@ -90,6 +96,15 @@ export default function DisplayMain() {
   const topTeams = useMemo(() => [...teams]
     .sort((a, b) => Number(b.points || b.score || 0) - Number(a.points || a.score || 0))
     .slice(0, 5), [teams]);
+  // O ranking é um painel só: o título é escrito e apagado letra a letra e o conteúdo alterna entre
+  // times (equipe) e participantes (individual). Uma lista vazia é pulada.
+  const rankingTitles = ['Ranking de Times', 'Top Participantes'];
+  const { index: rankingView, text: rankingTitleText } = useTypewriterCycle(
+    rankingTitles,
+    [topTeams.length > 0, topParticipants.length > 0],
+    // Só anima com o ranking na tela: enquanto o guia de regras ocupa o lugar dele, fica parado
+    { active: !(gameStateLoaded && !gameEverStarted && guideGames.length > 0) },
+  );
   const recentActivities = useMemo(() => scoreLog
     .map((entry: any) => ({
       id: entry.id,
@@ -174,6 +189,7 @@ export default function DisplayMain() {
       const { api } = await import('../../services/api');
       const state = await api.getGameState(selectedEventId);
       setGameActive(Boolean(state?.active));
+      if (state?.active) setGameEverStarted(true);
     } catch (err) {
       console.error('Erro ao consultar se há jogo ativo no telão:', err);
     }
@@ -268,6 +284,8 @@ export default function DisplayMain() {
       setTreasureStatus(null);
       setMonsterStatus(null);
       setGameActive(false);
+      setGameEverStarted(false);
+      setGameStateLoaded(false);
       setGuideGames([]);
       if (!selectedEventId) {
         setLoading(false);
@@ -278,7 +296,11 @@ export default function DisplayMain() {
         const { api } = await import('../../services/api');
         try {
           const gameState = await api.getGameState(selectedEventId);
-          if (!disposed) setGameActive(Boolean(gameState?.active));
+          if (!disposed) {
+            setGameActive(Boolean(gameState?.active));
+            // Jogo rodando agora, ou já iniciado/parado antes neste evento
+            setGameEverStarted(Boolean(gameState?.active || gameState?.startedAt || gameState?.stoppedAt));
+          }
           if (!disposed && gameState?.selected) {
             setSelectedGameType(gameState.gameType || null);
             setSelectedGameName(gameState.gameName || null);
@@ -286,6 +308,7 @@ export default function DisplayMain() {
         } catch (stateError) {
           console.error('Erro ao restaurar seleção do jogo no telão:', stateError);
         }
+        if (!disposed) setGameStateLoaded(true);
         await Promise.all([
           loadTeams(),
           loadChildren(),
@@ -385,6 +408,8 @@ export default function DisplayMain() {
 
         const gameType = event.payload?.gameType;
         setGameActive(true);
+        setGameEverStarted(true);
+        setGameStateLoaded(true);
         setSelectedGameType(gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
         
@@ -629,6 +654,14 @@ export default function DisplayMain() {
   // Também mostrar mapa em tesouro
   const shouldShowMap = selectedGameType && (isZoneGame || selectedGameType === 'treasure_hunt');
 
+  // Até o primeiro jogo ser iniciado, o guia de regras ocupa o lugar dos rankings
+  const showGuideInsteadOfRanking = gameStateLoaded && !gameEverStarted && guideGames.length > 0;
+  // Com um jogo rodando, as regras só dele ficam ao lado do ranking
+  const normalizeGameName = (value: string | null | undefined) => String(value || '').trim().toLowerCase();
+  const runningGame = gameActive && selectedGameName
+    ? guideGames.find((game) => normalizeGameName(game.name) === normalizeGameName(selectedGameName)) || null
+    : null;
+
   const monsterCards = monsterStatus?.monsters?.length
     ? monsterStatus.monsters
     : monsterStatus?.progress || [];
@@ -793,7 +826,7 @@ export default function DisplayMain() {
               <span className="h-1.5 w-1.5 rounded-full bg-secondary-400" /> Recepção no controle
             </span>
           </div>
-          {selectedGameType && !monsterStatus?.active && !treasureStatus?.active && (
+          {selectedGameType && !gameActive && !monsterStatus?.active && !treasureStatus?.active && (
             <div className="mx-auto mb-6 max-w-2xl rounded-2xl border border-primary-400/25 bg-primary-500/10 px-6 py-5 text-center shadow-[0_12px_35px_rgba(30,155,215,0.08)]" aria-live="polite">
               <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-primary-500/15 text-lg">🎮</div>
               <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary-300">Jogo selecionado</p>
@@ -885,11 +918,6 @@ export default function DisplayMain() {
           </div>
         </div>
 
-        {/* Enquanto não há jogo rodando, o telão ensina os jogos (descrição e regras) em rodízio */}
-        {!gameActive && guideGames.length > 0 && (
-          <GameGuide games={guideGames} highlightName={selectedGameName} />
-        )}
-
         {shouldShowMap && !monsterStatus?.active && !treasureStatus?.active && (
           <div className="mb-8" aria-live="polite">
             <DisplayMap
@@ -908,82 +936,44 @@ export default function DisplayMain() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* 🆕 Ranking Zone Conquest INDIVIDUAL (substitui o ranking padrão) */}
-          {isIndividualMode && zoneConquestStatus ? (
+          {showGuideInsteadOfRanking ? (
+            // Antes do primeiro jogo: o guia de regras no lugar dos rankings
             <div className="lg:col-span-2">
-              <Card variant="glow" className="overflow-hidden p-4 sm:p-5">
-                <ZoneConquestIndividualRanking 
-                  participants={zoneConquestStatus.participants || []} 
-                />
-              </Card>
+              <GameGuide games={guideGames} highlightName={selectedGameName} />
             </div>
           ) : (
             <>
-              {/* Ranking de Participantes (TEAM mode) */}
-              <Card variant="glow" className="overflow-hidden p-4 sm:p-5">
-             <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
-               <div className="flex items-center gap-3">
-                 <div className="rounded-xl border border-warning-400/20 bg-warning-500/10 p-2 text-warning-300"><Medal size={20} /></div>
-                 <div>
-                   <h2 className="font-display text-xl font-bold text-white">🏆 Top Participantes</h2>
-                   <p className="mt-0.5 text-xs text-gray-500">Quem está liderando a festa</p>
-                 </div>
-               </div>
-               <Badge variant="warning">Top 5</Badge>
-             </div>
-             <div className="space-y-3">
-               {topParticipants.length > 0 ? (
-                 topParticipants.map((child, index) => (
-                   <div
-                     key={child.id}
-                     className={`flex items-center gap-3 rounded-2xl border p-4 transition-all duration-200 ${
-                       index === 0
-                         ? 'border-warning/50 bg-warning/10 shadow-[0_0_20px_rgba(245,166,35,0.2)]'
-                         : 'border-white/[0.06] bg-white/[0.025] hover:border-white/10 hover:bg-white/[0.05]'
-                     }`}
-                   >
-                     <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg" style={{
-                       backgroundColor: index === 0 ? 'rgba(245, 166, 35, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                       color: index === 0 ? '#F5A623' : '#9CA3AF'
-                     }}>
-                       {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
-                     </div>
-                     <div className="flex-1">
-                       <p className="font-semibold text-white text-xl">
-                         {child.nickname || child.name}
-                       </p>
-                       <p className="text-sm text-gray-400">
-                         {child.age} anos
-                       </p>
-                     </div>
-                     <div className="text-right">
-                       <p className={`font-bold text-2xl ${index === 0 ? 'text-warning' : 'text-primary'}`}>
-                         {child.scores || 0}
-                       </p>
-                       <p className="text-xs text-gray-500">pontos</p>
-                     </div>
-                   </div>
-                 ))
-               ) : (
-                 <p className="text-gray-500 text-center py-8">
-                   Nenhum participante cadastrado
-                 </p>
-               )}
-             </div>
-           </Card>
-
-          {/* Ranking de Times */}
-          <Card variant="secondary" className="overflow-hidden p-4 sm:p-5">
-            <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-xl border border-primary-400/20 bg-primary-500/10 p-2 text-primary-300"><Trophy size={20} /></div>
-                <div>
-                  <h2 className="font-display text-xl font-bold text-white">Ranking de Times</h2>
-                  <p className="mt-0.5 text-xs text-gray-500">A disputa pelo primeiro lugar</p>
-                </div>
-              </div>
-              <Badge variant="primary">Top 5</Badge>
-            </div>
+              {/* Ranking único (alterna entre times e participantes); com jogo rodando, divide a linha com as regras dele */}
+              <div className={runningGame ? '' : 'lg:col-span-2'}>
+                {isIndividualMode && zoneConquestStatus ? (
+                  <Card variant="glow" className="overflow-hidden p-4 sm:p-5">
+                    <ZoneConquestIndividualRanking
+                      participants={zoneConquestStatus.participants || []}
+                    />
+                  </Card>
+                ) : (
+                  <Card variant="glow" className="overflow-hidden p-4 sm:p-5">
+                    <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
+                      <div className="flex items-center gap-3">
+                        {rankingView === 0 ? (
+                          <div className="rounded-xl border border-primary-400/20 bg-primary-500/10 p-2 text-primary-300"><Trophy size={20} /></div>
+                        ) : (
+                          <div className="rounded-xl border border-warning-400/20 bg-warning-500/10 p-2 text-warning-300"><Medal size={20} /></div>
+                        )}
+                        <div>
+                          <h2 className="min-h-[1.75rem] font-display text-xl font-bold text-white" aria-label={rankingTitles[rankingView]}>
+                            <span aria-hidden="true">{rankingTitleText}</span>
+                            <span aria-hidden="true" className="ml-0.5 inline-block h-5 w-[2px] animate-pulse bg-primary-300 align-middle" />
+                          </h2>
+                          <p className="mt-0.5 text-xs text-gray-500">
+                            {rankingView === 0 ? 'A disputa pelo primeiro lugar' : 'Quem está liderando a festa'}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant={rankingView === 0 ? 'primary' : 'warning'}>Top 5</Badge>
+                    </div>
+                    <div key={rankingView} className="animate-in fade-in duration-500" aria-live="polite">
+                      {rankingView === 0 ? (
             <div className="space-y-3">
               {topTeams.length > 0 ? (
                 topTeams.map((team) => {
@@ -1029,8 +1019,53 @@ export default function DisplayMain() {
                 </p>
               )}
             </div>
-          </Card>
-          </>
+                      ) : (
+             <div className="space-y-3">
+               {topParticipants.length > 0 ? (
+                 topParticipants.map((child, index) => (
+                   <div
+                     key={child.id}
+                     className={`flex items-center gap-3 rounded-2xl border p-4 transition-all duration-200 ${
+                       index === 0
+                         ? 'border-warning/50 bg-warning/10 shadow-[0_0_20px_rgba(245,166,35,0.2)]'
+                         : 'border-white/[0.06] bg-white/[0.025] hover:border-white/10 hover:bg-white/[0.05]'
+                     }`}
+                   >
+                     <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg" style={{
+                       backgroundColor: index === 0 ? 'rgba(245, 166, 35, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                       color: index === 0 ? '#F5A623' : '#9CA3AF'
+                     }}>
+                       {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                     </div>
+                     <div className="flex-1">
+                       <p className="font-semibold text-white text-xl">
+                         {child.nickname || child.name}
+                       </p>
+                       <p className="text-sm text-gray-400">
+                         {child.age} anos
+                       </p>
+                     </div>
+                     <div className="text-right">
+                       <p className={`font-bold text-2xl ${index === 0 ? 'text-warning' : 'text-primary'}`}>
+                         {child.scores || 0}
+                       </p>
+                       <p className="text-xs text-gray-500">pontos</p>
+                     </div>
+                   </div>
+                 ))
+               ) : (
+                 <p className="text-gray-500 text-center py-8">
+                   Nenhum participante cadastrado
+                 </p>
+               )}
+             </div>
+                      )}
+                    </div>
+                  </Card>
+                )}
+              </div>
+              {runningGame && <GameRulesCard game={runningGame} />}
+            </>
           )}
 
           {displayMessages.length > 0 && (
