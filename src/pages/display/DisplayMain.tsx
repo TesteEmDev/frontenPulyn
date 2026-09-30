@@ -186,11 +186,22 @@ export default function DisplayMain() {
     }
     try {
       const { api } = await import('../../services/api');
-      const games = await api.getBrincadeiras(selectedEventId);
       // Jogo desativado pelo admin não entra no guia
+      const onlyActive = (list: any[]) => list.filter((game: any) => String(game.status || 'active').toLowerCase() === 'active');
+      let games = onlyActive(await api.getBrincadeiras(selectedEventId));
+      // Evento sem jogos vinculados (eles são ligados ao evento em que foram criados): o guia
+      // mostra os jogos ativos do buffet, em vez de ficar vazio sem explicação.
+      if (games.length === 0) games = onlyActive(await api.getBrincadeiras());
+      // O mesmo jogo pode existir em mais de um evento: aparece uma vez só
+      const seen = new Set<string>();
+      games = games.filter((game: any) => {
+        const key = String(game.name || '').trim().toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
       setGuideGames(
         games
-          .filter((game: any) => String(game.status || 'active').toLowerCase() === 'active')
           .map((game: any) => ({
             id: String(game.id),
             name: String(game.name || 'Jogo'),

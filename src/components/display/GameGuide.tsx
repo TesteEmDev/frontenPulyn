@@ -15,7 +15,7 @@ export interface GuideGame {
 export const parseGuideRules = (rules: string | null | undefined): string[] =>
   String(rules || '')
     .split(/\r?\n/)
-    .map((line) => line.replace(/^\s*(?:[-•*–]|\d+[.)])\s*/, '').trim())
+    .map((line) => line.replace(/^\s*(?:[-•*–]+|\d+\s*[.)\-–:])\s*/, '').trim())
     .filter(Boolean);
 
 // Quanto mais texto, mais tempo o jogo fica na tela (com mínimo e máximo).
