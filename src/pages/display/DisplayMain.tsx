@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Trophy, Medal, Star, Zap, Target, Clock, MapPin, Users, ArrowLeft } from 'lucide-react';
+import { Trophy, Medal, Star, Zap, Clock, MapPin, Users, ArrowLeft } from 'lucide-react';
 import { useGameWebSocket } from '../../hooks/useGameWebSocket';
 import { useZoneConquestGame, type ZoneConquestStatus } from '../../hooks/useZoneConquestGame';
 import { ZoneConquestIndividualRanking } from '../../components/display/ZoneConquestIndividualRanking';
@@ -96,16 +96,6 @@ export default function DisplayMain() {
     }))
     .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
     .slice(0, 10), [scoreLog]);
-  const checkpointStats = useMemo(() => checkpoints.map(cp => {
-    const checkpointReadings = scoreLog.filter((entry: any) => String(entry.checkpointId || entry.checkpoint_id) === String(cp.id));
-    const totalReadings = checkpointReadings.length;
-    return {
-      ...cp,
-      totalReadings,
-      authorizedReadings: totalReadings,
-      successRate: totalReadings > 0 ? 100 : 0,
-    };
-  }), [checkpoints, scoreLog]);
 
   const refreshTreasureStatus = useCallback(async () => {
     if (!selectedEventId) {
@@ -559,10 +549,6 @@ export default function DisplayMain() {
   // Total de participantes ativos
   const activeParticipants = children.filter(c => c.status === 'active').length;
   const totalParticipants = children.length;
-  const onlineCheckpoints = checkpoints.filter(cp => cp.status === 'online').length;
-  const totalCheckpoints = checkpoints.length;
-  const totalReadings = scoreLog.length;
-  const totalScores = children.reduce((sum, child) => sum + Number(child.scores || 0), 0);
   const normalizedGameContext = `${selectedGameType || ''} ${selectedGameName || ''}`
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -846,42 +832,6 @@ export default function DisplayMain() {
               <div className="rounded-xl border border-primary-400/20 bg-primary-500/10 p-2 text-primary-300"><Users size={20} /></div>
             </div>
           </Card>
-
-          <Card variant="secondary" className="group relative overflow-hidden p-4 sm:p-5">
-            <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-secondary/10 blur-2xl transition group-hover:bg-secondary/20" />
-            <div className="relative flex items-start justify-between gap-2">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Checkpoints</p>
-                <p className="mt-2 text-2xl font-bold text-white sm:text-3xl">{onlineCheckpoints}/{totalCheckpoints}</p>
-                <p className="mt-1 text-xs text-gray-400">online agora</p>
-              </div>
-              <div className="rounded-xl border border-secondary-400/20 bg-secondary-500/10 p-2 text-secondary-300"><Target size={20} /></div>
-            </div>
-          </Card>
-
-          <Card variant="glow" className="group relative overflow-hidden p-4 sm:p-5">
-            <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-accent/10 blur-2xl transition group-hover:bg-accent/20" />
-            <div className="relative flex items-start justify-between gap-2">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Leituras</p>
-                <p className="mt-2 text-2xl font-bold text-white sm:text-3xl">{totalReadings}</p>
-                <p className="mt-1 text-xs text-gray-400">conquistas registradas</p>
-              </div>
-              <div className="rounded-xl border border-accent-400/20 bg-accent-500/10 p-2 text-accent-300"><Zap size={20} /></div>
-            </div>
-          </Card>
-
-          <Card variant="glow" className="group relative overflow-hidden p-4 sm:p-5">
-            <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-warning/10 blur-2xl transition group-hover:bg-warning/20" />
-            <div className="relative flex items-start justify-between gap-2">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Pontuação</p>
-                <p className="mt-2 text-2xl font-bold text-white sm:text-3xl">{totalScores}</p>
-                <p className="mt-1 text-xs text-gray-400">pontos acumulados</p>
-              </div>
-              <div className="rounded-xl border border-warning-400/20 bg-warning-500/10 p-2 text-warning-300"><Trophy size={20} /></div>
-            </div>
-          </Card>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1085,66 +1035,6 @@ export default function DisplayMain() {
             </div>
           </Card>
 
-          {/* Status dos Checkpoints */}
-          <Card variant="glow" className="overflow-hidden p-4 sm:p-5 lg:col-span-2">
-            <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-xl border border-accent-400/20 bg-accent-500/10 p-2 text-accent-300"><MapPin size={20} /></div>
-                <div>
-                  <h2 className="font-display text-xl font-bold text-white">📍 Status dos Checkpoints</h2>
-                  <p className="mt-0.5 text-xs text-gray-500">Saúde dos territórios conectados</p>
-                </div>
-              </div>
-              <Badge variant={onlineCheckpoints === totalCheckpoints && totalCheckpoints > 0 ? 'success' : 'warning'}>
-                {onlineCheckpoints}/{totalCheckpoints} online
-              </Badge>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {checkpointStats.length > 0 ? (
-                checkpointStats.map((cp) => (
-                  <div
-                    key={cp.id}
-                    className={`rounded-2xl border p-4 transition-all duration-200 ${
-                      cp.status === 'online'
-                        ? 'border-accent/40 bg-accent/10 shadow-[0_0_15px_rgba(120,119,198,0.15)]'
-                        : 'border-danger/30 bg-danger/5'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-semibold text-white text-lg">{cp.name}</h3>
-                      <Badge variant={cp.status === 'online' ? 'success' : 'danger'}>
-                        {cp.status === 'online' ? '🟢 Online' : '🔴 Offline'}
-                      </Badge>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Leituras:</span>
-                        <span className="font-bold text-white text-lg">{cp.totalReadings}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Autorizadas:</span>
-                        <span className="font-bold text-success text-lg">{cp.authorizedReadings}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Taxa de Sucesso:</span>
-                        <span className="font-bold text-primary text-lg">{cp.successRate}%</span>
-                      </div>
-                    </div>
-                    <div className="mt-4 h-3 bg-surface rounded-full overflow-hidden border border-white/10">
-                      <div
-                        className="h-full bg-gradient-to-r from-accent to-primary rounded-full transition-all duration-500"
-                        style={{ width: `${cp.successRate}%` }}
-                      />
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-500 text-center py-8 col-span-3">
-                  Nenhum checkpoint cadastrado
-                </p>
-              )}
-            </div>
-          </Card>
         </div>
       </div>
     </div>
