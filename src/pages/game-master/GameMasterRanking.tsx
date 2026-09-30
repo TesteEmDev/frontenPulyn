@@ -13,7 +13,6 @@ const sidebarItems = [
   { icon: <Users size={20} />, label: 'Times', path: '/game-master/teams' },
   { icon: <Play size={20} />, label: 'Controle', path: '/game-master/control' },
   { icon: <MapPin size={20} />, label: 'Mensagens', path: '/game-master/messages' },
-  { icon: <Trophy size={20} />, label: 'Ranking', path: '/game-master/ranking' },
 ];
 
 type ViewMode = 'individual' | 'team';

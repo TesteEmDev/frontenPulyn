@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Gamepad2, Users, Play, MapPin, Trophy, Radio, Plus, Edit2, Trash2, Save } from 'lucide-react';
+import { Gamepad2, Users, Play, MapPin, Radio, Plus, Edit2, Trash2, Save } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
@@ -17,7 +17,6 @@ const sidebarItems = [
   { icon: <Users size={20} />, label: 'Times', path: '/game-master/teams' },
   { icon: <MapPin size={20} />, label: 'Checkpoints', path: '/game-master/checkpoints' },
   { icon: <Play size={20} />, label: 'Controle', path: '/game-master/control' },
-  { icon: <Trophy size={20} />, label: 'Ranking', path: '/game-master/ranking' },
 ];
 
 interface Checkpoint {

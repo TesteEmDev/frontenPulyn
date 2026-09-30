@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Users, Trophy, Plus, Edit2, Trash2, Save, X, Gamepad2, Play, MapPin } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, Save, X, Gamepad2, Play, MapPin } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -17,7 +17,6 @@ const sidebarItems = [
   { icon: <Users size={20} />, label: 'Times', path: '/game-master/teams' },
   { icon: <Play size={20} />, label: 'Controle', path: '/game-master/control' },
   { icon: <MapPin size={20} />, label: 'Mensagens', path: '/game-master/messages' },
-  { icon: <Trophy size={20} />, label: 'Ranking', path: '/game-master/ranking' },
 ];
 
 export default function GameMasterTeams() {
