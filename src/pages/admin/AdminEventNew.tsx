@@ -28,6 +28,9 @@ export default function AdminEventNew() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  // Na edição, os jogos atuais do evento precisam ter sido carregados para a lista poder ser enviada:
+  // se falhar, os jogos do evento ficam como estão em vez de serem apagados por engano.
+  const [gamesLoaded, setGamesLoaded] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -71,6 +74,15 @@ export default function AdminEventNew() {
             autoStart: Boolean(evento.auto_start),
             autoEnd: Boolean(evento.auto_end),
           }));
+
+          // Jogos que já fazem parte do evento vêm marcados
+          try {
+            const eventGames = await api.getBrincadeiras(editingId);
+            setFormData(prev => ({ ...prev, selectedGames: eventGames.map((game: any) => String(game.id)) }));
+          } catch (gamesError) {
+            console.error('Erro ao carregar os jogos do evento:', gamesError);
+            setGamesLoaded(false);
+          }
         }
       } catch (err) {
         console.error('Erro ao carregar dados:', err);
@@ -115,6 +127,8 @@ export default function AdminEventNew() {
         responsibleName: formData.responsibleName.trim(),
         autoStart: formData.autoStart,
         autoEnd: formData.autoEnd,
+        // Jogos do evento (vínculo gravado no banco)
+        ...(gamesLoaded ? { games: formData.selectedGames } : {}),
       };
       if (editingId) await api.updateEvento(editingId, payload);
       else await api.createEvento(payload);
@@ -293,6 +307,11 @@ export default function AdminEventNew() {
                 <h2 className="font-display text-lg text-white mb-4">Jogos e Configuração</h2>
                 <div className="space-y-4">
                   <p className="text-sm text-gray-400">Selecione os jogos para este evento:</p>
+                  {!gamesLoaded && (
+                    <p className="text-xs text-warning" role="alert">
+                      Não foi possível carregar os jogos atuais deste evento. Eles serão mantidos como estão ao salvar.
+                    </p>
+                  )}
                   <div className="grid grid-cols-1 gap-3">
                     {(brincadeiras || []).map((game: any) => {
                       const isSelected = formData.selectedGames.includes(game.id);
