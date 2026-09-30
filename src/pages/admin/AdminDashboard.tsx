@@ -304,10 +304,12 @@ export default function AdminDashboard() {
   const activeCheckpoints = safeCheckpoints.filter(cp => cp?.status === 'online').length;
   const totalScores = safeChildren.reduce((sum, c) => sum + (c?.scores ?? c?.score ?? 0), 0);
 
-  // Jogos disponíveis agora (status ao vivo), dentro do evento selecionado
-  const topGames = [...safeGames]
-    .sort((a, b) => (b?.checkpoints?.length || 0) - (a?.checkpoints?.length || 0))
-    .slice(0, 3);
+  // Todos os jogos do evento selecionado (ou do buffet, em "todos os eventos"),
+  // os com mais checkpoints primeiro.
+  const availableGames = [...safeGames]
+    .sort((a, b) =>
+      (b?.checkpoints?.length || 0) - (a?.checkpoints?.length || 0)
+      || String(a?.name || '').localeCompare(String(b?.name || ''), 'pt-BR'));
 
   // Status ao vivo de todos os checkpoints do evento (online/offline + quem
   // domina agora) — a contagem histórica de leituras fica em Relatórios.
@@ -665,10 +667,11 @@ export default function AdminDashboard() {
                   <div className="flex items-center gap-2 mb-4">
                     <Trophy size={20} className="text-accent" />
                     <h3 className="font-display text-lg text-white">Jogos disponíveis</h3>
+                    <Badge variant="muted" className="ml-auto">{availableGames.length}</Badge>
                   </div>
-                  <div className="space-y-3">
-                    {topGames.length > 0 ? (
-                      topGames.map((game, index) => (
+                  <div className="space-y-3 max-h-[540px] overflow-y-auto pr-1">
+                    {availableGames.length > 0 ? (
+                      availableGames.map((game, index) => (
                         <div key={game.id} className="flex items-center gap-3 p-2 rounded-lg bg-surface/50">
                           <span className="font-mono text-lg font-bold text-gray-500 w-6 text-center">{index + 1}</span>
                           <div className="flex-1">
