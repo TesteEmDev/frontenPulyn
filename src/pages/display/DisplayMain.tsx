@@ -8,6 +8,7 @@ import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Monster3D from '../../components/display/Monster3D';
 import DisplayMap from './DisplayMap';
+import GameGuide, { type GuideGame } from '../../components/display/GameGuide';
 import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from '../../components/display/TreasureArena';
 
 interface MonsterDisplayMonster {
@@ -60,6 +61,10 @@ export default function DisplayMain() {
   const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
   const [zoneConquestStatus, setZoneConquestStatus] = useState<ZoneConquestStatus | null>(null);
   const [floorPlan, setFloorPlan] = useState<string | null>(null);
+  // Há jogo rodando agora? (vem do estado persistido do evento e dos eventos GAME_STARTED/GAME_STOPPED)
+  const [gameActive, setGameActive] = useState(false);
+  // Jogos ativos do evento, para o guia que passa enquanto não há jogo rodando
+  const [guideGames, setGuideGames] = useState<GuideGame[]>([]);
 
   const {
     eventoAtualId,
@@ -160,6 +165,46 @@ export default function DisplayMain() {
     loadFloorPlan();
   }, [selectedEventId, selectedGameType]);
 
+  const refreshGameActive = useCallback(async () => {
+    if (!selectedEventId) {
+      setGameActive(false);
+      return;
+    }
+    try {
+      const { api } = await import('../../services/api');
+      const state = await api.getGameState(selectedEventId);
+      setGameActive(Boolean(state?.active));
+    } catch (err) {
+      console.error('Erro ao consultar se há jogo ativo no telão:', err);
+    }
+  }, [selectedEventId]);
+
+  const refreshGuideGames = useCallback(async () => {
+    if (!selectedEventId) {
+      setGuideGames([]);
+      return;
+    }
+    try {
+      const { api } = await import('../../services/api');
+      const games = await api.getBrincadeiras(selectedEventId);
+      // Jogo desativado pelo admin não entra no guia
+      setGuideGames(
+        games
+          .filter((game: any) => String(game.status || 'active').toLowerCase() === 'active')
+          .map((game: any) => ({
+            id: String(game.id),
+            name: String(game.name || 'Jogo'),
+            description: game.description || null,
+            rules: game.rules || null,
+            type: game.type || null,
+            duration: game.duration ? Number(game.duration) : null,
+          }))
+      );
+    } catch (err) {
+      console.error('Erro ao carregar os jogos do guia no telão:', err);
+    }
+  }, [selectedEventId]);
+
   const refreshMonsterStatus = useCallback(async () => {
     if (!selectedEventId) {
       setMonsterStatus(null);
@@ -211,6 +256,8 @@ export default function DisplayMain() {
       setSelectedGameName(null);
       setTreasureStatus(null);
       setMonsterStatus(null);
+      setGameActive(false);
+      setGuideGames([]);
       if (!selectedEventId) {
         setLoading(false);
         return;
@@ -220,6 +267,7 @@ export default function DisplayMain() {
         const { api } = await import('../../services/api');
         try {
           const gameState = await api.getGameState(selectedEventId);
+          if (!disposed) setGameActive(Boolean(gameState?.active));
           if (!disposed && gameState?.selected) {
             setSelectedGameType(gameState.gameType || null);
             setSelectedGameName(gameState.gameName || null);
@@ -242,7 +290,7 @@ export default function DisplayMain() {
           console.error('Erro ao carregar mensagens do display:', messageError);
         }
 
-        await Promise.all([refreshTreasureStatus(), refreshMonsterStatus()]);
+        await Promise.all([refreshTreasureStatus(), refreshMonsterStatus(), refreshGuideGames()]);
       } catch (err) {
         if (!disposed) console.error('Erro ao carregar dados do evento:', err);
       } finally {
@@ -252,7 +300,7 @@ export default function DisplayMain() {
 
     loadEventData();
     return () => { disposed = true; };
-  }, [loadTeams, loadChildren, loadCheckpoints, loadScoreLog, refreshTreasureStatus, refreshMonsterStatus, selectedEventId]);
+  }, [loadTeams, loadChildren, loadCheckpoints, loadScoreLog, refreshTreasureStatus, refreshMonsterStatus, refreshGuideGames, selectedEventId]);
 
   // Reconsultar o status persistido evita perder o timer quando o telão
   // conecta depois do GAME_STARTED ou quando o WebSocket reconecta.
@@ -264,9 +312,17 @@ export default function DisplayMain() {
     const interval = window.setInterval(() => {
       refreshTreasureStatus();
       refreshMonsterStatus();
+      refreshGameActive();
     }, 5000); // Atualizar a cada 5 segundos (reduzido de 2s para economizar conexões)
     return () => window.clearInterval(interval);
-  }, [selectedEventId, refreshTreasureStatus, refreshMonsterStatus]);
+  }, [selectedEventId, refreshTreasureStatus, refreshMonsterStatus, refreshGameActive]);
+
+  // O guia reflete jogos ativados/desativados e textos editados pelo admin sem precisar recarregar o telão
+  useEffect(() => {
+    if (!selectedEventId || gameActive) return undefined;
+    const interval = window.setInterval(refreshGuideGames, 60000);
+    return () => window.clearInterval(interval);
+  }, [selectedEventId, gameActive, refreshGuideGames]);
 
   // 🆕 Sincronizar Zone Conquest status do hook com estado local
   useEffect(() => {
@@ -317,6 +373,7 @@ export default function DisplayMain() {
         const treasure = event.payload?.treasure;
 
         const gameType = event.payload?.gameType;
+        setGameActive(true);
         setSelectedGameType(gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
         
@@ -390,6 +447,8 @@ export default function DisplayMain() {
           setZoneConquestStatus(null);
         }
       } else if (event.type === 'GAME_STOPPED' && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
+        setGameActive(false);
+        refreshGuideGames();
         setSelectedGameType(null);
         setSelectedGameName(null);
         setTreasureStatus(null);
@@ -581,9 +640,22 @@ export default function DisplayMain() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#08111f] px-4 py-5 text-white sm:px-6 lg:px-8">
+    <div className="relative min-h-screen overflow-hidden bg-[#08111f] px-4 pb-24 pt-5 text-white sm:px-6 lg:px-8">
       <div className="pointer-events-none absolute -left-48 top-24 h-[32rem] w-[32rem] rounded-full bg-primary/10 blur-3xl" />
       <div className="pointer-events-none absolute -right-56 bottom-0 h-[34rem] w-[34rem] rounded-full bg-secondary/10 blur-3xl" />
+      {/* Participantes: mini display fixo no canto inferior direito */}
+      <div
+        className="fixed bottom-4 right-4 z-30 flex items-center gap-3 rounded-2xl border border-white/10 bg-dark-card/85 px-4 py-2.5 shadow-lg shadow-black/20 backdrop-blur-xl sm:bottom-6 sm:right-6"
+        role="status"
+        aria-label={`${activeParticipants} de ${totalParticipants} participantes ativos`}
+      >
+        <div className="rounded-lg border border-primary-400/20 bg-primary-500/10 p-1.5 text-primary-300"><Users size={18} /></div>
+        <div className="leading-tight">
+          <p className="font-display text-xl font-bold text-white">{activeParticipants}<span className="text-sm font-semibold text-gray-400">/{totalParticipants}</span></p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">participantes</p>
+        </div>
+      </div>
+
       {/* Botão de Sair - Canto superior esquerdo */}
       <div className="absolute left-4 top-4 z-40 sm:left-6 sm:top-6">
         <button
@@ -802,6 +874,11 @@ export default function DisplayMain() {
           </div>
         </div>
 
+        {/* Enquanto não há jogo rodando, o telão ensina os jogos (descrição e regras) em rodízio */}
+        {!gameActive && guideGames.length > 0 && (
+          <GameGuide games={guideGames} highlightName={selectedGameName} />
+        )}
+
         {shouldShowMap && !monsterStatus?.active && !treasureStatus?.active && (
           <div className="mb-8" aria-live="polite">
             <DisplayMap
@@ -818,21 +895,6 @@ export default function DisplayMain() {
             />
           </div>
         )}
-
-        {/* Cards de estatísticas */}
-        <div className="mb-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          <Card variant="glow" className="group relative overflow-hidden p-4 sm:p-5">
-            <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-primary/10 blur-2xl transition group-hover:bg-primary/20" />
-            <div className="relative flex items-start justify-between gap-2">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Participantes</p>
-                <p className="mt-2 text-2xl font-bold text-white sm:text-3xl">{activeParticipants}/{totalParticipants}</p>
-                <p className="mt-1 text-xs text-gray-400">ativos no evento</p>
-              </div>
-              <div className="rounded-xl border border-primary-400/20 bg-primary-500/10 p-2 text-primary-300"><Users size={20} /></div>
-            </div>
-          </Card>
-        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* 🆕 Ranking Zone Conquest INDIVIDUAL (substitui o ranking padrão) */}
