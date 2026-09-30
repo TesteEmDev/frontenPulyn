@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  LayoutDashboard, Users, MapPin, Trophy, Shield
+  LayoutDashboard, Users, MapPin, Trophy, Gamepad2
 } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -36,9 +36,16 @@ const isClosedStatus = (status?: string | null) =>
 // A API devolve a data como ISO (2026-09-30T03:00:00.000Z); mostra dd/mm/aaaa.
 const formatEventDate = (value?: string | null) => {
   const day = String(value || '').split('T')[0];
-  const match = /^(d{4})-(d{2})-(d{2})$/.exec(day);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
   return match ? `${match[3]}/${match[2]}/${match[1]}` : 'sem data';
 };
+
+const GAME_TYPE_LABELS: Record<string, string> = {
+  treasure_hunt: 'Caça ao Tesouro',
+  monster_hunt: 'Caça ao Monstro',
+  zone_conquest: 'Zona',
+};
+const gameLabel = (state: any) => state?.gameName || GAME_TYPE_LABELS[state?.gameType] || 'Jogo em andamento';
 
 const shortName = (name: string, max = 16) => (name.length > max ? `${name.slice(0, max - 1)}…` : name);
 
@@ -55,6 +62,8 @@ export default function AdminDashboard() {
   const [teams, setTeams] = useState<any[]>([]);
   const [territories, setTerritories] = useState<Record<string, any>>({});
   const [now, setNow] = useState(() => new Date());
+  // Estado do jogo por evento (para o card "Jogo ativo")
+  const [gameStates, setGameStates] = useState<Record<string, any>>({});
 
   // Garantir que são arrays (segurança)
   const safeEvents = Array.isArray(events) ? events : [];
@@ -173,6 +182,37 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEventId, openEventsKey]);
 
+  // Jogo ativo: consulta o estado do jogo do evento selecionado (em "todos", dos
+  // eventos ativos agora) e repete a cada 5s para acompanhar início e fim do jogo.
+  const gameTargetIds = isAllEvents
+    ? safeEvents.filter((e) => isActiveStatus(e?.status)).map((e) => e.id)
+    : (selectedEventId ? [selectedEventId] : []);
+  const gameTargetsKey = gameTargetIds.join(',');
+  useEffect(() => {
+    if (gameTargetIds.length === 0) {
+      setGameStates({});
+      return undefined;
+    }
+    let disposed = false;
+    const loadGameStates = async () => {
+      const entries = await Promise.all(gameTargetIds.map(async (id) => {
+        try {
+          return [id, await api.getGameState(id)] as const;
+        } catch {
+          return [id, null] as const;
+        }
+      }));
+      if (!disposed) setGameStates(Object.fromEntries(entries));
+    };
+    loadGameStates();
+    const interval = setInterval(() => { if (!document.hidden) loadGameStates(); }, 5000);
+    return () => {
+      disposed = true;
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameTargetsKey]);
+
   // Todos os eventos, com algum ativo: atualiza as crianças (pontuação) a cada 30s.
   const anyEventActive = safeEvents.some((e) => isActiveStatus(e?.status));
   useEffect(() => {
@@ -262,7 +302,6 @@ export default function AdminDashboard() {
   // Estatísticas ao vivo do evento selecionado
   const totalChildren = safeChildren.length;
   const activeCheckpoints = safeCheckpoints.filter(cp => cp?.status === 'online').length;
-  const conqueredCheckpoints = Object.values(territories).filter(t => t?.isLocked).length;
   const totalScores = safeChildren.reduce((sum, c) => sum + (c?.scores ?? c?.score ?? 0), 0);
 
   // Jogos disponíveis agora (status ao vivo), dentro do evento selecionado
@@ -357,10 +396,32 @@ export default function AdminDashboard() {
   const engagementBucketMinutes = engagement.bucketMinutes;
   const isSelectedEventActive = selectedEvent?.status === 'active' || selectedEvent?.status === 'ongoing';
 
-  const kpis = [
+  // Card "Jogo ativo": o jogo em andamento no evento (em "todos", nos eventos ativos)
+  const runningGames = gameTargetIds
+    .map((id) => ({ id, state: gameStates[id] }))
+    .filter((item) => item.state?.active);
+  const gameLoaded = gameTargetIds.length === 0 || gameTargetIds.every((id) => id in gameStates);
+  let gameValue = 'Nenhum';
+  let gameHint = isAllEvents ? 'nenhum evento com jogo rodando' : 'nenhum jogo em andamento';
+  if (!gameLoaded) {
+    gameValue = '—';
+    gameHint = 'consultando...';
+  } else if (runningGames.length === 1) {
+    const only = runningGames[0];
+    gameValue = gameLabel(only.state);
+    const startedAt = only.state?.startedAt ? new Date(only.state.startedAt) : null;
+    gameHint = isAllEvents
+      ? (safeEvents.find((e) => e.id === only.id)?.name || 'em andamento')
+      : (startedAt && !Number.isNaN(startedAt.getTime()) ? `em andamento desde ${formatClock(startedAt)}` : 'em andamento');
+  } else if (runningGames.length > 1) {
+    gameValue = `${runningGames.length} jogos ativos`;
+    gameHint = runningGames.map((item) => gameLabel(item.state)).join(', ');
+  }
+
+  const kpis: { label: string; value: number | string; hint?: string; color: string; icon: React.ReactNode }[] = [
     { label: isAllEvents ? 'Crianças (todos os eventos)' : 'Crianças no evento', value: totalChildren, color: 'text-secondary', icon: <Users size={24} /> },
     { label: isAllEvents ? 'Checkpoints ativos (eventos abertos)' : 'Checkpoints ativos', value: activeCheckpoints, color: 'text-success', icon: <MapPin size={24} /> },
-    { label: 'Territórios conquistados agora', value: conqueredCheckpoints, color: 'text-accent', icon: <Shield size={24} /> },
+    { label: 'Jogo ativo', value: gameValue, hint: gameHint, color: 'text-accent', icon: <Gamepad2 size={24} /> },
     { label: isAllEvents ? 'Pontuação total (todos os eventos)' : 'Pontuação total até agora', value: totalScores, color: 'text-warning', icon: <Trophy size={24} /> },
   ];
 
@@ -416,9 +477,15 @@ export default function AdminDashboard() {
                     <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-dark-surface">
                       <span className={kpi.color}>{kpi.icon}</span>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm font-body text-gray-400">{kpi.label}</p>
-                      <p className={`font-display text-2xl font-bold ${kpi.color}`}>{kpi.value}</p>
+                      <p
+                        className={`font-display font-bold ${kpi.color} ${typeof kpi.value === 'string' ? 'text-xl leading-tight truncate' : 'text-2xl'}`}
+                        title={typeof kpi.value === 'string' ? kpi.value : undefined}
+                      >
+                        {kpi.value}
+                      </p>
+                      {kpi.hint && <p className="text-xs text-gray-500 truncate" title={kpi.hint}>{kpi.hint}</p>}
                     </div>
                   </Card>
                 ))}
