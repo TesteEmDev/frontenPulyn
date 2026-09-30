@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   MapPin, Plus, Lightbulb, Volume2, Edit, Trash2
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { useNFCReader } from '../../hooks/useNFCReader';
 import { api } from '../../services/api';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import TopBar from '../../components/layout/TopBar';
@@ -26,7 +25,6 @@ export default function AdminCheckpoints() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [checkpointsList, setCheckpointsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [nfcConnected, setNFCConnected] = useState(false);
 
   // Verificar permissão: apenas admin pode acessar
   useEffect(() => {
@@ -34,18 +32,6 @@ export default function AdminCheckpoints() {
       navigate('/');
     }
   }, [user, navigate]);
-  
-  // Callback para quando uma pulseira é detectada
-  const handleBraceletDetected = useCallback((code: string) => {
-    setNewTag(code.toUpperCase());
-  }, []);
-
-  // Hook WebSocket para ouvir leituras NFC do Arduino
-  const { isConnected } = useNFCReader(handleBraceletDetected);
-
-  useEffect(() => {
-    setNFCConnected(isConnected);
-  }, [isConnected]);
   
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
@@ -58,9 +44,7 @@ export default function AdminCheckpoints() {
     zone: '',
     ledColor: '#00FF00',
     points: 10,
-    authorizedTags: [] as string[],
   });
-  const [newTag, setNewTag] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Carregar eventos ao iniciar
@@ -145,7 +129,6 @@ export default function AdminCheckpoints() {
         zone: checkpoint.zone || '',
         ledColor: checkpoint.led || checkpoint.led_color || '#00FF00',
         points: checkpoint.points || 10,
-        authorizedTags: checkpoint.authorizedTags || [],
       });
     } else {
       setEditingCheckpoint(null);
@@ -157,47 +140,9 @@ export default function AdminCheckpoints() {
         zone: '',
         ledColor: '#00FF00',
         points: 10,
-        authorizedTags: [],
       });
     }
-    setNewTag('');
     setModalOpen(true);
-  };
-
-  const handleAddTag = () => {
-    const tag = newTag.trim().toUpperCase();
-    
-    // Validações
-    if (!tag) {
-      alert('Digite uma tag/UID antes de adicionar');
-      return;
-    }
-    
-    if (formData.authorizedTags.includes(tag)) {
-      alert('Esta tag já foi adicionada');
-      return;
-    }
-    
-    if (tag.length < 5) {
-      alert('Tag deve ter pelo menos 5 caracteres (ex: 23:46:83:14)');
-      return;
-    }
-    
-    // Adicionar tag
-    setFormData(prev => ({
-      ...prev,
-      authorizedTags: [...prev.authorizedTags, tag]
-    }));
-    
-    // Limpar input
-    setNewTag('');
-  };
-
-  const handleRemoveTag = (tag: string) => {
-    setFormData(prev => ({
-      ...prev,
-      authorizedTags: prev.authorizedTags.filter(t => t !== tag)
-    }));
   };
 
   // Função handleSave CORRIGIDA
@@ -227,7 +172,6 @@ export default function AdminCheckpoints() {
         ip: formData.ip,
         zone: formData.zone,
         points: formData.points,
-        authorizedTags: formData.authorizedTags,
       };
       
       // Debug log
@@ -249,7 +193,6 @@ export default function AdminCheckpoints() {
           ip: formData.ip,
           zone: formData.zone,
           points: formData.points,
-          authorizedTags: formData.authorizedTags,
           status: 'configured',
           evento_id: targetEventId,
         }]);
@@ -373,7 +316,6 @@ export default function AdminCheckpoints() {
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">Zona</th>
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">Status</th>
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">Pontos</th>
-                    <th className="pb-3 text-sm font-body font-semibold text-gray-400">Tags Autorizadas</th>
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">Ações</th>
                   </tr>
                 </thead>
@@ -409,21 +351,6 @@ export default function AdminCheckpoints() {
                         <td className="py-3 pr-4">
                           <Badge variant="primary">{cp.points || 10} pts</Badge>
                         </td>
-                        <td className="py-3 pr-4">
-                          <div className="flex flex-wrap gap-1">
-                            {(cp.authorizedTags || []).slice(0, 2).map((tag: string) => (
-                              <Badge key={tag} variant="muted" className="text-xs">
-                                {tag.length > 10 ? tag.substring(0, 8) + '...' : tag}
-                              </Badge>
-                            ))}
-                            {(cp.authorizedTags || []).length > 2 && (
-                              <Badge variant="muted">+{(cp.authorizedTags || []).length - 2}</Badge>
-                            )}
-                            {(!cp.authorizedTags || cp.authorizedTags.length === 0) && (
-                              <span className="text-xs text-gray-500">Nenhuma</span>
-                            )}
-                          </div>
-                        </td>
                         <td className="py-3">
                           <div className="flex items-center gap-1">
                             <button
@@ -458,7 +385,7 @@ export default function AdminCheckpoints() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={isAllEvents ? 9 : 8} className="py-8 text-center text-gray-500">
+                      <td colSpan={isAllEvents ? 8 : 7} className="py-8 text-center text-gray-500">
                         {isAllEvents
                           ? 'Nenhum checkpoint cadastrado em nenhum evento.'
                           : 'Nenhum checkpoint cadastrado. Clique em "Cadastrar Checkpoint" para começar.'}
@@ -535,51 +462,6 @@ export default function AdminCheckpoints() {
             value={formData.points}
             onChange={(e) => setFormData({ ...formData, points: parseInt(e.target.value) || 0 })}
           />
-
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">Tags Autorizadas (UIDs das pulseiras)
-              {nfcConnected ? (
-                <span className="ml-2 text-xs text-success">🟢 Arduino Conectado</span>
-              ) : (
-                <span className="ml-2 text-xs text-gray-500">🔴 Aguardando Arduino...</span>
-              )}
-            </label>
-            <div className="flex flex-wrap gap-2 mb-2 min-h-[40px] p-2 bg-background rounded-lg">
-              {formData.authorizedTags.length === 0 && (
-                <span className="text-xs text-gray-500">Nenhuma tag cadastrada</span>
-              )}
-              {formData.authorizedTags.map(tag => (
-                <div key={tag} className="flex items-center gap-1 px-2 py-1 rounded-full bg-surface border border-border">
-                  <span className="text-xs font-mono text-white">{tag}</span>
-                  <button
-                    onClick={() => handleRemoveTag(tag)}
-                    className="text-gray-500 hover:text-danger"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Aproxime a pulseira do Arduino ou digite o UID manualmente"
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value.toUpperCase())}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
-                className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-white font-mono text-sm"
-                autoFocus
-              />
-              <Button variant="secondary" onClick={handleAddTag} size="sm">
-                <Plus size={14} className="mr-1" />
-                Adicionar
-              </Button>
-            </div>
-            <p className="text-xs text-gray-500 mt-2">
-              💡 Aproxime a pulseira do leitor NFC ou adicione manualmente.
-              {nfcConnected && " Arduino conectado - pronto para ler!"}
-            </p>
-          </div>
 
           <div className="flex justify-end gap-3 pt-4">
             <Button variant="ghost" onClick={() => setModalOpen(false)}>
