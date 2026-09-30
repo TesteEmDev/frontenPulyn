@@ -86,6 +86,13 @@ function getAuthHeaders() {
   }
 }
 
+async function analyticsRequest(path: string) {
+  const res = await fetch(`${API_URL}${path}`, { headers: getAuthHeaders() });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error((data && data.error) || `Erro ao carregar analytics (${res.status})`);
+  return data;
+}
+
 export const api = {
   // ==================== AUTENTICAÇÃO ====================
   async login(email: string, password: string) {
@@ -337,82 +344,30 @@ export const api = {
     }
   },
 
+  // Analytics do master: falha de rede ou da API vira erro (a tela mostra o motivo em vez de
+  // exibir gráficos vazios como se não houvesse dados).
   async getMetricsAnalytics() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/metrics`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return {};
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar métricas:', err);
-      return {};
-    }
+    return analyticsRequest('/analytics/metrics');
   },
 
   async getMRR() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/mrr`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return { mrr: 0 };
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar MRR:', err);
-      return { mrr: 0 };
-    }
+    return analyticsRequest('/analytics/mrr');
   },
 
   async getClientGrowth() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/client-growth`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return [];
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar crescimento de clientes:', err);
-      return [];
-    }
+    return analyticsRequest('/analytics/client-growth');
   },
 
   async getEventsPerMonth() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/events-per-month`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return [];
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar eventos por mês:', err);
-      return [];
-    }
+    return analyticsRequest('/analytics/events-per-month');
   },
 
   async getCheckpointsOverTime() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/checkpoints-over-time`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return [];
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar checkpoints:', err);
-      return [];
-    }
+    return analyticsRequest('/analytics/checkpoints-over-time');
   },
 
   async getRevenueByPlan() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/revenue-by-plan`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return [];
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar receita por plano:', err);
-      return [];
-    }
+    return analyticsRequest('/analytics/revenue-by-plan');
   },
 
   // ==================== LOGS ====================
