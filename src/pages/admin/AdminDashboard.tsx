@@ -15,6 +15,7 @@ import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import StatusDot from '../../components/ui/StatusDot';
 import Select from '../../components/ui/Select';
+import ProgressBar from '../../components/ui/ProgressBar';
 import { getEventActiveWindow, buildTimeBuckets, getBucketMinutes, formatClock } from '../../utils/eventWindow';
 
 const STATUS_LABELS: Record<string, { label: string; variant: 'success' | 'warning' | 'muted' }> = {
@@ -47,6 +48,11 @@ const GAME_TYPE_LABELS: Record<string, string> = {
 };
 const gameLabel = (state: any) => state?.gameName || GAME_TYPE_LABELS[state?.gameType] || 'Jogo em andamento';
 
+// Cor da disponibilidade dos checkpoints: verde >= 80%, amarelo >= 50%, vermelho abaixo.
+const availabilityColor = (percent: number | null) =>
+  percent === null ? '#6B7280' : percent >= 80 ? '#22C55E' : percent >= 50 ? '#F59E0B' : '#EF4444';
+const percentOf = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 100) : null);
+
 const shortName = (name: string, max = 16) => (name.length > max ? `${name.slice(0, max - 1)}…` : name);
 
 export default function AdminDashboard() {
@@ -57,6 +63,8 @@ export default function AdminDashboard() {
   const [selectedEventId, setSelectedEventId] = useState('');
   const [children, setChildren] = useState<any[]>([]);
   const [checkpoints, setCheckpoints] = useState<any[]>([]);
+  // Resumo de checkpoints por evento (só em "Todos os eventos")
+  const [checkpointSummary, setCheckpointSummary] = useState<any[]>([]);
   const [games, setGames] = useState<any[]>([]);
   const [scoreLog, setScoreLog] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
@@ -101,10 +109,6 @@ export default function AdminDashboard() {
   }, [safeEvents, selectedEventId]);
 
   const isAllEvents = selectedEventId === ALL_EVENTS;
-  // Eventos ainda abertos (agendados ou ativos): só eles têm checkpoints "ao vivo".
-  const openEvents = safeEvents.filter((e) => !isClosedStatus(e?.status));
-  const openEventsKey = openEvents.map((e) => `${e.id}:${e.status}`).join(',');
-
   // Carregar os dados do evento selecionado — direto da API, sem depender do
   // "eventoAtualId" global (que é o evento operacional em andamento em
   // outras telas, não necessariamente o que o admin quer analisar aqui).
@@ -118,30 +122,24 @@ export default function AdminDashboard() {
       return;
     }
 
-    // Todos os eventos: crianças e jogos do buffet inteiro, e os checkpoints
-    // dos eventos abertos. Não há linha do tempo nem times (variam por evento).
+    // Todos os eventos: crianças e jogos do buffet inteiro e o resumo de
+    // checkpoints por evento (uma consulta só). Não há linha do tempo nem times
+    // (variam por evento).
     if (selectedEventId === ALL_EVENTS) {
       let disposedAll = false;
       const loadAll = async () => {
         setLoadingEventData(true);
         try {
-          const [childrenData, gamesData, checkpointLists] = await Promise.all([
+          const [childrenData, gamesData, summaryData] = await Promise.all([
             api.getAllCriancas().catch(() => []),
             api.getBrincadeiras().catch(() => []),
-            Promise.all(openEvents.map((event) =>
-              api.getCheckpoints(event.id)
-                .then((list: any) => (Array.isArray(list) ? list : []).map((cp: any) => ({
-                  ...cp,
-                  evento_name: event.name,
-                  evento_status: event.status,
-                })))
-                .catch(() => [])
-            )),
+            api.getCheckpointsSummary().catch(() => []),
           ]);
           if (disposedAll) return;
           setChildren(Array.isArray(childrenData) ? childrenData : []);
           setGames(Array.isArray(gamesData) ? gamesData : []);
-          setCheckpoints(checkpointLists.flat());
+          setCheckpointSummary(Array.isArray(summaryData) ? summaryData : []);
+          setCheckpoints([]);
           setScoreLog([]);
           setTeams([]);
         } catch (error) {
@@ -179,8 +177,26 @@ export default function AdminDashboard() {
     };
     loadEventData();
     return () => { disposed = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedEventId, openEventsKey]);
+  }, [selectedEventId]);
+
+  // Todos os eventos: o status dos checkpoints muda com os batimentos; atualiza o resumo a cada 15s.
+  useEffect(() => {
+    if (!isAllEvents) return undefined;
+    let disposed = false;
+    const interval = setInterval(async () => {
+      if (document.hidden) return;
+      try {
+        const data = await api.getCheckpointsSummary();
+        if (!disposed && Array.isArray(data)) setCheckpointSummary(data);
+      } catch {
+        // mantém o resumo atual até a próxima tentativa
+      }
+    }, 15000);
+    return () => {
+      disposed = true;
+      clearInterval(interval);
+    };
+  }, [isAllEvents]);
 
   // Jogo ativo: consulta o estado do jogo do evento selecionado (em "todos", dos
   // eventos ativos agora) e repete a cada 5s para acompanhar início e fim do jogo.
@@ -255,13 +271,8 @@ export default function AdminDashboard() {
     };
   }, [selectedEventId, selectedStatus]);
 
-  // Territórios: do evento selecionado; em "todos", só dos eventos ativos agora
-  // (nos encerrados/agendados não há disputa e seriam requisições à toa a cada 5s).
-  const territoryCheckpoints = useMemo(
-    () => (isAllEvents ? safeCheckpoints.filter((cp) => isActiveStatus(cp?.evento_status)) : safeCheckpoints),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [checkpoints, isAllEvents]
-  );
+  // Territórios do evento selecionado (em "todos os eventos" não há lista de checkpoints).
+  const territoryCheckpoints = safeCheckpoints;
 
   useEffect(() => {
     const loadTerritories = async () => {
@@ -301,7 +312,19 @@ export default function AdminDashboard() {
 
   // Estatísticas ao vivo do evento selecionado
   const totalChildren = safeChildren.length;
-  const activeCheckpoints = safeCheckpoints.filter(cp => cp?.status === 'online').length;
+  // Resumo de checkpoints de todos os eventos: cadastrados, ativos (online),
+  // indisponíveis (o resto) e a porcentagem disponível.
+  const checkpointTotals = useMemo(() => {
+    const total = checkpointSummary.reduce((sum, row) => sum + Number(row.total || 0), 0);
+    const online = checkpointSummary.reduce((sum, row) => sum + Number(row.online || 0), 0);
+    return { total, online, offline: total - online, percent: percentOf(online, total) };
+  }, [checkpointSummary]);
+  // KPI: em "todos", os ativos (online) só dos eventos ainda abertos; nos encerrados o status é o último registrado.
+  const activeCheckpoints = isAllEvents
+    ? checkpointSummary
+        .filter((row) => !isClosedStatus(row.eventoStatus))
+        .reduce((sum, row) => sum + Number(row.online || 0), 0)
+    : safeCheckpoints.filter(cp => cp?.status === 'online').length;
   const totalScores = safeChildren.reduce((sum, c) => sum + (c?.scores ?? c?.score ?? 0), 0);
 
   // Todos os jogos do evento selecionado (ou do buffet, em "todos os eventos"),
@@ -692,12 +715,65 @@ export default function AdminDashboard() {
                   </div>
                 </Card>
 
-                {/* Status ao vivo dos checkpoints */}
+                {/* Status ao vivo dos checkpoints (ou resumo, em "Todos os eventos") */}
                 <Card>
                   <div className="flex items-center gap-2 mb-4">
                     <MapPin size={20} className="text-secondary" />
                     <h3 className="font-display text-lg text-white">Status dos Checkpoints</h3>
                   </div>
+                  {isAllEvents ? (
+                    checkpointTotals.total > 0 ? (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="rounded-lg bg-surface/50 p-2">
+                            <p className="text-[11px] text-gray-400">Cadastrados</p>
+                            <p className="font-display text-xl font-bold text-white">{checkpointTotals.total}</p>
+                          </div>
+                          <div className="rounded-lg bg-surface/50 p-2">
+                            <p className="text-[11px] text-gray-400">Ativos</p>
+                            <p className="font-display text-xl font-bold text-success">{checkpointTotals.online}</p>
+                          </div>
+                          <div className="rounded-lg bg-surface/50 p-2">
+                            <p className="text-[11px] text-gray-400">Indisponíveis</p>
+                            <p className="font-display text-xl font-bold text-danger">{checkpointTotals.offline}</p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="mb-1.5 flex items-baseline justify-between">
+                            <span className="text-sm text-gray-300">Disponíveis</span>
+                            <span className="font-display text-lg font-bold" style={{ color: availabilityColor(checkpointTotals.percent) }}>
+                              {checkpointTotals.percent === null ? '—' : `${checkpointTotals.percent}%`}
+                            </span>
+                          </div>
+                          <ProgressBar value={checkpointTotals.percent ?? 0} color={availabilityColor(checkpointTotals.percent)} />
+                        </div>
+
+                        <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+                          {checkpointSummary.map((row) => {
+                            const percent = percentOf(Number(row.online || 0), Number(row.total || 0));
+                            const status = STATUS_LABELS[row.eventoStatus];
+                            return (
+                              <div key={row.eventoId} className="rounded-lg bg-surface/50 p-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="min-w-0 truncate text-sm font-semibold text-white" title={row.eventoName}>{row.eventoName || 'Evento'}</p>
+                                  <Badge variant={status?.variant || 'muted'}>{status?.label || row.eventoStatus || '—'}</Badge>
+                                </div>
+                                <div className="mt-1 mb-1.5 flex items-center justify-between text-xs text-gray-400">
+                                  <span>{row.online} ativos · {row.offline} indisp. · {row.total} cad.</span>
+                                  <span style={{ color: availabilityColor(percent) }}>{percent === null ? '—' : `${percent}%`}</span>
+                                </div>
+                                <ProgressBar value={percent ?? 0} color={availabilityColor(percent)} />
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[11px] text-gray-500">Nos eventos encerrados, o status é o último registrado pelo checkpoint.</p>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm text-center py-4">Nenhum checkpoint cadastrado</p>
+                    )
+                  ) : (
                   <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                     {checkpointsStatus.length > 0 ? (
                       checkpointsStatus.map((cp) => {
@@ -728,6 +804,7 @@ export default function AdminDashboard() {
                       <p className="text-gray-500 text-sm text-center py-4">Nenhum checkpoint cadastrado</p>
                     )}
                   </div>
+                  )}
                 </Card>
               </div>
             </>

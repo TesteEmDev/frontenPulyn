@@ -1126,6 +1126,14 @@ export const api = {
   },
 
   // ==================== CHECKPOINTS ====================
+  // Contagem de checkpoints por evento (cadastrados e online) de todos os eventos do buffet
+  async getCheckpointsSummary() {
+    const res = await fetch(`${API_URL}/checkpoints/resumo`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar resumo de checkpoints (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
   async getCheckpoints(eventoId: string) {
     try {
       const res = await fetch(`${API_URL}/checkpoints/evento/${eventoId}`, {
