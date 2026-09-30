@@ -9,7 +9,6 @@ import Badge from '../../components/ui/Badge';
 import Monster3D from '../../components/display/Monster3D';
 import DisplayMap from './DisplayMap';
 import GameGuide, { type GuideGame } from '../../components/display/GameGuide';
-import GameRulesCard from '../../components/display/GameRulesCard';
 import FitToBox from '../../components/display/FitToBox';
 import { useTypewriterCycle } from '../../hooks/useTypewriterCycle';
 import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from '../../components/display/TreasureArena';
@@ -57,6 +56,8 @@ export default function DisplayMain() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [displayMessages, setDisplayMessages] = useState<any[]>([]);
+  // Quando a última mensagem do recreacionista CHEGOU a este telão (o relógio do servidor pode destoar do da TV)
+  const [messageArrivedAt, setMessageArrivedAt] = useState(0);
   const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
   const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
   const [treasureStatus, setTreasureStatus] = useState<TreasureArenaStatus | null>(null);
@@ -385,6 +386,7 @@ export default function DisplayMain() {
         setMonsterStatus(null);
       } else if (event.type === 'DISPLAY_MESSAGE' && sameEventId(event.payload?.evento_id ?? event.payload?.eventoId, selectedEventId)) {
         setDisplayMessages((previous) => [event.payload, ...previous].slice(0, 50));
+        setMessageArrivedAt(Date.now());
       } else if (['MONSTER_PROGRESS', 'MONSTER_SPECIAL_ATTACK', 'MONSTER_TEAM_DEFEATED', 'MONSTER_DEFEATED'].includes(event.type) && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const payload = event.payload || {};
         const monsters = Array.isArray(payload.monsters)
@@ -657,11 +659,6 @@ export default function DisplayMain() {
 
   // Até o primeiro jogo ser iniciado, o guia de regras ocupa o lugar dos rankings
   const showGuideInsteadOfRanking = gameStateLoaded && !gameEverStarted && guideGames.length > 0;
-  // Com um jogo rodando, as regras só dele ficam ao lado do ranking
-  const normalizeGameName = (value: string | null | undefined) => String(value || '').trim().toLowerCase();
-  const runningGame = gameActive && selectedGameName
-    ? guideGames.find((game) => normalizeGameName(game.name) === normalizeGameName(selectedGameName)) || null
-    : null;
 
   const monsterCards = monsterStatus?.monsters?.length
     ? monsterStatus.monsters
@@ -702,153 +699,17 @@ export default function DisplayMain() {
   const panelSubtitle = 'text-[clamp(0.6rem,1.3vh,0.8rem)] text-gray-500';
   const panelHeader = 'mb-2 flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.06] pb-2';
 
-  return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#08111f] px-3 py-3 text-white lg:h-screen lg:px-5 lg:py-4">
-      <div className="pointer-events-none absolute -left-48 top-24 h-[32rem] w-[32rem] rounded-full bg-primary/10 blur-3xl" />
-      <div className="pointer-events-none absolute -right-56 bottom-0 h-[34rem] w-[34rem] rounded-full bg-secondary/10 blur-3xl" />
+  // Com um jogo rodando (e palco para mostrar) a tela tem só o mapa, ou a arena do jogo quando ele não
+  // tem mapa: sem cabeçalho, rankings, regras, atividades nem rodapé.
+  const gameOnlyView = gameActive && hasStage;
 
-      {/* Notificação Animada de Conquista */}
-      {showNotification && notificationData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm pointer-events-none">
-          <div className="animate-in fade-in zoom-in duration-500 pointer-events-auto">
-            <div
-              className="w-full max-w-xl rounded-3xl border-2 px-8 py-8 shadow-2xl sm:px-12 sm:py-10"
-              style={{
-                backgroundColor: notificationData.color + '18',
-                borderColor: notificationData.color,
-                boxShadow: `0 0 80px ${notificationData.color}45, inset 0 0 35px ${notificationData.color}15`
-              }}
-            >
-              <div className="flex flex-col items-center gap-6 text-center">
-                {/* Animação de partículas/brilho */}
-                <div className="relative w-24 h-24">
-                  <div
-                    className="absolute inset-0 rounded-full animate-pulse"
-                    style={{
-                      backgroundColor: notificationData.color,
-                      opacity: 0.3
-                    }}
-                  />
-                  <div
-                    className="absolute inset-2 rounded-full animate-spin"
-                    style={{
-                      borderWidth: '3px',
-                      borderColor: `${notificationData.color} transparent transparent transparent`,
-                      animationDuration: '2s'
-                    }}
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center text-5xl">
-                    ⚡
-                  </div>
-                </div>
-
-                {/* Nome da criança */}
-                <div>
-                  <p
-                    className="font-display text-5xl font-bold mb-2"
-                    style={{ color: notificationData.color }}
-                  >
-                    {notificationData.name}
-                  </p>
-                  <p className="text-2xl text-white font-semibold">
-                    conquistou o território!
-                  </p>
-                </div>
-
-                {/* Checkpoint e pontos */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-center gap-3">
-                    <MapPin size={32} style={{ color: notificationData.color }} />
-                    <p className="text-3xl text-white font-semibold">
-                      {notificationData.checkpoint}
-                    </p>
-                  </div>
-                  <div
-                    className="inline-block px-8 py-4 rounded-xl text-3xl font-bold"
-                    style={{
-                      backgroundColor: notificationData.color + '30',
-                      color: notificationData.color,
-                      border: `2px solid ${notificationData.color}`
-                    }}
-                  >
-                    +{notificationData.points} pontos
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Cabeçalho compacto */}
-      <header className="relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 overflow-hidden rounded-2xl border border-white/10 bg-dark-card/75 px-4 py-2 shadow-[0_12px_36px_rgba(2,10,24,0.2)] backdrop-blur-xl lg:h-[8vh] lg:min-h-[52px] lg:flex-nowrap">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-300/70 to-transparent" />
-        <div className="flex min-w-0 items-center gap-3">
-          <button
-            onClick={() => window.history.back()}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-dark-card/80 px-3 py-1.5 text-sm font-semibold text-gray-300 transition-colors duration-200 hover:border-primary-400/40 hover:bg-dark-surface hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
-            title="Voltar (ESC)"
-          >
-            <ArrowLeft size={16} />
-            <span className="hidden sm:inline">Sair</span>
-          </button>
-          <div className="flex h-[clamp(2rem,4.6vh,3rem)] w-[clamp(2rem,4.6vh,3rem)] shrink-0 items-center justify-center rounded-xl border border-primary-300/20 bg-primary-500/10 text-xl">⚡</div>
-          <h1 className="truncate font-display text-[clamp(1.4rem,4vh,3rem)] font-bold leading-none tracking-tight text-white">Pulyn Arena</h1>
-          <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1" aria-live="polite">
-            <div className={`h-2.5 w-2.5 rounded-full ${
-              connectionStatus === 'connected'
-                ? 'bg-success animate-pulse'
-                : connectionStatus === 'reconnecting' || connectionStatus === 'connecting'
-                  ? 'bg-warning animate-pulse'
-                  : 'bg-danger'
-            }`} />
-            <span className="text-xs font-semibold text-gray-300">
-              {connectionStatus === 'connected'
-                ? 'Ao vivo'
-                : connectionStatus === 'reconnecting'
-                  ? 'Reconectando'
-                  : connectionStatus === 'connecting'
-                    ? 'Conectando'
-                    : 'Desconectado'}
-            </span>
-            {lastMessageAt && connectionStatus === 'connected' && (
-              <span className="hidden text-[11px] text-gray-500 xl:inline">
-                · {lastMessageAt.toLocaleTimeString('pt-BR')}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex min-w-0 items-center gap-2.5">
-          <p className="truncate text-[clamp(0.9rem,2.3vh,1.5rem)] font-semibold text-gray-200">
-            {events.find(e => e.id === selectedEventId)?.name || 'Evento selecionado'}
-          </p>
-          <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-secondary-400/20 bg-secondary-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-secondary-300 md:inline-flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-secondary-400" /> Recepção no controle
-          </span>
-        </div>
-      </header>
-
-      <main className="relative z-10 mt-3 flex min-h-0 flex-1 flex-col gap-3">
-        {/* Mensagem do recreacionista */}
-        {displayMessages.length > 0 && (
-          <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-2" role="status" aria-label="Mensagem do recreacionista">
-            <Zap size={22} className="shrink-0 text-accent" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[clamp(0.6rem,1.3vh,0.8rem)] font-bold uppercase tracking-[0.25em] text-accent">Mensagem do recreacionista</p>
-              <p className="line-clamp-2 font-display text-[clamp(1.1rem,3vh,2.2rem)] font-bold leading-tight text-white">{displayMessages[0].text}</p>
-            </div>
-            <p className="shrink-0 text-xs text-gray-400">{displayMessages[0].timestamp ? new Date(displayMessages[0].timestamp).toLocaleTimeString('pt-BR') : ''}</p>
-          </div>
-        )}
-
-        {/* Palco: mapa, arena do monstro ou do tesouro. Sem jogo em andamento, um aviso ocupa o lugar. */}
-        <section className="min-h-[360px] min-w-0 flex-1 overflow-hidden lg:min-h-0" aria-live="polite">
-          {hasStage ? (
+  const stageContent = (
             mapOnly ? (
           <div className="h-full" aria-live="polite">
             <DisplayMap
               embedded
               fill
+              hideHeader={gameOnlyView}
               gameType={selectedGameType || undefined}
               floorPlan={(floorPlan as any)}
               // 🆕 Zone Conquest INDIVIDUAL
@@ -861,7 +722,7 @@ export default function DisplayMain() {
             />
           </div>
             ) : (
-            <FitToBox align="center" minScale={0.3}>
+            <FitToBox align="center" minScale={0.3} maxScale={gameOnlyView ? 1.6 : 1}>
               <>
           {selectedGameType === 'monster_hunt' && monsterStatus?.gameType === 'monster_hunt' && (
             <div className="mx-auto max-w-6xl rounded-3xl border-2 border-danger/70 bg-gradient-to-br from-red-950/80 via-dark-surface/90 to-purple-950/70 p-5 shadow-2xl shadow-danger/20 sm:p-6" aria-live="polite">
@@ -935,6 +796,181 @@ export default function DisplayMain() {
               </>
             </FitToBox>
             )
+  );
+
+  const conquestOverlay = (
+    <>
+      {/* Notificação Animada de Conquista */}
+      {showNotification && notificationData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm pointer-events-none">
+          <div className="animate-in fade-in zoom-in duration-500 pointer-events-auto">
+            <div
+              className="w-full max-w-xl rounded-3xl border-2 px-8 py-8 shadow-2xl sm:px-12 sm:py-10"
+              style={{
+                backgroundColor: notificationData.color + '18',
+                borderColor: notificationData.color,
+                boxShadow: `0 0 80px ${notificationData.color}45, inset 0 0 35px ${notificationData.color}15`
+              }}
+            >
+              <div className="flex flex-col items-center gap-6 text-center">
+                {/* Animação de partículas/brilho */}
+                <div className="relative w-24 h-24">
+                  <div
+                    className="absolute inset-0 rounded-full animate-pulse"
+                    style={{
+                      backgroundColor: notificationData.color,
+                      opacity: 0.3
+                    }}
+                  />
+                  <div
+                    className="absolute inset-2 rounded-full animate-spin"
+                    style={{
+                      borderWidth: '3px',
+                      borderColor: `${notificationData.color} transparent transparent transparent`,
+                      animationDuration: '2s'
+                    }}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center text-5xl">
+                    ⚡
+                  </div>
+                </div>
+
+                {/* Nome da criança */}
+                <div>
+                  <p
+                    className="font-display text-5xl font-bold mb-2"
+                    style={{ color: notificationData.color }}
+                  >
+                    {notificationData.name}
+                  </p>
+                  <p className="text-2xl text-white font-semibold">
+                    conquistou o território!
+                  </p>
+                </div>
+
+                {/* Checkpoint e pontos */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-center gap-3">
+                    <MapPin size={32} style={{ color: notificationData.color }} />
+                    <p className="text-3xl text-white font-semibold">
+                      {notificationData.checkpoint}
+                    </p>
+                  </div>
+                  <div
+                    className="inline-block px-8 py-4 rounded-xl text-3xl font-bold"
+                    style={{
+                      backgroundColor: notificationData.color + '30',
+                      color: notificationData.color,
+                      border: `2px solid ${notificationData.color}`
+                    }}
+                  >
+                    +{notificationData.points} pontos
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  if (gameOnlyView) {
+    // Mensagem do recreacionista: aparece por cima do mapa só por um tempo e some sozinha
+    const latestMessage = displayMessages[0];
+    const showMessageOverGame = Boolean(latestMessage) && messageArrivedAt > 0 && currentTime.getTime() - messageArrivedAt < 20000;
+    return (
+      <div className="relative h-screen overflow-hidden bg-[#08111f] p-2 text-white">
+        {conquestOverlay}
+        {connectionStatus !== 'connected' && (
+          <div className="absolute right-3 top-3 z-40 flex items-center gap-2 rounded-full border border-warning-400/40 bg-black/60 px-3 py-1.5 text-xs font-semibold text-warning-300 backdrop-blur" role="status">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-warning" />
+            {connectionStatus === 'offline' ? 'Desconectado' : 'Reconectando…'}
+          </div>
+        )}
+        {showMessageOverGame && (
+          <div className="absolute inset-x-6 top-4 z-30 flex items-center gap-3 rounded-2xl border border-accent/50 bg-black/70 px-5 py-3 shadow-2xl backdrop-blur animate-in fade-in slide-in-from-top-2" role="status" aria-label="Mensagem do recreacionista">
+            <Zap size={26} className="shrink-0 text-accent" />
+            <p className="line-clamp-2 font-display text-[clamp(1.2rem,3.4vh,2.4rem)] font-bold leading-tight text-white">{latestMessage.text}</p>
+          </div>
+        )}
+        <div className="h-full min-h-0">{stageContent}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#08111f] px-3 py-3 text-white lg:h-screen lg:px-5 lg:py-4">
+      <div className="pointer-events-none absolute -left-48 top-24 h-[32rem] w-[32rem] rounded-full bg-primary/10 blur-3xl" />
+      <div className="pointer-events-none absolute -right-56 bottom-0 h-[34rem] w-[34rem] rounded-full bg-secondary/10 blur-3xl" />
+
+      {conquestOverlay}
+
+      {/* Cabeçalho compacto */}
+      <header className="relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 overflow-hidden rounded-2xl border border-white/10 bg-dark-card/75 px-4 py-2 shadow-[0_12px_36px_rgba(2,10,24,0.2)] backdrop-blur-xl lg:h-[8vh] lg:min-h-[52px] lg:flex-nowrap">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-300/70 to-transparent" />
+        <div className="flex min-w-0 items-center gap-3">
+          <button
+            onClick={() => window.history.back()}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-dark-card/80 px-3 py-1.5 text-sm font-semibold text-gray-300 transition-colors duration-200 hover:border-primary-400/40 hover:bg-dark-surface hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
+            title="Voltar (ESC)"
+          >
+            <ArrowLeft size={16} />
+            <span className="hidden sm:inline">Sair</span>
+          </button>
+          <div className="flex h-[clamp(2rem,4.6vh,3rem)] w-[clamp(2rem,4.6vh,3rem)] shrink-0 items-center justify-center rounded-xl border border-primary-300/20 bg-primary-500/10 text-xl">⚡</div>
+          <h1 className="truncate font-display text-[clamp(1.4rem,4vh,3rem)] font-bold leading-none tracking-tight text-white">Pulyn Arena</h1>
+          <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1" aria-live="polite">
+            <div className={`h-2.5 w-2.5 rounded-full ${
+              connectionStatus === 'connected'
+                ? 'bg-success animate-pulse'
+                : connectionStatus === 'reconnecting' || connectionStatus === 'connecting'
+                  ? 'bg-warning animate-pulse'
+                  : 'bg-danger'
+            }`} />
+            <span className="text-xs font-semibold text-gray-300">
+              {connectionStatus === 'connected'
+                ? 'Ao vivo'
+                : connectionStatus === 'reconnecting'
+                  ? 'Reconectando'
+                  : connectionStatus === 'connecting'
+                    ? 'Conectando'
+                    : 'Desconectado'}
+            </span>
+            {lastMessageAt && connectionStatus === 'connected' && (
+              <span className="hidden text-[11px] text-gray-500 xl:inline">
+                · {lastMessageAt.toLocaleTimeString('pt-BR')}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <p className="truncate text-[clamp(0.9rem,2.3vh,1.5rem)] font-semibold text-gray-200">
+            {events.find(e => e.id === selectedEventId)?.name || 'Evento selecionado'}
+          </p>
+          <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-secondary-400/20 bg-secondary-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-secondary-300 md:inline-flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-secondary-400" /> Recepção no controle
+          </span>
+        </div>
+      </header>
+
+      <main className="relative z-10 mt-3 flex min-h-0 flex-1 flex-col gap-3">
+        {/* Mensagem do recreacionista */}
+        {displayMessages.length > 0 && (
+          <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-2" role="status" aria-label="Mensagem do recreacionista">
+            <Zap size={22} className="shrink-0 text-accent" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[clamp(0.6rem,1.3vh,0.8rem)] font-bold uppercase tracking-[0.25em] text-accent">Mensagem do recreacionista</p>
+              <p className="line-clamp-2 font-display text-[clamp(1.1rem,3vh,2.2rem)] font-bold leading-tight text-white">{displayMessages[0].text}</p>
+            </div>
+            <p className="shrink-0 text-xs text-gray-400">{displayMessages[0].timestamp ? new Date(displayMessages[0].timestamp).toLocaleTimeString('pt-BR') : ''}</p>
+          </div>
+        )}
+
+        {/* Palco: mapa, arena do monstro ou do tesouro. Sem jogo em andamento, um aviso ocupa o lugar. */}
+        <section className="min-h-[360px] min-w-0 flex-1 overflow-hidden lg:min-h-0" aria-live="polite">
+          {hasStage ? (
+            stageContent
           ) : (
             <div className="flex h-full items-center justify-center">
               {waitingSelectedGame ? (
@@ -969,8 +1005,8 @@ export default function DisplayMain() {
             </div>
           ) : (
             <>
-              {/* Ranking único (alterna entre times e participantes); com jogo rodando, divide a faixa com as regras dele */}
-              <div className={`h-[340px] min-h-0 lg:h-full ${runningGame ? '' : 'lg:col-span-2'}`}>
+              {/* Ranking único (alterna entre times e participantes) */}
+              <div className="h-[340px] min-h-0 lg:col-span-2 lg:h-full">
                 {isIndividualMode && zoneConquestStatus ? (
                   <Card variant="glow" className="h-full overflow-hidden p-3 sm:p-4">
                     <FitToBox minScale={0.4}>
@@ -1074,11 +1110,6 @@ export default function DisplayMain() {
                   </Card>
                 )}
               </div>
-              {runningGame && (
-                <div className="h-[340px] min-h-0 lg:h-full">
-                  <GameRulesCard game={runningGame} />
-                </div>
-              )}
             </>
           )}
 

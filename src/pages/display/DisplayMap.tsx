@@ -70,6 +70,8 @@ interface DisplayMapProps {
   embedded?: boolean;
   // Com embedded: ocupa a altura da caixa onde está (em vez de altura fixa), para caber numa tela sem rolagem
   fill?: boolean;
+  // Com fill: sem o título "Mapa do Espaço" (a tela mostra só o mapa)
+  hideHeader?: boolean;
   gameType?: string;
   floorPlan?: string | null;
   // 🆕 Zone Conquest INDIVIDUAL
@@ -85,6 +87,7 @@ interface DisplayMapProps {
 export default function DisplayMap({
   embedded = false,
   fill = false,
+  hideHeader = false,
   gameType,
   floorPlan,
   isIndividualMode = false,
@@ -486,8 +489,9 @@ export default function DisplayMap({
 
   return (
     <div className={embedded
-      ? `relative flex flex-col overflow-hidden rounded-3xl border border-primary-400/20 bg-dark-card/75 shadow-[0_18px_50px_rgba(2,10,24,0.2)] backdrop-blur-xl ${fill ? 'h-full p-3' : 'p-4 sm:p-6'}`
+      ? `relative flex flex-col overflow-hidden rounded-3xl border border-primary-400/20 bg-dark-card/75 shadow-[0_18px_50px_rgba(2,10,24,0.2)] backdrop-blur-xl ${fill ? (hideHeader ? 'h-full p-2' : 'h-full p-3') : 'p-4 sm:p-6'}`
       : 'fixed inset-0 flex flex-col overflow-hidden bg-gradient-dark'}>
+      {!hideHeader && (
       <div className={`relative z-10 border-b border-dark-border/50 text-center ${embedded ? (fill ? 'pb-2' : 'pb-4') : 'py-6'}`}>
         <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary-300">
           {activeGame?.type === 'treasure_hunt' ? 'Caça ao Tesouro' : isIndividual ? 'Zona - Modo Individual' : isZoneMode ? 'Zona - Modo Equipe' : 'Brincadeira Zona'}
@@ -497,10 +501,11 @@ export default function DisplayMap({
           {activeGame?.type === 'treasure_hunt' ? 'Localização dos checkpoints em tempo real' : isIndividual ? 'Competição individual por checkpoints' : 'Domínio dos territórios em tempo real'}
         </p>
       </div>
+      )}
 
       <div className={embedded
         ? (fill
-          ? 'relative z-10 mt-2 min-h-0 flex-1 overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'
+          ? `relative z-10 ${hideHeader ? '' : 'mt-2'} min-h-0 flex-1 overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30`
           : 'relative z-10 mt-5 h-[520px] overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30')
         : 'relative z-10 mx-8 my-6 flex-1 overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'}>
         
