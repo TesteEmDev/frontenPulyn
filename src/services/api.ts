@@ -961,6 +961,14 @@ export const api = {
   },
 
   // ==================== CRIANÇAS ====================
+  // Crianças de todos os eventos do buffet (com evento e time já resolvidos)
+  async getAllCriancas() {
+    const res = await fetch(`${API_URL}/criancas`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar crianças (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
   async getCriancas(eventoId: string) {
     try {
       const res = await fetch(`${API_URL}/criancas/eventos/${eventoId}/criancas`, {
