@@ -788,6 +788,18 @@ export const api = {
     return res.json();
   },
 
+  // Ativa ou desativa um jogo (só o status)
+  async setBrincadeiraStatus(id: string, status: 'active' | 'inactive') {
+    const res = await fetch(`${API_URL}/brincadeiras/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ status }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao alterar o status do jogo (${res.status})`);
+    return data;
+  },
+
   async deleteBrincadeira(id: string) {
     const res = await fetch(`${API_URL}/brincadeiras/${id}`, {
       method: 'DELETE',

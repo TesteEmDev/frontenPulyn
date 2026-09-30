@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Gamepad2, Plus, ToggleLeft, ToggleRight, Trash2
@@ -25,6 +25,9 @@ export default function AdminGames() {
   const [localGames, setLocalGames] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingGameId, setDeletingGameId] = useState<string | null>(null);
+  const [togglingGameId, setTogglingGameId] = useState<string | null>(null);
+  // Trava síncrona: o estado só vale depois da próxima renderização, e um duplo clique rápido passaria.
+  const togglingRef = useRef(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Carregar brincadeiras quando o componente monta
@@ -42,14 +45,47 @@ export default function AdminGames() {
     setLocalGames(Array.isArray(brincadeiras) ? brincadeiras : []);
   }, [brincadeiras]);
 
-  const toggleGameStatus = (gameId: string) => {
-    setLocalGames(prev =>
-      prev.map(g =>
-        g.id === gameId
-          ? { ...g, status: g.status === 'active' ? 'inactive' as const : 'active' as const }
-          : g
-      )
-    );
+  // Sem status registrado, o servidor trata o jogo como ativo.
+  const isGameActive = (game: any) => String(game.status || 'active').toLowerCase() === 'active';
+
+  // Some a mensagem de sucesso sozinha; erros ficam até a próxima ação.
+  useEffect(() => {
+    if (feedback?.type !== 'success') return undefined;
+    const timer = setTimeout(() => setFeedback(null), 3500);
+    return () => clearTimeout(timer);
+  }, [feedback]);
+
+  // Ativa/desativa o jogo de verdade (salva no servidor). A tela muda na hora e
+  // volta atrás se o servidor recusar. Antes o botão só mudava o estado local,
+  // então o status não era salvo e o jogo voltava ao que estava ao recarregar.
+  const toggleGameStatus = async (game: any) => {
+    if (togglingRef.current) return;
+    togglingRef.current = true;
+    const wasActive = isGameActive(game);
+    const nextStatus = wasActive ? 'inactive' : 'active';
+
+    setTogglingGameId(game.id);
+    setFeedback(null);
+    setLocalGames(prev => prev.map(g => (g.id === game.id ? { ...g, status: nextStatus } : g)));
+    try {
+      await api.setBrincadeiraStatus(game.id, nextStatus);
+      await loadBrincadeiras();
+      setFeedback({
+        type: 'success',
+        message: `Jogo "${game.name}" ${nextStatus === 'active' ? 'ativado' : 'desativado'}.`,
+      });
+    } catch (error) {
+      setLocalGames(prev => prev.map(g => (g.id === game.id ? { ...g, status: wasActive ? 'active' : 'inactive' } : g)));
+      setFeedback({
+        type: 'error',
+        message: error instanceof Error && error.message
+          ? error.message
+          : `Não foi possível ${wasActive ? 'desativar' : 'ativar'} o jogo.`,
+      });
+    } finally {
+      togglingRef.current = false;
+      setTogglingGameId(null);
+    }
   };
 
   const handleDeleteGame = async (game: any) => {
@@ -122,7 +158,8 @@ export default function AdminGames() {
             ) : localGames && localGames.length > 0 ? (
               localGames.map(game => {
                 const typeInfo = typeBadge[game.type] || { variant: 'muted' as const, label: game.type };
-                const isActive = game.status === 'active';
+                const isActive = isGameActive(game);
+                const isToggling = togglingGameId === game.id;
 
                 return (
                   <Card
@@ -143,10 +180,14 @@ export default function AdminGames() {
                           type="button"
                           onClick={e => {
                             e.stopPropagation();
-                            toggleGameStatus(game.id);
+                            void toggleGameStatus(game);
                           }}
-                          className="text-gray-400 hover:text-white transition-colors"
-                          title={isActive ? 'Desativar' : 'Ativar'}
+                          disabled={isToggling}
+                          role="switch"
+                          aria-checked={isActive}
+                          aria-label={`${isActive ? 'Desativar' : 'Ativar'} o jogo ${game.name}`}
+                          className="text-gray-400 hover:text-white transition-colors disabled:cursor-wait disabled:opacity-50"
+                          title={isToggling ? 'Salvando...' : isActive ? 'Desativar' : 'Ativar'}
                         >
                           {isActive ? (
                             <ToggleRight size={28} className="text-success" />
