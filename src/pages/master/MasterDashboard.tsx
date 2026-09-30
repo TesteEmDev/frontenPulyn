@@ -23,6 +23,7 @@ import Badge from '../../components/ui/Badge';
 import StatusDot from '../../components/ui/StatusDot';
 import { api } from '../../services/api';
 import { BRAZIL_STATES, type BrazilStateShape } from './brazilMapData';
+import { findCityPosition, type CityData } from './brazilCities';
 
 const masterNavItems = [
   { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/master' },
@@ -142,10 +143,23 @@ function BrazilMap({
   const [view, setView] = useState(FULL_VIEW);
   const viewRef = useRef(FULL_VIEW);
 
-  // Agrupa clientes por cidade (cada cidade vira um marcador) e distribui as
-  // cidades do mesmo estado em volta do centro do estado, já que o cadastro
-  // só tem cidade/estado em texto, sem coordenadas.
+  // Posições dos municípios (arquivo grande, carregado sob demanda). null = carregando;
+  // se falhar, {} faz todas as cidades caírem no posicionamento aproximado por estado.
+  const [cityData, setCityData] = useState<CityData | null>(null);
+  useEffect(() => {
+    let disposed = false;
+    import('./brazilCityData')
+      .then((mod) => { if (!disposed) setCityData(mod.BRAZIL_CITY_DATA); })
+      .catch(() => { if (!disposed) setCityData({}); });
+    return () => { disposed = true; };
+  }, []);
+
+  // Agrupa clientes por cidade (cada cidade vira um marcador) e coloca cada marcador
+  // na posição real do município. O cadastro só tem cidade/estado em texto, então a
+  // cidade é procurada pelo nome; as que não forem encontradas ficam espalhadas em
+  // volta do centro do estado.
   const { groups, unplaced } = useMemo(() => {
+    if (!cityData) return { groups: [] as CityGroup[], unplaced: 0 };
     const byKey = new Map<string, CityGroup>();
     let missing = 0;
     const eventsByClient = new Map<string, MasterEvent[]>();
@@ -173,6 +187,12 @@ function BrazilMap({
 
     const perState: Record<string, CityGroup[]> = {};
     Array.from(byKey.values()).forEach((group) => {
+      const position = findCityPosition(cityData, group.shape.uf, group.city);
+      if (position) {
+        group.x = position.x;
+        group.y = position.y;
+        return;
+      }
       (perState[group.shape.uf] ||= []).push(group);
     });
     Object.values(perState).forEach((list) => {
@@ -187,7 +207,7 @@ function BrazilMap({
     });
 
     return { groups: Array.from(byKey.values()), unplaced: missing };
-  }, [clients, events]);
+  }, [clients, events, cityData]);
 
   const statesWithClients = new Set(groups.map((g) => g.shape.uf));
   const focusShape = BRAZIL_STATES.find((s) => s.uf === focus.uf) || null;
