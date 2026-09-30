@@ -102,7 +102,7 @@ const cityKeyFor = (uf: string, city: string | null | undefined) => `${uf}|${nor
 
 const FULL_VIEW = { x: 0, y: 0, w: 613, h: 639 };
 const MAP_ASPECT = FULL_VIEW.w / FULL_VIEW.h;
-const CITY_VIEW_W = 70;
+const CITY_VIEW_W = 28;
 const EVENT_COLOR = '#8B5CF6';
 
 const viewForState = (shape: BrazilStateShape) => {
@@ -112,6 +112,52 @@ const viewForState = (shape: BrazilStateShape) => {
   const w = Math.max((x1 - x0) * 1.35, (y1 - y0) * 1.35 * MAP_ASPECT, 150);
   const h = w / MAP_ASPECT;
   return { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h };
+};
+
+// Ao entrar em um estado com clientes, enquadra as cidades que têm cliente (e não o estado
+// inteiro), para separar cidades vizinhas. Nunca fica mais aberto que o estado inteiro.
+const MIN_GROUPS_VIEW_W = 46;
+const viewForGroups = (shape: BrazilStateShape, points: { x: number; y: number }[]) => {
+  const whole = viewForState(shape);
+  // Com uma cidade só não há o que separar: mostra o estado inteiro, com contexto.
+  if (points.length < 2) return whole;
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const spanX = x1 - x0, spanY = y1 - y0;
+  // Folga em volta dos marcadores; o lado direito leva um pouco mais por causa dos nomes.
+  const pad = Math.max(Math.max(spanX, spanY) * 0.3, 14);
+  const w = Math.min(
+    Math.max(spanX + pad * 2.6, (spanY + pad * 2) * MAP_ASPECT, MIN_GROUPS_VIEW_W),
+    whole.w,
+  );
+  const h = w / MAP_ASPECT;
+  return { x: (x0 + x1) / 2 - w / 2 + pad * 0.3, y: (y0 + y1) / 2 - h / 2, w, h };
+};
+
+// Escolhe quais cidades mostram o nome no mapa: os nomes são desenhados em tamanho fixo na tela,
+// então cidades coladas (Grande São Paulo) se sobrepõem. Prioriza a cidade em foco e as com mais
+// clientes; quem não couber fica só com o ponto (o nome continua no tooltip) e ganha o nome ao dar zoom.
+const pickLabeledGroups = (groups: CityGroup[], k: number, focusKey: string | null) => {
+  const order = [...groups].sort(
+    (a, b) =>
+      Number(b.key === focusKey) - Number(a.key === focusKey) ||
+      b.clients.length - a.clients.length ||
+      a.key.localeCompare(b.key),
+  );
+  const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
+  const shown = new Set<string>();
+  order.forEach((group) => {
+    const name = group.city || group.shape.uf;
+    const x0 = group.x + (group.clients.length > 1 ? 14 : 9) * k;
+    const box = { x0, y0: group.y - 9 * k, x1: x0 + name.length * 7.2 * k, y1: group.y + 6 * k };
+    const clash = placed.some((p) => box.x0 < p.x1 && box.x1 > p.x0 && box.y0 < p.y1 && box.y1 > p.y0);
+    if (group.key === focusKey || !clash) {
+      shown.add(group.key);
+      placed.push(box);
+    }
+  });
+  return shown;
 };
 
 const viewForPoint = (x: number, y: number, w: number) => {
@@ -212,11 +258,12 @@ function BrazilMap({
   const statesWithClients = new Set(groups.map((g) => g.shape.uf));
   const focusShape = BRAZIL_STATES.find((s) => s.uf === focus.uf) || null;
   const focusGroup = focus.cityKey ? groups.find((g) => g.key === focus.cityKey) || null : null;
+  const scopeGroups = focusShape ? groups.filter((g) => g.shape.uf === focusShape.uf) : [];
 
   const target = focusGroup
     ? viewForPoint(focusGroup.x, focusGroup.y, CITY_VIEW_W)
     : focusShape
-      ? viewForState(focusShape)
+      ? viewForGroups(focusShape, scopeGroups)
       : FULL_VIEW;
   const targetKey = `${target.x.toFixed(2)},${target.y.toFixed(2)},${target.w.toFixed(2)}`;
 
@@ -248,6 +295,7 @@ function BrazilMap({
 
   // Com o zoom, pontos e textos encolhem na mesma proporção para não ficarem gigantes.
   const k = view.w / FULL_VIEW.w;
+  const labeledGroups = pickLabeledGroups(groups, k, focusGroup?.key ?? null);
 
   const goUp = () => {
     if (focus.cityKey && focus.uf) onFocusChange({ uf: focus.uf, cityKey: null, clientId: null });
@@ -264,7 +312,6 @@ function BrazilMap({
   const selectState = (uf: string) =>
     onFocusChange(focus.uf === uf && !focus.cityKey ? NO_FOCUS : { uf, cityKey: null, clientId: null });
 
-  const scopeGroups = focusShape ? groups.filter((g) => g.shape.uf === focusShape.uf) : [];
   const listGroups = focusGroup ? [focusGroup] : scopeGroups;
   const listClients = listGroups.flatMap((g) => g.clients.map((client) => ({ client, group: g })));
   const clientEvents = (client: MasterClient) =>
@@ -477,18 +524,20 @@ function BrazilMap({
                   </text>
                 </g>
               )}
-              <text
-                x={group.x + (count > 1 ? 14 : 9) * k}
-                y={group.y + 4 * k}
-                fill="rgba(255,255,255,0.9)"
-                fontSize={13 * k}
-                fontFamily="sans-serif"
-                paintOrder="stroke"
-                stroke="#0B1220"
-                strokeWidth={3 * k}
-              >
-                {group.city || group.shape.uf}
-              </text>
+              {labeledGroups.has(group.key) && (
+                <text
+                  x={group.x + (count > 1 ? 14 : 9) * k}
+                  y={group.y + 4 * k}
+                  fill="rgba(255,255,255,0.9)"
+                  fontSize={13 * k}
+                  fontFamily="sans-serif"
+                  paintOrder="stroke"
+                  stroke="#0B1220"
+                  strokeWidth={3 * k}
+                >
+                  {group.city || group.shape.uf}
+                </text>
+              )}
             </g>
           );
         })}
