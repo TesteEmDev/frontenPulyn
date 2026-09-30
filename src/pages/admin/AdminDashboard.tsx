@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, MapPin, Trophy, Gamepad2
 } from 'lucide-react';
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  LineChart, Line, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { usePulynStore } from '../../store/mockData';
@@ -340,7 +340,22 @@ export default function AdminDashboard() {
       })
   ), [safeChildren, teamById]);
 
-  // Todos os eventos: pontuação e participantes por evento (últimos 8 com crianças)
+  // Todos os eventos: ranking global, as maiores pontuações do buffet inteiro
+  // (crianças de qualquer evento; só ficam de fora as inativas/desvinculadas).
+  const globalRanking = useMemo(() => {
+    if (!isAllEvents) return [];
+    return [...safeChildren]
+      .filter((child) => child?.status !== 'inactive')
+      .sort((a, b) =>
+        Number(b?.scores ?? b?.score ?? 0) - Number(a?.scores ?? a?.score ?? 0)
+        || String(a?.name || '').localeCompare(String(b?.name || ''), 'pt-BR'))
+      .slice(0, 10)
+      .map((child) => ({ ...child, teamName: child.time_name || null, teamColor: child.time_color || null }));
+  }, [isAllEvents, safeChildren]);
+  const rankingRows = isAllEvents ? globalRanking : liveRanking;
+
+  // Todos os eventos: pontuação por evento nos 5 últimos eventos, mesmo os sem
+  // pontuação (aparecem com 0). Eventos agendados para o futuro não entram.
   const eventScoreData = useMemo(() => {
     if (!isAllEvents) return [];
     const byEvent = new Map<string, { pontuacao: number; criancas: number }>();
@@ -351,15 +366,19 @@ export default function AdminDashboard() {
       current.criancas += 1;
       byEvent.set(child.evento_id, current);
     }
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const sortKey = (e: any) => `${String(e.date || '').split('T')[0]} ${String(e.time || '').slice(0, 5)}`;
     return safeEvents
-      .filter((e) => byEvent.has(e.id))
-      .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
-      .slice(-8)
+      .filter((e) => isActiveStatus(e?.status) || isClosedStatus(e?.status) || String(e?.date || '').split('T')[0] <= todayKey)
+      .sort((a, b) => sortKey(b).localeCompare(sortKey(a)))
+      .slice(0, 5)
+      .reverse()
       .map((e) => ({
         evento: shortName(e.name || 'Evento'),
         nome: e.name || 'Evento',
-        pontuacao: byEvent.get(e.id)!.pontuacao,
-        criancas: byEvent.get(e.id)!.criancas,
+        pontuacao: byEvent.get(e.id)?.pontuacao ?? 0,
+        criancas: byEvent.get(e.id)?.criancas ?? 0,
       }));
   }, [isAllEvents, safeChildren, safeEvents]);
 
@@ -496,11 +515,14 @@ export default function AdminDashboard() {
                 <Card>
                   <div className="flex items-center gap-2 mb-4">
                     <Trophy size={20} className="text-warning" />
-                    <h3 className="font-display text-lg text-white">Ranking ao Vivo</h3>
+                    <h3 className="font-display text-lg text-white">{isAllEvents ? 'Ranking Global' : 'Ranking ao Vivo'}</h3>
                   </div>
+                  {isAllEvents && (
+                    <p className="-mt-2 mb-3 text-xs text-gray-500">Maiores pontuações de todos os eventos</p>
+                  )}
                   <div className="space-y-3">
-                    {liveRanking.length > 0 ? (
-                      liveRanking.map((child, index) => (
+                    {rankingRows.length > 0 ? (
+                      rankingRows.map((child, index) => (
                         <div key={child.id} className="flex items-center gap-3 p-2 rounded-lg bg-surface/50">
                           <span className={`font-mono text-lg font-bold w-6 text-center ${
                             index === 0 ? 'text-warning' : index === 1 ? 'text-gray-300' : index === 2 ? 'text-amber-700' : 'text-gray-500'
@@ -521,7 +543,9 @@ export default function AdminDashboard() {
                         </div>
                       ))
                     ) : (
-                      <p className="text-gray-500 text-sm text-center py-4">Nenhum participante ativo ainda</p>
+                      <p className="text-gray-500 text-sm text-center py-4">
+                        {isAllEvents ? 'Nenhuma criança cadastrada ainda' : 'Nenhum participante ativo ainda'}
+                      </p>
                     )}
                   </div>
                 </Card>
@@ -530,11 +554,14 @@ export default function AdminDashboard() {
                 <Card>
                   <h3 className="font-display text-lg text-white">Pontuação por Evento</h3>
                   <p className="mt-1 mb-4 text-xs text-gray-500">
-                    Últimos {eventScoreData.length || 0} eventos com participantes. Escolha um evento para ver o engajamento ao longo do tempo.
+                    {eventScoreData.length > 0
+                      ? `Últimos ${eventScoreData.length} ${eventScoreData.length === 1 ? 'evento' : 'eventos'}, mesmo sem pontos. `
+                      : ''}
+                    Escolha um evento para ver o engajamento ao longo do tempo.
                   </p>
                   {eventScoreData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={eventScoreData} margin={{ top: 5, right: 12, left: 0, bottom: 5 }}>
+                    <ResponsiveContainer width="100%" height={380}>
+                      <BarChart data={eventScoreData} margin={{ top: 20, right: 12, left: 0, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                         <XAxis dataKey="evento" interval={0} tick={{ fill: '#9CA3AF', fontSize: 11 }} />
                         <YAxis allowDecimals={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
@@ -548,12 +575,14 @@ export default function AdminDashboard() {
                               : [value, name]
                           )}
                         />
-                        <Bar dataKey="pontuacao" name="pontuacao" fill="#29B6F6" radius={[6, 6, 0, 0]} isAnimationActive={false} />
+                        <Bar dataKey="pontuacao" name="pontuacao" fill="#29B6F6" radius={[6, 6, 0, 0]} isAnimationActive={false} minPointSize={4}>
+                          <LabelList dataKey="pontuacao" position="top" fill="#9CA3AF" fontSize={12} />
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
                     <div className="flex h-[250px] items-center justify-center text-center text-sm text-gray-500">
-                      Nenhum evento com participantes ainda.
+                      Nenhum evento realizado ainda.
                     </div>
                   )}
                 </Card>
