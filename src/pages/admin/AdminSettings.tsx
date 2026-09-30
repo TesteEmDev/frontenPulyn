@@ -1,7 +1,7 @@
 // src/pages/admin/AdminSettings.tsx
 import { useState, useEffect } from 'react';
 import {
-  Settings, Upload, Save, Shield, Database, Monitor
+  Settings, Upload, Save, Database, Monitor
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
@@ -39,11 +39,6 @@ export default function AdminSettings() {
     update_interval: '5',
   });
 
-  const [fraudSettings, setFraudSettings] = useState({
-    cooldown_default: '30',
-    repetition_limit: '3',
-  });
-
   const [backupSettings, setBackupSettings] = useState({
     backup_frequency: 'daily',
   });
@@ -72,10 +67,6 @@ export default function AdminSettings() {
         setDisplaySettings({
           theme: loadedSettings.theme || 'dark',
           update_interval: loadedSettings.update_interval || '5',
-        });
-        setFraudSettings({
-          cooldown_default: loadedSettings.cooldown_default || '30',
-          repetition_limit: loadedSettings.repetition_limit || '3',
         });
         setBackupSettings({
           backup_frequency: loadedSettings.backup_frequency || 'daily',
@@ -109,7 +100,6 @@ export default function AdminSettings() {
       const allSettings = {
         ...unitSettings,
         ...displaySettings,
-        ...fraudSettings,
         ...backupSettings,
       };
       
@@ -252,32 +242,6 @@ export default function AdminSettings() {
               </div>
             </Card>
 
-            {/* Anti-fraud */}
-            <Card>
-              <div className="flex items-center gap-2 mb-4">
-                <Shield size={20} className="text-success" />
-                <h2 className="font-display text-lg text-white">Regras Anti-fraude</h2>
-              </div>
-              <div className="space-y-4">
-                <Input
-                  label="Cooldown padrão (segundos)"
-                  type="number"
-                  value={fraudSettings.cooldown_default}
-                  onChange={e => setFraudSettings(prev => ({ ...prev, cooldown_default: e.target.value }))}
-                />
-                <Input
-                  label="Limite de repetição"
-                  type="number"
-                  value={fraudSettings.repetition_limit}
-                  onChange={e => setFraudSettings(prev => ({ ...prev, repetition_limit: e.target.value }))}
-                />
-                <p className="text-xs text-gray-500">
-                  O cooldown impede que a mesma pulseira seja lida em intervalo menor que o configurado.
-                  O limite de repetição controla quantas vezes o mesmo checkpoint pode ser lido pelo mesmo participante.
-                </p>
-              </div>
-            </Card>
-
             {/* Backup */}
             <Card>
               <div className="flex items-center gap-2 mb-4">
@@ -315,34 +279,6 @@ export default function AdminSettings() {
                   <Database size={16} className="mr-1.5" />
                   Exportar Base de Dados Local
                 </Button>
-              </div>
-            </Card>
-
-            {/* Future Integrations */}
-            <Card>
-              <h2 className="font-display text-lg text-white mb-4">Integrações Futuras</h2>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-surface/50">
-                  <div>
-                    <p className="text-sm text-white font-semibold">WhatsApp Business</p>
-                    <p className="text-xs text-gray-500">Notificações para responsáveis</p>
-                  </div>
-                  <Badge variant="muted">Em breve</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-surface/50">
-                  <div>
-                    <p className="text-sm text-white font-semibold">ERP / Faturamento</p>
-                    <p className="text-xs text-gray-500">Integração com sistema financeiro</p>
-                  </div>
-                  <Badge variant="muted">Em breve</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-surface/50">
-                  <div>
-                    <p className="text-sm text-white font-semibold">BI / Data Warehouse</p>
-                    <p className="text-xs text-gray-500">Exportação para análise avançada</p>
-                  </div>
-                  <Badge variant="muted">Em breve</Badge>
-                </div>
               </div>
             </Card>
 
