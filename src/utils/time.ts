@@ -1,6 +1,9 @@
-// Máscara, interpretação e lista de horários para o TimeInput (formato 24h, HH:MM).
+// Máscara, interpretação e ajuste de horários para o TimeInput (formato 24h, HH:MM).
 
 const pad = (n: number) => String(n).padStart(2, '0');
+
+export const HOURS = Array.from({ length: 24 }, (_, i) => pad(i));
+export const MINUTES = Array.from({ length: 60 }, (_, i) => pad(i));
 
 // Formata enquanto digita: só números, no máximo 4, com ":" depois do 2º dígito.
 export function maskTime(raw: string): string {
@@ -32,30 +35,22 @@ export function parseTime(text: string): string | null {
   return `${pad(hours)}:${pad(minutes)}`;
 }
 
-// Horários do dia de `stepMinutes` em `stepMinutes` (00:00, 00:15, ...).
-export function buildTimeOptions(stepMinutes = 15): string[] {
-  const step = Math.max(1, Math.floor(stepMinutes));
-  const options: string[] = [];
-  for (let minutes = 0; minutes < 24 * 60; minutes += step) {
-    options.push(`${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`);
-  }
-  return options;
+// 'HH:MM' -> { hour, minute } (null se não for um horário completo e válido).
+export function splitTime(time: string | null | undefined): { hour: number; minute: number } | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(time || '');
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  return hour <= 23 && minute <= 59 ? { hour, minute } : null;
 }
 
-const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+export function joinTime(hour: number, minute: number): string {
+  return `${pad(hour)}:${pad(minute)}`;
+}
 
-// Índice do horário da lista mais perto de `time` (o primeiro à frente em caso de empate).
-export function nearestOptionIndex(options: string[], time: string | null): number {
-  if (!time || options.length === 0) return -1;
-  const target = toMinutes(time);
-  let best = 0;
-  let bestDistance = Infinity;
-  options.forEach((option, index) => {
-    const distance = Math.abs(toMinutes(option) - target);
-    if (distance < bestDistance) {
-      best = index;
-      bestDistance = distance;
-    }
-  });
-  return best;
+// Soma (ou subtrai) minutos a um horário, sem passar de 00:00 nem de 23:59.
+export function shiftTime(time: string | null | undefined, deltaMinutes: number, fallback = '12:00'): string {
+  const base = splitTime(time) ?? splitTime(fallback) ?? { hour: 12, minute: 0 };
+  const total = Math.min(24 * 60 - 1, Math.max(0, base.hour * 60 + base.minute + deltaMinutes));
+  return joinTime(Math.floor(total / 60), total % 60);
 }
