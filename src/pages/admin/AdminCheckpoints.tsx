@@ -16,6 +16,9 @@ import StatusDot from '../../components/ui/StatusDot';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
 
+// Valor do seletor para listar os checkpoints de todos os eventos
+const ALL_EVENTS = 'all';
+
 export default function AdminCheckpoints() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -72,7 +75,9 @@ export default function AdminCheckpoints() {
         if (activeEvent) {
           setSelectedEventId(activeEvent.id);
         } else if (eventosData && eventosData.length > 0) {
-          setSelectedEventId(eventosData[0].id);
+          // Sem evento ativo, mostra os checkpoints de todos os eventos: o primeiro da
+          // lista costuma ser o evento mais novo, que ainda pode não ter nenhum.
+          setSelectedEventId(ALL_EVENTS);
         }
       } catch (err) {
         console.error('❌ Erro ao carregar eventos:', err);
@@ -83,8 +88,9 @@ export default function AdminCheckpoints() {
     loadEvents();
   }, []);
 
-  // Carregar checkpoints da API quando evento muda
+  // Carregar checkpoints da API quando evento muda (ou de todos os eventos)
   useEffect(() => {
+    let disposed = false;
     const loadData = async () => {
       if (!selectedEventId) {
         setLoading(false);
@@ -94,19 +100,39 @@ export default function AdminCheckpoints() {
 
       setLoading(true);
       try {
-        const data = await api.getCheckpoints(selectedEventId);
+        let data: any[];
+        if (selectedEventId === ALL_EVENTS) {
+          // Cada checkpoint leva o evento a que pertence (para a coluna Evento e para editar/excluir)
+          const lists = await Promise.all(events.map((event) =>
+            api.getCheckpoints(event.id)
+              .then((list: any[]) => (list || []).map((cp) => ({
+                ...cp,
+                evento_id: cp.evento_id ?? event.id,
+                evento_name: event.name || `Evento ${event.id}`,
+              })))
+              .catch(() => [])
+          ));
+          data = lists.flat();
+        } else {
+          data = await api.getCheckpoints(selectedEventId);
+        }
+        if (disposed) return;
         console.log('📍 Checkpoints carregados:', data);
         setCheckpointsList(data || []);
       } catch (err) {
+        if (disposed) return;
         console.error('❌ Erro ao carregar checkpoints:', err);
         setCheckpointsList([]);
       } finally {
-        setLoading(false);
+        if (!disposed) setLoading(false);
       }
     };
 
     loadData();
-  }, [selectedEventId]);
+    return () => { disposed = true; };
+  }, [selectedEventId, events]);
+
+  const isAllEvents = selectedEventId === ALL_EVENTS;
 
   const handleOpenModal = (checkpoint?: any) => {
     if (checkpoint) {
@@ -184,7 +210,9 @@ export default function AdminCheckpoints() {
       alert('O nome do checkpoint é obrigatório');
       return;
     }
-    if (!selectedEventId) {
+    // Editando, vale o evento do próprio checkpoint (em "todos os eventos" não há um evento selecionado).
+    const targetEventId = editingCheckpoint?.evento_id || selectedEventId;
+    if (!targetEventId || targetEventId === ALL_EVENTS) {
       alert('Selecione um evento primeiro');
       return;
     }
@@ -207,13 +235,13 @@ export default function AdminCheckpoints() {
       
       if (editingCheckpoint) {
         // Atualizar checkpoint existente
-        await api.saveCheckpointConfig(formData.id, config, selectedEventId);
+        await api.saveCheckpointConfig(formData.id, config, targetEventId);
         setCheckpointsList(prev => 
           prev.map(cp => cp.id === formData.id ? { ...cp, ...config } : cp)
         );
       } else {
         // Criar novo checkpoint
-        await api.createCheckpoint(selectedEventId, config);
+        await api.createCheckpoint(targetEventId, config);
         setCheckpointsList(prev => [...prev, {
           id: formData.id,
           name: formData.name,
@@ -223,7 +251,7 @@ export default function AdminCheckpoints() {
           points: formData.points,
           authorizedTags: formData.authorizedTags,
           status: 'configured',
-          evento_id: selectedEventId,
+          evento_id: targetEventId,
         }]);
       }
       
@@ -239,15 +267,17 @@ export default function AdminCheckpoints() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!selectedEventId) {
+  const handleDelete = async (checkpoint: any) => {
+    const id = checkpoint.id;
+    const eventId = checkpoint.evento_id || selectedEventId;
+    if (!eventId || eventId === ALL_EVENTS) {
       alert('Selecione um evento primeiro');
       return;
     }
     
     if (confirm(`Tem certeza que deseja excluir o checkpoint ${id}?`)) {
       try {
-        await api.deleteCheckpoint(selectedEventId, id);
+        await api.deleteCheckpoint(eventId, id);
         setCheckpointsList(prev => prev.filter(cp => cp.id !== id));
         alert('Checkpoint excluído com sucesso!');
       } catch (error: any) {
@@ -284,7 +314,12 @@ export default function AdminCheckpoints() {
             description="Gerencie os pontos de leitura do sistema"
             icon={<MapPin size={28} />}
             action={
-              <Button variant="primary" onClick={() => handleOpenModal()}>
+              <Button
+                variant="primary"
+                onClick={() => handleOpenModal()}
+                disabled={isAllEvents || !selectedEventId}
+                title={isAllEvents ? 'Escolha um evento para cadastrar um checkpoint' : undefined}
+              >
                 <Plus size={16} className="mr-1.5" />
                 Cadastrar Checkpoint
               </Button>
@@ -298,19 +333,24 @@ export default function AdminCheckpoints() {
               <select
                 value={selectedEventId || ''}
                 onChange={(e) => setSelectedEventId(e.target.value)}
-                className="px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white font-body text-sm cursor-pointer"
+                className="min-w-[14rem] px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white font-body text-sm cursor-pointer"
               >
-                <option value="" style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>-- Selecione um evento --</option>
                 {events && events.length > 0 ? (
-                  events.map(event => (
-                    <option key={event.id} value={event.id} style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>
-                      {event.name || `Evento ${event.id}`}
-                    </option>
-                  ))
+                  <>
+                    <option value={ALL_EVENTS} style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>Todos os eventos</option>
+                    {events.map(event => (
+                      <option key={event.id} value={event.id} style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>
+                        {event.name || `Evento ${event.id}`}
+                      </option>
+                    ))}
+                  </>
                 ) : (
                   <option value="" disabled style={{ backgroundColor: '#1a1a2e', color: '#999' }}>Nenhum evento disponível</option>
                 )}
               </select>
+              {isAllEvents && (
+                <span className="text-xs text-gray-500">Para cadastrar um checkpoint, escolha um evento.</span>
+              )}
               {selectedEventId && checkpointsList.length > 0 && (
                 <span className="text-xs text-gray-400 ml-auto">
                   ✓ {checkpointsList.length} checkpoint(s)
@@ -326,6 +366,9 @@ export default function AdminCheckpoints() {
                   <tr className="border-b border-border">
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">ID</th>
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">Nome</th>
+                    {isAllEvents && (
+                      <th className="pb-3 text-sm font-body font-semibold text-gray-400">Evento</th>
+                    )}
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">Tipo</th>
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">Zona</th>
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">Status</th>
@@ -337,13 +380,18 @@ export default function AdminCheckpoints() {
                 <tbody className="divide-y divide-border">
                   {checkpointsList.length > 0 ? (
                     checkpointsList.map(cp => (
-                      <tr key={cp.id} className="hover:bg-surface/50 transition-colors">
+                      <tr key={`${cp.evento_id || ''}-${cp.id}`} className="hover:bg-surface/50 transition-colors">
                         <td className="py-3 pr-4">
                           <p className="text-sm font-mono text-gray-300">{cp.id}</p>
                         </td>
                         <td className="py-3 pr-4">
                           <p className="text-sm font-semibold text-white">{cp.name}</p>
                         </td>
+                        {isAllEvents && (
+                          <td className="py-3 pr-4">
+                            <p className="text-sm text-gray-300">{cp.evento_name || '-'}</p>
+                          </td>
+                        )}
                         <td className="py-3 pr-4">
                           <Badge variant="secondary">{cp.type}</Badge>
                         </td>
@@ -386,7 +434,7 @@ export default function AdminCheckpoints() {
                               <Edit size={16} />
                             </button>
                             <button
-                              onClick={() => handleDelete(cp.id)}
+                              onClick={() => handleDelete(cp)}
                               className="p-1.5 rounded-lg text-gray-400 hover:text-danger hover:bg-surface transition-colors"
                               title="Excluir"
                             >
@@ -410,8 +458,10 @@ export default function AdminCheckpoints() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-gray-500">
-                        Nenhum checkpoint cadastrado. Clique em "Cadastrar Checkpoint" para começar.
+                      <td colSpan={isAllEvents ? 9 : 8} className="py-8 text-center text-gray-500">
+                        {isAllEvents
+                          ? 'Nenhum checkpoint cadastrado em nenhum evento.'
+                          : 'Nenhum checkpoint cadastrado. Clique em "Cadastrar Checkpoint" para começar.'}
                       </td>
                     </tr>
                   )}

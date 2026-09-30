@@ -221,3 +221,41 @@
 }
 
 @tailwind utilities;
+
+
+/* ==================== Seletores (<select>) ====================
+   Todos os dropdowns do sistema têm uma seta à direita, para ficar claro que
+   abrem uma lista. Vale para o componente Select e para <select> soltos nas
+   telas. Fica depois dos utilitários do Tailwind de propósito (e com !important
+   no espaço da seta) para não ser desfeito por classes como px-3 / appearance-none. */
+select:not([multiple]):not([size]) {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem 1rem;
+  padding-right: 2.25rem !important;
+  text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5l5 5 5-5' stroke='%239CA3AF' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+select:not([multiple]):not([size]):hover:not(:disabled) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5l5 5 5-5' stroke='%23FFFFFF' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+select:not([multiple]):not([size]):focus {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5l5 5 5-5' stroke='%231E9BD7' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Lista aberta no tema escuro (navegadores que respeitam o estilo das opções) */
+select option {
+  background-color: #132338;
+  color: #FFFFFF;
+}
