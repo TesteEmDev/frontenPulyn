@@ -160,6 +160,16 @@ const pickLabeledGroups = (groups: CityGroup[], k: number, focusKey: string | nu
   return shown;
 };
 
+// Zoom/movimento manual: a largura da câmera fica entre o zoom máximo e o Brasil inteiro, e o
+// centro não sai do mapa.
+const MIN_MANUAL_VIEW_W = 6;
+type MapView = { x: number; y: number; w: number; h: number };
+const clampView = (v: MapView): MapView => {
+  const cx = Math.min(Math.max(v.x + v.w / 2, 0), FULL_VIEW.w);
+  const cy = Math.min(Math.max(v.y + v.h / 2, 0), FULL_VIEW.h);
+  return { x: cx - v.w / 2, y: cy - v.h / 2, w: v.w, h: v.h };
+};
+
 const viewForPoint = (x: number, y: number, w: number) => {
   const h = w / MAP_ASPECT;
   return { x: x - w / 2, y: y - h / 2, w, h };
@@ -188,6 +198,12 @@ function BrazilMap({
   const [hoveredUf, setHoveredUf] = useState<string | null>(null);
   const [view, setView] = useState(FULL_VIEW);
   const viewRef = useRef(FULL_VIEW);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const frameRef = useRef(0);
+  // manual = o usuário mexeu na câmera (Ctrl + roda / arrastar); mostra "Recentralizar".
+  const [manual, setManual] = useState(false);
+  const [panning, setPanning] = useState(false);
+  const panRef = useRef<{ clientX: number; clientY: number; view: MapView; scale: number } | null>(null);
 
   // Posições dos municípios (arquivo grande, carregado sob demanda). null = carregando;
   // se falhar, {} faz todas as cidades caírem no posicionamento aproximado por estado.
@@ -268,12 +284,11 @@ function BrazilMap({
   const targetKey = `${target.x.toFixed(2)},${target.y.toFixed(2)},${target.w.toFixed(2)}`;
 
   // Anima a câmera (viewBox) até o alvo: Brasil, estado ou cidade.
-  useEffect(() => {
+  const animateTo = (to: MapView) => {
+    cancelAnimationFrame(frameRef.current);
     const from = viewRef.current;
-    const to = target;
     const duration = 450;
     let start: number | null = null;
-    let frame = 0;
     const tick = (now: number) => {
       if (start === null) start = now;
       const t = Math.min((now - start) / duration, 1);
@@ -286,12 +301,105 @@ function BrazilMap({
       };
       viewRef.current = next;
       setView(next);
-      if (t < 1) frame = requestAnimationFrame(tick);
+      if (t < 1) frameRef.current = requestAnimationFrame(tick);
     };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
+    frameRef.current = requestAnimationFrame(tick);
+  };
+
+  // Ao trocar o foco (clique em estado/cidade/voltar), a câmera volta ao enquadramento automático.
+  useEffect(() => {
+    setManual(false);
+    animateTo(target);
+    return () => cancelAnimationFrame(frameRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetKey]);
+
+  const applyManualView = (next: MapView) => {
+    cancelAnimationFrame(frameRef.current);
+    const clamped = clampView(next);
+    viewRef.current = clamped;
+    setView(clamped);
+    setManual(true);
+  };
+
+  // Converte a posição do mouse (tela) para coordenadas do mapa. O SVG é centralizado e
+  // mantém a proporção, então pode haver margem nas laterais ou em cima/embaixo.
+  const screenToMap = (clientX: number, clientY: number, current: MapView) => {
+    const rect = svgRef.current!.getBoundingClientRect();
+    const scale = Math.min(rect.width / current.w, rect.height / current.h);
+    const offX = (rect.width - current.w * scale) / 2;
+    const offY = (rect.height - current.h * scale) / 2;
+    return {
+      x: current.x + (clientX - rect.left - offX) / scale,
+      y: current.y + (clientY - rect.top - offY) / scale,
+      scale,
+    };
+  };
+
+  // Ctrl + roda do mouse (ou o gesto de pinça do touchpad) dá zoom em volta do cursor. Sem Ctrl a
+  // página rola normalmente. O listener é nativo porque o do React é passivo e não deixa
+  // cancelar o zoom da própria página.
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return undefined;
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      const current = viewRef.current;
+      const { x: mx, y: my } = screenToMap(event.clientX, event.clientY, current);
+      const delta = event.deltaMode === 1 ? event.deltaY * 33 : event.deltaY;
+      const w = Math.min(Math.max(current.w * Math.exp(delta * 0.0015), MIN_MANUAL_VIEW_W), FULL_VIEW.w);
+      const ratio = w / current.w;
+      applyManualView({
+        x: mx - (mx - current.x) * ratio,
+        y: my - (my - current.y) * ratio,
+        w,
+        h: current.h * ratio,
+      });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Clicar na roda (botão do meio) e arrastar move o mapa.
+  const onPanStart = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (event.button !== 1) return;
+    event.preventDefault();
+    cancelAnimationFrame(frameRef.current);
+    const current = viewRef.current;
+    panRef.current = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      view: current,
+      scale: screenToMap(event.clientX, event.clientY, current).scale,
+    };
+    try {
+      // Mantém o arrasto mesmo se o mouse sair do mapa.
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // sem captura o arrasto continua funcionando enquanto o mouse estiver sobre o mapa
+    }
+    setPanning(true);
+  };
+  const onPanMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    const pan = panRef.current;
+    if (!pan) return;
+    applyManualView({
+      ...pan.view,
+      x: pan.view.x - (event.clientX - pan.clientX) / pan.scale,
+      y: pan.view.y - (event.clientY - pan.clientY) / pan.scale,
+    });
+  };
+  const onPanEnd = () => {
+    panRef.current = null;
+    setPanning(false);
+  };
+
+  const recenter = () => {
+    setManual(false);
+    animateTo(target);
+  };
 
   // Com o zoom, pontos e textos encolhem na mesma proporção para não ficarem gigantes.
   const k = view.w / FULL_VIEW.w;
@@ -349,23 +457,41 @@ function BrazilMap({
             'Clique em um estado ou cliente para dar zoom'
           )}
         </p>
-        {focusShape && (
-          <button
-            type="button"
-            onClick={goUp}
-            className="shrink-0 text-xs px-3 py-1 rounded-md border border-primary/40 text-primary hover:bg-primary/10 transition-colors"
-          >
-            {focusGroup ? `Voltar para ${focusShape.name}` : 'Ver Brasil inteiro'}
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {manual && (
+            <button
+              type="button"
+              onClick={recenter}
+              className="text-xs px-3 py-1 rounded-md border border-white/20 text-gray-300 hover:bg-white/10 transition-colors"
+            >
+              Recentralizar
+            </button>
+          )}
+          {focusShape && (
+            <button
+              type="button"
+              onClick={goUp}
+              className="text-xs px-3 py-1 rounded-md border border-primary/40 text-primary hover:bg-primary/10 transition-colors"
+            >
+              {focusGroup ? `Voltar para ${focusShape.name}` : 'Ver Brasil inteiro'}
+            </button>
+          )}
+        </div>
       </div>
 
       <svg
+        ref={svgRef}
         viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
         className="w-full h-auto max-h-[440px] mx-auto"
+        style={panning ? { cursor: 'grabbing' } : undefined}
         role="group"
         aria-label="Mapa do Brasil com a localização dos clientes"
         onClick={goUp}
+        onPointerDown={onPanStart}
+        onPointerMove={onPanMove}
+        onPointerUp={onPanEnd}
+        onPointerCancel={onPanEnd}
+        onMouseDown={(event) => { if (event.button === 1) event.preventDefault(); }}
       >
         {BRAZIL_STATES.map((state) => {
           const hasClients = statesWithClients.has(state.uf);
@@ -542,6 +668,9 @@ function BrazilMap({
           );
         })}
       </svg>
+      <p className="mt-1 text-center text-[11px] text-gray-500">
+        Ctrl + roda do mouse: zoom · Clique na roda e arraste: mover o mapa
+      </p>
 
       {focusShape && (
         <div className="mt-3 border-t border-white/10 pt-3">
