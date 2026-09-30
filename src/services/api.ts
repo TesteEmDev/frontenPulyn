@@ -191,6 +191,16 @@ export const api = {
     return res.json();
   },
 
+  // Detalhes completos de um cliente (somente master): cadastro, plano e uso, usuários, eventos e suporte
+  async getClienteDetalhes(id: string) {
+    const res = await fetch(`${API_URL}/clientes/${encodeURIComponent(id)}/detalhes`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar detalhes do cliente (${res.status})`);
+    return data;
+  },
+
   async createCliente(data: any) {
     try {
       const res = await fetch(`${API_URL}/clientes`, {
