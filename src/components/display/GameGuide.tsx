@@ -56,10 +56,13 @@ function GameTitleRow({ game, isNext }: { game: GuideGame; isNext: boolean }) {
 export default function GameGuide({
   games,
   highlightName,
+  compact = false,
 }: {
   games: GuideGame[];
   // Jogo já escolhido pelo Game Master e ainda não iniciado: abre nele e recebe a etiqueta "Próximo jogo"
   highlightName?: string | null;
+  // Metade da tela (dividindo com o placar): uma coluna só, em vez do painel dividido ao meio
+  compact?: boolean;
 }) {
   const [index, setIndex] = useState(() => {
     const found = highlightName ? games.findIndex((g) => g.name === highlightName) : -1;
@@ -100,7 +103,7 @@ export default function GameGuide({
             </div>
             <div>
               <h2 className="font-display text-[clamp(1.1rem,2.6vh,1.8rem)] font-bold text-white">Guia dos jogos</h2>
-              <p className="text-[clamp(0.65rem,1.4vh,0.9rem)] text-gray-500">Jogo {(index % count) + 1} de {count} · conheça as regras enquanto o próximo jogo não começa</p>
+              <p className="text-[clamp(0.65rem,1.4vh,0.9rem)] text-gray-500">Jogo {(index % count) + 1} de {count}{compact ? '' : ' · conheça as regras enquanto o próximo jogo não começa'}</p>
             </div>
           </div>
           {count > 1 && (
@@ -115,30 +118,22 @@ export default function GameGuide({
           )}
         </div>
 
-        {/* Painel dividido ao meio: o jogo (nome, tipo, descrição) à esquerda e as regras à direita */}
-        <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:gap-0" aria-live="polite">
-          <div className={`min-h-[200px] min-w-0 lg:min-h-0 ${rules.length > 0 ? 'lg:w-1/2 lg:pr-8' : 'lg:w-full'}`}>
-            <FitToBox align="center" minScale={0.45} maxScale={1.2}>
+        {compact ? (
+          // Metade da tela: tudo numa coluna, reduzido o necessário para caber
+          <div className="min-h-0 flex-1" aria-live="polite">
+            <FitToBox minScale={0.4} maxScale={1}>
               <div key={current.id} className="animate-in fade-in duration-500">
                 <GameTitleRow game={current} isNext={isNext} />
                 {current.description ? (
-                  <p className="mt-4 leading-snug text-gray-200 text-[clamp(0.95rem,2.2vh,1.7rem)]">{current.description}</p>
+                  <p className="mt-3 leading-snug text-gray-200 text-[clamp(0.9rem,2vh,1.5rem)]">{current.description}</p>
                 ) : null}
-              </div>
-            </FitToBox>
-          </div>
-
-          {rules.length > 0 && (
-            <>
-              <div className="hidden w-px shrink-0 bg-gradient-to-b from-transparent via-white/15 to-transparent lg:block" aria-hidden="true" />
-              <div className="min-h-[240px] min-w-0 lg:min-h-0 lg:w-1/2 lg:pl-8">
-                <FitToBox align="center" minScale={0.45} maxScale={1.2}>
-                  <div key={current.id} className="animate-in fade-in duration-500">
-                    <p className="mb-3 text-[clamp(0.65rem,1.4vh,0.9rem)] font-bold uppercase tracking-[0.25em] text-primary-300">Regras</p>
+                {rules.length > 0 && (
+                  <div className="mt-4">
+                    <p className="mb-2 text-[clamp(0.65rem,1.4vh,0.9rem)] font-bold uppercase tracking-[0.25em] text-primary-300">Regras</p>
                     {rules.length === 1 ? (
                       <p className={`leading-snug text-white ${ruleText}`}>{rules[0]}</p>
                     ) : (
-                      <ol className="space-y-3">
+                      <ol className="space-y-2">
                         {rules.map((rule, position) => (
                           <li key={`${position}-${rule}`} className={`flex gap-3 leading-snug text-white ${ruleText}`}>
                             <span className="mt-0.5 flex h-[1.6em] w-[1.6em] shrink-0 items-center justify-center rounded-full bg-primary-500/20 text-[0.8em] font-bold text-primary-300">
@@ -150,11 +145,54 @@ export default function GameGuide({
                       </ol>
                     )}
                   </div>
-                </FitToBox>
+                )}
               </div>
-            </>
-          )}
-        </div>
+            </FitToBox>
+          </div>
+        ) : (
+          <>
+          {/* Painel dividido ao meio: o jogo (nome, tipo, descrição) à esquerda e as regras à direita */}
+          <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:gap-0" aria-live="polite">
+            <div className={`min-h-[200px] min-w-0 lg:min-h-0 ${rules.length > 0 ? 'lg:w-1/2 lg:pr-8' : 'lg:w-full'}`}>
+              <FitToBox align="center" minScale={0.45} maxScale={1.2}>
+                <div key={current.id} className="animate-in fade-in duration-500">
+                  <GameTitleRow game={current} isNext={isNext} />
+                  {current.description ? (
+                    <p className="mt-4 leading-snug text-gray-200 text-[clamp(0.95rem,2.2vh,1.7rem)]">{current.description}</p>
+                  ) : null}
+                </div>
+              </FitToBox>
+            </div>
+  
+            {rules.length > 0 && (
+              <>
+                <div className="hidden w-px shrink-0 bg-gradient-to-b from-transparent via-white/15 to-transparent lg:block" aria-hidden="true" />
+                <div className="min-h-[240px] min-w-0 lg:min-h-0 lg:w-1/2 lg:pl-8">
+                  <FitToBox align="center" minScale={0.45} maxScale={1.2}>
+                    <div key={current.id} className="animate-in fade-in duration-500">
+                      <p className="mb-3 text-[clamp(0.65rem,1.4vh,0.9rem)] font-bold uppercase tracking-[0.25em] text-primary-300">Regras</p>
+                      {rules.length === 1 ? (
+                        <p className={`leading-snug text-white ${ruleText}`}>{rules[0]}</p>
+                      ) : (
+                        <ol className="space-y-3">
+                          {rules.map((rule, position) => (
+                            <li key={`${position}-${rule}`} className={`flex gap-3 leading-snug text-white ${ruleText}`}>
+                              <span className="mt-0.5 flex h-[1.6em] w-[1.6em] shrink-0 items-center justify-center rounded-full bg-primary-500/20 text-[0.8em] font-bold text-primary-300">
+                                {position + 1}
+                              </span>
+                              <span>{rule}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </div>
+                  </FitToBox>
+                </div>
+              </>
+            )}
+          </div>
+          </>
+        )}
       </Card>
     </section>
   );

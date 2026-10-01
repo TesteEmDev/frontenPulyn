@@ -102,8 +102,10 @@ export default function DisplayMain() {
   const { index: rankingView, text: rankingTitleText } = useTypewriterCycle(
     rankingTitles,
     [topTeams.length > 0, topParticipants.length > 0],
-    // Só anima com o ranking na tela (ele só aparece quando não há jogos cadastrados para o guia)
-    { active: gameStateLoaded && guideGames.length === 0 },
+    // Só anima com o placar na tela (ele só aparece quando existe alguma leitura)
+    { active: gameStateLoaded && (scoreLog.length > 0
+      || children.some((child) => Number(child.scores || 0) > 0)
+      || teams.some((team) => Number(team.points ?? team.score ?? 0) > 0)) },
   );
   const recentActivities = useMemo(() => scoreLog
     .map((entry: any) => ({
@@ -692,6 +694,10 @@ export default function DisplayMain() {
   // Com um jogo rodando (e palco para mostrar) a tela tem só o mapa, ou a arena do jogo quando ele não
   // tem mapa: sem cabeçalho, rankings, regras, atividades nem rodapé.
   const gameOnlyView = gameActive && hasStage;
+  // O placar só aparece quando existe alguma leitura (ou pontuação já gravada) no evento
+  const hasReadings = scoreLog.length > 0
+    || children.some((child) => Number(child.scores || 0) > 0)
+    || teams.some((team) => Number(team.points ?? team.score ?? 0) > 0);
 
   const stageContent = (
             mapOnly ? (
@@ -865,112 +871,9 @@ export default function DisplayMain() {
     </>
   );
 
-  const headerBar = (
-      <header className="relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 overflow-hidden rounded-2xl border border-white/10 bg-dark-card/75 px-4 py-2 shadow-[0_12px_36px_rgba(2,10,24,0.2)] backdrop-blur-xl lg:h-[8vh] lg:min-h-[52px] lg:flex-nowrap">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-300/70 to-transparent" />
-        <div className="flex min-w-0 items-center gap-3">
-          <button
-            onClick={() => window.history.back()}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-dark-card/80 px-3 py-1.5 text-sm font-semibold text-gray-300 transition-colors duration-200 hover:border-primary-400/40 hover:bg-dark-surface hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
-            title="Voltar (ESC)"
-          >
-            <ArrowLeft size={16} />
-            <span className="hidden sm:inline">Sair</span>
-          </button>
-          <div className="flex h-[clamp(2rem,4.6vh,3rem)] w-[clamp(2rem,4.6vh,3rem)] shrink-0 items-center justify-center rounded-xl border border-primary-300/20 bg-primary-500/10 text-xl">⚡</div>
-          <h1 className="truncate font-display text-[clamp(1.4rem,4vh,3rem)] font-bold leading-none tracking-tight text-white">Pulyn Arena</h1>
-          <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1" aria-live="polite">
-            <div className={`h-2.5 w-2.5 rounded-full ${
-              connectionStatus === 'connected'
-                ? 'bg-success animate-pulse'
-                : connectionStatus === 'reconnecting' || connectionStatus === 'connecting'
-                  ? 'bg-warning animate-pulse'
-                  : 'bg-danger'
-            }`} />
-            <span className="text-xs font-semibold text-gray-300">
-              {connectionStatus === 'connected'
-                ? 'Ao vivo'
-                : connectionStatus === 'reconnecting'
-                  ? 'Reconectando'
-                  : connectionStatus === 'connecting'
-                    ? 'Conectando'
-                    : 'Desconectado'}
-            </span>
-            {lastMessageAt && connectionStatus === 'connected' && (
-              <span className="hidden text-[11px] text-gray-500 xl:inline">
-                · {lastMessageAt.toLocaleTimeString('pt-BR')}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex min-w-0 items-center gap-2.5">
-          <p className="truncate text-[clamp(0.9rem,2.3vh,1.5rem)] font-semibold text-gray-200">
-            {events.find(e => e.id === selectedEventId)?.name || 'Evento selecionado'}
-          </p>
-          <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-secondary-400/20 bg-secondary-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-secondary-300 md:inline-flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-secondary-400" /> Recepção no controle
-          </span>
-        </div>
-      </header>
-  );
-
-  if (gameOnlyView) {
-    // Mensagem do recreacionista: aparece por cima do jogo só por um tempo e some sozinha
-    const latestMessage = displayMessages[0];
-    const showMessageOverGame = Boolean(latestMessage) && messageArrivedAt > 0 && currentTime.getTime() - messageArrivedAt < 20000;
-    return (
-      <div className="relative flex h-screen flex-col overflow-hidden bg-[#08111f] p-2 text-white">
-        {conquestOverlay}
-        {headerBar}
-        {showMessageOverGame && (
-          <div className="absolute inset-x-6 top-[max(5.5rem,11vh)] z-30 flex items-center gap-3 rounded-2xl border border-accent/50 bg-black/70 px-5 py-3 shadow-2xl backdrop-blur animate-in fade-in slide-in-from-top-2" role="status" aria-label="Mensagem do recreacionista">
-            <Zap size={26} className="shrink-0 text-accent" />
-            <p className="line-clamp-2 font-display text-[clamp(1.2rem,3.4vh,2.4rem)] font-bold leading-tight text-white">{latestMessage.text}</p>
-          </div>
-        )}
-        <div className="mt-2 min-h-0 flex-1">{stageContent}</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#08111f] px-3 py-3 text-white lg:h-screen lg:px-5 lg:py-4">
-      <div className="pointer-events-none absolute -left-48 top-24 h-[32rem] w-[32rem] rounded-full bg-primary/10 blur-3xl" />
-      <div className="pointer-events-none absolute -right-56 bottom-0 h-[34rem] w-[34rem] rounded-full bg-secondary/10 blur-3xl" />
-
-      {conquestOverlay}
-
-      {headerBar}
-
-      <main className="relative z-10 mt-3 flex min-h-0 flex-1 flex-col gap-3">
-        {/* Mensagem do recreacionista */}
-        {displayMessages.length > 0 && (
-          <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-2" role="status" aria-label="Mensagem do recreacionista">
-            <Zap size={22} className="shrink-0 text-accent" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[clamp(0.6rem,1.3vh,0.8rem)] font-bold uppercase tracking-[0.25em] text-accent">Mensagem do recreacionista</p>
-              <p className="line-clamp-2 font-display text-[clamp(1.1rem,3vh,2.2rem)] font-bold leading-tight text-white">{displayMessages[0].text}</p>
-            </div>
-            <p className="shrink-0 text-xs text-gray-400">{displayMessages[0].timestamp ? new Date(displayMessages[0].timestamp).toLocaleTimeString('pt-BR') : ''}</p>
-          </div>
-        )}
-
-        {/* Sem jogo rodando: o guia de regras ocupa o espaço todo (com um jogo rodando, só o mapa aparece) */}
-        {!gameStateLoaded ? (
-          <div className="flex-1" />
-        ) : guideGames.length > 0 ? (
-          <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
-            <GameGuide games={guideGames} highlightName={selectedGameName} />
-          </section>
-        ) : null}
-
-        {/* Alternativa quando não há jogos cadastrados para o guia: ranking e atividades recentes */}
-        {gameStateLoaded && guideGames.length === 0 && (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[5fr_5fr_4fr]">
-          <>
-              {/* Ranking único (alterna entre times e participantes) */}
-              <div className="h-[340px] min-h-0 lg:col-span-2 lg:h-full">
-                {isIndividualMode && zoneConquestStatus ? (
+  // Placar: um painel só, que alterna entre times e participantes (título escrito e apagado letra a letra)
+  const rankingPanel = (
+                isIndividualMode && zoneConquestStatus ? (
                   <Card variant="glow" className="h-full overflow-hidden p-3 sm:p-4">
                     <FitToBox minScale={0.4}>
                       <ZoneConquestIndividualRanking participants={zoneConquestStatus.participants || []} />
@@ -1071,9 +974,125 @@ export default function DisplayMain() {
                       </FitToBox>
                     </div>
                   </Card>
-                )}
+                )
+  );
+
+  const headerBar = (
+      <header className="relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 overflow-hidden rounded-2xl border border-white/10 bg-dark-card/75 px-4 py-2 shadow-[0_12px_36px_rgba(2,10,24,0.2)] backdrop-blur-xl lg:h-[8vh] lg:min-h-[52px] lg:flex-nowrap">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-300/70 to-transparent" />
+        <div className="flex min-w-0 items-center gap-3">
+          <button
+            onClick={() => window.history.back()}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-dark-card/80 px-3 py-1.5 text-sm font-semibold text-gray-300 transition-colors duration-200 hover:border-primary-400/40 hover:bg-dark-surface hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
+            title="Voltar (ESC)"
+          >
+            <ArrowLeft size={16} />
+            <span className="hidden sm:inline">Sair</span>
+          </button>
+          <div className="flex h-[clamp(2rem,4.6vh,3rem)] w-[clamp(2rem,4.6vh,3rem)] shrink-0 items-center justify-center rounded-xl border border-primary-300/20 bg-primary-500/10 text-xl">⚡</div>
+          <h1 className="truncate font-display text-[clamp(1.4rem,4vh,3rem)] font-bold leading-none tracking-tight text-white">Pulyn Arena</h1>
+          <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1" aria-live="polite">
+            <div className={`h-2.5 w-2.5 rounded-full ${
+              connectionStatus === 'connected'
+                ? 'bg-success animate-pulse'
+                : connectionStatus === 'reconnecting' || connectionStatus === 'connecting'
+                  ? 'bg-warning animate-pulse'
+                  : 'bg-danger'
+            }`} />
+            <span className="text-xs font-semibold text-gray-300">
+              {connectionStatus === 'connected'
+                ? 'Ao vivo'
+                : connectionStatus === 'reconnecting'
+                  ? 'Reconectando'
+                  : connectionStatus === 'connecting'
+                    ? 'Conectando'
+                    : 'Desconectado'}
+            </span>
+            {lastMessageAt && connectionStatus === 'connected' && (
+              <span className="hidden text-[11px] text-gray-500 xl:inline">
+                · {lastMessageAt.toLocaleTimeString('pt-BR')}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <p className="truncate text-[clamp(0.9rem,2.3vh,1.5rem)] font-semibold text-gray-200">
+            {events.find(e => e.id === selectedEventId)?.name || 'Evento selecionado'}
+          </p>
+          <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-secondary-400/20 bg-secondary-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-secondary-300 md:inline-flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-secondary-400" /> Recepção no controle
+          </span>
+        </div>
+      </header>
+  );
+
+  if (gameOnlyView) {
+    // Mensagem do recreacionista: aparece por cima do jogo só por um tempo e some sozinha
+    const latestMessage = displayMessages[0];
+    const showMessageOverGame = Boolean(latestMessage) && messageArrivedAt > 0 && currentTime.getTime() - messageArrivedAt < 20000;
+    return (
+      <div className="relative flex h-screen flex-col overflow-hidden bg-[#08111f] p-2 text-white">
+        {conquestOverlay}
+        {headerBar}
+        {showMessageOverGame && (
+          <div className="absolute inset-x-6 top-[max(5.5rem,11vh)] z-30 flex items-center gap-3 rounded-2xl border border-accent/50 bg-black/70 px-5 py-3 shadow-2xl backdrop-blur animate-in fade-in slide-in-from-top-2" role="status" aria-label="Mensagem do recreacionista">
+            <Zap size={26} className="shrink-0 text-accent" />
+            <p className="line-clamp-2 font-display text-[clamp(1.2rem,3.4vh,2.4rem)] font-bold leading-tight text-white">{latestMessage.text}</p>
+          </div>
+        )}
+        <div className="mt-2 min-h-0 flex-1">{stageContent}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#08111f] px-3 py-3 text-white lg:h-screen lg:px-5 lg:py-4">
+      <div className="pointer-events-none absolute -left-48 top-24 h-[32rem] w-[32rem] rounded-full bg-primary/10 blur-3xl" />
+      <div className="pointer-events-none absolute -right-56 bottom-0 h-[34rem] w-[34rem] rounded-full bg-secondary/10 blur-3xl" />
+
+      {conquestOverlay}
+
+      {headerBar}
+
+      <main className="relative z-10 mt-3 flex min-h-0 flex-1 flex-col gap-3">
+        {/* Mensagem do recreacionista */}
+        {displayMessages.length > 0 && (
+          <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-2" role="status" aria-label="Mensagem do recreacionista">
+            <Zap size={22} className="shrink-0 text-accent" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[clamp(0.6rem,1.3vh,0.8rem)] font-bold uppercase tracking-[0.25em] text-accent">Mensagem do recreacionista</p>
+              <p className="line-clamp-2 font-display text-[clamp(1.1rem,3vh,2.2rem)] font-bold leading-tight text-white">{displayMessages[0].text}</p>
+            </div>
+            <p className="shrink-0 text-xs text-gray-400">{displayMessages[0].timestamp ? new Date(displayMessages[0].timestamp).toLocaleTimeString('pt-BR') : ''}</p>
+          </div>
+        )}
+
+        {/* Sem jogo rodando (com um jogo rodando só aparece o jogo):
+            - sem leituras: o guia de regras ocupa o espaço todo;
+            - com leituras: metade guia, metade placar. */}
+        {!gameStateLoaded ? (
+          <div className="flex-1" />
+        ) : guideGames.length > 0 ? (
+          hasReadings ? (
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
+              <section className="min-h-[360px] min-w-0 lg:min-h-0">
+                <GameGuide compact games={guideGames} highlightName={selectedGameName} />
+              </section>
+              <div className="min-h-[360px] min-w-0 lg:min-h-0">
+                {rankingPanel}
               </div>
-          </>
+            </div>
+          ) : (
+            <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
+              <GameGuide games={guideGames} highlightName={selectedGameName} />
+            </section>
+          )
+        ) : hasReadings ? (
+          // Sem jogos cadastrados para o guia: placar e atividades recentes
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[5fr_5fr_4fr]">
+            <div className="h-[340px] min-h-0 lg:col-span-2 lg:h-full">
+              {rankingPanel}
+            </div>
 
           {/* Atividades recentes */}
           <div className="h-[340px] min-h-0 lg:h-full">
@@ -1131,7 +1150,11 @@ export default function DisplayMain() {
               </div>
             </Card>
           </div>
-        </div>
+          </div>
+        ) : (
+          <div className="flex flex-1 items-center justify-center text-center text-gray-400">
+            Nenhum jogo cadastrado para este evento.
+          </div>
         )}
       </main>
 
