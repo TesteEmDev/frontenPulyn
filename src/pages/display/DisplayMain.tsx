@@ -67,9 +67,7 @@ export default function DisplayMain() {
   const [floorPlan, setFloorPlan] = useState<string | null>(null);
   // Há jogo rodando agora? (vem do estado persistido do evento e dos eventos GAME_STARTED/GAME_STOPPED)
   const [gameActive, setGameActive] = useState(false);
-  // Algum jogo já foi iniciado neste evento? Até lá o guia de regras ocupa o lugar dos rankings.
-  const [gameEverStarted, setGameEverStarted] = useState(false);
-  // Só decide entre guia e ranking depois de saber o estado do evento (evita piscar o guia ao abrir)
+  // Só decide o que mostrar depois de saber o estado do evento (evita piscar o guia ao abrir com jogo rodando)
   const [gameStateLoaded, setGameStateLoaded] = useState(false);
   // Jogos ativos do evento, para o guia que passa enquanto não há jogo rodando
   const [guideGames, setGuideGames] = useState<GuideGame[]>([]);
@@ -104,8 +102,8 @@ export default function DisplayMain() {
   const { index: rankingView, text: rankingTitleText } = useTypewriterCycle(
     rankingTitles,
     [topTeams.length > 0, topParticipants.length > 0],
-    // Só anima com o ranking na tela: enquanto o guia de regras ocupa o lugar dele, fica parado
-    { active: !(gameStateLoaded && !gameEverStarted && guideGames.length > 0) },
+    // Só anima com o ranking na tela (ele só aparece quando não há jogos cadastrados para o guia)
+    { active: gameStateLoaded && guideGames.length === 0 },
   );
   const recentActivities = useMemo(() => scoreLog
     .map((entry: any) => ({
@@ -191,7 +189,6 @@ export default function DisplayMain() {
       const { api } = await import('../../services/api');
       const state = await api.getGameState(selectedEventId);
       setGameActive(Boolean(state?.active));
-      if (state?.active) setGameEverStarted(true);
     } catch (err) {
       console.error('Erro ao consultar se há jogo ativo no telão:', err);
     }
@@ -286,7 +283,6 @@ export default function DisplayMain() {
       setTreasureStatus(null);
       setMonsterStatus(null);
       setGameActive(false);
-      setGameEverStarted(false);
       setGameStateLoaded(false);
       setGuideGames([]);
       if (!selectedEventId) {
@@ -300,8 +296,6 @@ export default function DisplayMain() {
           const gameState = await api.getGameState(selectedEventId);
           if (!disposed) {
             setGameActive(Boolean(gameState?.active));
-            // Jogo rodando agora, ou já iniciado/parado antes neste evento
-            setGameEverStarted(Boolean(gameState?.active || gameState?.startedAt || gameState?.stoppedAt));
           }
           if (!disposed && gameState?.selected) {
             setSelectedGameType(gameState.gameType || null);
@@ -411,7 +405,6 @@ export default function DisplayMain() {
 
         const gameType = event.payload?.gameType;
         setGameActive(true);
-        setGameEverStarted(true);
         setGameStateLoaded(true);
         setSelectedGameType(gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
@@ -657,8 +650,6 @@ export default function DisplayMain() {
   // Também mostrar mapa em tesouro
   const shouldShowMap = selectedGameType && (isZoneGame || selectedGameType === 'treasure_hunt');
 
-  // Até o primeiro jogo ser iniciado, o guia de regras ocupa o lugar dos rankings
-  const showGuideInsteadOfRanking = gameStateLoaded && !gameEverStarted && guideGames.length > 0;
 
   const monsterCards = monsterStatus?.monsters?.length
     ? monsterStatus.monsters
@@ -682,7 +673,7 @@ export default function DisplayMain() {
   }
 
   // Cada parte da tela cabe na altura disponível: o telão não rola. O palco (mapa/arenas) e as listas
-  // são reduzidos para caber (FitToBox) e as regras viram páginas que passam sozinhas (PagedItems).
+  // são reduzidos para caber (FitToBox), inclusive o guia de regras, que mostra todas as regras do jogo de uma vez.
   const monsterStageVisible = selectedGameType === 'monster_hunt' && monsterStatus?.gameType === 'monster_hunt';
   const treasureStageVisible = selectedGameType === 'treasure_hunt' && treasureStatus?.gameType === 'treasure_hunt'
     && Boolean(treasureStatus.active || treasureStatus.completed);
@@ -690,7 +681,6 @@ export default function DisplayMain() {
   const hasStage = monsterStageVisible || treasureStageVisible || mapStageVisible;
   // Só o mapa: ele preenche o palco (as arenas é que são reduzidas para caber)
   const mapOnly = mapStageVisible && !monsterStageVisible && !treasureStageVisible;
-  const waitingSelectedGame = Boolean(selectedGameType) && !gameActive && !monsterStatus?.active && !treasureStatus?.active;
 
   const rankingRowText = 'text-[clamp(0.9rem,2vh,1.4rem)]';
   const rankingSubText = 'text-[clamp(0.65rem,1.4vh,0.85rem)]';
@@ -967,44 +957,19 @@ export default function DisplayMain() {
           </div>
         )}
 
-        {/* Palco: mapa, arena do monstro ou do tesouro. Sem jogo em andamento, um aviso ocupa o lugar. */}
-        <section className="min-h-[360px] min-w-0 flex-1 overflow-hidden lg:min-h-0" aria-live="polite">
-          {hasStage ? (
-            stageContent
-          ) : (
-            <div className="flex h-full items-center justify-center">
-              {waitingSelectedGame ? (
-                <div className="max-w-2xl rounded-2xl border border-primary-400/25 bg-primary-500/10 px-8 py-5 text-center shadow-[0_12px_35px_rgba(30,155,215,0.08)]" aria-live="polite">
-                  <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-primary-500/15 text-lg">🎮</div>
-                  <p className="text-[clamp(0.6rem,1.4vh,0.8rem)] font-bold uppercase tracking-[0.28em] text-primary-300">Jogo selecionado</p>
-                  <p className="mt-1 font-display text-[clamp(1.5rem,4vh,2.8rem)] font-bold text-white">
-                    {selectedGameName || (selectedGameType === 'monster_hunt' ? 'Derrote o Monstro' : selectedGameType === 'treasure_hunt' ? 'Caça ao Tesouro' : 'Jogo de território')}
-                  </p>
-                  <p className="mt-1 text-[clamp(0.8rem,1.8vh,1.1rem)] text-gray-400">Aguardando o Game Master iniciar a partida</p>
-                </div>
-              ) : (
-                <div className="max-w-4xl text-center">
-                  <p className="font-display text-[clamp(1.8rem,5vh,3.4rem)] font-bold text-white">
-                    {gameEverStarted ? 'Aguardando o próximo jogo' : 'Bem-vindos à Pulyn Arena'}
-                  </p>
-                  <p className="mt-2 text-[clamp(0.9rem,2vh,1.3rem)] text-gray-400">
-                    {gameEverStarted ? 'Fique de olho: o Game Master vai escolher a próxima brincadeira.' : 'O primeiro jogo começa em breve.'}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
+        {/* Sem jogo rodando: o guia de regras ocupa o espaço todo (com um jogo rodando, só o mapa aparece) */}
+        {!gameStateLoaded ? (
+          <div className="flex-1" />
+        ) : guideGames.length > 0 ? (
+          <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
+            <GameGuide games={guideGames} highlightName={selectedGameName} />
+          </section>
+        ) : null}
 
-        {/* Faixa inferior: ranking · regras · atividades (altura fixa) */}
-        <div className="grid shrink-0 grid-cols-1 gap-3 lg:h-[38vh] lg:min-h-[250px] lg:grid-cols-[5fr_5fr_4fr]">
-          {showGuideInsteadOfRanking ? (
-            // Antes do primeiro jogo: o guia de regras no lugar dos rankings
-            <div className="h-[340px] min-h-0 lg:col-span-2 lg:h-full">
-              <GameGuide games={guideGames} highlightName={selectedGameName} />
-            </div>
-          ) : (
-            <>
+        {/* Alternativa quando não há jogos cadastrados para o guia: ranking e atividades recentes */}
+        {gameStateLoaded && guideGames.length === 0 && (
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[5fr_5fr_4fr]">
+          <>
               {/* Ranking único (alterna entre times e participantes) */}
               <div className="h-[340px] min-h-0 lg:col-span-2 lg:h-full">
                 {isIndividualMode && zoneConquestStatus ? (
@@ -1110,8 +1075,7 @@ export default function DisplayMain() {
                   </Card>
                 )}
               </div>
-            </>
-          )}
+          </>
 
           {/* Atividades recentes */}
           <div className="h-[340px] min-h-0 lg:h-full">
@@ -1170,6 +1134,7 @@ export default function DisplayMain() {
             </Card>
           </div>
         </div>
+        )}
       </main>
 
       {/* Rodapé: relógio e participantes (mini display) */}
