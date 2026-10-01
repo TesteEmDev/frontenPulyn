@@ -490,6 +490,18 @@ export default function DisplayMain() {
         setMonsterStatus(null);
         setZoneConquestStatus(null);
         setFloorPlan(null);  // Limpar planta quando jogo termina
+        // O fim do jogo pode ter pago o bônus da equipe vencedora: atualiza os pontos
+        const { loadTeams: reloadTeams, loadChildren: reloadChildren } = usePulynStore.getState();
+        reloadTeams();
+        reloadChildren();
+      } else if (event.type === 'GAME_WINNER_BONUS' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        // Caça ao Tesouro / Monstro: cada membro da equipe vencedora ganhou o bônus.
+        // Espera um instante para o banco confirmar a partida antes de reler os pontos.
+        window.setTimeout(() => {
+          const { loadTeams: reloadTeams, loadChildren: reloadChildren } = usePulynStore.getState();
+          reloadTeams();
+          reloadChildren();
+        }, 1500);
       } else if (event.type === 'ZONE_CONQUEST_INDIVIDUAL_SCAN' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         // 🎯 Log único e limpo quando checkpoint é conquistado
         const { criancaName, pointsGained, checkpointId } = event.payload;
