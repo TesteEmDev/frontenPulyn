@@ -674,7 +674,7 @@ export default function DisplayMain() {
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-primary-300/20 bg-primary-500/10 text-3xl shadow-[0_0_35px_rgba(30,155,215,0.18)]">⚡</div>
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.3em] text-primary-300">Pulyn Arena</p>
           <h1 className="font-display text-3xl font-bold text-white sm:text-4xl">Aguardando o evento</h1>
-          <p className="mt-3 text-sm leading-6 text-gray-400">A recepção precisa selecionar um evento para liberar a arena.</p>
+          <p className="mt-3 text-sm leading-6 text-gray-400">A recepção precisa escolher o evento no painel da recepção (Evento no telão) para liberar a arena.</p>
           {loading && <div className="mx-auto mt-7 h-9 w-9 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />}
         </Card>
       </div>

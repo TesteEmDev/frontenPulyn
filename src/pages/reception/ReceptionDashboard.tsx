@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
 import TopBar from '../../components/layout/TopBar';
@@ -9,7 +8,7 @@ import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Avatar from '../../components/ui/Avatar';
-import StatusDot from '../../components/ui/StatusDot';
+import ActiveEventPanel from '../../components/reception/ActiveEventPanel';
 
 const navItems = [
   {
@@ -68,41 +67,19 @@ export default function ReceptionDashboard() {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { setEventoAtual } = usePulynStore();
-  
+  // Evento que está no telão (escolhido no painel "Evento no telão"); os números abaixo são dele
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [events, setEvents] = useState<any[]>([]);
   const [children, setChildren] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [bracelets, setBracelets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Carregar eventos ao iniciar
-  useEffect(() => {
-    const loadEvents = async () => {
-      try {
-        const eventosData = await api.getEventos();
-        setEvents(eventosData || []);
-        
-        // Selecionar somente um evento em andamento; eventos antigos não são usados automaticamente.
-        const activeEvent = eventosData?.find(e => e.status === 'active' || e.status === 'ongoing');
-        if (activeEvent) {
-          setSelectedEventId(activeEvent.id);
-          setEventoAtual(activeEvent.id);
-        }
-      } catch (err) {
-        console.error('❌ Erro ao carregar eventos:', err);
-        setEvents([]);
-      }
-    };
-    
-    loadEvents();
-  }, [setEventoAtual]);
-
   // Carregar dados quando evento muda
   useEffect(() => {
     const loadData = async () => {
       if (!selectedEventId) {
+        setChildren([]);
+        setTeams([]);
         setLoading(false);
         return;
       }
@@ -150,27 +127,6 @@ export default function ReceptionDashboard() {
     { label: 'Total pulseiras', value: totalBracelets, color: 'text-gray-400' },
   ];
 
-  if (loading) {
-    return (
-      <div className="flex h-screen bg-dark">
-        <Sidebar
-          items={navItems}
-          activePath={location.pathname}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
-          title="Recepcao"
-          accentColor="#F59E0B"
-        />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-gray-400">Carregando dashboard...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-screen bg-dark">
       <Sidebar
@@ -209,50 +165,11 @@ export default function ReceptionDashboard() {
             }
           />
 
-          {/* Seletor de Evento */}
-          {events.length > 0 && (
-            <Card>
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-semibold text-gray-300 whitespace-nowrap">Evento:</label>
-                <select
-                  value={selectedEventId || ''}
-                  onChange={e => {
-                    setSelectedEventId(e.target.value);
-                    setEventoAtual(e.target.value);
-                  }}
-                  className="flex-1 px-4 py-2 rounded-lg bg-dark-surface border border-dark-border text-white focus:outline-none focus:border-primary"
-                >
-                  <option value="">Selecione um evento</option>
-                  {events.map(event => (
-                    <option key={event.id} value={event.id}>
-                      {event.name} - {new Date(event.date).toLocaleDateString('pt-BR')}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </Card>
-          )}
+          {/* Onde a recepção escolhe o evento que aparece no telão */}
+          <ActiveEventPanel onChange={setSelectedEventId} />
 
-          {/* Active Event Card */}
-          {selectedEventId && events.length > 0 && (
-            (() => {
-              const activeEvent = events.find(e => e.id === selectedEventId);
-              return activeEvent ? (
-                <Card variant="glow" className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <StatusDot status="online" size="lg" />
-                    <span className="text-sm font-body text-gray-400">Evento selecionado</span>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-display text-lg text-white">{activeEvent.name}</h3>
-                    <p className="text-sm text-gray-400 font-body">
-                      {activeEvent.date} &middot; {activeEvent.location || 'Local não definido'}
-                    </p>
-                  </div>
-                  <Badge variant="success">{activeEvent.status === 'active' ? 'Ativo' : 'Agendado'}</Badge>
-                </Card>
-              ) : null;
-            })()
+          {!selectedEventId && (
+            <p className="text-sm text-gray-500">Escolha o evento do telão acima para ver os números dele.</p>
           )}
 
           {/* KPI Cards */}
@@ -260,7 +177,7 @@ export default function ReceptionDashboard() {
             {kpis.map(kpi => (
               <Card key={kpi.label} className="text-center">
                 <p className="text-sm font-body text-gray-400 mb-1">{kpi.label}</p>
-                <p className={`font-display text-3xl font-bold ${kpi.color}`}>{kpi.value}</p>
+                <p className={`font-display text-3xl font-bold ${kpi.color}`}>{loading ? '…' : kpi.value}</p>
               </Card>
             ))}
           </div>
