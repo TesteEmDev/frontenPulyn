@@ -865,38 +865,7 @@ export default function DisplayMain() {
     </>
   );
 
-  if (gameOnlyView) {
-    // Mensagem do recreacionista: aparece por cima do mapa só por um tempo e some sozinha
-    const latestMessage = displayMessages[0];
-    const showMessageOverGame = Boolean(latestMessage) && messageArrivedAt > 0 && currentTime.getTime() - messageArrivedAt < 20000;
-    return (
-      <div className="relative h-screen overflow-hidden bg-[#08111f] p-2 text-white">
-        {conquestOverlay}
-        {connectionStatus !== 'connected' && (
-          <div className="absolute right-3 top-3 z-40 flex items-center gap-2 rounded-full border border-warning-400/40 bg-black/60 px-3 py-1.5 text-xs font-semibold text-warning-300 backdrop-blur" role="status">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-warning" />
-            {connectionStatus === 'offline' ? 'Desconectado' : 'Reconectando…'}
-          </div>
-        )}
-        {showMessageOverGame && (
-          <div className="absolute inset-x-6 top-4 z-30 flex items-center gap-3 rounded-2xl border border-accent/50 bg-black/70 px-5 py-3 shadow-2xl backdrop-blur animate-in fade-in slide-in-from-top-2" role="status" aria-label="Mensagem do recreacionista">
-            <Zap size={26} className="shrink-0 text-accent" />
-            <p className="line-clamp-2 font-display text-[clamp(1.2rem,3.4vh,2.4rem)] font-bold leading-tight text-white">{latestMessage.text}</p>
-          </div>
-        )}
-        <div className="h-full min-h-0">{stageContent}</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#08111f] px-3 py-3 text-white lg:h-screen lg:px-5 lg:py-4">
-      <div className="pointer-events-none absolute -left-48 top-24 h-[32rem] w-[32rem] rounded-full bg-primary/10 blur-3xl" />
-      <div className="pointer-events-none absolute -right-56 bottom-0 h-[34rem] w-[34rem] rounded-full bg-secondary/10 blur-3xl" />
-
-      {conquestOverlay}
-
-      {/* Cabeçalho compacto */}
+  const headerBar = (
       <header className="relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 overflow-hidden rounded-2xl border border-white/10 bg-dark-card/75 px-4 py-2 shadow-[0_12px_36px_rgba(2,10,24,0.2)] backdrop-blur-xl lg:h-[8vh] lg:min-h-[52px] lg:flex-nowrap">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-300/70 to-transparent" />
         <div className="flex min-w-0 items-center gap-3">
@@ -943,6 +912,35 @@ export default function DisplayMain() {
           </span>
         </div>
       </header>
+  );
+
+  if (gameOnlyView) {
+    // Mensagem do recreacionista: aparece por cima do jogo só por um tempo e some sozinha
+    const latestMessage = displayMessages[0];
+    const showMessageOverGame = Boolean(latestMessage) && messageArrivedAt > 0 && currentTime.getTime() - messageArrivedAt < 20000;
+    return (
+      <div className="relative flex h-screen flex-col overflow-hidden bg-[#08111f] p-2 text-white">
+        {conquestOverlay}
+        {headerBar}
+        {showMessageOverGame && (
+          <div className="absolute inset-x-6 top-[max(5.5rem,11vh)] z-30 flex items-center gap-3 rounded-2xl border border-accent/50 bg-black/70 px-5 py-3 shadow-2xl backdrop-blur animate-in fade-in slide-in-from-top-2" role="status" aria-label="Mensagem do recreacionista">
+            <Zap size={26} className="shrink-0 text-accent" />
+            <p className="line-clamp-2 font-display text-[clamp(1.2rem,3.4vh,2.4rem)] font-bold leading-tight text-white">{latestMessage.text}</p>
+          </div>
+        )}
+        <div className="mt-2 min-h-0 flex-1">{stageContent}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#08111f] px-3 py-3 text-white lg:h-screen lg:px-5 lg:py-4">
+      <div className="pointer-events-none absolute -left-48 top-24 h-[32rem] w-[32rem] rounded-full bg-primary/10 blur-3xl" />
+      <div className="pointer-events-none absolute -right-56 bottom-0 h-[34rem] w-[34rem] rounded-full bg-secondary/10 blur-3xl" />
+
+      {conquestOverlay}
+
+      {headerBar}
 
       <main className="relative z-10 mt-3 flex min-h-0 flex-1 flex-col gap-3">
         {/* Mensagem do recreacionista */}
