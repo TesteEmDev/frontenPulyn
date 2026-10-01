@@ -347,6 +347,11 @@ export default function ReceptionCheckin() {
                 ))}
               </select>
             </div>
+            {events.length === 0 && (
+              <p className="mt-3 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning" role="status">
+                Não há nenhum evento aberto. Eventos encerrados não aparecem aqui: peça ao administrador para criar ou agendar um evento em Eventos.
+              </p>
+            )}
             <p className="mt-3 text-xs text-gray-500">
               A seleção feita aqui é compartilhada com o Kiosk de cadastro, o totem de pontuação e os telões.
             </p>
