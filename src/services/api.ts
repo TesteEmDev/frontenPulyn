@@ -704,6 +704,18 @@ export const api = {
     return body;
   },
 
+  // Reabre um evento encerrado: volta a "agendado" numa nova data e horário (no futuro)
+  async reopenEvento(id: string, data: { date: string; time: string; duration?: number | null }) {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(id)}/reopen`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao reabrir evento (${res.status})`);
+    return body;
+  },
+
   async finishEvento(id: string) {
     const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(id)}/finish`, {
       method: 'POST',

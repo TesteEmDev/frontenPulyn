@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
-  Calendar, CalendarClock, Plus, Edit, Trash2, Play, Square, User
+  Calendar, CalendarClock, Plus, Edit, Trash2, Play, Square, User, MoreHorizontal, RotateCcw
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useEvento } from '../../contexts/EventoContext';
@@ -118,6 +118,10 @@ export default function AdminEvents() {
   const [rescheduleForm, setRescheduleForm] = useState({ date: '', time: '', duration: '' });
   const [rescheduleError, setRescheduleError] = useState('');
   const [rescheduleSaving, setRescheduleSaving] = useState(false);
+  // O mesmo formulário serve para reagendar (evento agendado) e reabrir (evento encerrado)
+  const [rescheduleMode, setRescheduleMode] = useState<'reschedule' | 'reopen'>('reschedule');
+  // Menu "Mais opções" aberto: posição na tela (fixa, para não ser cortada pela tabela)
+  const [menu, setMenu] = useState<{ id: string; top: number; right: number } | null>(null);
 
   const tabs: { key: FilterTab; label: string }[] = [
     { key: 'all', label: 'Todos' },
@@ -143,6 +147,23 @@ export default function AdminEvents() {
     return () => clearInterval(interval);
   }, [loadEventos]);
 
+  // O menu "Mais opções" fecha ao clicar fora, com Esc, ao rolar ou redimensionar a janela
+  useEffect(() => {
+    if (!menu) return undefined;
+    const close = () => setMenu(null);
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') close(); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [menu]);
+
   const filteredEvents = activeTab === 'all'
     ? events
     : events.filter(e => toLifecycle(e.status) === activeTab);
@@ -166,8 +187,10 @@ export default function AdminEvents() {
     }
   };
 
-  const openReschedule = (e: React.MouseEvent, eventItem: any) => {
+  const openReschedule = (e: React.MouseEvent, eventItem: any, mode: 'reschedule' | 'reopen' = 'reschedule') => {
     e.stopPropagation();
+    setMenu(null);
+    setRescheduleMode(mode);
     const day = String(eventItem.date || '').split('T')[0];
     setRescheduling(eventItem);
     setRescheduleError('');
@@ -206,12 +229,15 @@ export default function AdminEvents() {
     setRescheduleSaving(true);
     setRescheduleError('');
     try {
-      await api.rescheduleEvento(rescheduling.id, { date, time, duration: minutes });
+      if (rescheduleMode === 'reopen') await api.reopenEvento(rescheduling.id, { date, time, duration: minutes });
+      else await api.rescheduleEvento(rescheduling.id, { date, time, duration: minutes });
       await loadEventos();
-      toast.success('Evento reagendado');
+      toast.success(rescheduleMode === 'reopen' ? 'Evento reaberto' : 'Evento reagendado');
       setRescheduling(null);
     } catch (error) {
-      setRescheduleError(error instanceof Error ? error.message : 'Não foi possível reagendar o evento.');
+      setRescheduleError(error instanceof Error
+        ? error.message
+        : rescheduleMode === 'reopen' ? 'Não foi possível reabrir o evento.' : 'Não foi possível reagendar o evento.');
       // O evento pode ter começado enquanto o modal estava aberto
       await loadEventos();
     } finally {
@@ -400,6 +426,24 @@ export default function AdminEvents() {
                           >
                             <Trash2 size={16} />
                           </button>
+                          {status === 'finished' && (
+                            <button
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-surface transition-colors"
+                              title="Mais opções"
+                              aria-label={`Mais opções de ${event.name}`}
+                              aria-haspopup="menu"
+                              aria-expanded={menu?.id === event.id}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (menu?.id === event.id) { setMenu(null); return; }
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setMenu({ id: event.id, top: rect.bottom + 4, right: window.innerWidth - rect.right });
+                              }}
+                            >
+                              <MoreHorizontal size={16} />
+                            </button>
+                          )}
                         </div>
                        </td>
                     </tr>
@@ -419,14 +463,15 @@ export default function AdminEvents() {
         </main>
       </div>
 
-      <Modal isOpen={rescheduling !== null} onClose={closeReschedule} title="Reagendar evento" size="md">
+      <Modal isOpen={rescheduling !== null} onClose={closeReschedule} title={rescheduleMode === 'reopen' ? 'Reabrir evento' : 'Reagendar evento'} size="md">
         {rescheduling && (
           <div className="space-y-4">
             <div className="rounded-lg border border-border bg-surface/40 p-3">
               <p className="text-sm font-semibold text-white">{rescheduling.name}</p>
               <p className="mt-0.5 text-xs text-gray-400">
-                Agendado para {formatEventDate(rescheduling.date)}
-                {rescheduling.time ? ` às ${String(rescheduling.time).slice(0, 5)}` : ''}
+                {rescheduleMode === 'reopen'
+                  ? (describeLifecycle(rescheduling, 'finished') || 'Evento encerrado')
+                  : <>Agendado para {formatEventDate(rescheduling.date)}{rescheduling.time ? ` às ${String(rescheduling.time).slice(0, 5)}` : ''}</>}
               </p>
             </div>
 
@@ -455,6 +500,11 @@ export default function AdminEvents() {
               onChange={e => { setRescheduleForm(prev => ({ ...prev, duration: e.target.value })); setRescheduleError(''); }}
             />
 
+            {rescheduleMode === 'reopen' && (
+              <p className="text-xs text-gray-400">
+                O evento volta a ficar <strong className="text-gray-200">Agendado</strong>. Participantes, times, checkpoints e jogos já cadastrados continuam nele.
+              </p>
+            )}
             <p className="text-xs text-gray-500">
               {rescheduling.auto_start
                 ? 'O evento vai iniciar automaticamente na nova data e horário.'
@@ -472,13 +522,38 @@ export default function AdminEvents() {
                 Cancelar
               </Button>
               <Button variant="primary" onClick={submitReschedule} disabled={rescheduleSaving}>
-                <CalendarClock size={16} className="mr-1.5" />
-                {rescheduleSaving ? 'Reagendando...' : 'Reagendar'}
+                {rescheduleMode === 'reopen' ? <RotateCcw size={16} className="mr-1.5" /> : <CalendarClock size={16} className="mr-1.5" />}
+                {rescheduleMode === 'reopen'
+                  ? (rescheduleSaving ? 'Reabrindo...' : 'Reabrir evento')
+                  : (rescheduleSaving ? 'Reagendando...' : 'Reagendar')}
               </Button>
             </div>
           </div>
         )}
       </Modal>
+
+      {menu && (() => {
+        const target = events.find((item: any) => item.id === menu.id);
+        if (!target) return null;
+        return (
+          <div
+            role="menu"
+            aria-label="Mais opções do evento"
+            className="fixed z-50 w-52 rounded-lg border border-border bg-card py-1 shadow-xl"
+            style={{ top: menu.top, right: menu.right }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-300 transition-colors hover:bg-surface hover:text-white"
+              onClick={(e) => openReschedule(e, target, 'reopen')}
+            >
+              <RotateCcw size={14} />
+              Reabrir evento
+            </button>
+          </div>
+        );
+      })()}
     </div>
   );
 }
