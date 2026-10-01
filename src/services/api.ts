@@ -86,6 +86,13 @@ function getAuthHeaders() {
   }
 }
 
+async function analyticsRequest(path: string) {
+  const res = await fetch(`${API_URL}${path}`, { headers: getAuthHeaders() });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error((data && data.error) || `Erro ao carregar analytics (${res.status})`);
+  return data;
+}
+
 export const api = {
   // ==================== AUTENTICAÇÃO ====================
   async login(email: string, password: string) {
@@ -189,6 +196,16 @@ export const api = {
       headers: getAuthHeaders(),
     });
     return res.json();
+  },
+
+  // Detalhes completos de um cliente (somente master): cadastro, plano e uso, usuários, eventos e suporte
+  async getClienteDetalhes(id: string) {
+    const res = await fetch(`${API_URL}/clientes/${encodeURIComponent(id)}/detalhes`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar detalhes do cliente (${res.status})`);
+    return data;
   },
 
   async createCliente(data: any) {
@@ -327,82 +344,30 @@ export const api = {
     }
   },
 
+  // Analytics do master: falha de rede ou da API vira erro (a tela mostra o motivo em vez de
+  // exibir gráficos vazios como se não houvesse dados).
   async getMetricsAnalytics() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/metrics`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return {};
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar métricas:', err);
-      return {};
-    }
+    return analyticsRequest('/analytics/metrics');
   },
 
   async getMRR() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/mrr`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return { mrr: 0 };
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar MRR:', err);
-      return { mrr: 0 };
-    }
+    return analyticsRequest('/analytics/mrr');
   },
 
   async getClientGrowth() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/client-growth`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return [];
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar crescimento de clientes:', err);
-      return [];
-    }
+    return analyticsRequest('/analytics/client-growth');
   },
 
   async getEventsPerMonth() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/events-per-month`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return [];
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar eventos por mês:', err);
-      return [];
-    }
+    return analyticsRequest('/analytics/events-per-month');
   },
 
   async getCheckpointsOverTime() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/checkpoints-over-time`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return [];
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar checkpoints:', err);
-      return [];
-    }
+    return analyticsRequest('/analytics/checkpoints-over-time');
   },
 
   async getRevenueByPlan() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/revenue-by-plan`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return [];
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar receita por plano:', err);
-      return [];
-    }
+    return analyticsRequest('/analytics/revenue-by-plan');
   },
 
   // ==================== LOGS ====================
@@ -701,7 +666,9 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao criar evento (${res.status})`);
+    return body;
   },
 
   async updateEvento(id: string, data: any) {
@@ -710,7 +677,53 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao atualizar evento (${res.status})`);
+    return body;
+  },
+
+  // Ciclo de vida do evento: agendado -> ativo -> encerrado
+  async startEvento(id: string) {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(id)}/start`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao iniciar evento (${res.status})`);
+    return body;
+  },
+
+  async rescheduleEvento(id: string, data: { date: string; time: string; duration?: number | null }) {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(id)}/reschedule`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao reagendar evento (${res.status})`);
+    return body;
+  },
+
+  // Reabre um evento encerrado: volta a "agendado" numa nova data e horário (no futuro)
+  async reopenEvento(id: string, data: { date: string; time: string; duration?: number | null }) {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(id)}/reopen`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao reabrir evento (${res.status})`);
+    return body;
+  },
+
+  async finishEvento(id: string) {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(id)}/finish`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao encerrar evento (${res.status})`);
+    return body;
   },
 
   async deleteEvento(id: string) {
@@ -750,6 +763,18 @@ export const api = {
       body: JSON.stringify(data),
     });
     return res.json();
+  },
+
+  // Ativa ou desativa um jogo (só o status)
+  async setBrincadeiraStatus(id: string, status: 'active' | 'inactive') {
+    const res = await fetch(`${API_URL}/brincadeiras/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ status }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao alterar o status do jogo (${res.status})`);
+    return data;
   },
 
   async deleteBrincadeira(id: string) {
@@ -925,6 +950,14 @@ export const api = {
   },
 
   // ==================== CRIANÇAS ====================
+  // Crianças de todos os eventos do buffet (com evento e time já resolvidos)
+  async getAllCriancas() {
+    const res = await fetch(`${API_URL}/criancas`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar crianças (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
   async getCriancas(eventoId: string) {
     try {
       const res = await fetch(`${API_URL}/criancas/eventos/${eventoId}/criancas`, {
@@ -1082,6 +1115,14 @@ export const api = {
   },
 
   // ==================== CHECKPOINTS ====================
+  // Contagem de checkpoints por evento (cadastrados e online) de todos os eventos do buffet
+  async getCheckpointsSummary() {
+    const res = await fetch(`${API_URL}/checkpoints/resumo`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar resumo de checkpoints (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
   async getCheckpoints(eventoId: string) {
     try {
       const res = await fetch(`${API_URL}/checkpoints/evento/${eventoId}`, {
@@ -1192,6 +1233,25 @@ export const api = {
       headers: getAuthHeaders(),
     });
     return res.json();
+  },
+
+  // ==================== EMPRESA (dados do próprio buffet) ====================
+  async getEmpresa() {
+    const res = await fetch(`${API_URL}/empresa/me`, { headers: getAuthHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao carregar dados do buffet (${res.status})`);
+    return body as { id: string; name: string; cnpj: string; city: string; state: string; phone: string };
+  },
+
+  async updateEmpresa(data: { cnpj: string }) {
+    const res = await fetch(`${API_URL}/empresa/me`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar dados do buffet (${res.status})`);
+    return body as { updated: boolean; cnpj: string };
   },
 
   // ==================== SETTINGS ====================

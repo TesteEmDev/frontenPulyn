@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import {
-  Calendar, Plus, Edit, Trash2
+  Calendar, CalendarClock, Plus, Edit, Trash2, Play, Square, User, MoreHorizontal, RotateCcw
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useEvento } from '../../contexts/EventoContext';
@@ -12,20 +13,97 @@ import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
+import Modal from '../../components/ui/Modal';
+import TimeInput from '../../components/ui/TimeInput';
 
 type FilterTab = 'all' | 'scheduled' | 'active' | 'finished';
+type LifecycleStatus = 'scheduled' | 'active' | 'finished';
 
-const statusBadgeVariant: Record<string, 'success' | 'primary' | 'muted'> = {
+const statusBadgeVariant: Record<LifecycleStatus, 'success' | 'primary' | 'muted'> = {
   active: 'success',
   scheduled: 'primary',
   finished: 'muted',
 };
 
-const statusLabel: Record<string, string> = {
+const statusLabel: Record<LifecycleStatus, string> = {
   active: 'Ativo',
   scheduled: 'Agendado',
   finished: 'Encerrado',
 };
+
+// O backend só grava scheduled/active/finished, mas outros nomes ainda aparecem em dados antigos.
+const toLifecycle = (status: string | undefined): LifecycleStatus => {
+  const value = String(status || 'scheduled').toLowerCase();
+  if (value === 'active' || value === 'ongoing') return 'active';
+  if (['finished', 'completed', 'cancelled', 'canceled'].includes(value)) return 'finished';
+  return 'scheduled';
+};
+
+const pad = (value: number) => String(value).padStart(2, '0');
+const formatClock = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+const formatDayMonth = (date: Date) => `${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
+const isSameDay = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+const formatEventDate = (value?: string) => {
+  const day = (value || '').split('T')[0];
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : (value || '-');
+};
+
+const formatDuration = (minutes?: number | null) => {
+  const total = Number(minutes);
+  if (!Number.isFinite(total) || total <= 0) return '-';
+  const hours = Math.floor(total / 60);
+  const rest = total % 60;
+  if (hours === 0) return `${rest}min`;
+  return rest === 0 ? `${hours}h` : `${hours}h${pad(rest)}`;
+};
+
+const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+// Linha pequena embaixo do status explicando o que vai acontecer com o evento.
+function describeLifecycle(event: any, status: LifecycleStatus): string | null {
+  if (status === 'scheduled') {
+    const day = (event.date || '').split('T')[0];
+    const time = String(event.time || '').slice(0, 5);
+    const start = day && time ? new Date(`${day}T${time}:00`) : null;
+    const validStart = start && !Number.isNaN(start.getTime()) ? start : null;
+
+    // Janela inteira já passou sem o evento começar: ele não inicia sozinho.
+    const minutes = Number(event.duration);
+    if (validStart && minutes > 0 && Date.now() >= validStart.getTime() + minutes * 60000) {
+      return 'Horário já passou. Reagende ou inicie manualmente';
+    }
+
+    if (!event.auto_start) return 'Início manual';
+    if (!validStart) return 'Inicia sozinho no horário';
+    return isSameDay(validStart, new Date())
+      ? `Inicia sozinho hoje às ${time}`
+      : `Inicia sozinho em ${formatDayMonth(validStart)} às ${time}`;
+  }
+
+  if (status === 'active') {
+    if (!event.auto_end) return 'Encerramento manual';
+    const started = event.started_at ? new Date(event.started_at) : null;
+    const minutes = Number(event.duration);
+    if (!started || Number.isNaN(started.getTime()) || !(minutes > 0)) return 'Encerra sozinho após a duração';
+    const end = new Date(started.getTime() + minutes * 60000);
+    return isSameDay(end, new Date())
+      ? `Encerra sozinho às ${formatClock(end)}`
+      : `Encerra sozinho em ${formatDayMonth(end)} às ${formatClock(end)}`;
+  }
+
+  if (event.ended_at) {
+    const ended = new Date(event.ended_at);
+    if (!Number.isNaN(ended.getTime())) return `Encerrado em ${formatDayMonth(ended)} às ${formatClock(ended)}`;
+  }
+  return null;
+}
 
 export default function AdminEvents() {
   const navigate = useNavigate();
@@ -33,6 +111,17 @@ export default function AdminEvents() {
   const { setEventoAtualId } = useEvento();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  // Reagendar: evento aberto no modal e o formulário dele
+  const [rescheduling, setRescheduling] = useState<any | null>(null);
+  const [rescheduleForm, setRescheduleForm] = useState({ date: '', time: '', duration: '' });
+  const [rescheduleError, setRescheduleError] = useState('');
+  const [rescheduleSaving, setRescheduleSaving] = useState(false);
+  // O mesmo formulário serve para reagendar (evento agendado) e reabrir (evento encerrado)
+  const [rescheduleMode, setRescheduleMode] = useState<'reschedule' | 'reopen'>('reschedule');
+  // Menu "Mais opções" aberto: posição na tela (fixa, para não ser cortada pela tabela)
+  const [menu, setMenu] = useState<{ id: string; top: number; right: number } | null>(null);
 
   const tabs: { key: FilterTab; label: string }[] = [
     { key: 'all', label: 'Todos' },
@@ -50,9 +139,34 @@ export default function AdminEvents() {
     loadData();
   }, [loadEventos]);
 
+  // Eventos começam e terminam sozinhos no servidor; a lista se atualiza para refletir isso.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!document.hidden) loadEventos();
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [loadEventos]);
+
+  // O menu "Mais opções" fecha ao clicar fora, com Esc, ao rolar ou redimensionar a janela
+  useEffect(() => {
+    if (!menu) return undefined;
+    const close = () => setMenu(null);
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') close(); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [menu]);
+
   const filteredEvents = activeTab === 'all'
     ? events
-    : events.filter(e => e.status === activeTab);
+    : events.filter(e => toLifecycle(e.status) === activeTab);
 
   const handleSelectEvento = (eventoId: string) => {
     setEventoAtualId(eventoId);
@@ -70,6 +184,92 @@ export default function AdminEvents() {
         console.error('Erro ao deletar evento:', error);
         alert('Erro ao deletar evento. Tente novamente.');
       }
+    }
+  };
+
+  const openReschedule = (e: React.MouseEvent, eventItem: any, mode: 'reschedule' | 'reopen' = 'reschedule') => {
+    e.stopPropagation();
+    setMenu(null);
+    setRescheduleMode(mode);
+    const day = String(eventItem.date || '').split('T')[0];
+    setRescheduling(eventItem);
+    setRescheduleError('');
+    setRescheduleForm({
+      // Evento que já passou começa sem data, para escolher a nova
+      date: day && day >= todayISO() ? day : '',
+      time: String(eventItem.time || '').slice(0, 5),
+      duration: eventItem.duration ? String(eventItem.duration) : '',
+    });
+  };
+
+  const closeReschedule = () => {
+    if (rescheduleSaving) return;
+    setRescheduling(null);
+    setRescheduleError('');
+  };
+
+  const submitReschedule = async () => {
+    if (!rescheduling || rescheduleSaving) return;
+    const { date, time, duration } = rescheduleForm;
+
+    if (!date || !time) {
+      setRescheduleError('Informe a nova data e o novo horário.');
+      return;
+    }
+    if (new Date(`${date}T${time}:00`).getTime() < new Date().setSeconds(0, 0)) {
+      setRescheduleError('A nova data e horário precisam estar no futuro.');
+      return;
+    }
+    const minutes = duration.trim() === '' ? null : Number(duration);
+    if (minutes !== null && (!Number.isInteger(minutes) || minutes < 5 || minutes > 1440)) {
+      setRescheduleError('A duração deve ser de 5 a 1440 minutos.');
+      return;
+    }
+
+    setRescheduleSaving(true);
+    setRescheduleError('');
+    try {
+      if (rescheduleMode === 'reopen') await api.reopenEvento(rescheduling.id, { date, time, duration: minutes });
+      else await api.rescheduleEvento(rescheduling.id, { date, time, duration: minutes });
+      await loadEventos();
+      toast.success(rescheduleMode === 'reopen' ? 'Evento reaberto' : 'Evento reagendado');
+      setRescheduling(null);
+    } catch (error) {
+      setRescheduleError(error instanceof Error
+        ? error.message
+        : rescheduleMode === 'reopen' ? 'Não foi possível reabrir o evento.' : 'Não foi possível reagendar o evento.');
+      // O evento pode ter começado enquanto o modal estava aberto
+      await loadEventos();
+    } finally {
+      setRescheduleSaving(false);
+    }
+  };
+
+  const runLifecycleAction = async (
+    event: React.MouseEvent,
+    eventItem: any,
+    action: 'start' | 'finish',
+  ) => {
+    event.stopPropagation();
+    if (busyId) return;
+
+    const question = action === 'start'
+      ? `Iniciar o evento "${eventItem.name}" agora?`
+      : `Encerrar o evento "${eventItem.name}"?\n\nO jogo em andamento será parado e a recepção deixará de cadastrar participantes nele. Essa ação não pode ser desfeita.`;
+    if (!confirm(question)) return;
+
+    setBusyId(eventItem.id);
+    try {
+      if (action === 'start') await api.startEvento(eventItem.id);
+      else await api.finishEvento(eventItem.id);
+      await loadEventos();
+      toast.success(action === 'start' ? 'Evento iniciado' : 'Evento encerrado');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível concluir a ação');
+      // O estado pode ter mudado no servidor (ex.: o evento começou sozinho); atualiza a lista.
+      await loadEventos();
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -130,38 +330,88 @@ export default function AdminEvents() {
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="pb-3 text-sm font-body font-semibold text-gray-400">Nome</th>
+                    <th className="pb-3 text-sm font-body font-semibold text-gray-400">Evento</th>
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">Data</th>
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">Horário</th>
+                    <th className="pb-3 text-sm font-body font-semibold text-gray-400">Duração</th>
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">Status</th>
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">Ações</th>
                    </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredEvents.map(event => (
-                    <tr 
-                      key={event.id} 
+                  {filteredEvents.map(event => {
+                    const status = toLifecycle(event.status);
+                    const note = describeLifecycle(event, status);
+                    const busy = busyId === event.id;
+                    return (
+                    <tr
+                      key={event.id}
                       className="hover:bg-surface/50 transition-colors cursor-pointer"
                       onClick={() => handleSelectEvento(event.id)}
                     >
                       <td className="py-3 pr-4">
                         <p className="text-sm font-semibold text-white">{event.name}</p>
-                       </td>
-                      <td className="py-3 pr-4">
-                        <p className="text-sm text-gray-300">
-                          {event.date ? (event.date.split('T')[0] || event.date) : '-'}
+                        <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-400">
+                          <User size={12} className="shrink-0" />
+                          {event.responsible_name
+                            ? <span title="Contratante/responsável">{event.responsible_name}</span>
+                            : <span className="text-gray-600">Contratante não informado</span>}
                         </p>
                        </td>
                       <td className="py-3 pr-4">
-                        <p className="text-sm text-gray-300">{event.time || '-'}</p>
+                        <p className="text-sm text-gray-300">{formatEventDate(event.date)}</p>
                        </td>
                       <td className="py-3 pr-4">
-                        <Badge variant={statusBadgeVariant[event.status] || 'muted'}>
-                          {statusLabel[event.status] || event.status}
+                        <p className="text-sm text-gray-300">{event.time ? String(event.time).slice(0, 5) : '-'}</p>
+                       </td>
+                      <td className="py-3 pr-4">
+                        <p className="text-sm text-gray-300">{formatDuration(event.duration)}</p>
+                       </td>
+                      <td className="py-3 pr-4">
+                        <Badge variant={statusBadgeVariant[status]}>
+                          {statusLabel[status]}
                         </Badge>
+                        {note && <p className="mt-1 text-xs text-gray-500">{note}</p>}
                        </td>
                       <td className="py-3">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2">
+                          {status === 'scheduled' && (
+                            <Button
+                              size="sm"
+                              variant="success"
+                              disabled={busy}
+                              title="Iniciar o evento agora"
+                              onClick={(e) => runLifecycleAction(e, event, 'start')}
+                            >
+                              <Play size={14} className="mr-1.5" />
+                              {busy ? 'Iniciando...' : 'Iniciar'}
+                            </Button>
+                          )}
+                          {status === 'scheduled' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="border border-border"
+                              disabled={busy}
+                              title="Mudar a data e o horário do evento"
+                              onClick={(e) => openReschedule(e, event)}
+                            >
+                              <CalendarClock size={14} className="mr-1.5" />
+                              Reagendar
+                            </Button>
+                          )}
+                          {status === 'active' && (
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              disabled={busy}
+                              title="Encerrar o evento"
+                              onClick={(e) => runLifecycleAction(e, event, 'finish')}
+                            >
+                              <Square size={14} className="mr-1.5" />
+                              {busy ? 'Encerrando...' : 'Encerrar'}
+                            </Button>
+                          )}
                           <button
                             className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-surface transition-colors"
                             title="Editar"
@@ -176,13 +426,32 @@ export default function AdminEvents() {
                           >
                             <Trash2 size={16} />
                           </button>
+                          {status === 'finished' && (
+                            <button
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-surface transition-colors"
+                              title="Mais opções"
+                              aria-label={`Mais opções de ${event.name}`}
+                              aria-haspopup="menu"
+                              aria-expanded={menu?.id === event.id}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (menu?.id === event.id) { setMenu(null); return; }
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setMenu({ id: event.id, top: rect.bottom + 4, right: window.innerWidth - rect.right });
+                              }}
+                            >
+                              <MoreHorizontal size={16} />
+                            </button>
+                          )}
                         </div>
                        </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {filteredEvents.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-gray-500 text-sm">
+                      <td colSpan={6} className="py-8 text-center text-gray-500 text-sm">
                         Nenhum evento encontrado
                       </td>
                     </tr>
@@ -193,6 +462,98 @@ export default function AdminEvents() {
           </Card>
         </main>
       </div>
+
+      <Modal isOpen={rescheduling !== null} onClose={closeReschedule} title={rescheduleMode === 'reopen' ? 'Reabrir evento' : 'Reagendar evento'} size="md">
+        {rescheduling && (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border bg-surface/40 p-3">
+              <p className="text-sm font-semibold text-white">{rescheduling.name}</p>
+              <p className="mt-0.5 text-xs text-gray-400">
+                {rescheduleMode === 'reopen'
+                  ? (describeLifecycle(rescheduling, 'finished') || 'Evento encerrado')
+                  : <>Agendado para {formatEventDate(rescheduling.date)}{rescheduling.time ? ` às ${String(rescheduling.time).slice(0, 5)}` : ''}</>}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Nova data"
+                type="date"
+                min={todayISO()}
+                value={rescheduleForm.date}
+                onChange={e => { setRescheduleForm(prev => ({ ...prev, date: e.target.value })); setRescheduleError(''); }}
+                required
+              />
+              <TimeInput
+                label="Novo horário"
+                value={rescheduleForm.time}
+                onChange={time => { setRescheduleForm(prev => ({ ...prev, time })); setRescheduleError(''); }}
+                required
+              />
+            </div>
+            <Input
+              label="Duração (minutos)"
+              type="number"
+              min={5}
+              max={1440}
+              value={rescheduleForm.duration}
+              onChange={e => { setRescheduleForm(prev => ({ ...prev, duration: e.target.value })); setRescheduleError(''); }}
+            />
+
+            {rescheduleMode === 'reopen' && (
+              <p className="text-xs text-gray-400">
+                O evento volta a ficar <strong className="text-gray-200">Agendado</strong>. Participantes, times, checkpoints e jogos já cadastrados continuam nele.
+              </p>
+            )}
+            <p className="text-xs text-gray-500">
+              {rescheduling.auto_start
+                ? 'O evento vai iniciar automaticamente na nova data e horário.'
+                : 'O evento continua com início manual: você inicia pelo botão Iniciar.'}
+            </p>
+
+            {rescheduleError && (
+              <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                {rescheduleError}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" className="border border-border" onClick={closeReschedule} disabled={rescheduleSaving}>
+                Cancelar
+              </Button>
+              <Button variant="primary" onClick={submitReschedule} disabled={rescheduleSaving}>
+                {rescheduleMode === 'reopen' ? <RotateCcw size={16} className="mr-1.5" /> : <CalendarClock size={16} className="mr-1.5" />}
+                {rescheduleMode === 'reopen'
+                  ? (rescheduleSaving ? 'Reabrindo...' : 'Reabrir evento')
+                  : (rescheduleSaving ? 'Reagendando...' : 'Reagendar')}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {menu && (() => {
+        const target = events.find((item: any) => item.id === menu.id);
+        if (!target) return null;
+        return (
+          <div
+            role="menu"
+            aria-label="Mais opções do evento"
+            className="fixed z-50 w-52 rounded-lg border border-border bg-card py-1 shadow-xl"
+            style={{ top: menu.top, right: menu.right }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-300 transition-colors hover:bg-surface hover:text-white"
+              onClick={(e) => openReschedule(e, target, 'reopen')}
+            >
+              <RotateCcw size={14} />
+              Reabrir evento
+            </button>
+          </div>
+        );
+      })()}
     </div>
   );
 }

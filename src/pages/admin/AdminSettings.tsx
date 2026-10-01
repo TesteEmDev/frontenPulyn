@@ -1,9 +1,11 @@
 // src/pages/admin/AdminSettings.tsx
 import { useState, useEffect } from 'react';
 import {
-  Settings, Upload, Save, Shield, Database, Monitor
+  Settings, Upload, Save, Database
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
+import { api } from '../../services/api';
+import { maskCnpj, isValidCnpj, onlyDigits } from '../../utils/cnpj';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import TopBar from '../../components/layout/TopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -20,21 +22,16 @@ export default function AdminSettings() {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // CNPJ é um dado do próprio buffet (tabela empresas), não uma configuração genérica.
+  const [cnpj, setCnpj] = useState('');
+  const [cnpjError, setCnpjError] = useState('');
+  const [companyLoaded, setCompanyLoaded] = useState(false);
+
   const [unitSettings, setUnitSettings] = useState({
     unit_name: '',
     unit_address: '',
     unit_phone: '',
     unit_email: '',
-  });
-
-  const [displaySettings, setDisplaySettings] = useState({
-    theme: 'dark',
-    update_interval: '5',
-  });
-
-  const [fraudSettings, setFraudSettings] = useState({
-    cooldown_default: '30',
-    repetition_limit: '3',
   });
 
   const [backupSettings, setBackupSettings] = useState({
@@ -45,6 +42,15 @@ export default function AdminSettings() {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
+      try {
+        const empresa = await api.getEmpresa();
+        setCnpj(empresa.cnpj || '');
+        setCompanyLoaded(true);
+      } catch (error) {
+        // Sem carregar, o campo fica bloqueado para não apagar um CNPJ já salvo.
+        console.error('Erro ao carregar dados do buffet:', error);
+        setCompanyLoaded(false);
+      }
       const loadedSettings = await loadSettings();
       if (loadedSettings) {
         setUnitSettings({
@@ -52,14 +58,6 @@ export default function AdminSettings() {
           unit_address: loadedSettings.unit_address || 'Rua das Crianças, 123 - São Paulo, SP',
           unit_phone: loadedSettings.unit_phone || '(11) 3456-7890',
           unit_email: loadedSettings.unit_email || 'contato@buffetpulyn.com.br',
-        });
-        setDisplaySettings({
-          theme: loadedSettings.theme || 'dark',
-          update_interval: loadedSettings.update_interval || '5',
-        });
-        setFraudSettings({
-          cooldown_default: loadedSettings.cooldown_default || '30',
-          repetition_limit: loadedSettings.repetition_limit || '3',
         });
         setBackupSettings({
           backup_frequency: loadedSettings.backup_frequency || 'daily',
@@ -75,14 +73,23 @@ export default function AdminSettings() {
   };
 
   const handleSave = async () => {
-    setSaving(true);
     setSaveSuccess(false);
-    
+
+    if (companyLoaded && onlyDigits(cnpj) && !isValidCnpj(cnpj)) {
+      setCnpjError('CNPJ inválido. Confira os 14 dígitos.');
+      return;
+    }
+
+    setSaving(true);
     try {
+      if (companyLoaded) {
+        const saved = await api.updateEmpresa({ cnpj: onlyDigits(cnpj) });
+        setCnpj(saved.cnpj || '');
+        setCnpjError('');
+      }
+
       const allSettings = {
         ...unitSettings,
-        ...displaySettings,
-        ...fraudSettings,
         ...backupSettings,
       };
       
@@ -91,7 +98,8 @@ export default function AdminSettings() {
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);
-      alert('Erro ao salvar configurações. Tente novamente.');
+      if (error instanceof Error && error.message) setCnpjError(error.message);
+      alert(error instanceof Error && error.message ? error.message : 'Erro ao salvar configurações. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -152,6 +160,25 @@ export default function AdminSettings() {
                   value={unitSettings.unit_name}
                   onChange={e => updateUnit('unit_name', e.target.value)}
                 />
+                <div>
+                  <Input
+                    label="CNPJ"
+                    placeholder="00.000.000/0000-00"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={18}
+                    value={cnpj}
+                    disabled={!companyLoaded}
+                    error={cnpjError || undefined}
+                    onChange={e => { setCnpj(maskCnpj(e.target.value)); setCnpjError(''); }}
+                    onBlur={() => {
+                      if (onlyDigits(cnpj) && !isValidCnpj(cnpj)) setCnpjError('CNPJ inválido. Confira os 14 dígitos.');
+                    }}
+                  />
+                  {!companyLoaded && (
+                    <p className="mt-1 text-xs text-gray-500">Não foi possível carregar o CNPJ agora. Recarregue a página.</p>
+                  )}
+                </div>
                 <Input
                   label="Endereço"
                   value={unitSettings.unit_address}
@@ -170,64 +197,6 @@ export default function AdminSettings() {
                     onChange={e => updateUnit('unit_email', e.target.value)}
                   />
                 </div>
-              </div>
-            </Card>
-
-            {/* Display Settings */}
-            <Card>
-              <div className="flex items-center gap-2 mb-4">
-                <Monitor size={20} className="text-secondary" />
-                <h2 className="font-display text-lg text-white">Configurações de Display</h2>
-              </div>
-              <div className="space-y-4">
-                <Select
-                  label="Tema"
-                  options={[
-                    { value: 'dark', label: 'Escuro' },
-                    { value: 'light', label: 'Claro' },
-                    { value: 'auto', label: 'Automático' },
-                  ]}
-                  value={displaySettings.theme}
-                  onChange={e => setDisplaySettings(prev => ({ ...prev, theme: e.target.value }))}
-                />
-                <Select
-                  label="Intervalo de atualização (segundos)"
-                  options={[
-                    { value: '1', label: '1s (Tempo real)' },
-                    { value: '3', label: '3s' },
-                    { value: '5', label: '5s' },
-                    { value: '10', label: '10s' },
-                    { value: '30', label: '30s' },
-                  ]}
-                  value={displaySettings.update_interval}
-                  onChange={e => setDisplaySettings(prev => ({ ...prev, update_interval: e.target.value }))}
-                />
-              </div>
-            </Card>
-
-            {/* Anti-fraud */}
-            <Card>
-              <div className="flex items-center gap-2 mb-4">
-                <Shield size={20} className="text-success" />
-                <h2 className="font-display text-lg text-white">Regras Anti-fraude</h2>
-              </div>
-              <div className="space-y-4">
-                <Input
-                  label="Cooldown padrão (segundos)"
-                  type="number"
-                  value={fraudSettings.cooldown_default}
-                  onChange={e => setFraudSettings(prev => ({ ...prev, cooldown_default: e.target.value }))}
-                />
-                <Input
-                  label="Limite de repetição"
-                  type="number"
-                  value={fraudSettings.repetition_limit}
-                  onChange={e => setFraudSettings(prev => ({ ...prev, repetition_limit: e.target.value }))}
-                />
-                <p className="text-xs text-gray-500">
-                  O cooldown impede que a mesma pulseira seja lida em intervalo menor que o configurado.
-                  O limite de repetição controla quantas vezes o mesmo checkpoint pode ser lido pelo mesmo participante.
-                </p>
               </div>
             </Card>
 
@@ -268,34 +237,6 @@ export default function AdminSettings() {
                   <Database size={16} className="mr-1.5" />
                   Exportar Base de Dados Local
                 </Button>
-              </div>
-            </Card>
-
-            {/* Future Integrations */}
-            <Card>
-              <h2 className="font-display text-lg text-white mb-4">Integrações Futuras</h2>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-surface/50">
-                  <div>
-                    <p className="text-sm text-white font-semibold">WhatsApp Business</p>
-                    <p className="text-xs text-gray-500">Notificações para responsáveis</p>
-                  </div>
-                  <Badge variant="muted">Em breve</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-surface/50">
-                  <div>
-                    <p className="text-sm text-white font-semibold">ERP / Faturamento</p>
-                    <p className="text-xs text-gray-500">Integração com sistema financeiro</p>
-                  </div>
-                  <Badge variant="muted">Em breve</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-surface/50">
-                  <div>
-                    <p className="text-sm text-white font-semibold">BI / Data Warehouse</p>
-                    <p className="text-xs text-gray-500">Exportação para análise avançada</p>
-                  </div>
-                  <Badge variant="muted">Em breve</Badge>
-                </div>
               </div>
             </Card>
 

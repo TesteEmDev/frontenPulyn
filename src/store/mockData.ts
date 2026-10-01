@@ -103,6 +103,11 @@ export interface Event {
   duration?: number;
   childrenCount?: number;
   status: 'active' | 'scheduled' | 'finished' | 'upcoming' | 'ongoing' | 'completed';
+  responsible_name?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  auto_start?: number | null;
+  auto_end?: number | null;
 }
 
 export interface DisplayMessage {

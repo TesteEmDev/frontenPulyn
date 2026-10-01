@@ -10,13 +10,11 @@ import {
   BarChart3,
   Search,
   Plus,
-  Eye,
   ShieldBan,
   ShieldCheck,
   MoreHorizontal,
   Building2,
   MapPin,
-  Calendar,
   Loader2,
   AlertCircle,
   CheckCircle,
@@ -30,6 +28,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import Modal from '../../components/ui/Modal';
+import ClientDetailsModal from './ClientDetailsModal';
 
 import { api } from '../../services/api';
 
@@ -57,12 +56,6 @@ interface Client {
   createdAt: string;
 }
 
-const planBadgeVariant: Record<string, 'primary' | 'secondary' | 'muted'> = {
-  enterprise: 'primary',
-  professional: 'secondary',
-  starter: 'muted',
-};
-
 const statusBadgeVariant: Record<string, 'success' | 'danger' | 'accent'> = {
   active: 'success',
   blocked: 'danger',
@@ -83,8 +76,8 @@ export default function MasterClients() {
   const [filterPlan, setFilterPlan] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [showNewClientModal, setShowNewClientModal] = useState(false);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  // Cliente com o modal de detalhes aberto (o objeto vem da lista, então o status acompanha as alterações)
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   
   // Loading and error states
@@ -134,6 +127,8 @@ export default function MasterClients() {
     }
   }, [successMessage]);
 
+  const selectedClient = clients.find(c => c.id === selectedClientId) || null;
+
   const filteredClients = clients.filter(client => {
     const matchSearch = client.name.toLowerCase().includes(search.toLowerCase()) ||
       client.city.toLowerCase().includes(search.toLowerCase());
@@ -167,8 +162,7 @@ export default function MasterClients() {
   };
 
   const handleViewDetails = (client: Client) => {
-    setSelectedClient(client);
-    setShowDetailsModal(true);
+    setSelectedClientId(client.id);
     setOpenMenuId(null);
   };
 
@@ -245,8 +239,8 @@ export default function MasterClients() {
       
       setClients(prev => prev.filter(c => c.id !== clientId));
       setSuccessMessage('Cliente excluído com sucesso!');
-      if (selectedClient?.id === clientId) {
-        setShowDetailsModal(false);
+      if (selectedClientId === clientId) {
+        setSelectedClientId(null);
       }
     } catch (err) {
       console.error('Erro ao excluir cliente:', err);
@@ -362,7 +356,19 @@ export default function MasterClients() {
                     </thead>
                     <tbody>
                       {filteredClients.map(client => (
-                        <tr key={client.id} className="border-b border-border/50 hover:bg-surface/30 transition-colors">
+                        <tr
+                          key={client.id}
+                          onClick={() => handleViewDetails(client)}
+                          onKeyDown={(e) => {
+                            if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                              e.preventDefault();
+                              handleViewDetails(client);
+                            }
+                          }}
+                          tabIndex={0}
+                          aria-label={`Ver detalhes de ${client.name}`}
+                          className="border-b border-border/50 hover:bg-surface/30 focus:bg-surface/30 focus:outline-none transition-colors cursor-pointer"
+                        >
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-2">
                               <Building2 size={16} className="text-gray-500 shrink-0" />
@@ -376,7 +382,7 @@ export default function MasterClients() {
                               <span className="text-gray-500">-{client.state}</span>
                             </div>
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                             <select
                               value={client.plan}
                               onChange={(e) => handleUpdatePlan(client.id, e.target.value)}
@@ -394,7 +400,7 @@ export default function MasterClients() {
                           </td>
                           <td className="py-3 px-4 text-right font-mono text-gray-300">{client.eventsDone}</td>
                           <td className="py-3 px-4 text-gray-400 text-xs">{client.lastAccess}</td>
-                          <td className="py-3 px-4 text-right">
+                          <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="relative inline-block">
                               <Button
                                 variant="ghost"
@@ -405,13 +411,6 @@ export default function MasterClients() {
                               </Button>
                               {openMenuId === client.id && (
                                 <div className="absolute right-0 top-8 z-10 w-48 rounded-lg border border-border bg-card shadow-xl py-1">
-                                  <button
-                                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-300 hover:bg-surface hover:text-white transition-colors"
-                                    onClick={() => handleViewDetails(client)}
-                                  >
-                                    <Eye size={14} />
-                                    Ver detalhes
-                                  </button>
                                   <button
                                     className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-300 hover:bg-surface hover:text-white transition-colors"
                                     onClick={() => handleToggleStatus(client.id)}
@@ -523,70 +522,11 @@ export default function MasterClients() {
           </Modal>
 
           {/* Client Details Modal */}
-          <Modal isOpen={showDetailsModal} onClose={() => setShowDetailsModal(false)} title="Detalhes do Cliente">
-            {selectedClient && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center">
-                    <Building2 size={24} className="text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="font-display text-lg text-white">{selectedClient.name}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant={statusBadgeVariant[selectedClient.status]}>{statusLabel[selectedClient.status]}</Badge>
-                      <Badge variant={planBadgeVariant[selectedClient.plan]}>{selectedClient.plan}</Badge>
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4 pt-2">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Cidade</p>
-                    <p className="text-sm text-white">{selectedClient.city} - {selectedClient.state}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Eventos realizados</p>
-                    <p className="text-sm text-white font-mono">{selectedClient.eventsDone}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">E-mail</p>
-                    <p className="text-sm text-white">{selectedClient.email}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Telefone</p>
-                    <p className="text-sm text-white">{selectedClient.phone}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Último acesso</p>
-                    <p className="text-sm text-white">{selectedClient.lastAccess}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Cliente desde</p>
-                    <div className="flex items-center gap-1">
-                      <Calendar size={14} className="text-gray-500" />
-                      <p className="text-sm text-white">{selectedClient.createdAt}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    variant={selectedClient.status === 'blocked' ? 'primary' : 'danger'}
-                    size="sm"
-                    onClick={() => { 
-                      handleToggleStatus(selectedClient.id); 
-                      setSelectedClient({ ...selectedClient, status: selectedClient.status === 'blocked' ? 'active' : 'blocked' });
-                    }}
-                  >
-                    {selectedClient.status === 'blocked' ? (
-                      <><ShieldCheck size={14} className="mr-1" /> Ativar</>
-                    ) : (
-                      <><ShieldBan size={14} className="mr-1" /> Bloquear</>
-                    )}
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setShowDetailsModal(false)}>Fechar</Button>
-                </div>
-              </div>
-            )}
-          </Modal>
+          <ClientDetailsModal
+            client={selectedClient}
+            onClose={() => setSelectedClientId(null)}
+            onToggleStatus={handleToggleStatus}
+          />
         </div>
       </main>
       

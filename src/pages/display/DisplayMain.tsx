@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Trophy, Medal, Star, Zap, Target, Clock, MapPin, Users, ArrowLeft } from 'lucide-react';
+import { Trophy, Medal, Star, Zap, Clock, MapPin, Users, ArrowLeft } from 'lucide-react';
 import { useGameWebSocket } from '../../hooks/useGameWebSocket';
 import { useZoneConquestGame, type ZoneConquestStatus } from '../../hooks/useZoneConquestGame';
 import { ZoneConquestIndividualRanking } from '../../components/display/ZoneConquestIndividualRanking';
@@ -8,6 +8,9 @@ import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Monster3D from '../../components/display/Monster3D';
 import DisplayMap from './DisplayMap';
+import GameGuide, { type GuideGame } from '../../components/display/GameGuide';
+import FitToBox from '../../components/display/FitToBox';
+import { useTypewriterCycle } from '../../hooks/useTypewriterCycle';
 import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from '../../components/display/TreasureArena';
 
 interface MonsterDisplayMonster {
@@ -53,6 +56,8 @@ export default function DisplayMain() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [displayMessages, setDisplayMessages] = useState<any[]>([]);
+  // Quando a última mensagem do recreacionista CHEGOU a este telão (o relógio do servidor pode destoar do da TV)
+  const [messageArrivedAt, setMessageArrivedAt] = useState(0);
   const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
   const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
   const [treasureStatus, setTreasureStatus] = useState<TreasureArenaStatus | null>(null);
@@ -60,6 +65,12 @@ export default function DisplayMain() {
   const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
   const [zoneConquestStatus, setZoneConquestStatus] = useState<ZoneConquestStatus | null>(null);
   const [floorPlan, setFloorPlan] = useState<string | null>(null);
+  // Há jogo rodando agora? (vem do estado persistido do evento e dos eventos GAME_STARTED/GAME_STOPPED)
+  const [gameActive, setGameActive] = useState(false);
+  // Só decide o que mostrar depois de saber o estado do evento (evita piscar o guia ao abrir com jogo rodando)
+  const [gameStateLoaded, setGameStateLoaded] = useState(false);
+  // Jogos ativos do evento, para o guia que passa enquanto não há jogo rodando
+  const [guideGames, setGuideGames] = useState<GuideGame[]>([]);
 
   const {
     eventoAtualId,
@@ -85,6 +96,17 @@ export default function DisplayMain() {
   const topTeams = useMemo(() => [...teams]
     .sort((a, b) => Number(b.points || b.score || 0) - Number(a.points || a.score || 0))
     .slice(0, 5), [teams]);
+  // O ranking é um painel só: o título é escrito e apagado letra a letra e o conteúdo alterna entre
+  // times (equipe) e participantes (individual). Uma lista vazia é pulada.
+  const rankingTitles = ['Ranking de Times', 'Top Participantes'];
+  const { index: rankingView, text: rankingTitleText } = useTypewriterCycle(
+    rankingTitles,
+    [topTeams.length > 0, topParticipants.length > 0],
+    // Só anima com o placar na tela (ele só aparece quando existe alguma leitura)
+    { active: gameStateLoaded && (scoreLog.length > 0
+      || children.some((child) => Number(child.scores || 0) > 0)
+      || teams.some((team) => Number(team.points ?? team.score ?? 0) > 0)) },
+  );
   const recentActivities = useMemo(() => scoreLog
     .map((entry: any) => ({
       id: entry.id,
@@ -96,16 +118,6 @@ export default function DisplayMain() {
     }))
     .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
     .slice(0, 10), [scoreLog]);
-  const checkpointStats = useMemo(() => checkpoints.map(cp => {
-    const checkpointReadings = scoreLog.filter((entry: any) => String(entry.checkpointId || entry.checkpoint_id) === String(cp.id));
-    const totalReadings = checkpointReadings.length;
-    return {
-      ...cp,
-      totalReadings,
-      authorizedReadings: totalReadings,
-      successRate: totalReadings > 0 ? 100 : 0,
-    };
-  }), [checkpoints, scoreLog]);
 
   const refreshTreasureStatus = useCallback(async () => {
     if (!selectedEventId) {
@@ -170,6 +182,57 @@ export default function DisplayMain() {
     loadFloorPlan();
   }, [selectedEventId, selectedGameType]);
 
+  const refreshGameActive = useCallback(async () => {
+    if (!selectedEventId) {
+      setGameActive(false);
+      return;
+    }
+    try {
+      const { api } = await import('../../services/api');
+      const state = await api.getGameState(selectedEventId);
+      setGameActive(Boolean(state?.active));
+    } catch (err) {
+      console.error('Erro ao consultar se há jogo ativo no telão:', err);
+    }
+  }, [selectedEventId]);
+
+  const refreshGuideGames = useCallback(async () => {
+    if (!selectedEventId) {
+      setGuideGames([]);
+      return;
+    }
+    try {
+      const { api } = await import('../../services/api');
+      // Jogo desativado pelo admin não entra no guia
+      const onlyActive = (list: any[]) => list.filter((game: any) => String(game.status || 'active').toLowerCase() === 'active');
+      let games = onlyActive(await api.getBrincadeiras(selectedEventId));
+      // Evento sem jogos vinculados (eles são ligados ao evento em que foram criados): o guia
+      // mostra os jogos ativos do buffet, em vez de ficar vazio sem explicação.
+      if (games.length === 0) games = onlyActive(await api.getBrincadeiras());
+      // O mesmo jogo pode existir em mais de um evento: aparece uma vez só
+      const seen = new Set<string>();
+      games = games.filter((game: any) => {
+        const key = String(game.name || '').trim().toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setGuideGames(
+        games
+          .map((game: any) => ({
+            id: String(game.id),
+            name: String(game.name || 'Jogo'),
+            description: game.description || null,
+            rules: game.rules || null,
+            type: game.type || null,
+            duration: game.duration ? Number(game.duration) : null,
+          }))
+      );
+    } catch (err) {
+      console.error('Erro ao carregar os jogos do guia no telão:', err);
+    }
+  }, [selectedEventId]);
+
   const refreshMonsterStatus = useCallback(async () => {
     if (!selectedEventId) {
       setMonsterStatus(null);
@@ -221,6 +284,9 @@ export default function DisplayMain() {
       setSelectedGameName(null);
       setTreasureStatus(null);
       setMonsterStatus(null);
+      setGameActive(false);
+      setGameStateLoaded(false);
+      setGuideGames([]);
       if (!selectedEventId) {
         setLoading(false);
         return;
@@ -230,6 +296,9 @@ export default function DisplayMain() {
         const { api } = await import('../../services/api');
         try {
           const gameState = await api.getGameState(selectedEventId);
+          if (!disposed) {
+            setGameActive(Boolean(gameState?.active));
+          }
           if (!disposed && gameState?.selected) {
             setSelectedGameType(gameState.gameType || null);
             setSelectedGameName(gameState.gameName || null);
@@ -237,6 +306,7 @@ export default function DisplayMain() {
         } catch (stateError) {
           console.error('Erro ao restaurar seleção do jogo no telão:', stateError);
         }
+        if (!disposed) setGameStateLoaded(true);
         await Promise.all([
           loadTeams(),
           loadChildren(),
@@ -252,7 +322,7 @@ export default function DisplayMain() {
           console.error('Erro ao carregar mensagens do display:', messageError);
         }
 
-        await Promise.all([refreshTreasureStatus(), refreshMonsterStatus()]);
+        await Promise.all([refreshTreasureStatus(), refreshMonsterStatus(), refreshGuideGames()]);
       } catch (err) {
         if (!disposed) console.error('Erro ao carregar dados do evento:', err);
       } finally {
@@ -262,7 +332,7 @@ export default function DisplayMain() {
 
     loadEventData();
     return () => { disposed = true; };
-  }, [loadTeams, loadChildren, loadCheckpoints, loadScoreLog, refreshTreasureStatus, refreshMonsterStatus, selectedEventId]);
+  }, [loadTeams, loadChildren, loadCheckpoints, loadScoreLog, refreshTreasureStatus, refreshMonsterStatus, refreshGuideGames, selectedEventId]);
 
   // Reconsultar o status persistido evita perder o timer quando o telão
   // conecta depois do GAME_STARTED ou quando o WebSocket reconecta.
@@ -274,9 +344,17 @@ export default function DisplayMain() {
     const interval = window.setInterval(() => {
       refreshTreasureStatus();
       refreshMonsterStatus();
+      refreshGameActive();
     }, 5000); // Atualizar a cada 5 segundos (reduzido de 2s para economizar conexões)
     return () => window.clearInterval(interval);
-  }, [selectedEventId, refreshTreasureStatus, refreshMonsterStatus]);
+  }, [selectedEventId, refreshTreasureStatus, refreshMonsterStatus, refreshGameActive]);
+
+  // O guia reflete jogos ativados/desativados e textos editados pelo admin sem precisar recarregar o telão
+  useEffect(() => {
+    if (!selectedEventId || gameActive) return undefined;
+    const interval = window.setInterval(refreshGuideGames, 60000);
+    return () => window.clearInterval(interval);
+  }, [selectedEventId, gameActive, refreshGuideGames]);
 
   // 🆕 Sincronizar Zone Conquest status do hook com estado local
   useEffect(() => {
@@ -304,6 +382,7 @@ export default function DisplayMain() {
         setMonsterStatus(null);
       } else if (event.type === 'DISPLAY_MESSAGE' && sameEventId(event.payload?.evento_id ?? event.payload?.eventoId, selectedEventId)) {
         setDisplayMessages((previous) => [event.payload, ...previous].slice(0, 50));
+        setMessageArrivedAt(Date.now());
       } else if (['MONSTER_PROGRESS', 'MONSTER_SPECIAL_ATTACK', 'MONSTER_TEAM_DEFEATED', 'MONSTER_DEFEATED'].includes(event.type) && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const payload = event.payload || {};
         const monsters = Array.isArray(payload.monsters)
@@ -327,6 +406,8 @@ export default function DisplayMain() {
         const treasure = event.payload?.treasure;
 
         const gameType = event.payload?.gameType;
+        setGameActive(true);
+        setGameStateLoaded(true);
         setSelectedGameType(gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
         
@@ -400,6 +481,8 @@ export default function DisplayMain() {
           setZoneConquestStatus(null);
         }
       } else if (event.type === 'GAME_STOPPED' && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
+        setGameActive(false);
+        refreshGuideGames();
         setSelectedGameType(null);
         setSelectedGameName(null);
         setTreasureStatus(null);
@@ -407,6 +490,18 @@ export default function DisplayMain() {
         setMonsterStatus(null);
         setZoneConquestStatus(null);
         setFloorPlan(null);  // Limpar planta quando jogo termina
+        // O fim do jogo pode ter pago o bônus da equipe vencedora: atualiza os pontos
+        const { loadTeams: reloadTeams, loadChildren: reloadChildren } = usePulynStore.getState();
+        reloadTeams();
+        reloadChildren();
+      } else if (event.type === 'GAME_WINNER_BONUS' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        // Caça ao Tesouro / Monstro: cada membro da equipe vencedora ganhou o bônus.
+        // Espera um instante para o banco confirmar a partida antes de reler os pontos.
+        window.setTimeout(() => {
+          const { loadTeams: reloadTeams, loadChildren: reloadChildren } = usePulynStore.getState();
+          reloadTeams();
+          reloadChildren();
+        }, 1500);
       } else if (event.type === 'ZONE_CONQUEST_INDIVIDUAL_SCAN' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         // 🎯 Log único e limpo quando checkpoint é conquistado
         const { criancaName, pointsGained, checkpointId } = event.payload;
@@ -559,10 +654,6 @@ export default function DisplayMain() {
   // Total de participantes ativos
   const activeParticipants = children.filter(c => c.status === 'active').length;
   const totalParticipants = children.length;
-  const onlineCheckpoints = checkpoints.filter(cp => cp.status === 'online').length;
-  const totalCheckpoints = checkpoints.length;
-  const totalReadings = scoreLog.length;
-  const totalScores = children.reduce((sum, child) => sum + Number(child.scores || 0), 0);
   const normalizedGameContext = `${selectedGameType || ''} ${selectedGameName || ''}`
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -572,6 +663,7 @@ export default function DisplayMain() {
 
   // Também mostrar mapa em tesouro
   const shouldShowMap = selectedGameType && (isZoneGame || selectedGameType === 'treasure_hunt');
+
 
   const monsterCards = monsterStatus?.monsters?.length
     ? monsterStatus.monsters
@@ -587,29 +679,135 @@ export default function DisplayMain() {
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-primary-300/20 bg-primary-500/10 text-3xl shadow-[0_0_35px_rgba(30,155,215,0.18)]">⚡</div>
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.3em] text-primary-300">Pulyn Arena</p>
           <h1 className="font-display text-3xl font-bold text-white sm:text-4xl">Aguardando o evento</h1>
-          <p className="mt-3 text-sm leading-6 text-gray-400">A recepção precisa selecionar um evento para liberar a arena.</p>
+          <p className="mt-3 text-sm leading-6 text-gray-400">A recepção precisa escolher o evento no painel da recepção (Evento no telão) para liberar a arena.</p>
           {loading && <div className="mx-auto mt-7 h-9 w-9 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />}
         </Card>
       </div>
     );
   }
 
-  return (
-    <div className="relative min-h-screen overflow-hidden bg-[#08111f] px-4 py-5 text-white sm:px-6 lg:px-8">
-      <div className="pointer-events-none absolute -left-48 top-24 h-[32rem] w-[32rem] rounded-full bg-primary/10 blur-3xl" />
-      <div className="pointer-events-none absolute -right-56 bottom-0 h-[34rem] w-[34rem] rounded-full bg-secondary/10 blur-3xl" />
-      {/* Botão de Sair - Canto superior esquerdo */}
-      <div className="absolute left-4 top-4 z-40 sm:left-6 sm:top-6">
-        <button
-          onClick={() => window.history.back()}
-          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-dark-card/80 px-3.5 py-2 text-sm font-semibold text-gray-300 shadow-lg shadow-black/10 backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-primary-400/40 hover:bg-dark-surface hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
-          title="Voltar (ESC)"
-        >
-          <ArrowLeft size={17} />
-          <span className="hidden sm:inline">Sair</span>
-        </button>
-      </div>
+  // Cada parte da tela cabe na altura disponível: o telão não rola. O palco (mapa/arenas) e as listas
+  // são reduzidos para caber (FitToBox), inclusive o guia de regras, que mostra todas as regras do jogo de uma vez.
+  const monsterStageVisible = selectedGameType === 'monster_hunt' && monsterStatus?.gameType === 'monster_hunt';
+  const treasureStageVisible = selectedGameType === 'treasure_hunt' && treasureStatus?.gameType === 'treasure_hunt'
+    && Boolean(treasureStatus.active || treasureStatus.completed);
+  const mapStageVisible = Boolean(shouldShowMap) && !monsterStatus?.active && !treasureStatus?.active;
+  const hasStage = monsterStageVisible || treasureStageVisible || mapStageVisible;
+  // Só o mapa: ele preenche o palco (as arenas é que são reduzidas para caber)
+  const mapOnly = mapStageVisible && !monsterStageVisible && !treasureStageVisible;
 
+  const rankingRowText = 'text-[clamp(0.9rem,2vh,1.4rem)]';
+  const rankingSubText = 'text-[clamp(0.65rem,1.4vh,0.85rem)]';
+  const rankingScoreText = 'text-[clamp(1.1rem,2.6vh,1.9rem)]';
+  const panelTitle = 'font-display text-[clamp(1rem,2.4vh,1.5rem)] font-bold text-white';
+  const panelSubtitle = 'text-[clamp(0.6rem,1.3vh,0.8rem)] text-gray-500';
+  const panelHeader = 'mb-2 flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.06] pb-2';
+
+  // Com um jogo rodando (e palco para mostrar) a tela tem só o mapa, ou a arena do jogo quando ele não
+  // tem mapa: sem cabeçalho, rankings, regras, atividades nem rodapé.
+  const gameOnlyView = gameActive && hasStage;
+  // O placar só aparece quando existe alguma leitura (ou pontuação já gravada) no evento
+  const hasReadings = scoreLog.length > 0
+    || children.some((child) => Number(child.scores || 0) > 0)
+    || teams.some((team) => Number(team.points ?? team.score ?? 0) > 0);
+
+  const stageContent = (
+            mapOnly ? (
+          <div className="h-full" aria-live="polite">
+            <DisplayMap
+              embedded
+              fill
+              hideHeader={gameOnlyView}
+              gameType={selectedGameType || undefined}
+              floorPlan={(floorPlan as any)}
+              // 🆕 Zone Conquest INDIVIDUAL
+              // isIndividualMode vem da partida real (zone_conquest_individual_partidas ativa),
+              // nunca inferir isso a partir de gameType: o backend só grava 'zone_conquest'
+              // para os dois modos (equipe e individual).
+              isIndividualMode={isIndividualMode}
+              zoneConquestZones={zoneConquestStatus?.zones || null}
+              zoneConquestCheckpoints={zoneConquestStatus?.checkpoints || null}
+            />
+          </div>
+            ) : (
+            <FitToBox align="center" minScale={0.3} maxScale={gameOnlyView ? 1.6 : 1}>
+              <>
+          {selectedGameType === 'monster_hunt' && monsterStatus?.gameType === 'monster_hunt' && (
+            <div className="mx-auto max-w-6xl rounded-3xl border-2 border-danger/70 bg-gradient-to-br from-red-950/80 via-dark-surface/90 to-purple-950/70 p-5 shadow-2xl shadow-danger/20 sm:p-6" aria-live="polite">
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-danger">Caça ao Monstro</p>
+                  <h2 className="font-display text-4xl font-bold text-white">Um monstro para cada equipe</h2>
+                </div>
+                <div className="rounded-full border border-danger/40 bg-danger/10 px-4 py-2 text-sm font-bold text-red-100">
+                  {monsterCards.filter(monster => monster.monsterDefeated).length}/{monsterCards.length} derrotados
+                </div>
+              </div>
+
+              <div className="grid gap-5 lg:grid-cols-2">
+                {monsterCards.map((monster) => {
+                  const hp = Number(monster.monsterHp || 0);
+                  const maxHp = Number(monster.monsterMaxHp || 500);
+                  const defeated = Boolean(monster.monsterDefeated || monster.victory);
+                  const progressPercent = maxHp > 0 ? Math.max(0, Math.min(100, (hp / maxHp) * 100)) : 0;
+                  return (
+                    <article key={monster.teamId} className="overflow-hidden rounded-2xl border border-white/10 bg-black/25" style={{ borderColor: `${monster.teamColor || '#ef4444'}66` }}>
+                      <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">Equipe</p>
+                          <h3 className="truncate font-display text-2xl font-bold" style={{ color: monster.teamColor || '#f87171' }}>{monster.teamName}</h3>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${defeated ? 'bg-success/15 text-success' : 'bg-danger/15 text-red-200'}`}>
+                          {defeated ? 'Monstro derrotado' : 'Em batalha'}
+                        </span>
+                      </div>
+                      <div className="p-3">
+                        <Monster3D
+                          hp={hp}
+                          maxHp={maxHp}
+                          defeated={defeated}
+                          teamName={monster.teamName}
+                          teamColor={monster.teamColor}
+                          winnerTeamName={defeated ? monster.teamName : null}
+                          winnerTeamColor={monster.teamColor}
+                        />
+                        <div className="mt-3 flex items-center justify-between text-sm font-semibold text-gray-200">
+                          <span>Energia do monstro</span>
+                          <span>{hp}/{maxHp} HP</span>
+                        </div>
+                        <div className="mt-2 h-4 overflow-hidden rounded-full border border-white/10 bg-black/50 p-0.5">
+                          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progressPercent}%`, backgroundColor: monster.teamColor || '#ef4444' }} />
+                        </div>
+                        <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+                          <span>{monster.scanned}/{monster.total} participantes atacaram</span>
+                          <span>{monster.complete ? 'Ataque especial liberado' : 'Ataques em andamento'}</span>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {selectedGameType === 'treasure_hunt' && treasureStatus?.gameType === 'treasure_hunt' &&
+            (treasureStatus.active || treasureStatus.completed) && (
+            <div className="mx-auto max-w-6xl">
+              <TreasureArena
+                status={treasureStatus}
+                checkpoints={checkpoints}
+                teams={teams}
+                lastEvent={lastTreasureEvent}
+                floorPlan={floorPlan}
+              />
+            </div>
+          )}
+              </>
+            </FitToBox>
+            )
+  );
+
+  const conquestOverlay = (
+    <>
       {/* Notificação Animada de Conquista */}
       {showNotification && notificationData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm pointer-events-none">
@@ -682,471 +880,316 @@ export default function DisplayMain() {
           </div>
         </div>
       )}
+    </>
+  );
 
-      <div className="max-w-7xl mx-auto">
-        {/* Header com data/hora */}
-        <div className="relative mb-7 overflow-hidden rounded-3xl border border-white/10 bg-dark-card/75 p-5 text-center shadow-[0_18px_50px_rgba(2,10,24,0.2)] backdrop-blur-xl sm:p-7">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-300/70 to-transparent" />
-          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary-300/20 bg-primary-500/10 text-2xl shadow-[0_0_30px_rgba(30,155,215,0.15)]">⚡</div>
-            <h1 className="font-display text-4xl font-bold tracking-tight text-white sm:text-6xl">
-              Pulyn Arena
-            </h1>
-            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1.5" aria-live="polite">
-              <div className={`h-2.5 w-2.5 rounded-full ${
-                connectionStatus === 'connected'
-                  ? 'bg-success animate-pulse'
-                  : connectionStatus === 'reconnecting' || connectionStatus === 'connecting'
-                    ? 'bg-warning animate-pulse'
-                    : 'bg-danger'
-              }`} />
-              <span className="text-xs font-semibold text-gray-300">
-                {connectionStatus === 'connected'
-                  ? 'Ao vivo'
-                  : connectionStatus === 'reconnecting'
-                    ? 'Reconectando'
-                    : connectionStatus === 'connecting'
-                      ? 'Conectando'
-                      : 'Desconectado'}
-              </span>
-              {lastMessageAt && connectionStatus === 'connected' && (
-                <span className="hidden text-[11px] text-gray-500 sm:inline">
-                  · {lastMessageAt.toLocaleTimeString('pt-BR')}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
-            <p className="max-w-full truncate text-base font-semibold text-gray-200 sm:text-xl">
-              {events.find(e => e.id === selectedEventId)?.name || 'Evento selecionado'}
-            </p>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-secondary-400/20 bg-secondary-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-secondary-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-secondary-400" /> Recepção no controle
-            </span>
-          </div>
-          {selectedGameType && !monsterStatus?.active && !treasureStatus?.active && (
-            <div className="mx-auto mb-6 max-w-2xl rounded-2xl border border-primary-400/25 bg-primary-500/10 px-6 py-5 text-center shadow-[0_12px_35px_rgba(30,155,215,0.08)]" aria-live="polite">
-              <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-primary-500/15 text-lg">🎮</div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary-300">Jogo selecionado</p>
-              <p className="mt-1 font-display text-2xl font-bold text-white">
-                {selectedGameName || (selectedGameType === 'monster_hunt' ? 'Derrote o Monstro' : selectedGameType === 'treasure_hunt' ? 'Caça ao Tesouro' : 'Jogo de território')}
-              </p>
-              <p className="mt-1 text-sm text-gray-400">Aguardando o Game Master iniciar a partida</p>
-            </div>
-          )}
-
-          {selectedGameType === 'monster_hunt' && monsterStatus?.gameType === 'monster_hunt' && (
-            <div className="mx-auto mb-6 max-w-6xl rounded-3xl border-2 border-danger/70 bg-gradient-to-br from-red-950/80 via-dark-surface/90 to-purple-950/70 p-5 shadow-2xl shadow-danger/20 sm:p-6" aria-live="polite">
-              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-danger">Caça ao Monstro</p>
-                  <h2 className="font-display text-4xl font-bold text-white">Um monstro para cada equipe</h2>
-                </div>
-                <div className="rounded-full border border-danger/40 bg-danger/10 px-4 py-2 text-sm font-bold text-red-100">
-                  {monsterCards.filter(monster => monster.monsterDefeated).length}/{monsterCards.length} derrotados
-                </div>
-              </div>
-
-              <div className="grid gap-5 lg:grid-cols-2">
-                {monsterCards.map((monster) => {
-                  const hp = Number(monster.monsterHp || 0);
-                  const maxHp = Number(monster.monsterMaxHp || 500);
-                  const defeated = Boolean(monster.monsterDefeated || monster.victory);
-                  const progressPercent = maxHp > 0 ? Math.max(0, Math.min(100, (hp / maxHp) * 100)) : 0;
-                  return (
-                    <article key={monster.teamId} className="overflow-hidden rounded-2xl border border-white/10 bg-black/25" style={{ borderColor: `${monster.teamColor || '#ef4444'}66` }}>
-                      <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">Equipe</p>
-                          <h3 className="truncate font-display text-2xl font-bold" style={{ color: monster.teamColor || '#f87171' }}>{monster.teamName}</h3>
-                        </div>
-                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${defeated ? 'bg-success/15 text-success' : 'bg-danger/15 text-red-200'}`}>
-                          {defeated ? 'Monstro derrotado' : 'Em batalha'}
-                        </span>
-                      </div>
-                      <div className="p-3">
-                        <Monster3D
-                          hp={hp}
-                          maxHp={maxHp}
-                          defeated={defeated}
-                          teamName={monster.teamName}
-                          teamColor={monster.teamColor}
-                          winnerTeamName={defeated ? monster.teamName : null}
-                          winnerTeamColor={monster.teamColor}
-                        />
-                        <div className="mt-3 flex items-center justify-between text-sm font-semibold text-gray-200">
-                          <span>Energia do monstro</span>
-                          <span>{hp}/{maxHp} HP</span>
-                        </div>
-                        <div className="mt-2 h-4 overflow-hidden rounded-full border border-white/10 bg-black/50 p-0.5">
-                          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progressPercent}%`, backgroundColor: monster.teamColor || '#ef4444' }} />
-                        </div>
-                        <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-                          <span>{monster.scanned}/{monster.total} participantes atacaram</span>
-                          <span>{monster.complete ? 'Ataque especial liberado' : 'Ataques em andamento'}</span>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {selectedGameType === 'treasure_hunt' && treasureStatus?.gameType === 'treasure_hunt' &&
-            (treasureStatus.active || treasureStatus.completed) && (
-            <div className="mx-auto mb-6 max-w-6xl">
-              <TreasureArena
-                status={treasureStatus}
-                checkpoints={checkpoints}
-                teams={teams}
-                lastEvent={lastTreasureEvent}
-                floorPlan={floorPlan}
-              />
-            </div>
-          )}
-
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 border-t border-white/[0.06] pt-4 text-center">
-            <div className="flex items-center gap-2">
-              <Clock size={16} className="text-primary-300" />
-              <p className="font-mono text-xl font-bold tracking-wide text-primary-300 sm:text-2xl">{formattedTime}</p>
-            </div>
-            <span className="hidden h-4 w-px bg-white/10 sm:block" />
-            <p className="text-xs capitalize text-gray-500 sm:text-sm">{formattedDate}</p>
-          </div>
-        </div>
-
-        {shouldShowMap && !monsterStatus?.active && !treasureStatus?.active && (
-          <div className="mb-8" aria-live="polite">
-            <DisplayMap
-              embedded
-              gameType={selectedGameType}
-              floorPlan={(floorPlan as any)}
-              // 🆕 Zone Conquest INDIVIDUAL
-              // isIndividualMode vem da partida real (zone_conquest_individual_partidas ativa),
-              // nunca inferir isso a partir de gameType: o backend só grava 'zone_conquest'
-              // para os dois modos (equipe e individual).
-              isIndividualMode={isIndividualMode}
-              zoneConquestZones={zoneConquestStatus?.zones || null}
-              zoneConquestCheckpoints={zoneConquestStatus?.checkpoints || null}
-            />
-          </div>
-        )}
-
-        {/* Cards de estatísticas */}
-        <div className="mb-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          <Card variant="glow" className="group relative overflow-hidden p-4 sm:p-5">
-            <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-primary/10 blur-2xl transition group-hover:bg-primary/20" />
-            <div className="relative flex items-start justify-between gap-2">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Participantes</p>
-                <p className="mt-2 text-2xl font-bold text-white sm:text-3xl">{activeParticipants}/{totalParticipants}</p>
-                <p className="mt-1 text-xs text-gray-400">ativos no evento</p>
-              </div>
-              <div className="rounded-xl border border-primary-400/20 bg-primary-500/10 p-2 text-primary-300"><Users size={20} /></div>
-            </div>
-          </Card>
-
-          <Card variant="secondary" className="group relative overflow-hidden p-4 sm:p-5">
-            <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-secondary/10 blur-2xl transition group-hover:bg-secondary/20" />
-            <div className="relative flex items-start justify-between gap-2">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Checkpoints</p>
-                <p className="mt-2 text-2xl font-bold text-white sm:text-3xl">{onlineCheckpoints}/{totalCheckpoints}</p>
-                <p className="mt-1 text-xs text-gray-400">online agora</p>
-              </div>
-              <div className="rounded-xl border border-secondary-400/20 bg-secondary-500/10 p-2 text-secondary-300"><Target size={20} /></div>
-            </div>
-          </Card>
-
-          <Card variant="glow" className="group relative overflow-hidden p-4 sm:p-5">
-            <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-accent/10 blur-2xl transition group-hover:bg-accent/20" />
-            <div className="relative flex items-start justify-between gap-2">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Leituras</p>
-                <p className="mt-2 text-2xl font-bold text-white sm:text-3xl">{totalReadings}</p>
-                <p className="mt-1 text-xs text-gray-400">conquistas registradas</p>
-              </div>
-              <div className="rounded-xl border border-accent-400/20 bg-accent-500/10 p-2 text-accent-300"><Zap size={20} /></div>
-            </div>
-          </Card>
-
-          <Card variant="glow" className="group relative overflow-hidden p-4 sm:p-5">
-            <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-warning/10 blur-2xl transition group-hover:bg-warning/20" />
-            <div className="relative flex items-start justify-between gap-2">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Pontuação</p>
-                <p className="mt-2 text-2xl font-bold text-white sm:text-3xl">{totalScores}</p>
-                <p className="mt-1 text-xs text-gray-400">pontos acumulados</p>
-              </div>
-              <div className="rounded-xl border border-warning-400/20 bg-warning-500/10 p-2 text-warning-300"><Trophy size={20} /></div>
-            </div>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* 🆕 Ranking Zone Conquest INDIVIDUAL (substitui o ranking padrão) */}
-          {isIndividualMode && zoneConquestStatus ? (
-            <div className="lg:col-span-2">
-              <Card variant="glow" className="overflow-hidden p-4 sm:p-5">
-                <ZoneConquestIndividualRanking 
-                  participants={zoneConquestStatus.participants || []} 
-                />
-              </Card>
-            </div>
-          ) : (
-            <>
-              {/* Ranking de Participantes (TEAM mode) */}
-              <Card variant="glow" className="overflow-hidden p-4 sm:p-5">
-             <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
-               <div className="flex items-center gap-3">
-                 <div className="rounded-xl border border-warning-400/20 bg-warning-500/10 p-2 text-warning-300"><Medal size={20} /></div>
-                 <div>
-                   <h2 className="font-display text-xl font-bold text-white">🏆 Top Participantes</h2>
-                   <p className="mt-0.5 text-xs text-gray-500">Quem está liderando a festa</p>
-                 </div>
-               </div>
-               <Badge variant="warning">Top 5</Badge>
-             </div>
-             <div className="space-y-3">
-               {topParticipants.length > 0 ? (
-                 topParticipants.map((child, index) => (
-                   <div
-                     key={child.id}
-                     className={`flex items-center gap-3 rounded-2xl border p-4 transition-all duration-200 ${
-                       index === 0
-                         ? 'border-warning/50 bg-warning/10 shadow-[0_0_20px_rgba(245,166,35,0.2)]'
-                         : 'border-white/[0.06] bg-white/[0.025] hover:border-white/10 hover:bg-white/[0.05]'
-                     }`}
-                   >
-                     <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg" style={{
-                       backgroundColor: index === 0 ? 'rgba(245, 166, 35, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                       color: index === 0 ? '#F5A623' : '#9CA3AF'
-                     }}>
-                       {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
-                     </div>
-                     <div className="flex-1">
-                       <p className="font-semibold text-white text-xl">
-                         {child.nickname || child.name}
-                       </p>
-                       <p className="text-sm text-gray-400">
-                         {child.age} anos
-                       </p>
-                     </div>
-                     <div className="text-right">
-                       <p className={`font-bold text-2xl ${index === 0 ? 'text-warning' : 'text-primary'}`}>
-                         {child.scores || 0}
-                       </p>
-                       <p className="text-xs text-gray-500">pontos</p>
-                     </div>
-                   </div>
-                 ))
-               ) : (
-                 <p className="text-gray-500 text-center py-8">
-                   Nenhum participante cadastrado
-                 </p>
-               )}
-             </div>
-           </Card>
-
-          {/* Ranking de Times */}
-          <Card variant="secondary" className="overflow-hidden p-4 sm:p-5">
-            <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-xl border border-primary-400/20 bg-primary-500/10 p-2 text-primary-300"><Trophy size={20} /></div>
-                <div>
-                  <h2 className="font-display text-xl font-bold text-white">Ranking de Times</h2>
-                  <p className="mt-0.5 text-xs text-gray-500">A disputa pelo primeiro lugar</p>
-                </div>
-              </div>
-              <Badge variant="primary">Top 5</Badge>
-            </div>
-            <div className="space-y-3">
-              {topTeams.length > 0 ? (
-                topTeams.map((team) => {
-                  // Calcular pontos totais do time
-                  const teamMembers = children.filter(c => c.time_id === team.id || c.teamId === team.id);
-                  const teamTotalPoints = teamMembers.reduce((sum, c) => sum + (c.scores || 0), 0);
-                  
-                  return (
-                    <div
-                      key={team.id}
-                      className="flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-3.5 transition-all duration-200 hover:border-white/10 hover:bg-white/[0.05]"
-                    >
-                      <div 
-                        className="w-10 h-10 rounded-lg flex items-center justify-center"
-                        style={{ backgroundColor: team.color + '30' }}
-                      >
-                        <span className="text-xl">👥</span>
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-white">{team.name}</p>
-                        <div className="flex items-center gap-2">
-                          <div 
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: team.color }}
-                          />
-                          <p className="text-xs text-gray-400">
-                            {teamMembers.length} criança{teamMembers.length !== 1 ? 's' : ''}
+  // Placar: um painel só, que alterna entre times e participantes (título escrito e apagado letra a letra)
+  const rankingPanel = (
+                isIndividualMode && zoneConquestStatus ? (
+                  <Card variant="glow" className="h-full overflow-hidden p-3 sm:p-4">
+                    <FitToBox minScale={0.4}>
+                      <ZoneConquestIndividualRanking participants={zoneConquestStatus.participants || []} />
+                    </FitToBox>
+                  </Card>
+                ) : (
+                  <Card variant="glow" className="flex h-full min-h-0 flex-col overflow-hidden p-3 sm:p-4">
+                    <div className={panelHeader}>
+                      <div className="flex items-center gap-3">
+                        {rankingView === 0 ? (
+                          <div className="rounded-xl border border-primary-400/20 bg-primary-500/10 p-2 text-primary-300"><Trophy size={20} /></div>
+                        ) : (
+                          <div className="rounded-xl border border-warning-400/20 bg-warning-500/10 p-2 text-warning-300"><Medal size={20} /></div>
+                        )}
+                        <div>
+                          <h2 className={`min-h-[1.6em] ${panelTitle}`} aria-label={rankingTitles[rankingView]}>
+                            <span aria-hidden="true">{rankingTitleText}</span>
+                            <span aria-hidden="true" className="ml-0.5 inline-block h-[1em] w-[2px] animate-pulse bg-primary-300 align-middle" />
+                          </h2>
+                          <p className={panelSubtitle}>
+                            {rankingView === 0 ? 'A disputa pelo primeiro lugar' : 'Quem está liderando a festa'}
                           </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-xl font-bold text-secondary">
-                          {Number(team.points ?? team.score ?? teamTotalPoints)}
-                        </p>
-                        <p className="text-xs text-gray-500">pontos</p>
-                      </div>
+                      <Badge variant={rankingView === 0 ? 'primary' : 'warning'}>Top 5</Badge>
                     </div>
-                  );
-                })
-              ) : (
-                <p className="text-gray-500 text-center py-8">
-                  Nenhum time cadastrado
-                </p>
-              )}
-            </div>
-          </Card>
-          </>
-          )}
+                    <div key={rankingView} className="min-h-0 flex-1 animate-in fade-in duration-500" aria-live="polite">
+                      <FitToBox minScale={0.4}>
+                        {rankingView === 0 ? (
+                          <div className="space-y-2">
+                            {topTeams.length > 0 ? (
+                              topTeams.map((team) => {
+                                const teamMembers = children.filter(c => c.time_id === team.id || c.teamId === team.id);
+                                const teamTotalPoints = teamMembers.reduce((sum, c) => sum + (c.scores || 0), 0);
+                                return (
+                                  <div key={team.id} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.025] p-2.5">
+                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: team.color + '30' }}>
+                                      <span className="text-lg">👥</span>
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className={`truncate font-semibold text-white ${rankingRowText}`}>{team.name}</p>
+                                      <div className="flex items-center gap-2">
+                                        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: team.color }} />
+                                        <p className={`text-gray-400 ${rankingSubText}`}>
+                                          {teamMembers.length} criança{teamMembers.length !== 1 ? 's' : ''}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className={`font-bold text-secondary ${rankingScoreText}`}>
+                                        {Number(team.points ?? team.score ?? teamTotalPoints)}
+                                      </p>
+                                      <p className={`text-gray-500 ${rankingSubText}`}>pontos</p>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <p className="py-8 text-center text-gray-500">Nenhum time cadastrado</p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {topParticipants.length > 0 ? (
+                              topParticipants.map((child, index) => (
+                                <div
+                                  key={child.id}
+                                  className={`flex items-center gap-3 rounded-xl border p-2.5 ${
+                                    index === 0
+                                      ? 'border-warning/50 bg-warning/10 shadow-[0_0_20px_rgba(245,166,35,0.2)]'
+                                      : 'border-white/[0.06] bg-white/[0.025]'
+                                  }`}
+                                >
+                                  <div
+                                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg font-bold"
+                                    style={{
+                                      backgroundColor: index === 0 ? 'rgba(245, 166, 35, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                                      color: index === 0 ? '#F5A623' : '#9CA3AF',
+                                    }}
+                                  >
+                                    {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className={`truncate font-semibold text-white ${rankingRowText}`}>{child.nickname || child.name}</p>
+                                    <p className={`text-gray-400 ${rankingSubText}`}>{child.age} anos</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className={`font-bold ${rankingScoreText} ${index === 0 ? 'text-warning' : 'text-primary'}`}>{child.scores || 0}</p>
+                                    <p className={`text-gray-500 ${rankingSubText}`}>pontos</p>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="py-8 text-center text-gray-500">Nenhum participante cadastrado</p>
+                            )}
+                          </div>
+                        )}
+                      </FitToBox>
+                    </div>
+                  </Card>
+                )
+  );
 
-          {displayMessages.length > 0 && (
-            <Card variant="secondary" className="lg:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <Zap size={24} className="text-accent" />
-                <h2 className="font-display text-xl text-white">Mensagem do recreacionista</h2>
+  const headerBar = (
+      <header className="relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 overflow-hidden rounded-2xl border border-white/10 bg-dark-card/75 px-4 py-2 shadow-[0_12px_36px_rgba(2,10,24,0.2)] backdrop-blur-xl lg:h-[8vh] lg:min-h-[52px] lg:flex-nowrap">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-300/70 to-transparent" />
+        <div className="flex min-w-0 items-center gap-3">
+          <button
+            onClick={() => window.history.back()}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-dark-card/80 px-3 py-1.5 text-sm font-semibold text-gray-300 transition-colors duration-200 hover:border-primary-400/40 hover:bg-dark-surface hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
+            title="Voltar (ESC)"
+          >
+            <ArrowLeft size={16} />
+            <span className="hidden sm:inline">Sair</span>
+          </button>
+          <div className="flex h-[clamp(2rem,4.6vh,3rem)] w-[clamp(2rem,4.6vh,3rem)] shrink-0 items-center justify-center rounded-xl border border-primary-300/20 bg-primary-500/10 text-xl">⚡</div>
+          <h1 className="truncate font-display text-[clamp(1.4rem,4vh,3rem)] font-bold leading-none tracking-tight text-white">Pulyn Arena</h1>
+          <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1" aria-live="polite">
+            <div className={`h-2.5 w-2.5 rounded-full ${
+              connectionStatus === 'connected'
+                ? 'bg-success animate-pulse'
+                : connectionStatus === 'reconnecting' || connectionStatus === 'connecting'
+                  ? 'bg-warning animate-pulse'
+                  : 'bg-danger'
+            }`} />
+            <span className="text-xs font-semibold text-gray-300">
+              {connectionStatus === 'connected'
+                ? 'Ao vivo'
+                : connectionStatus === 'reconnecting'
+                  ? 'Reconectando'
+                  : connectionStatus === 'connecting'
+                    ? 'Conectando'
+                    : 'Desconectado'}
+            </span>
+            {lastMessageAt && connectionStatus === 'connected' && (
+              <span className="hidden text-[11px] text-gray-500 xl:inline">
+                · {lastMessageAt.toLocaleTimeString('pt-BR')}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <p className="truncate text-[clamp(0.9rem,2.3vh,1.5rem)] font-semibold text-gray-200">
+            {events.find(e => e.id === selectedEventId)?.name || 'Evento selecionado'}
+          </p>
+          <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-secondary-400/20 bg-secondary-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-secondary-300 md:inline-flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-secondary-400" /> Recepção no controle
+          </span>
+        </div>
+      </header>
+  );
+
+  if (gameOnlyView) {
+    // Mensagem do recreacionista: aparece por cima do jogo só por um tempo e some sozinha
+    const latestMessage = displayMessages[0];
+    const showMessageOverGame = Boolean(latestMessage) && messageArrivedAt > 0 && currentTime.getTime() - messageArrivedAt < 20000;
+    return (
+      <div className="relative flex h-screen flex-col overflow-hidden bg-[#08111f] p-2 text-white">
+        {conquestOverlay}
+        {headerBar}
+        {showMessageOverGame && (
+          <div className="absolute inset-x-6 top-[max(5.5rem,11vh)] z-30 flex items-center gap-3 rounded-2xl border border-accent/50 bg-black/70 px-5 py-3 shadow-2xl backdrop-blur animate-in fade-in slide-in-from-top-2" role="status" aria-label="Mensagem do recreacionista">
+            <Zap size={26} className="shrink-0 text-accent" />
+            <p className="line-clamp-2 font-display text-[clamp(1.2rem,3.4vh,2.4rem)] font-bold leading-tight text-white">{latestMessage.text}</p>
+          </div>
+        )}
+        <div className="mt-2 min-h-0 flex-1">{stageContent}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#08111f] px-3 py-3 text-white lg:h-screen lg:px-5 lg:py-4">
+      <div className="pointer-events-none absolute -left-48 top-24 h-[32rem] w-[32rem] rounded-full bg-primary/10 blur-3xl" />
+      <div className="pointer-events-none absolute -right-56 bottom-0 h-[34rem] w-[34rem] rounded-full bg-secondary/10 blur-3xl" />
+
+      {conquestOverlay}
+
+      {headerBar}
+
+      <main className="relative z-10 mt-3 flex min-h-0 flex-1 flex-col gap-3">
+        {/* Mensagem do recreacionista */}
+        {displayMessages.length > 0 && (
+          <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-2" role="status" aria-label="Mensagem do recreacionista">
+            <Zap size={22} className="shrink-0 text-accent" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[clamp(0.6rem,1.3vh,0.8rem)] font-bold uppercase tracking-[0.25em] text-accent">Mensagem do recreacionista</p>
+              <p className="line-clamp-2 font-display text-[clamp(1.1rem,3vh,2.2rem)] font-bold leading-tight text-white">{displayMessages[0].text}</p>
+            </div>
+            <p className="shrink-0 text-xs text-gray-400">{displayMessages[0].timestamp ? new Date(displayMessages[0].timestamp).toLocaleTimeString('pt-BR') : ''}</p>
+          </div>
+        )}
+
+        {/* Sem jogo rodando (com um jogo rodando só aparece o jogo):
+            - sem leituras: o guia de regras ocupa o espaço todo;
+            - com leituras: metade guia, metade placar. */}
+        {!gameStateLoaded ? (
+          <div className="flex-1" />
+        ) : guideGames.length > 0 ? (
+          hasReadings ? (
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
+              <section className="min-h-[360px] min-w-0 lg:min-h-0">
+                <GameGuide compact games={guideGames} highlightName={selectedGameName} />
+              </section>
+              <div className="min-h-[360px] min-w-0 lg:min-h-0">
+                {rankingPanel}
               </div>
-              <div className="rounded-xl border border-accent/40 bg-accent/10 px-6 py-5 text-center">
-                <p className="font-display text-3xl font-bold text-white">{displayMessages[0].text}</p>
-                <p className="mt-2 text-xs text-gray-400">{displayMessages[0].timestamp ? new Date(displayMessages[0].timestamp).toLocaleTimeString('pt-BR') : ''}</p>
+            </div>
+          ) : (
+            <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
+              <GameGuide games={guideGames} highlightName={selectedGameName} />
+            </section>
+          )
+        ) : hasReadings ? (
+          // Sem jogos cadastrados para o guia: placar e atividades recentes
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[5fr_5fr_4fr]">
+            <div className="h-[340px] min-h-0 lg:col-span-2 lg:h-full">
+              {rankingPanel}
+            </div>
+
+          {/* Atividades recentes */}
+          <div className="h-[340px] min-h-0 lg:h-full">
+            <Card variant="glow" className="flex h-full min-h-0 flex-col overflow-hidden p-3 sm:p-4">
+              <div className={panelHeader}>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl border border-secondary-400/20 bg-secondary-500/10 p-2 text-secondary-300"><Clock size={20} /></div>
+                  <div>
+                    <h2 className={panelTitle}>Atividades Recentes</h2>
+                    <p className={panelSubtitle}>Últimas conquistas em tempo real</p>
+                  </div>
+                </div>
+                <span className="hidden rounded-full border border-success-400/20 bg-success-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-success-300 xl:inline-flex">Ao vivo</span>
+              </div>
+              <div className="min-h-0 flex-1">
+                <FitToBox minScale={0.4}>
+                  <div className="space-y-1.5">
+                    {recentActivities.length > 0 ? (
+                      recentActivities.slice(0, 6).map((activity, index) => (
+                        <div
+                          key={activity.id}
+                          className={`flex items-center justify-between gap-2 rounded-lg p-2 ${
+                            index === 0
+                              ? 'border border-success/50 bg-success/10 animate-in fade-in slide-in-from-top-2'
+                              : 'bg-surface/30'
+                          }`}
+                        >
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <div
+                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${index === 0 ? 'animate-pulse' : ''}`}
+                              style={{
+                                backgroundColor: (activity.teamColor || '#FFFF00') + '30',
+                                borderWidth: index === 0 ? '2px' : '0px',
+                                borderColor: activity.teamColor || '#FFFF00',
+                              }}
+                            >
+                              <Star size={13} style={{ color: activity.teamColor || '#FFFF00' }} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-[clamp(0.8rem,1.8vh,1.15rem)] font-medium text-white">{activity.childName}</p>
+                              <p className="truncate text-[clamp(0.65rem,1.4vh,0.85rem)] text-gray-400">{activity.checkpoint}</p>
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <Badge variant="success" className="text-xs">+{activity.points} pts</Badge>
+                            <p className="mt-0.5 text-[clamp(0.6rem,1.2vh,0.75rem)] text-gray-500">{activity.timestamp}</p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="py-6 text-center text-gray-500">Nenhuma atividade registrada</p>
+                    )}
+                  </div>
+                </FitToBox>
               </div>
             </Card>
-          )}
+          </div>
+          </div>
+        ) : (
+          <div className="flex flex-1 items-center justify-center text-center text-gray-400">
+            Nenhum jogo cadastrado para este evento.
+          </div>
+        )}
+      </main>
 
-          <Card variant="glow" className="overflow-hidden p-4 sm:p-5 lg:col-span-2">
-            <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-xl border border-secondary-400/20 bg-secondary-500/10 p-2 text-secondary-300"><Clock size={20} /></div>
-                <div>
-                  <h2 className="font-display text-xl font-bold text-white">Atividades Recentes</h2>
-                  <p className="mt-0.5 text-xs text-gray-500">Últimas conquistas em tempo real</p>
-                </div>
-              </div>
-              <span className="hidden rounded-full border border-success-400/20 bg-success-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-success-300 sm:inline-flex">Ao vivo</span>
-            </div>
-            <div className="space-y-2 max-h-[300px] overflow-y-auto">
-              {recentActivities.length > 0 ? (
-                recentActivities.map((activity, index) => (
-                  <div
-                    key={activity.id}
-                    className={`flex items-center justify-between p-3 rounded-lg transition-all duration-300 ${
-                      index === 0
-                        ? 'bg-success/10 border border-success/50 animate-in fade-in slide-in-from-top-2'
-                        : 'bg-surface/30 hover:bg-surface/50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          index === 0 ? 'animate-pulse' : ''
-                        }`}
-                        style={{
-                          backgroundColor: (activity.teamColor || '#FFFF00') + '30',
-                          borderWidth: index === 0 ? '2px' : '0px',
-                          borderColor: activity.teamColor || '#FFFF00'
-                        }}
-                      >
-                        <Star size={14} style={{ color: activity.teamColor || '#FFFF00' }} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-white">
-                          {activity.childName}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {activity.checkpoint}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant="success" className="text-xs">
-                        +{activity.points} pts
-                      </Badge>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {activity.timestamp}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-500 text-center py-8">
-                  Nenhuma atividade registrada
-                </p>
-              )}
-            </div>
-          </Card>
-
-          {/* Status dos Checkpoints */}
-          <Card variant="glow" className="overflow-hidden p-4 sm:p-5 lg:col-span-2">
-            <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-xl border border-accent-400/20 bg-accent-500/10 p-2 text-accent-300"><MapPin size={20} /></div>
-                <div>
-                  <h2 className="font-display text-xl font-bold text-white">📍 Status dos Checkpoints</h2>
-                  <p className="mt-0.5 text-xs text-gray-500">Saúde dos territórios conectados</p>
-                </div>
-              </div>
-              <Badge variant={onlineCheckpoints === totalCheckpoints && totalCheckpoints > 0 ? 'success' : 'warning'}>
-                {onlineCheckpoints}/{totalCheckpoints} online
-              </Badge>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {checkpointStats.length > 0 ? (
-                checkpointStats.map((cp) => (
-                  <div
-                    key={cp.id}
-                    className={`rounded-2xl border p-4 transition-all duration-200 ${
-                      cp.status === 'online'
-                        ? 'border-accent/40 bg-accent/10 shadow-[0_0_15px_rgba(120,119,198,0.15)]'
-                        : 'border-danger/30 bg-danger/5'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-semibold text-white text-lg">{cp.name}</h3>
-                      <Badge variant={cp.status === 'online' ? 'success' : 'danger'}>
-                        {cp.status === 'online' ? '🟢 Online' : '🔴 Offline'}
-                      </Badge>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Leituras:</span>
-                        <span className="font-bold text-white text-lg">{cp.totalReadings}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Autorizadas:</span>
-                        <span className="font-bold text-success text-lg">{cp.authorizedReadings}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Taxa de Sucesso:</span>
-                        <span className="font-bold text-primary text-lg">{cp.successRate}%</span>
-                      </div>
-                    </div>
-                    <div className="mt-4 h-3 bg-surface rounded-full overflow-hidden border border-white/10">
-                      <div
-                        className="h-full bg-gradient-to-r from-accent to-primary rounded-full transition-all duration-500"
-                        style={{ width: `${cp.successRate}%` }}
-                      />
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-500 text-center py-8 col-span-3">
-                  Nenhum checkpoint cadastrado
-                </p>
-              )}
-            </div>
-          </Card>
+      {/* Rodapé: relógio e participantes (mini display) */}
+      <footer className="relative z-10 mt-3 flex shrink-0 items-center justify-between gap-4 lg:h-[6vh] lg:min-h-[44px]">
+        <div className="flex items-center gap-3">
+          <Clock size={18} className="text-primary-300" />
+          <p className="font-mono text-[clamp(1.1rem,3vh,2rem)] font-bold tracking-wide text-primary-300">{formattedTime}</p>
+          <span className="hidden h-4 w-px bg-white/10 sm:block" />
+          <p className="hidden text-[clamp(0.7rem,1.6vh,1rem)] capitalize text-gray-500 sm:block">{formattedDate}</p>
         </div>
-      </div>
+        <div
+          className="flex items-center gap-3 rounded-2xl border border-white/10 bg-dark-card/85 px-4 py-1.5 shadow-lg shadow-black/20 backdrop-blur-xl"
+          role="status"
+          aria-label={`${activeParticipants} de ${totalParticipants} participantes ativos`}
+        >
+          <div className="rounded-lg border border-primary-400/20 bg-primary-500/10 p-1.5 text-primary-300"><Users size={18} /></div>
+          <div className="leading-tight">
+            <p className="font-display text-xl font-bold text-white">{activeParticipants}<span className="text-sm font-semibold text-gray-400">/{totalParticipants}</span></p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">participantes</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

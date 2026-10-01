@@ -68,6 +68,10 @@ const AVATAR_OPTIONS = ADVENTURER_AVATARS.map(option => ({
 
 type BraceletStatus = 'idle' | 'checking' | 'available' | 'registered' | 'not-found' | 'error';
 
+const CLOSED_EVENT_STATUSES = ['completed', 'cancelled', 'canceled', 'finished'];
+// Só eventos abertos podem ser escolhidos: o servidor recusa (409) tirar para o telão um evento já encerrado
+const isOpenEvent = (event: any) => !CLOSED_EVENT_STATUSES.includes(String(event.status || '').trim().toLowerCase());
+
 export default function ReceptionCheckin() {
   const location = useLocation();
   const {
@@ -167,24 +171,18 @@ export default function ReceptionCheckin() {
         console.log('📊 [ReceptionCheckin] controlData:', controlData);
         const availableEvents = eventosData || [];
         console.log('📊 [ReceptionCheckin] availableEvents:', availableEvents);
-        setEvents(availableEvents);
+        const openEvents = availableEvents.filter(isOpenEvent);
+        setEvents(openEvents);
         const controlledEvent = controlData?.event
           ? availableEvents.find(event => String(event.id) === String(controlData.event.id))
           : null;
-        const isOpenEvent = (event: any) => ![
-          'completed',
-          'cancelled',
-          'canceled',
-          'finished',
-        ].includes(String(event.status || '').toLowerCase());
         const activeEvent = availableEvents.find(event => ['active', 'ongoing'].includes(String(event.status || '').toLowerCase()));
         const storedEvent = eventoAtualId
           ? availableEvents.find(event => String(event.id) === String(eventoAtualId) && isOpenEvent(event))
           : null;
-        const openEvents = availableEvents.filter(isOpenEvent);
         const eventToSelect = controlledEvent || activeEvent || storedEvent || (openEvents.length === 1 ? openEvents[0] : null);
 
-        setSelectedEventId(currentId => currentId && availableEvents.some(event => String(event.id) === String(currentId))
+        setSelectedEventId(currentId => currentId && openEvents.some(event => String(event.id) === String(currentId))
           ? currentId
           : eventToSelect?.id || null);
         if (eventToSelect) {
@@ -334,7 +332,9 @@ export default function ReceptionCheckin() {
                   clearBracelet();
                   api.setActiveEventControl(eventId).catch(error => {
                     console.error('Não foi possível sincronizar o evento:', error);
-                    showToast('Não foi possível sincronizar o evento com os outros terminais.', 'error');
+                    showToast(error instanceof Error && error.message
+                      ? `Não foi possível sincronizar o evento com os outros terminais: ${error.message}`
+                      : 'Não foi possível sincronizar o evento com os outros terminais.', 'error');
                   });
                 }}
                 className="flex-1 rounded-lg border border-dark-border bg-dark-surface px-4 py-2 text-white focus:border-primary focus:outline-none"
@@ -347,6 +347,11 @@ export default function ReceptionCheckin() {
                 ))}
               </select>
             </div>
+            {events.length === 0 && (
+              <p className="mt-3 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning" role="status">
+                Não há nenhum evento aberto. Eventos encerrados não aparecem aqui: peça ao administrador para criar ou agendar um evento em Eventos.
+              </p>
+            )}
             <p className="mt-3 text-xs text-gray-500">
               A seleção feita aqui é compartilhada com o Kiosk de cadastro, o totem de pontuação e os telões.
             </p>

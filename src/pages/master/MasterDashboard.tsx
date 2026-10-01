@@ -23,6 +23,7 @@ import Badge from '../../components/ui/Badge';
 import StatusDot from '../../components/ui/StatusDot';
 import { api } from '../../services/api';
 import { BRAZIL_STATES, type BrazilStateShape } from './brazilMapData';
+import { findCityPosition, type CityData } from './brazilCities';
 
 const masterNavItems = [
   { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/master' },
@@ -101,7 +102,7 @@ const cityKeyFor = (uf: string, city: string | null | undefined) => `${uf}|${nor
 
 const FULL_VIEW = { x: 0, y: 0, w: 613, h: 639 };
 const MAP_ASPECT = FULL_VIEW.w / FULL_VIEW.h;
-const CITY_VIEW_W = 70;
+const CITY_VIEW_W = 28;
 const EVENT_COLOR = '#8B5CF6';
 
 const viewForState = (shape: BrazilStateShape) => {
@@ -111,6 +112,62 @@ const viewForState = (shape: BrazilStateShape) => {
   const w = Math.max((x1 - x0) * 1.35, (y1 - y0) * 1.35 * MAP_ASPECT, 150);
   const h = w / MAP_ASPECT;
   return { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h };
+};
+
+// Ao entrar em um estado com clientes, enquadra as cidades que têm cliente (e não o estado
+// inteiro), para separar cidades vizinhas. Nunca fica mais aberto que o estado inteiro.
+const MIN_GROUPS_VIEW_W = 46;
+const viewForGroups = (shape: BrazilStateShape, points: { x: number; y: number }[]) => {
+  const whole = viewForState(shape);
+  // Com uma cidade só não há o que separar: mostra o estado inteiro, com contexto.
+  if (points.length < 2) return whole;
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const spanX = x1 - x0, spanY = y1 - y0;
+  // Folga em volta dos marcadores; o lado direito leva um pouco mais por causa dos nomes.
+  const pad = Math.max(Math.max(spanX, spanY) * 0.3, 14);
+  const w = Math.min(
+    Math.max(spanX + pad * 2.6, (spanY + pad * 2) * MAP_ASPECT, MIN_GROUPS_VIEW_W),
+    whole.w,
+  );
+  const h = w / MAP_ASPECT;
+  return { x: (x0 + x1) / 2 - w / 2 + pad * 0.3, y: (y0 + y1) / 2 - h / 2, w, h };
+};
+
+// Escolhe quais cidades mostram o nome no mapa: os nomes são desenhados em tamanho fixo na tela,
+// então cidades coladas (Grande São Paulo) se sobrepõem. Prioriza a cidade em foco e as com mais
+// clientes; quem não couber fica só com o ponto (o nome continua no tooltip) e ganha o nome ao dar zoom.
+const pickLabeledGroups = (groups: CityGroup[], k: number, focusKey: string | null) => {
+  const order = [...groups].sort(
+    (a, b) =>
+      Number(b.key === focusKey) - Number(a.key === focusKey) ||
+      b.clients.length - a.clients.length ||
+      a.key.localeCompare(b.key),
+  );
+  const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
+  const shown = new Set<string>();
+  order.forEach((group) => {
+    const name = group.city || group.shape.uf;
+    const x0 = group.x + (group.clients.length > 1 ? 14 : 9) * k;
+    const box = { x0, y0: group.y - 9 * k, x1: x0 + name.length * 7.2 * k, y1: group.y + 6 * k };
+    const clash = placed.some((p) => box.x0 < p.x1 && box.x1 > p.x0 && box.y0 < p.y1 && box.y1 > p.y0);
+    if (group.key === focusKey || !clash) {
+      shown.add(group.key);
+      placed.push(box);
+    }
+  });
+  return shown;
+};
+
+// Zoom/movimento manual: a largura da câmera fica entre o zoom máximo e o Brasil inteiro, e o
+// centro não sai do mapa.
+const MIN_MANUAL_VIEW_W = 6;
+type MapView = { x: number; y: number; w: number; h: number };
+const clampView = (v: MapView): MapView => {
+  const cx = Math.min(Math.max(v.x + v.w / 2, 0), FULL_VIEW.w);
+  const cy = Math.min(Math.max(v.y + v.h / 2, 0), FULL_VIEW.h);
+  return { x: cx - v.w / 2, y: cy - v.h / 2, w: v.w, h: v.h };
 };
 
 const viewForPoint = (x: number, y: number, w: number) => {
@@ -141,11 +198,30 @@ function BrazilMap({
   const [hoveredUf, setHoveredUf] = useState<string | null>(null);
   const [view, setView] = useState(FULL_VIEW);
   const viewRef = useRef(FULL_VIEW);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const frameRef = useRef(0);
+  // manual = o usuário mexeu na câmera (Ctrl + roda / arrastar); mostra "Recentralizar".
+  const [manual, setManual] = useState(false);
+  const [panning, setPanning] = useState(false);
+  const panRef = useRef<{ clientX: number; clientY: number; view: MapView; scale: number } | null>(null);
 
-  // Agrupa clientes por cidade (cada cidade vira um marcador) e distribui as
-  // cidades do mesmo estado em volta do centro do estado, já que o cadastro
-  // só tem cidade/estado em texto, sem coordenadas.
+  // Posições dos municípios (arquivo grande, carregado sob demanda). null = carregando;
+  // se falhar, {} faz todas as cidades caírem no posicionamento aproximado por estado.
+  const [cityData, setCityData] = useState<CityData | null>(null);
+  useEffect(() => {
+    let disposed = false;
+    import('./brazilCityData')
+      .then((mod) => { if (!disposed) setCityData(mod.BRAZIL_CITY_DATA); })
+      .catch(() => { if (!disposed) setCityData({}); });
+    return () => { disposed = true; };
+  }, []);
+
+  // Agrupa clientes por cidade (cada cidade vira um marcador) e coloca cada marcador
+  // na posição real do município. O cadastro só tem cidade/estado em texto, então a
+  // cidade é procurada pelo nome; as que não forem encontradas ficam espalhadas em
+  // volta do centro do estado.
   const { groups, unplaced } = useMemo(() => {
+    if (!cityData) return { groups: [] as CityGroup[], unplaced: 0 };
     const byKey = new Map<string, CityGroup>();
     let missing = 0;
     const eventsByClient = new Map<string, MasterEvent[]>();
@@ -173,6 +249,12 @@ function BrazilMap({
 
     const perState: Record<string, CityGroup[]> = {};
     Array.from(byKey.values()).forEach((group) => {
+      const position = findCityPosition(cityData, group.shape.uf, group.city);
+      if (position) {
+        group.x = position.x;
+        group.y = position.y;
+        return;
+      }
       (perState[group.shape.uf] ||= []).push(group);
     });
     Object.values(perState).forEach((list) => {
@@ -187,26 +269,26 @@ function BrazilMap({
     });
 
     return { groups: Array.from(byKey.values()), unplaced: missing };
-  }, [clients, events]);
+  }, [clients, events, cityData]);
 
   const statesWithClients = new Set(groups.map((g) => g.shape.uf));
   const focusShape = BRAZIL_STATES.find((s) => s.uf === focus.uf) || null;
   const focusGroup = focus.cityKey ? groups.find((g) => g.key === focus.cityKey) || null : null;
+  const scopeGroups = focusShape ? groups.filter((g) => g.shape.uf === focusShape.uf) : [];
 
   const target = focusGroup
     ? viewForPoint(focusGroup.x, focusGroup.y, CITY_VIEW_W)
     : focusShape
-      ? viewForState(focusShape)
+      ? viewForGroups(focusShape, scopeGroups)
       : FULL_VIEW;
   const targetKey = `${target.x.toFixed(2)},${target.y.toFixed(2)},${target.w.toFixed(2)}`;
 
   // Anima a câmera (viewBox) até o alvo: Brasil, estado ou cidade.
-  useEffect(() => {
+  const animateTo = (to: MapView) => {
+    cancelAnimationFrame(frameRef.current);
     const from = viewRef.current;
-    const to = target;
     const duration = 450;
     let start: number | null = null;
-    let frame = 0;
     const tick = (now: number) => {
       if (start === null) start = now;
       const t = Math.min((now - start) / duration, 1);
@@ -219,15 +301,109 @@ function BrazilMap({
       };
       viewRef.current = next;
       setView(next);
-      if (t < 1) frame = requestAnimationFrame(tick);
+      if (t < 1) frameRef.current = requestAnimationFrame(tick);
     };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
+    frameRef.current = requestAnimationFrame(tick);
+  };
+
+  // Ao trocar o foco (clique em estado/cidade/voltar), a câmera volta ao enquadramento automático.
+  useEffect(() => {
+    setManual(false);
+    animateTo(target);
+    return () => cancelAnimationFrame(frameRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetKey]);
 
+  const applyManualView = (next: MapView) => {
+    cancelAnimationFrame(frameRef.current);
+    const clamped = clampView(next);
+    viewRef.current = clamped;
+    setView(clamped);
+    setManual(true);
+  };
+
+  // Converte a posição do mouse (tela) para coordenadas do mapa. O SVG é centralizado e
+  // mantém a proporção, então pode haver margem nas laterais ou em cima/embaixo.
+  const screenToMap = (clientX: number, clientY: number, current: MapView) => {
+    const rect = svgRef.current!.getBoundingClientRect();
+    const scale = Math.min(rect.width / current.w, rect.height / current.h);
+    const offX = (rect.width - current.w * scale) / 2;
+    const offY = (rect.height - current.h * scale) / 2;
+    return {
+      x: current.x + (clientX - rect.left - offX) / scale,
+      y: current.y + (clientY - rect.top - offY) / scale,
+      scale,
+    };
+  };
+
+  // Ctrl + roda do mouse (ou o gesto de pinça do touchpad) dá zoom em volta do cursor. Sem Ctrl a
+  // página rola normalmente. O listener é nativo porque o do React é passivo e não deixa
+  // cancelar o zoom da própria página.
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return undefined;
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      const current = viewRef.current;
+      const { x: mx, y: my } = screenToMap(event.clientX, event.clientY, current);
+      const delta = event.deltaMode === 1 ? event.deltaY * 33 : event.deltaY;
+      const w = Math.min(Math.max(current.w * Math.exp(delta * 0.0015), MIN_MANUAL_VIEW_W), FULL_VIEW.w);
+      const ratio = w / current.w;
+      applyManualView({
+        x: mx - (mx - current.x) * ratio,
+        y: my - (my - current.y) * ratio,
+        w,
+        h: current.h * ratio,
+      });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Clicar na roda (botão do meio) e arrastar move o mapa.
+  const onPanStart = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (event.button !== 1) return;
+    event.preventDefault();
+    cancelAnimationFrame(frameRef.current);
+    const current = viewRef.current;
+    panRef.current = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      view: current,
+      scale: screenToMap(event.clientX, event.clientY, current).scale,
+    };
+    try {
+      // Mantém o arrasto mesmo se o mouse sair do mapa.
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // sem captura o arrasto continua funcionando enquanto o mouse estiver sobre o mapa
+    }
+    setPanning(true);
+  };
+  const onPanMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    const pan = panRef.current;
+    if (!pan) return;
+    applyManualView({
+      ...pan.view,
+      x: pan.view.x - (event.clientX - pan.clientX) / pan.scale,
+      y: pan.view.y - (event.clientY - pan.clientY) / pan.scale,
+    });
+  };
+  const onPanEnd = () => {
+    panRef.current = null;
+    setPanning(false);
+  };
+
+  const recenter = () => {
+    setManual(false);
+    animateTo(target);
+  };
+
   // Com o zoom, pontos e textos encolhem na mesma proporção para não ficarem gigantes.
   const k = view.w / FULL_VIEW.w;
+  const labeledGroups = pickLabeledGroups(groups, k, focusGroup?.key ?? null);
 
   const goUp = () => {
     if (focus.cityKey && focus.uf) onFocusChange({ uf: focus.uf, cityKey: null, clientId: null });
@@ -244,7 +420,6 @@ function BrazilMap({
   const selectState = (uf: string) =>
     onFocusChange(focus.uf === uf && !focus.cityKey ? NO_FOCUS : { uf, cityKey: null, clientId: null });
 
-  const scopeGroups = focusShape ? groups.filter((g) => g.shape.uf === focusShape.uf) : [];
   const listGroups = focusGroup ? [focusGroup] : scopeGroups;
   const listClients = listGroups.flatMap((g) => g.clients.map((client) => ({ client, group: g })));
   const clientEvents = (client: MasterClient) =>
@@ -282,23 +457,41 @@ function BrazilMap({
             'Clique em um estado ou cliente para dar zoom'
           )}
         </p>
-        {focusShape && (
-          <button
-            type="button"
-            onClick={goUp}
-            className="shrink-0 text-xs px-3 py-1 rounded-md border border-primary/40 text-primary hover:bg-primary/10 transition-colors"
-          >
-            {focusGroup ? `Voltar para ${focusShape.name}` : 'Ver Brasil inteiro'}
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {manual && (
+            <button
+              type="button"
+              onClick={recenter}
+              className="text-xs px-3 py-1 rounded-md border border-white/20 text-gray-300 hover:bg-white/10 transition-colors"
+            >
+              Recentralizar
+            </button>
+          )}
+          {focusShape && (
+            <button
+              type="button"
+              onClick={goUp}
+              className="text-xs px-3 py-1 rounded-md border border-primary/40 text-primary hover:bg-primary/10 transition-colors"
+            >
+              {focusGroup ? `Voltar para ${focusShape.name}` : 'Ver Brasil inteiro'}
+            </button>
+          )}
+        </div>
       </div>
 
       <svg
+        ref={svgRef}
         viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
         className="w-full h-auto max-h-[440px] mx-auto"
+        style={panning ? { cursor: 'grabbing' } : undefined}
         role="group"
         aria-label="Mapa do Brasil com a localização dos clientes"
         onClick={goUp}
+        onPointerDown={onPanStart}
+        onPointerMove={onPanMove}
+        onPointerUp={onPanEnd}
+        onPointerCancel={onPanEnd}
+        onMouseDown={(event) => { if (event.button === 1) event.preventDefault(); }}
       >
         {BRAZIL_STATES.map((state) => {
           const hasClients = statesWithClients.has(state.uf);
@@ -457,22 +650,27 @@ function BrazilMap({
                   </text>
                 </g>
               )}
-              <text
-                x={group.x + (count > 1 ? 14 : 9) * k}
-                y={group.y + 4 * k}
-                fill="rgba(255,255,255,0.9)"
-                fontSize={13 * k}
-                fontFamily="sans-serif"
-                paintOrder="stroke"
-                stroke="#0B1220"
-                strokeWidth={3 * k}
-              >
-                {group.city || group.shape.uf}
-              </text>
+              {labeledGroups.has(group.key) && (
+                <text
+                  x={group.x + (count > 1 ? 14 : 9) * k}
+                  y={group.y + 4 * k}
+                  fill="rgba(255,255,255,0.9)"
+                  fontSize={13 * k}
+                  fontFamily="sans-serif"
+                  paintOrder="stroke"
+                  stroke="#0B1220"
+                  strokeWidth={3 * k}
+                >
+                  {group.city || group.shape.uf}
+                </text>
+              )}
             </g>
           );
         })}
       </svg>
+      <p className="mt-1 text-center text-[11px] text-gray-500">
+        Ctrl + roda do mouse: zoom · Clique na roda e arraste: mover o mapa
+      </p>
 
       {focusShape && (
         <div className="mt-3 border-t border-white/10 pt-3">

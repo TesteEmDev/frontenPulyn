@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MessageSquare, Send, Eye, Gamepad2, Users, Play, MapPin, Trophy } from 'lucide-react';
+import { MessageSquare, Send, Eye, Gamepad2, Users, Play, MapPin } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
@@ -14,7 +14,6 @@ const sidebarItems = [
   { icon: <Users size={20} />, label: 'Times', path: '/game-master/teams' },
   { icon: <Play size={20} />, label: 'Controle', path: '/game-master/control' },
   { icon: <MapPin size={20} />, label: 'Mensagens', path: '/game-master/messages' },
-  { icon: <Trophy size={20} />, label: 'Ranking', path: '/game-master/ranking' },
 ];
 
 const presetMessages = [
