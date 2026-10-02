@@ -167,7 +167,7 @@ export default function DisplayMain() {
     const loadFloorPlan = async () => {
       try {
         const { api } = await import('../../services/api');
-        const floorPlanData = await api.getFloorPlan(selectedEventId);
+        const floorPlanData = await api.getFloorPlan();
         if (floorPlanData?.dataUrl) {
           setFloorPlan(floorPlanData.dataUrl);
         } else {

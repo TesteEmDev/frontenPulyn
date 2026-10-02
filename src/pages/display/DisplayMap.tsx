@@ -147,23 +147,19 @@ export default function DisplayMap({
     return () => clearInterval(interval);
   }, [currentPartidaId, eventoAtual]);
 
-  // 🆕 Carregar zonas do backend quando evento muda
+  // 🆕 Carregar zonas do buffet (não mudam por evento, só carregam uma vez)
   useEffect(() => {
+    const LOCAL_KEY = 'zones_company';
     const loadZones = async () => {
       try {
-        if (!eventoAtual) {
-          setZones(DEFAULT_ZONES);
-          return;
-        }
-
-        const zonesData = await api.getZones(eventoAtual);
+        const zonesData = await api.getZones();
         if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
           setZones(zonesData);
           // Cache em localStorage
-          localStorage.setItem(`zones_${eventoAtual}`, JSON.stringify(zonesData));
+          localStorage.setItem(LOCAL_KEY, JSON.stringify(zonesData));
         } else {
           // Tentar recuperar do cache
-          const cached = localStorage.getItem(`zones_${eventoAtual}`);
+          const cached = localStorage.getItem(LOCAL_KEY);
           if (cached) {
             setZones(JSON.parse(cached));
           } else {
@@ -172,7 +168,7 @@ export default function DisplayMap({
         }
       } catch (err) {
         console.error('Erro ao carregar zonas:', err);
-        const cached = localStorage.getItem(`zones_${eventoAtual}`);
+        const cached = localStorage.getItem(LOCAL_KEY);
         if (cached) {
           setZones(JSON.parse(cached));
         } else {
@@ -182,7 +178,7 @@ export default function DisplayMap({
     };
 
     loadZones();
-  }, [eventoAtual]);
+  }, []);
 
   const teamById = useMemo(() => {
     const map = new Map<string, Team>();

@@ -630,8 +630,10 @@ export const api = {
     return res.json();
   },
 
-  async getFloorPlan(eventoId: string) {
-    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/floor-plan`, {
+  // Planta do buffet: fica ligada à empresa (não ao evento), já que o espaço
+  // físico não muda de uma festa para outra.
+  async getFloorPlan() {
+    const res = await fetch(`${API_URL}/company-map/floor-plan`, {
       headers: getAuthHeaders(),
     });
     const data = await res.json().catch(() => ({}));
@@ -639,8 +641,8 @@ export const api = {
     return data.floorPlan || null;
   },
 
-  async saveFloorPlan(eventoId: string, data: { dataUrl: string; name: string; type: string }) {
-    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/floor-plan`, {
+  async saveFloorPlan(data: { dataUrl: string; name: string; type: string }) {
+    const res = await fetch(`${API_URL}/company-map/floor-plan`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -650,8 +652,8 @@ export const api = {
     return response;
   },
 
-  async deleteFloorPlan(eventoId: string) {
-    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/floor-plan`, {
+  async deleteFloorPlan() {
+    const res = await fetch(`${API_URL}/company-map/floor-plan`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -1386,18 +1388,18 @@ export const api = {
     }
   },
 
-  // ==================== ZONAS DO MAPA ====================
-  async getZones(eventoId: string) {
+  // ==================== ZONAS DO MAPA (por buffet, não por evento) ====================
+  async getZones() {
     try {
-      const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/zones`, {
+      const res = await fetch(`${API_URL}/company-map/zones`, {
         headers: getAuthHeaders(),
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `Erro ao carregar zonas (${res.status})`);
       }
-      
+
       return res.json();
     } catch (error) {
       console.error('❌ Erro ao carregar zonas:', error);
@@ -1405,19 +1407,19 @@ export const api = {
     }
   },
 
-  async saveZones(eventoId: string, zones: any[]) {
+  async saveZones(zones: any[]) {
     try {
-      const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/zones`, {
+      const res = await fetch(`${API_URL}/company-map/zones`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ zones }),
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `Erro ao salvar zonas (${res.status})`);
       }
-      
+
       return res.json();
     } catch (error) {
       console.error('❌ Erro ao salvar zonas:', error);
