@@ -10,7 +10,6 @@ import { api } from '../../services/api';
 import Avatar from '../../components/ui/Avatar';
 import AvatarSelector from '../../components/ui/AvatarSelector';
 import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
-import Button from '../../components/ui/Button';
 import StatusDot from '../../components/ui/StatusDot';
 import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
 import VirtualKeyboardOtimizado from '../../components/ui/VirtualKeyboardOtimizado';
@@ -69,10 +68,7 @@ export default function ReceptionKioskOtimizado() {
   const { logout } = useAuth();
   const selectedEventId = usePulynStore(state => state.eventoAtualId || '');
   const [events, setEvents] = useState<any[]>([]);
-  const [teams, setTeams] = useState<any[]>([]);
-  const [selectedTeam, setSelectedTeam] = useState('');
   const [loading, setLoading] = useState(true);
-  const [loadingTeams, setLoadingTeams] = useState(false);
   const [nfcConnected, setNfcConnected] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -80,7 +76,7 @@ export default function ReceptionKioskOtimizado() {
   const [message, setMessage] = useState('Encoste a pulseira no leitor abaixo da tela para começar');
   const [braceletCode, setBraceletCode] = useState('');
   const [form, setForm] = useState({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID });
-  const [successData, setSuccessData] = useState<{ name: string; avatar: string; teamName: string } | null>(null);
+  const [successData, setSuccessData] = useState<{ name: string; avatar: string } | null>(null);
   const lastReadRef = useRef<{ code: string; at: number } | null>(null);
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const kioskStateRef = useRef<KioskState>('waiting');
@@ -88,7 +84,6 @@ export default function ReceptionKioskOtimizado() {
   // Cache para evitar renders desnecessários
   const selectedAvatar = AVATAR_OPTIONS.find(option => option.emoji === form.avatar) || AVATAR_OPTIONS[0];
   const selectedEvent = events.find(event => String(event.id) === String(selectedEventId));
-  const selectedTeamData = teams.find(team => String(team.id) === String(selectedTeam));
   
   // DEBOUNCE para evitar renders rápidos
   const debouncedFormName = useDebounce(form.name, 100);
@@ -136,7 +131,6 @@ export default function ReceptionKioskOtimizado() {
     kioskStateRef.current = 'waiting';
     setBraceletCode('');
     setForm({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID });
-    setSelectedTeam('');
     setSuccessData(null);
     setState('waiting');
     setMessage('Encoste a pulseira no leitor abaixo da tela para começar');
@@ -259,48 +253,17 @@ export default function ReceptionKioskOtimizado() {
     return () => { active = false; };
   }, []);
 
-  // LOAD TEAMS OTIMIZADO
+  // Ao trocar de evento, volta para a espera de uma nova pulseira.
   useEffect(() => {
-    let active = true;
-    if (!selectedEventId) {
-      setTeams([]);
-      setSelectedTeam('');
-      return;
-    }
-
-    setLoadingTeams(true);
+    if (!selectedEventId) return;
     kioskStateRef.current = 'waiting';
     setState('waiting');
     setMessage('Aproxime a pulseira para começar.');
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-    api.getKioskTeams(selectedEventId)
-      .then(data => {
-        clearTimeout(timeoutId);
-        if (!active) return;
-        setTeams(Array.isArray(data) ? data : []);
-      })
-      .catch(() => {
-        clearTimeout(timeoutId);
-        if (active) setMessage('Erro ao carregar times.');
-      })
-      .finally(() => {
-        if (active) setLoadingTeams(false);
-      });
-
-    return () => { 
-      active = false;
-      clearTimeout(timeoutId);
-      controller.abort();
-    };
   }, [selectedEventId]);
 
   // HANDLE SUBMIT OTIMIZADO
   const handleSubmit = useCallback(async () => {
     if (!selectedEventId) return setMessage('Selecione um evento.');
-    if (!selectedTeam) return setMessage('Escolha um time.');
     if (!braceletCode) return setMessage('Aproxime uma pulseira primeiro.');
     if (!form.name.trim()) return setMessage('Digite o nome da criança.');
     if (state === 'saving') return;
@@ -316,7 +279,6 @@ export default function ReceptionKioskOtimizado() {
         age: parseInt(form.age, 10) || 5,
         avatar: form.avatar,
         braceletCode,
-        timeId: selectedTeam,
       });
 
       // Atualizar cache
@@ -325,7 +287,6 @@ export default function ReceptionKioskOtimizado() {
       setSuccessData({
         name: form.nickname.trim() || form.name.trim(),
         avatar: form.avatar,
-        teamName: selectedTeamData?.name || 'Seu time',
       });
       
       kioskStateRef.current = 'success';
@@ -337,7 +298,7 @@ export default function ReceptionKioskOtimizado() {
       setState('error');
       setMessage(getErrorMessage(error));
     }
-  }, [braceletCode, form, resetKiosk, selectedEventId, selectedTeam, selectedTeamData?.name, state]);
+  }, [braceletCode, form, resetKiosk, selectedEventId, state]);
 
   useEffect(() => () => {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
@@ -504,7 +465,7 @@ export default function ReceptionKioskOtimizado() {
                         {successData.name}
                       </h2>
                       <p className="mt-3 text-lg text-gray-300">
-                        Time {successData.teamName}
+                        O recreacionista vai te avisar de qual time você será!
                       </p>
                       <p className="mt-8 rounded-full border border-success/30 bg-success/10 px-5 py-2 text-sm text-success">
                         Aproxime outra pulseira para continuar
@@ -638,59 +599,10 @@ export default function ReceptionKioskOtimizado() {
                   />
                 </section>
 
-                {/* TEAM SELECTION */}
+                {/* ACTIONS */}
                 <section className="rounded-[1.75rem] border border-white/[0.1] bg-dark-card/90 p-4 shadow-lg backdrop-blur sm:p-5 lg:col-span-2">
-                  <div className="mb-4 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-amber-300">
-                        Etapa 3 • Equipe
-                      </p>
-                      <h3 className="mt-1 font-display text-xl font-bold text-white sm:text-2xl">
-                        Escolha seu time
-                      </h3>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="hidden rounded-full border border-amber-300/20 bg-amber-300/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-200 sm:inline-flex">
-                        Quase lá
-                      </span>
-                      {loadingTeams && (
-                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
-                      )}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {teams.map(team => {
-                      const selected = selectedTeam === team.id;
-                      return (
-                        <button
-                          key={team.id}
-                          type="button"
-                          disabled={!canInteract}
-                          onClick={() => setSelectedTeam(team.id)}
-                          className={`rounded-2xl border px-3 py-3.5 text-left shadow-sm transition-all duration-150 hover:-translate-y-0.5 ${
-                            selected
-                              ? 'ring-2 ring-white/60 shadow-md'
-                              : 'border-white/10 hover:border-white/30'
-                          } disabled:cursor-not-allowed disabled:opacity-50`}
-                          style={{
-                            borderColor: selected ? team.color : undefined,
-                            backgroundColor: selected ? `${team.color}22` : undefined,
-                          }}
-                        >
-                          <span
-                            className="block h-3 w-3 rounded-full"
-                            style={{ backgroundColor: team.color || '#8b5cf6' }}
-                          />
-                          <span className="mt-2 block truncate text-sm font-semibold text-white">
-                            {team.name}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
                   {/* SUBMIT BUTTON */}
-                  <div className="mt-6 flex items-center justify-between gap-3">
+                  <div className="flex items-center justify-between gap-3">
                     <button
                       type="button"
                       onClick={resetKiosk}
