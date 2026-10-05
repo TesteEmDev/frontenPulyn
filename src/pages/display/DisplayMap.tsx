@@ -1,0 +1,689 @@
+import { useMemo, useEffect, useState } from 'react';
+import Avatar from '../../components/ui/Avatar';
+import { DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
+import type { Checkpoint, Team } from '../../store/mockData';
+import { usePulynStore } from '../../store/mockData';
+import { api } from '../../services/api';
+import { CheckpointProtectionIndicator } from '../../components/display/CheckpointProtectionIndicator';
+import type { ZoneState, CheckpointState } from '../../hooks/useZoneConquestGame';
+
+interface Zone {
+  id: string;
+  name: string;
+  color: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const MAP_WIDTH = 450;
+const MAP_HEIGHT = 320;
+
+// Zonas padrão (fallback se não carregar do backend)
+const DEFAULT_ZONES: Zone[] = [
+  { id: '1', name: 'Entrada', color: '#1E9BD7', x: 50, y: 5, width: 120, height: 80 },
+  { id: '2', name: 'Área Verde', color: '#22C55E', x: 200, y: 20, width: 200, height: 150 },
+  { id: '3', name: 'Área Azul', color: '#1E9BD7', x: 50, y: 130, width: 120, height: 120 },
+  { id: '4', name: 'Área Central', color: '#F59E0B', x: 200, y: 200, width: 200, height: 100 },
+];
+function normalizeZoneName(value?: string | null) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+
+function getStoredMapPosition(checkpoint: Checkpoint) {
+  const x = Number(checkpoint.map_x ?? checkpoint.mapX);
+  const y = Number(checkpoint.map_y ?? checkpoint.mapY);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+
+  return { x, y };
+}
+
+function getCheckpointDisplayPosition(checkpoint: Checkpoint, checkpoints: Checkpoint[], zones: Zone[]) {
+  const storedPosition = getStoredMapPosition(checkpoint);
+  if (storedPosition) {
+    return storedPosition;  // Já em pixels
+  }
+
+  // Se não tem posição salva, usar zona como fallback
+  const zone = zones.find((item) => normalizeZoneName(item.name) === normalizeZoneName(checkpoint.zone)) || zones[0];
+  if (!zone) return { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
+
+  const sameZone = checkpoints.filter((item) => normalizeZoneName(item.zone) === normalizeZoneName(checkpoint.zone));
+  const index = sameZone.indexOf(checkpoint);
+  const count = sameZone.length;
+  const xOffset = count > 1 ? (index / (count - 1)) * 0.6 + 0.2 : 0.5;
+
+  return {
+    x: zone.x + zone.width * xOffset,
+    y: zone.y + zone.height * 0.75,
+  };
+}
+
+
+interface DisplayMapProps {
+  embedded?: boolean;
+  // Com embedded: ocupa a altura da caixa onde está (em vez de altura fixa), para caber numa tela sem rolagem
+  fill?: boolean;
+  // Com fill: sem o título "Mapa do Espaço" (a tela mostra só o mapa)
+  hideHeader?: boolean;
+  gameType?: string;
+  floorPlan?: string | null;
+  // 🆕 Zone Conquest INDIVIDUAL
+  // O backend só grava gameType='zone_conquest' para os dois modos (equipe e
+  // individual) — o modo real vem da partida ativa (zone_conquest_individual_partidas
+  // vs zone_conquest_team_partidas), então precisa ser informado explicitamente
+  // pelo componente pai. Nunca inferir isso a partir de `gameType`.
+  isIndividualMode?: boolean;
+  zoneConquestZones?: ZoneState[] | null;
+  zoneConquestCheckpoints?: CheckpointState[] | null;
+}
+
+export default function DisplayMap({
+  embedded = false,
+  fill = false,
+  hideHeader = false,
+  gameType,
+  floorPlan,
+  isIndividualMode = false,
+  zoneConquestCheckpoints,
+}: DisplayMapProps) {
+  const { children, checkpoints, scoreLog, teams } = usePulynStore();
+  const eventoAtual = usePulynStore((state: any) => state.eventoAtualId);
+  const currentPartidaId = usePulynStore((state: any) => state.currentPartidaId);
+  const activeGame = usePulynStore((state: any) => state.activeGame);
+  const [zones, setZones] = useState<Zone[]>(DEFAULT_ZONES);
+  const [localFloorPlan, setLocalFloorPlan] = useState<string | null>(floorPlan || null);
+
+  // Usar gameType da prop se disponível
+  const isTreasureMode = gameType === 'treasure_hunt';
+  const isZoneMode = gameType === 'zone' || gameType === 'zone_conquest' || gameType === 'territory' || gameType === 'territory_conquest';
+  // isIndividual vem sempre da prop (estado real da partida), nunca de `gameType`:
+  // o backend usa o mesmo valor 'zone_conquest' para os modos equipe e individual.
+  const isIndividual = isIndividualMode;
+  const shouldShowPlanta = isZoneMode || isTreasureMode || activeGame?.type === 'team' || activeGame?.type === 'treasure_hunt';
+  
+  // Debug: verificar estado
+  useEffect(() => {
+  }, [gameType, isTreasureMode, shouldShowPlanta, localFloorPlan, eventoAtual]);
+
+  // Sincronizar floorPlan prop com localFloorPlan state
+  useEffect(() => {
+    if (floorPlan) {
+      setLocalFloorPlan(floorPlan);
+    }
+  }, [floorPlan]);
+
+  // 🆕 Quando currentPartidaId muda (novo jogo), limpar scoreLog visual
+  useEffect(() => {
+    if (currentPartidaId) {
+      // Força recarregamento do scoreLog para esta partida
+      const { clearScoreLog } = usePulynStore.getState();
+      clearScoreLog(); // Limpar completamente para nova sessão
+      console.log(`🎯 [DisplayMap] Nova partida detectada: ${currentPartidaId}`);
+    }
+  }, [currentPartidaId]);
+
+  // Carregar scoreLog quando sessionId muda (novo jogo começou)
+  // + Polling a cada 2 segundos enquanto jogo está ativo
+  useEffect(() => {
+    if (!currentPartidaId || !eventoAtual) return;
+    
+    const loadData = async () => {
+      const { loadScoreLog } = usePulynStore.getState();
+      await loadScoreLog();
+    };
+    
+    // Carrega imediatamente
+    loadData();
+    
+    // Polling a cada 2 segundos (muito mais rápido que antes)
+    const interval = setInterval(loadData, 2000);
+    return () => clearInterval(interval);
+  }, [currentPartidaId, eventoAtual]);
+
+  // 🆕 Carregar zonas do buffet (não mudam por evento, só carregam uma vez)
+  useEffect(() => {
+    const LOCAL_KEY = 'zones_company';
+    const loadZones = async () => {
+      try {
+        const zonesData = await api.getZones();
+        if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
+          setZones(zonesData);
+          // Cache em localStorage
+          localStorage.setItem(LOCAL_KEY, JSON.stringify(zonesData));
+        } else {
+          // Tentar recuperar do cache
+          const cached = localStorage.getItem(LOCAL_KEY);
+          if (cached) {
+            setZones(JSON.parse(cached));
+          } else {
+            setZones(DEFAULT_ZONES);
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao carregar zonas:', err);
+        const cached = localStorage.getItem(LOCAL_KEY);
+        if (cached) {
+          setZones(JSON.parse(cached));
+        } else {
+          setZones(DEFAULT_ZONES);
+        }
+      }
+    };
+
+    loadZones();
+  }, []);
+
+  const teamById = useMemo(() => {
+    const map = new Map<string, Team>();
+    teams.forEach((team) => map.set(String(team.id).toLowerCase(), team));
+    return map;
+  }, [teams]);
+
+  // 🆕 Filtrar scoreLog para apenas incluir da sessão atual
+  const scoreLogCurrentSession = useMemo(() => {
+    console.log(`📊 [DisplayMap] Recalculando scoreLog: ${scoreLog.length} entries, currentPartidaId=${currentPartidaId}`);
+    if (!scoreLog) return [];
+    
+    // Se temos currentPartidaId, filtrar scoreLog para apenas essa sessão
+    if (!currentPartidaId) return [];
+    
+    return scoreLog.filter(entry => {
+      const entrySessionId = (entry as any).session_id || (entry as any).sessionId;
+      if (!entrySessionId) return true;  // Compatibilidade com dados antigos
+      return entrySessionId === currentPartidaId;
+    });
+  }, [scoreLog, currentPartidaId]);
+
+  // Nova lógica: checkpoint é dominado pela equipe com maior número de leituras
+  // Em caso de empate, equipe que chegou primeiro (timestamp mais antigo)
+  // 🆕 Para Zone Conquest INDIVIDUAL, usar zoneConquestCheckpoints diretamente
+  const checkpointOwnerById = useMemo(() => {
+    const owners = new Map<string, Team | undefined>();
+    
+    // 🆕 Se é Zone Conquest, usar dados diretos de zoneConquestCheckpoints
+    if (zoneConquestCheckpoints && zoneConquestCheckpoints.length > 0) {
+      for (const zcCheckpoint of zoneConquestCheckpoints) {
+        if (zcCheckpoint.participantId) {
+          // Criar um "team" virtual para o participante
+          const participantTeam: Team = {
+            id: zcCheckpoint.participantId,
+            name: zcCheckpoint.participantName || 'Unknown',
+            color: zcCheckpoint.participantColor || '#999999',
+          };
+          owners.set(String(zcCheckpoint.id), participantTeam);
+        } else {
+          owners.set(String(zcCheckpoint.id), undefined);
+        }
+      }
+      return owners;
+    }
+    
+    // Criar map de childId -> teamId para buscar equipe rápido
+    const childToTeam = new Map<string, Team>();
+    for (const child of children) {
+      const teamId = child.teamId ?? child.team_id ?? child.time_id;
+      if (teamId) {
+        const team = teamById.get(String(teamId).toLowerCase());
+        if (team) {
+          childToTeam.set(String(child.id), team);
+        }
+      }
+    }
+    
+    for (const checkpoint of checkpoints) {
+      // Contar leituras por checkpoint por equipe
+      const readingsByTeam = new Map<string, { count: number; firstTimestamp: number; team: Team }>();
+      
+      for (const entry of scoreLogCurrentSession) {
+        const entryCheckpointId = entry.checkpointId ?? entry.checkpoint_id ?? entry.checkpoint;
+        if (String(entryCheckpointId) !== String(checkpoint.id)) continue;
+        
+        const childId = entry.childId ?? entry.child_id;
+        if (!childId) continue;
+        
+        const team = childToTeam.get(String(childId));
+        if (!team) continue;
+        
+        const teamKey = String(team.id).toLowerCase();
+        const timestamp = new Date(entry.timestamp || entry.created_at || 0).getTime();
+        
+        if (!readingsByTeam.has(teamKey)) {
+          readingsByTeam.set(teamKey, { count: 0, firstTimestamp: timestamp, team });
+        }
+        
+        const stats = readingsByTeam.get(teamKey)!;
+        stats.count++;
+        // Manter timestamp mais antigo (primeira leitura)
+        if (timestamp < stats.firstTimestamp) {
+          stats.firstTimestamp = timestamp;
+        }
+      }
+      
+      // Determinar proprietário
+      let dominingTeam: Team | undefined;
+      let maxReadings = 0;
+      let earliestTimestamp = Infinity;
+      
+      for (const [, stats] of readingsByTeam) {
+        if (stats.count > maxReadings) {
+          maxReadings = stats.count;
+          dominingTeam = stats.team;
+          earliestTimestamp = stats.firstTimestamp;
+        } else if (stats.count === maxReadings && stats.count > 0) {
+          // Em caso de empate, usar equipe que chegou primeiro
+          if (stats.firstTimestamp < earliestTimestamp) {
+            dominingTeam = stats.team;
+            earliestTimestamp = stats.firstTimestamp;
+          }
+        }
+      }
+      
+      owners.set(String(checkpoint.id), dominingTeam);
+    }
+    
+    return owners;
+  }, [checkpoints, scoreLog, children, teamById, zoneConquestCheckpoints]);
+
+  // Determine each child's last checkpoint zone.
+  const childLastZone = useMemo(() => {
+    const zoneMap: Record<string, { zone: string; checkpointId: string }> = {};
+
+    // O dono ATUAL de um checkpoint (zoneConquestCheckpoints) não serve para
+    // posicionar avatares: quando outro participante toma o checkpoint, o
+    // dono anterior desaparece do mapa de donos e seu avatar "sumiria" de
+    // volta pra entrada. A posição do avatar é sobre a PRÓPRIA leitura do
+    // participante (scoreLog), não sobre quem domina o checkpoint agora — os
+    // scans de Zone Conquest INDIVIDUAL também gravam em `leituras` com o
+    // session_id da partida atual, então o mesmo caminho serve para os dois
+    // modos (equipe e individual).
+    const sorted = [...scoreLog].reverse();
+
+    for (const entry of sorted) {
+      const checkpointId = entry.checkpointId ?? entry.checkpoint_id ?? entry.checkpoint;
+      const cp = checkpoints.find((c) => String(c.id) === String(checkpointId));
+      const childId = entry.childId ?? entry.child_id;
+      if (cp && childId) {
+        const knownZone = zones.some((zone) => normalizeZoneName(zone.name) === normalizeZoneName(cp.zone))
+          ? zones.find((zone) => normalizeZoneName(zone.name) === normalizeZoneName(cp.zone))?.name || 'Entrada'
+          : 'Entrada';
+        zoneMap[childId] = { zone: knownZone, checkpointId: cp.id };
+      }
+    }
+
+    return zoneMap;
+  }, [scoreLog, checkpoints, zones]);
+
+  // Avatares acompanham o último checkpoint conquistado. Quando ainda não
+  // existe uma conquista, continuam distribuídos na zona de entrada/zona atual.
+  const childPositions = useMemo(() => {
+    const zoneChildren: Record<string, { id: string; avatar: string; nickname: string }[]> = {};
+    const checkpointChildren: Record<string, number> = {};
+    const positions: { id: string; avatar: string; nickname: string; x: number; y: number }[] = [];
+    const activeChildren = children.filter((child) => child.status === 'active' && (child.teamId || child.team_id || child.time_id || child.team));
+
+    for (const child of activeChildren) {
+      const lastCheckpointId = childLastZone[child.id]?.checkpointId;
+      const lastCheckpoint = lastCheckpointId
+        ? checkpoints.find((checkpoint) => String(checkpoint.id) === String(lastCheckpointId))
+        : undefined;
+
+      if (lastCheckpoint) {
+        const basePosition = getCheckpointDisplayPosition(lastCheckpoint, checkpoints, zones);
+        const slot = checkpointChildren[lastCheckpoint.id] || 0;
+        checkpointChildren[lastCheckpoint.id] = slot + 1;
+        
+        // Layout em pirâmide com muito mais espaçamento
+        const offsets = [-35, 0, 35];  // Espaçamento horizontal
+        const offsetX = offsets[slot % offsets.length];
+        const row = Math.floor(slot / 3);
+
+        // Coordenadas em PIXELS (para foreignObject dentro do SVG)
+        positions.push({
+          id: child.id,
+          avatar: child.avatar,
+          nickname: child.nickname || child.name,
+          x: basePosition.x + offsetX,
+          y: basePosition.y + 68 + row * 50,  // Espaçamento bem maior (50) para acomodar animação
+        });
+        continue;
+      }
+
+      const zone = childLastZone[child.id]?.zone || 'Entrada';
+      if (!zoneChildren[zone]) zoneChildren[zone] = [];
+      zoneChildren[zone].push({
+        id: child.id,
+        avatar: child.avatar,
+        nickname: child.nickname || child.name,
+      });
+    }
+
+    for (const zone of zones) {
+      const kids = zoneChildren[zone.name] || [];
+      const cols = Math.min(kids.length, 4);
+      kids.forEach((kid, index) => {
+        const row = Math.floor(index / 4);
+        const col = index % 4;
+        const xOff = cols > 1 ? (col / (cols - 1)) * 0.6 + 0.2 : 0.5;
+        
+        positions.push({
+          id: kid.id,
+          avatar: kid.avatar,
+          nickname: kid.nickname,
+          x: zone.x + zone.width * xOff,
+          y: zone.y + zone.height * (0.3 + row * 0.25),
+        });
+      });
+    }
+
+    return positions;
+  }, [children, childLastZone, checkpoints, zones]);
+
+  const checkpointPositions = useMemo(() => checkpoints.map((checkpoint) => ({
+    checkpoint,
+    ...getCheckpointDisplayPosition(checkpoint, checkpoints, zones),
+  })), [checkpoints, zones]);
+
+  // Determinar cor da zona baseado em TODOS os checkpoints dentro dela
+  // REGRA: Zona é dominada APENAS se TODOS os checkpoints forem dominados pela MESMA equipe
+  const zoneColorByOwnership = useMemo(() => {
+    const colorMap = new Map<string, { color: string; teamName?: string }>();
+    const NEUTRAL_COLOR = '#94A3B8'; // Cinza neutro
+    const DISPUTE_COLOR_PRIMARY = '#FFFFFF'; // Branco para disputa
+    const DISPUTE_COLOR_FALLBACK = '#9CA3AF'; // Cinza mais claro se equipe usar branco
+    
+    for (const zone of zones) {
+      // Encontrar checkpoints que estão DENTRO desta zona (por posição geométrica)
+      const checkpointsInZone = checkpointPositions
+        .filter(({ x, y }) => {
+          const isInZone = 
+            x >= zone.x && 
+            x <= zone.x + zone.width &&
+            y >= zone.y && 
+            y <= zone.y + zone.height;
+          return isInZone;
+        })
+        .map(({ checkpoint }) => checkpoint);
+      
+      if (checkpointsInZone.length === 0) {
+        // Zona sem checkpoints = neutra
+        colorMap.set(normalizeZoneName(zone.name), { color: NEUTRAL_COLOR, teamName: '' });
+        continue;
+      }
+      
+      // Coletar owners de todos os checkpoints nesta zona
+      const checkpointOwners = checkpointsInZone
+        .map((checkpoint) => {
+          const owner = checkpointOwnerById.get(String(checkpoint.id));
+          return { checkpoint, owner };
+        });
+      
+      // Verificar se TODOS os checkpoints têm dono
+      const allHaveOwners = checkpointOwners.every(({ owner }) => owner !== undefined);
+      
+      if (!allHaveOwners) {
+        // Se algum checkpoint está neutro = zona em disputa
+        colorMap.set(normalizeZoneName(zone.name), { 
+          color: DISPUTE_COLOR_PRIMARY, 
+          teamName: 'EM DISPUTA' 
+        });
+        continue;
+      }
+      
+      // Todos têm dono - verificar se são da MESMA equipe
+      const uniqueOwners = new Set(
+        checkpointOwners
+          .filter(({ owner }) => owner !== undefined)
+          .map(({ owner }) => String(owner!.id).toLowerCase())
+      );
+      
+      if (uniqueOwners.size === 1) {
+        // TODOS dominados pela MESMA equipe
+        const dominantTeam = checkpointOwners.find(({ owner }) => owner !== undefined)?.owner;
+        
+        if (dominantTeam) {
+          colorMap.set(normalizeZoneName(zone.name), { 
+            color: dominantTeam.color, 
+            teamName: dominantTeam.name 
+          });
+        }
+      } else {
+        // Checkpoints dominados por EQUIPES DIFERENTES = disputa
+        const hasWhiteTeam = checkpointOwners
+          .filter(({ owner }) => owner !== undefined)
+          .some(({ owner }) => {
+            const color = owner!.color.toUpperCase();
+            return color === '#FFFFFF' || color === '#FFF' || color === 'WHITE';
+          });
+        
+        colorMap.set(normalizeZoneName(zone.name), { 
+          color: hasWhiteTeam ? DISPUTE_COLOR_FALLBACK : DISPUTE_COLOR_PRIMARY, 
+          teamName: 'EM DISPUTA' 
+        });
+      }
+    }
+    
+    return colorMap;
+  }, [zones, checkpointPositions, checkpointOwnerById, teamById, scoreLog]);
+
+  const ownedTeams = useMemo(() => {
+    const seen = new Set<string>();
+    return checkpoints
+      .map((checkpoint) => checkpointOwnerById.get(String(checkpoint.id)))
+      .filter((team): team is Team => {
+        if (!team || seen.has(String(team.id))) return false;
+        seen.add(String(team.id));
+        return true;
+      });
+  }, [checkpoints, checkpointOwnerById]);
+
+  return (
+    <div className={embedded
+      ? `relative flex flex-col overflow-hidden rounded-3xl border border-primary-400/20 bg-dark-card/75 shadow-[0_18px_50px_rgba(2,10,24,0.2)] backdrop-blur-xl ${fill ? (hideHeader ? 'h-full p-2' : 'h-full p-3') : 'p-4 sm:p-6'}`
+      : 'fixed inset-0 flex flex-col overflow-hidden bg-gradient-dark'}>
+      {!hideHeader && (
+      <div className={`relative z-10 border-b border-dark-border/50 text-center ${embedded ? (fill ? 'pb-2' : 'pb-4') : 'py-6'}`}>
+        <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary-300">
+          {activeGame?.type === 'treasure_hunt' ? 'Caça ao Tesouro' : isIndividual ? 'Zona - Modo Individual' : isZoneMode ? 'Zona - Modo Equipe' : 'Brincadeira Zona'}
+        </p>
+        <h1 className={`font-display text-slate-100 ${fill ? 'text-[clamp(1.25rem,3vh,2.2rem)] leading-tight' : 'text-3xl'}`}>Mapa do Espaço</h1>
+        <p className={`uppercase tracking-widest text-slate-500 ${fill ? 'mt-0.5 text-[clamp(0.6rem,1.3vh,0.8rem)]' : 'mt-1 text-sm'}`}>
+          {activeGame?.type === 'treasure_hunt' ? 'Localização dos checkpoints em tempo real' : isIndividual ? 'Competição individual por checkpoints' : 'Domínio dos territórios em tempo real'}
+        </p>
+      </div>
+      )}
+
+      <div className={embedded
+        ? (fill
+          ? `relative z-10 ${hideHeader ? '' : 'mt-2'} min-h-0 flex-1 overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30`
+          : 'relative z-10 mt-5 h-[520px] overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30')
+        : 'relative z-10 mx-8 my-6 flex-1 overflow-hidden rounded-2xl border border-dark-border/40 bg-dark-card/30'}>
+        
+        {/* Planta baixa como background */}
+        {localFloorPlan && (
+          <img 
+            src={localFloorPlan} 
+            alt="Planta do espaço" 
+            className="absolute inset-0 h-full w-full object-contain opacity-40 z-0 pointer-events-none"
+          />
+        )}
+        {/* SVG com viewBox em pixels, mantendo proporções sem esticar */}
+        <svg
+          className="absolute inset-0 w-full h-full z-10"
+          viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
+          preserveAspectRatio="xMidYMid meet"
+        >
+            <>
+              {/* Zonas em coordenadas de pixels (como AdminMap) - só mostrar em modo zona */}
+              {activeGame?.type !== 'treasure_hunt' && zones.map((zone) => {
+                const zoneData = zoneColorByOwnership.get(normalizeZoneName(zone.name));
+                const zoneOwnerColor = zoneData?.color || '#94A3B8';
+                const zoneTeamName = zoneData?.teamName || '';
+                const isDisputed = zoneTeamName === 'EM DISPUTA';
+                const isDominated = zoneTeamName && !isDisputed;
+              
+                // Zonas do modo INDIVIDUAL usam um traço pontilhado fino e o
+                // nome do participante prefixado com 👤, para nunca se
+                // confundir visualmente com a zona sólida do modo equipe.
+                const dominatedDash = isIndividual ? '2 3' : 'none';
+                const disputedDash = isIndividual ? '3 3' : '8 4';
+                const neutralDash = isIndividual ? '2 3' : '6 3';
+                const ownerLabel = isIndividual && isDominated ? `👤 ${zoneTeamName}` : zoneTeamName;
+
+                return (
+                  <g key={zone.id}>
+                    <rect
+                      x={zone.x}
+                      y={zone.y}
+                      width={zone.width}
+                      height={zone.height}
+                      fill={zoneOwnerColor}
+                      fillOpacity={isDisputed ? 0.2 : (isDominated ? 0.25 : 0.15)}
+                      stroke={zoneOwnerColor}
+                      strokeWidth={isDisputed ? 2 : (isDominated ? 2.5 : 2)}
+                      strokeDasharray={isDisputed ? disputedDash : (isDominated ? dominatedDash : neutralDash)}
+                      rx={8}
+                    />
+                    <text
+                      x={zone.x + zone.width / 2}
+                      y={zone.y + zone.height / 2 - 8}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill={zoneOwnerColor}
+                      fontSize={12}
+                      fontWeight={600}
+                      fontFamily="system-ui"
+                    >
+                      {zone.name}
+                    </text>
+                    {isDominated && (
+                      <text
+                        x={zone.x + zone.width / 2}
+                        y={zone.y + zone.height / 2 + 10}
+                        textAnchor="middle"
+                        fill={zoneOwnerColor}
+                        fontSize={10}
+                        fontWeight={700}
+                        fontFamily="system-ui"
+                      >
+                        {ownerLabel}
+                      </text>
+                    )}
+                    {isDisputed && (
+                      <text
+                        x={zone.x + zone.width / 2}
+                        y={zone.y + zone.height / 2 + 8}
+                        textAnchor="middle"
+                        fill="#000000"
+                        fontSize={10}
+                        fontWeight={700}
+                        fontFamily="system-ui"
+                      >
+                        EM DISPUTA
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+
+               {/* Indicadores de Proteção do Zone Conquest INDIVIDUAL */}
+          {zoneConquestCheckpoints && zoneConquestCheckpoints.map((cp) => {
+            const position = checkpointPositions.find(p => p.checkpoint.id === cp.id);
+            if (!position || !cp.isProtected) return null;
+            return (
+              <CheckpointProtectionIndicator
+                key={`protection-${cp.id}`}
+                checkpointId={cp.id}
+                participantName={cp.participantName}
+                participantColor={cp.participantColor}
+                protectedUntil={cp.protectedUntil}
+                x={position.x}
+                y={position.y}
+              />
+            );
+          })}
+
+          {/* Checkpoints em coordenadas de pixels (como AdminMap) */}
+          {checkpointPositions.map(({ checkpoint, x, y }) => {
+            const owner = checkpointOwnerById.get(String(checkpoint.id));
+            const isOnline = checkpoint.status === 'online';
+            const color = owner?.color || (isOnline ? '#22C55E' : '#EF4444');
+            // Checkpoint dominado por participante (modo individual) ganha um
+            // anel pontilhado em vez do anel sólido usado no domínio por equipe.
+            const ownedByIndividual = isIndividual && Boolean(owner);
+            return (
+              <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
+                <circle
+                  r={17}
+                  fill={color}
+                  fillOpacity={0.18}
+                  stroke={color}
+                  strokeWidth={2}
+                  strokeDasharray={ownedByIndividual ? '3 2' : 'none'}
+                />
+                <circle r={5} fill={color} />
+                <text y={-22} textAnchor="middle" fill="#FFFFFF" fontSize={10} fontWeight={600}>
+                  {checkpoint.id}
+                </text>
+                <text y={30} textAnchor="middle" fill="#D1D5DB" fontSize={9}>
+                  {checkpoint.name}
+                </text>
+              </g>
+            );
+          })}
+
+              {/* Avatares como foreignObject dentro do SVG (mesmas coordenadas em pixels) */}
+              {childPositions.map((position) => (
+                <foreignObject
+                  key={position.id}
+                  x={position.x - 28}
+                  y={position.y - 60}
+                  width={56}
+                  height={150}
+                >
+                  <div className="flex flex-col items-center w-full pointer-events-none" style={{ transform: 'scale(0.8)' }}>
+                    <div className="animate-float">
+                      <Avatar emoji={position.avatar || DEFAULT_AVATAR_ID} size="sm" decorative />
+                    </div>
+                    <span className="whitespace-normal text-center font-display text-[11px] text-slate-300 leading-tight px-1">
+                      {position.nickname || 'Participante'}
+                    </span>
+                  </div>
+                </foreignObject>
+              ))}
+            </>
+        </svg>
+      </div>
+
+      <div className={`relative z-10 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 ${embedded ? (fill ? 'pt-2' : 'pt-4') : 'px-6 pb-5'}`}>
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-full bg-success-500" style={{ boxShadow: '0 0 6px rgba(16,185,129,0.5)' }} />
+          <span className="text-xs text-slate-400">Livre e online</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-full bg-danger-500" style={{ boxShadow: '0 0 6px rgba(239,68,68,0.5)' }} />
+          <span className="text-xs text-slate-400">Offline</span>
+        </div>
+        {ownedTeams.map((team) => (
+          <div key={team.id} className="flex items-center gap-2">
+            <div
+              className={isIndividual ? "h-3 w-3 rounded-full border border-dashed border-white/60" : "h-3 w-3 rounded-full"}
+              style={{ backgroundColor: team.color, boxShadow: `0 0 8px ${team.color}80` }}
+            />
+            <span className="text-xs text-slate-300">{isIndividual ? `👤 ${team.name}` : team.name}</span>
+          </div>
+        ))}
+        <div className="flex items-center gap-2">
+          <Avatar emoji={DEFAULT_AVATAR_ID} size="sm" decorative />
+          <span className="text-xs text-slate-400">Criança</span>
+        </div>
+      </div>
+    </div>
+  );
+}
