@@ -104,6 +104,8 @@ export interface EmpresaProfile {
   state: string;
   backupFrequency: string;
   cnpj: string;
+  // Domínio dos e-mails dos usuários do buffet, derivado do nome (ex.: "buffetadv.com").
+  emailDomain: string | null;
 }
 
 export const api = {
