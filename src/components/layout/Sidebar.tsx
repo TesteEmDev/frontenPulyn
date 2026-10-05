@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
 import PulynLogo from '../ui/PulynLogo';
 import { useAuth, roleLabels } from '../../hooks/useAuth';
+import { useBuffetName, DEFAULT_BUFFET_TITLE } from '../../hooks/useBuffetName';
 
 interface SidebarItem {
   icon: ReactNode;
@@ -28,6 +29,9 @@ export default function Sidebar({
 }: SidebarProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  // No admin, o nome exibido é o "Nome da unidade" do cadastro do buffet.
+  const unitName = useBuffetName(user?.role === 'admin');
+  const displayName = user?.role === 'admin' && unitName !== DEFAULT_BUFFET_TITLE ? unitName : user?.name || '';
 
   const handleLogout = () => {
     logout();
@@ -53,13 +57,13 @@ export default function Sidebar({
               background: `linear-gradient(135deg, ${accentColor}, #29B6F6)`,
             }}
           >
-            {user.name.charAt(0)}
+            {displayName.charAt(0)}
           </div>
           <div
             className="min-w-0 transition-opacity duration-300"
             style={{ opacity: collapsed ? 0 : 1 }}
           >
-            <p className="text-sm font-medium text-white truncate">{user.name}</p>
+            <p className="text-sm font-medium text-white truncate" title={displayName}>{displayName}</p>
             <p className="text-xs truncate" style={{ color: '#6B8BA4' }}>
               {roleLabels[user.role] || user.role}
             </p>
