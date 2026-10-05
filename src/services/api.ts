@@ -932,6 +932,24 @@ export const api = {
     return res.json();
   },
 
+  // Times padrão da empresa (modelos sem evento) e cópia deles para um evento.
+  async getDefaultTimes() {
+    const res = await fetch(`${API_URL}/times/padrao`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ([]));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao carregar times padrão (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async applyDefaultTimes(eventoId: string) {
+    const res = await fetch(`${API_URL}/times/eventos/${encodeURIComponent(eventoId)}/aplicar-padrao`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao aplicar times padrão (${res.status})`);
+    return data as { created: number; skipped: number };
+  },
+
   // Sorteia as crianças do evento entre os times. 'unassigned' = só quem está sem time.
   async distributeChildrenRandomly(eventoId: string, mode: 'unassigned' | 'all') {
     const res = await fetch(`${API_URL}/times/eventos/${encodeURIComponent(eventoId)}/distribuir-aleatorio`, {

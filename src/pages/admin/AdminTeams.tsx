@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  Users, Plus, Loader2, Edit2, Trash2
+  Users, Plus, Loader2, Edit2, Trash2, Download
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
@@ -29,6 +29,11 @@ interface Event {
 export default function AdminTeams() {
   const { user } = useAuth();
   const [teamsList, setTeamsList] = useState<Team[]>([]);
+  // 'event' = times do evento selecionado; 'default' = times padrão (modelos da empresa).
+  const [scope, setScope] = useState<'event' | 'default'>('event');
+  const [defaultTeams, setDefaultTeams] = useState<Team[]>([]);
+  const [applying, setApplying] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -85,7 +90,17 @@ export default function AdminTeams() {
 
   useEffect(() => {
     loadData();
+    loadDefaultTeams();
   }, [user]);
+
+  const loadDefaultTeams = async () => {
+    try {
+      setDefaultTeams(await api.getDefaultTimes());
+    } catch (err) {
+      console.error('❌ Erro ao carregar times padrão:', err);
+      setError('Erro ao carregar times padrão');
+    }
+  };
 
   // Carregar times quando evento muda
   useEffect(() => {
@@ -106,8 +121,8 @@ export default function AdminTeams() {
   };
 
   const handleAddTeam = async () => {
-    if (!newTeam.name || !selectedEventId) {
-      setError('Preencha o nome do time e selecione um evento');
+    if (!newTeam.name || (!isDefaultScope && !selectedEventId)) {
+      setError(isDefaultScope ? 'Preencha o nome do time' : 'Preencha o nome do time e selecione um evento');
       return;
     }
 
@@ -121,7 +136,7 @@ export default function AdminTeams() {
           name: newTeam.name,
           color: newTeam.color,
         });
-        setTeamsList(prev => prev.map(t => 
+        setVisibleTeams(prev => prev.map(t => 
           t.id === editingId 
             ? { ...t, name: newTeam.name, color: newTeam.color }
             : t
@@ -131,9 +146,9 @@ export default function AdminTeams() {
         const createdTeam = await api.createTime({
           name: newTeam.name,
           color: newTeam.color,
-          evento_id: selectedEventId,
+          evento_id: isDefaultScope ? undefined : selectedEventId,
         });
-        setTeamsList(prev => [...prev, createdTeam]);
+        setVisibleTeams(prev => [...prev, createdTeam]);
       }
 
       setNewTeam({ name: '', color: '#FF0000', evento_id: selectedEventId });
@@ -153,7 +168,7 @@ export default function AdminTeams() {
 
     try {
       await api.deleteTime(id);
-      setTeamsList(prev => prev.filter(t => t.id !== id));
+      setVisibleTeams(prev => prev.filter(t => t.id !== id));
     } catch (err) {
       console.error('❌ Erro ao remover time:', err);
       setError('Erro ao remover time');
@@ -164,10 +179,34 @@ export default function AdminTeams() {
     setNewTeam({
       name: team.name,
       color: team.color,
-      evento_id: team.evento_id || selectedEventId,
+      evento_id: isDefaultScope ? '' : (team.evento_id || selectedEventId),
     });
     setEditingId(team.id);
     setShowAddModal(true);
+  };
+
+  const isDefaultScope = scope === 'default';
+  const visibleTeams = isDefaultScope ? defaultTeams : teamsList;
+  const setVisibleTeams = isDefaultScope ? setDefaultTeams : setTeamsList;
+
+  const handleApplyDefaults = async () => {
+    if (!selectedEventId) return;
+    setApplying(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const { created, skipped } = await api.applyDefaultTimes(selectedEventId);
+      await loadTeams();
+      setNotice(
+        created === 0
+          ? 'Este evento já tem todos os times padrão.'
+          : `${created} time${created !== 1 ? 's' : ''} padrão adicionado${created !== 1 ? 's' : ''} ao evento${skipped > 0 ? ` (${skipped} já existia${skipped !== 1 ? 'm' : ''})` : ''}.`
+      );
+    } catch (err: any) {
+      setError(err.message || 'Não foi possível aplicar os times padrão');
+    } finally {
+      setApplying(false);
+    }
   };
 
   const handleChangeEvent = (eventoId: string) => {
@@ -185,19 +224,58 @@ export default function AdminTeams() {
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Times"
-            description="Crie e gerencie os times para seus eventos"
+            description="Crie times para cada evento ou mantenha times padrão para reaproveitar"
             icon={<Users size={28} />}
             action={
-              <Button variant="primary" onClick={() => {
-                setEditingId(null);
-                setNewTeam({ name: '', color: '#FF0000', evento_id: selectedEventId });
-                setShowAddModal(true);
-              }}>
-                <Plus size={16} className="mr-1.5" />
-                Novo Time
-              </Button>
+              <div className="flex gap-3">
+                {!isDefaultScope && (
+                  <Button
+                    variant="secondary"
+                    onClick={handleApplyDefaults}
+                    disabled={!selectedEventId || defaultTeams.length === 0 || applying}
+                    title={defaultTeams.length === 0 ? 'Cadastre times padrão na aba "Times padrão"' : 'Copiar os times padrão para este evento'}
+                  >
+                    {applying ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <Download size={16} className="mr-1.5" />}
+                    Usar times padrão
+                  </Button>
+                )}
+                <Button variant="primary" onClick={() => {
+                  setEditingId(null);
+                  setNewTeam({ name: '', color: '#FF0000', evento_id: isDefaultScope ? '' : selectedEventId });
+                  setShowAddModal(true);
+                }}>
+                  <Plus size={16} className="mr-1.5" />
+                  {isDefaultScope ? 'Novo Time Padrão' : 'Novo Time'}
+                </Button>
+              </div>
             }
           />
+
+          <div className="inline-flex rounded-lg border border-dark-border bg-dark-surface p-1" role="tablist" aria-label="Tipo de time">
+            {([
+              ['event', 'Times do evento'],
+              ['default', `Times padrão (${defaultTeams.length})`],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={scope === value}
+                onClick={() => { setScope(value); setError(null); setNotice(null); }}
+                className={`rounded-md px-4 py-1.5 text-sm font-semibold transition-colors ${
+                  scope === value ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {notice && (
+            <div className="bg-success/10 border border-success/30 rounded-lg px-4 py-3 text-success text-sm" role="status">
+              {notice}
+            </div>
+          )}
 
           {error && (
             <div className="bg-danger/10 border border-danger/30 rounded-lg px-4 py-3 text-danger text-sm">
@@ -206,6 +284,13 @@ export default function AdminTeams() {
           )}
 
           {/* Seletor de Evento */}
+          {isDefaultScope ? (
+            <Card>
+              <p className="text-sm text-gray-400">
+                Os times padrão são modelos da empresa. Em cada evento, use <strong className="text-white">Usar times padrão</strong> para copiá-los (sem duplicar os que o evento já tem). Alterar um time padrão não muda os eventos que já o copiaram.
+              </p>
+            </Card>
+          ) : (
           <Card>
             <div className="flex items-center gap-4">
               <label className="text-sm font-semibold text-gray-300">Evento:</label>
@@ -223,6 +308,7 @@ export default function AdminTeams() {
               </select>
             </div>
           </Card>
+          )}
 
           <Card>
             {loading ? (
@@ -241,14 +327,16 @@ export default function AdminTeams() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {teamsList.length === 0 ? (
+                      {visibleTeams.length === 0 ? (
                         <tr>
                           <td colSpan={3} className="py-8 text-center text-gray-500">
-                            Nenhum time criado. Crie o primeiro time para começar!
+                            {isDefaultScope
+                              ? 'Nenhum time padrão. Crie os modelos que você mais usa nos eventos!'
+                              : 'Nenhum time criado. Crie o primeiro time ou use os times padrão!'}
                           </td>
                         </tr>
                       ) : (
-                        teamsList.map(team => (
+                        visibleTeams.map(team => (
                           <tr key={team.id} className="hover:bg-surface/50 transition-colors">
                             <td className="py-3 pr-4">
                               <div className="flex items-center gap-3">
@@ -286,9 +374,9 @@ export default function AdminTeams() {
                     </tbody>
                   </table>
                 </div>
-                {teamsList.length > 0 && (
+                {visibleTeams.length > 0 && (
                   <div className="mt-4 pt-4 border-t border-border">
-                    <p className="text-sm text-gray-500">{teamsList.length} time(s) criado(s)</p>
+                    <p className="text-sm text-gray-500">{visibleTeams.length} time(s) {isDefaultScope ? 'padrão' : 'criado(s)'}</p>
                   </div>
                 )}
               </>
@@ -304,7 +392,7 @@ export default function AdminTeams() {
               setNewTeam({ name: '', color: '#FF0000', evento_id: selectedEventId });
               setError(null);
             }}
-            title={editingId ? 'Editar Time' : 'Criar Novo Time'}
+            title={editingId ? 'Editar Time' : isDefaultScope ? 'Criar Time Padrão' : 'Criar Novo Time'}
           >
             <div className="space-y-4">
               <Input
