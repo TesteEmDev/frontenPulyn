@@ -5,12 +5,14 @@ import { useCallback, useEffect, useRef, useState, memo } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { usePulynStore } from '../../store/mockData';
 import { useNFCOtimizado } from '../../hooks/useNFCReader_otimizado';
+import { useDeviceNFC } from '../../hooks/useDeviceNFC';
 import { api } from '../../services/api';
 import Avatar from '../../components/ui/Avatar';
 import AvatarSelector from '../../components/ui/AvatarSelector';
 import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
 import Button from '../../components/ui/Button';
 import StatusDot from '../../components/ui/StatusDot';
+import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
 import VirtualKeyboardOtimizado from '../../components/ui/VirtualKeyboardOtimizado';
 import { useDebounce, useMemoizedCallback } from '../../hooks/useDebounce';
 
@@ -228,9 +230,15 @@ export default function ReceptionKioskOtimizado() {
     !registrationVisible && state !== 'saving' && state !== 'success',
   );
 
+  // Leitura alternativa pelo NFC do próprio tablet/celular usado como totem.
+  const deviceNfc = useDeviceNFC(
+    handleBraceletDetected,
+    Boolean(selectedEventId) && !registrationVisible && state !== 'saving' && state !== 'success',
+  );
+
   useEffect(() => {
-    setNfcConnected(isConnected);
-  }, [isConnected]);
+    setNfcConnected(isConnected || deviceNfc.isScanning);
+  }, [deviceNfc.isScanning, isConnected]);
 
   // LOAD EVENTS OTIMIZADO
   useEffect(() => {
@@ -401,6 +409,12 @@ export default function ReceptionKioskOtimizado() {
                 {!isOnline ? 'Sem internet' : nfcConnected ? 'Leitor conectado' : 'Leitor aguardando'}
               </span>
             </div>
+            <DeviceNfcButton
+              status={deviceNfc.status}
+              error={deviceNfc.error}
+              onStart={deviceNfc.start}
+              onStop={deviceNfc.stop}
+            />
             <button
               type="button"
               onClick={toggleFullscreen}
@@ -532,7 +546,9 @@ export default function ReceptionKioskOtimizado() {
                           state === 'error' ? 'text-danger' : 'text-gray-400'
                         }`}
                       >
-                        {message}
+                        {state === 'waiting' && deviceNfc.isScanning
+                          ? 'Encoste a pulseira na parte de trás deste aparelho para começar'
+                          : message}
                       </p>
                       {state === 'error' && (
                         <button
@@ -549,10 +565,16 @@ export default function ReceptionKioskOtimizado() {
                 <div className="relative mt-6 flex items-center justify-center gap-2 text-xs text-gray-500">
                   <span
                     className={`h-2 w-2 rounded-full ${
-                      nfcConnected ? 'bg-success animate-pulse' : 'bg-warning'
+                      nfcConnected && !deviceNfc.error ? 'bg-success animate-pulse' : 'bg-warning'
                     }`}
                   />
-                  {nfcConnected ? 'Aproxime a pulseira no leitor' : 'Verifique a conexão do leitor'}
+                  {deviceNfc.error
+                    ? deviceNfc.error
+                    : deviceNfc.isScanning
+                    ? 'NFC deste aparelho pronto para ler'
+                    : nfcConnected
+                    ? 'Aproxime a pulseira no leitor'
+                    : 'Verifique a conexão do leitor'}
                 </div>
               </div>
             </div>
