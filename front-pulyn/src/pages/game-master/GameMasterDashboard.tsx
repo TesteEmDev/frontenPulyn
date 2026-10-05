@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Play, Pause, Square, RotateCcw, Gamepad2, Trophy, MapPin, Users, Clock, Shield } from 'lucide-react';
+import { Play, Pause, Square, RotateCcw, Gamepad2, Trophy, MapPin, MessageSquare, Users, Clock, Shield } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useGameWebSocket, GameEvent } from '../../hooks/useGameWebSocket';
 import Sidebar from '../../components/layout/Sidebar';
@@ -16,10 +16,7 @@ import { api, API_URL } from '../../services/api';
 const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
   { icon: <Users size={20} />, label: 'Times', path: '/game-master/teams' },
-  { icon: <Play size={20} />, label: 'Controle', path: '/game-master/control' },
-  { icon: <MapPin size={20} />, label: 'Mensagens', path: '/game-master/messages' },
-  { icon: <Trophy size={20} />, label: 'Ranking', path: '/game-master/ranking' },
-  { icon: <Shield size={20} />, label: 'Zona', path: '/game-master/zone-setup' },
+  { icon: <MessageSquare size={20} />, label: 'Mensagens', path: '/game-master/messages' },
 ];
 
 interface TerritoryStatus {
@@ -478,7 +475,7 @@ export default function GameMasterDashboard() {
       
       const interval = setInterval(() => {
         loadTerritoriesStatus();
-      }, 2000); // Atualizar a cada 2 segundos
+      }, 5000); // Atualizar a cada 5 segundos (reduzido de 2s para economizar conexões)
       
       return () => clearInterval(interval);
     }
@@ -492,7 +489,7 @@ export default function GameMasterDashboard() {
     const interval = setInterval(() => {
       loadTreasureStatus();
       loadMonsterStatus();
-    }, 2000);
+    }, 5000); // Atualizar a cada 5 segundos (reduzido de 2s para economizar conexões)
     return () => clearInterval(interval);
   }, [selectedEventId, loadTreasureStatus, loadMonsterStatus]);
 
@@ -552,11 +549,11 @@ export default function GameMasterDashboard() {
     
     setActionLoading('start');
     try {
-      const data = await api.startGame(
-        selectedGameId,
-        activeGame?.name || 'Jogo',
-        selectedEventId
-      );
+      // O modo Zone Conquest (equipe/individual) é lido pelo backend a partir
+      // de brincadeiras.type, definido no AdminGameForm ao criar o jogo — não
+      // é mais adivinhado a partir do nome do jogo.
+      const gameName = activeGame?.name || 'Jogo';
+      const data = await api.startGame(selectedGameId, gameName, selectedEventId);
       console.log('✅ Jogo iniciado:', data);
       resetGameTimer();
       setGameRunning(true);

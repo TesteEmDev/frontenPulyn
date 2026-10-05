@@ -1,30 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map, FileText, RefreshCw, Settings, Upload, Pencil, Trash2, Plus, Save, Loader2 } from 'lucide-react';
+import { MapPin, Map, RefreshCw, Upload, Pencil, Trash2, Plus, Save, Loader2 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
-import Sidebar from '../../components/layout/Sidebar';
-import TopBar from '../../components/layout/TopBar';
+import AdminSidebar from '../../components/layout/AdminSidebar';
+import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import StatusDot from '../../components/ui/StatusDot';
-
-const navItems = [
-  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/admin' },
-  { icon: <Calendar size={20} />, label: 'Eventos', path: '/admin/events' },
-  { icon: <Users size={20} />, label: 'Crianças', path: '/admin/children' },
-  { icon: <Gamepad2 size={20} />, label: 'Jogos', path: '/admin/games' },
-  { icon: <MapPin size={20} />, label: 'Checkpoints', path: '/admin/checkpoints' },
-  { icon: <Map size={20} />, label: 'Mapa', path: '/admin/map' },
-  { icon: <Users size={20} />, label: 'Usuários', path: '/admin/users' },
-  { icon: <Users size={20} />, label: 'Times', path: '/admin/teams' },
-  { icon: <FileText size={20} />, label: 'Relatórios', path: '/admin/reports' },
-  { icon: <RefreshCw size={20} />, label: 'Sincronização', path: '/admin/sync' },
-  { icon: <Settings size={20} />, label: 'Configurações', path: '/admin/settings' },
-];
 
 interface Zone {
   id: string;
@@ -92,14 +77,12 @@ async function optimizeFloorPlan(file: File): Promise<string> {
 }
 
 export default function AdminMap() {
-  const location = useLocation();
   const svgRef = useRef<SVGSVGElement>(null);
   const draggingCheckpointRef = useRef<string | null>(null);
   const dragStartPositionRef = useRef<MapPosition | null>(null);
   const dragPositionRef = useRef<MapPosition | null>(null);
   const dragOffsetRef = useRef<MapPosition | null>(null);
   const renderTimerRef = useRef<number | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [checkpoints, setCheckpoints] = useState<any[]>([]);
@@ -208,43 +191,41 @@ export default function AdminMap() {
     };
   }, [setEventoAtual]);
 
-  const loadFloorPlan = useCallback(async (eventId: string | null) => {
-    setFloorPlanUrl(null);
-    setFloorPlanName(null);
-    if (!eventId) return;
-
+  // Planta e zonas são do buffet (empresa), não do evento selecionado —
+  // o espaço físico não muda de uma festa para outra. Carregadas uma única
+  // vez, independente de qual evento está selecionado no seletor abaixo.
+  const loadFloorPlan = useCallback(async () => {
     try {
-      const floorPlan = await api.getFloorPlan(eventId);
+      const floorPlan = await api.getFloorPlan();
       setFloorPlanUrl(floorPlan?.dataUrl || null);
       setFloorPlanName(floorPlan?.name || null);
     } catch (err: any) {
-      console.error('❌ Erro ao carregar planta do evento:', err);
-      setError(err.message || 'Não foi possível carregar a planta deste evento.');
+      console.error('❌ Erro ao carregar planta do buffet:', err);
+      setError(err.message || 'Não foi possível carregar a planta do buffet.');
     }
   }, []);
+
+  useEffect(() => {
+    loadFloorPlan();
+  }, [loadFloorPlan]);
 
   // Carregar zonas do backend (com fallback localStorage)
   useEffect(() => {
     const loadZones = async () => {
+      const LOCAL_KEY = 'zones_company';
       try {
-        if (!selectedEventId) {
-          setZones(initialZones);
-          return;
-        }
-
         // Tentar carregar da API primeiro
         try {
           console.log('🔄 Carregando zonas da API...');
-          const zonesData = await api.getZones(selectedEventId);
+          const zonesData = await api.getZones();
           if (zonesData && Array.isArray(zonesData) && zonesData.length > 0) {
             console.log('✅ Zonas carregadas da API:', zonesData);
             setZones(zonesData);
             // Atualizar localStorage como cache
-            localStorage.setItem(`zones_${selectedEventId}`, JSON.stringify(zonesData));
+            localStorage.setItem(LOCAL_KEY, JSON.stringify(zonesData));
           } else {
             console.log('📝 Nenhuma zona na API, tentando localStorage...');
-            const key = `zones_${selectedEventId}`;
-            const stored = localStorage.getItem(key);
+            const stored = localStorage.getItem(LOCAL_KEY);
             if (stored) {
               const parsed = JSON.parse(stored);
               console.log('✅ Zonas carregadas do localStorage:', parsed);
@@ -255,8 +236,7 @@ export default function AdminMap() {
           }
         } catch (apiError) {
           console.warn('⚠️ Erro ao carregar da API, tentando localStorage...');
-          const key = `zones_${selectedEventId}`;
-          const stored = localStorage.getItem(key);
+          const stored = localStorage.getItem(LOCAL_KEY);
           if (stored) {
             try {
               const parsed = JSON.parse(stored);
@@ -276,31 +256,30 @@ export default function AdminMap() {
     };
 
     loadZones();
-  }, [selectedEventId]);
+  }, []);
 
   useEffect(() => {
     setSelectedCheckpointId(null);
     loadCheckpoints(selectedEventId);
-    loadFloorPlan(selectedEventId);
     if (selectedEventId) setEventoAtual(selectedEventId);
-  }, [loadCheckpoints, loadFloorPlan, selectedEventId, setEventoAtual]);
+  }, [loadCheckpoints, selectedEventId, setEventoAtual]);
 
   // Salvar zonas no backend (com fallback localStorage)
   useEffect(() => {
-    if (!selectedEventId || zones.length === 0) return;
+    if (zones.length === 0) return;
 
     const saveZones = async () => {
       try {
         // Tentar salvar na API
         try {
           console.log('💾 Salvando zonas na API:', zones);
-          await api.saveZones(selectedEventId, zones);
+          await api.saveZones(zones);
           console.log('✅ Zonas salvas na API com sucesso');
           // Atualizar localStorage como cache
-          localStorage.setItem(`zones_${selectedEventId}`, JSON.stringify(zones));
+          localStorage.setItem('zones_company', JSON.stringify(zones));
         } catch (apiError) {
           console.warn('⚠️ Erro ao salvar na API, salvando no localStorage...');
-          localStorage.setItem(`zones_${selectedEventId}`, JSON.stringify(zones));
+          localStorage.setItem('zones_company', JSON.stringify(zones));
           console.log('✅ Zonas salvas no localStorage (fallback)');
         }
       } catch (err) {
@@ -310,7 +289,7 @@ export default function AdminMap() {
 
     const debounceTimer = setTimeout(saveZones, 500);
     return () => clearTimeout(debounceTimer);
-  }, [zones, selectedEventId]);
+  }, [zones]);
 
   const updateZone = (id: string, field: keyof Zone, value: string | number) => {
     setZones((prev) => prev.map((zone) => zone.id === id ? { ...zone, [field]: value } : zone));
@@ -685,16 +664,12 @@ export default function AdminMap() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    if (!selectedEventId) {
-      setError('Selecione um evento antes de enviar a planta.');
-      return;
-    }
 
     setUploadingFloorPlan(true);
     setError('');
     try {
       const dataUrl = await optimizeFloorPlan(file);
-      await api.saveFloorPlan(selectedEventId, {
+      await api.saveFloorPlan({
         dataUrl,
         name: file.name,
         type: dataUrl.slice(5, dataUrl.indexOf(';')) || 'image/jpeg',
@@ -711,11 +686,11 @@ export default function AdminMap() {
 
   const handleRemoveFloorPlan = async (event: React.MouseEvent) => {
     event.stopPropagation();
-    if (!selectedEventId || uploadingFloorPlan) return;
+    if (uploadingFloorPlan) return;
     setUploadingFloorPlan(true);
     setError('');
     try {
-      await api.deleteFloorPlan(selectedEventId);
+      await api.deleteFloorPlan();
       setFloorPlanUrl(null);
       setFloorPlanName(null);
     } catch (err: any) {
@@ -736,21 +711,14 @@ export default function AdminMap() {
 
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">
-      <Sidebar
-        items={navItems}
-        activePath={location.pathname}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
-        title="Pulyn Admin"
-        accentColor="#1E9BD7"
-      />
+      <AdminSidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar title="Gestão do Buffet" subtitle="Mapa do Espaço" />
+        <BuffetTopBar subtitle="Mapa do Espaço" />
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Mapa do Espaço"
-            description="Selecione um evento e arraste os checkpoints para posicioná-los na planta"
+            description="A planta e as zonas são do buffet e valem para todos os eventos. Selecione um evento para posicionar os checkpoints dele na planta."
             icon={<Map size={28} />}
           />
 
@@ -762,7 +730,7 @@ export default function AdminMap() {
 
           <Card>
             <div className="flex flex-col gap-3 md:flex-row md:items-center">
-              <label className="text-sm font-semibold text-gray-300">Evento:</label>
+              <label className="text-sm font-semibold text-gray-300">Checkpoints do evento:</label>
               <select
                 value={selectedEventId || ''}
                 onChange={(event) => setSelectedEventId(event.target.value || null)}
@@ -796,10 +764,10 @@ export default function AdminMap() {
               <Upload size={30} className={floorPlanUrl ? 'text-success' : 'text-gray-500'} />
               <div className="flex-1 min-w-0">
                 <p className="font-display text-base text-white">
-                  {floorPlanUrl ? 'Planta carregada' : 'Enviar planta do espaço'}
+                  {floorPlanUrl ? 'Planta do buffet carregada' : 'Enviar planta do buffet'}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  {floorPlanName || 'PNG, JPG ou SVG. A imagem ficará salva neste evento.'}
+                  {floorPlanName || 'PNG, JPG ou SVG. Vale para todos os eventos deste buffet.'}
                 </p>
               </div>
               {uploadingFloorPlan ? (

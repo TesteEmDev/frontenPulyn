@@ -1,7 +1,7 @@
 // pages/AdminCheckpointConfig.tsx
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Save, Plus, Trash2, Wifi, WifiOff, CheckCircle, XCircle } from 'lucide-react';
+import { Save, Wifi, WifiOff, CheckCircle, XCircle } from 'lucide-react';
 // No topo do arquivo AdminCheckpointConfig.tsx
 import { usePulynStore } from '../../store/mockData'; // Note: são 2 níveis: ../../store/mockData
 import { API_URL } from '../../services/api';
@@ -19,10 +19,8 @@ export default function AdminCheckpointConfig() {
     ledColor: checkpoint?.led || '#00FF00',
     defaultSound: 'beep_1',
     uhfPower: '30',
-    authorizedTags: checkpoint?.authorizedTags || [] as string[],
   });
   
-  const [newTag, setNewTag] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [serverStatus, setServerStatus] = useState<'checking' | 'online' | 'offline'>('checking');
@@ -42,23 +40,6 @@ export default function AdminCheckpointConfig() {
     const interval = setInterval(checkServer, 5000);
     return () => clearInterval(interval);
   }, []);
-  
-  const addTag = () => {
-    const tag = newTag.trim().toUpperCase();
-    if (!tag || formData.authorizedTags.includes(tag)) return;
-    setFormData(prev => ({ 
-      ...prev, 
-      authorizedTags: [...prev.authorizedTags, tag] 
-    }));
-    setNewTag('');
-  };
-  
-  const removeTag = (tag: string) => {
-    setFormData(prev => ({
-      ...prev,
-      authorizedTags: prev.authorizedTags.filter(t => t !== tag),
-    }));
-  };
   
   const handleSave = async () => {
     setSaving(true);
@@ -165,57 +146,6 @@ export default function AdminCheckpointConfig() {
               />
             </div>
           </div>
-        </div>
-        
-        {/* Tags Autorizadas */}
-        <div className="bg-surface rounded-xl p-6 border border-border">
-          <h2 className="font-display text-lg text-white mb-4">
-            Tags Autorizadas ({formData.authorizedTags.length})
-          </h2>
-          
-          {/* Lista de tags */}
-          <div className="flex flex-wrap gap-2 mb-4 min-h-[60px] max-h-[200px] overflow-y-auto p-2 bg-background rounded-lg">
-            {formData.authorizedTags.length === 0 && (
-              <p className="text-sm text-gray-500 text-center w-full py-4">
-                Nenhuma tag cadastrada. Aproxime uma pulseira ou digite o UID manualmente.
-              </p>
-            )}
-            {formData.authorizedTags.map(tag => (
-              <div key={tag} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-surface border border-border">
-                <span className="text-sm font-mono text-white">{tag}</span>
-                <button
-                  onClick={() => removeTag(tag)}
-                  className="text-gray-500 hover:text-danger ml-1 transition-colors"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-          
-          {/* Adicionar tag */}
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="UID ex: 23:46:83:14 ou 04:5A:2C:91:00:00:81"
-              value={newTag}
-              onChange={e => setNewTag(e.target.value.toUpperCase())}
-              onKeyDown={e => e.key === 'Enter' && addTag()}
-              className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-white font-mono"
-            />
-            <button
-              onClick={addTag}
-              className="px-4 py-2 bg-secondary rounded-lg text-white hover:bg-secondary/80 transition-colors flex items-center gap-2"
-            >
-              <Plus size={16} />
-              Adicionar
-            </button>
-          </div>
-          
-          <p className="text-xs text-gray-500 mt-3">
-            💡 Dica: Aproxime a pulseira do leitor e o UID aparecerá no monitor serial do Arduino.
-            Formato: 23:46:83:14 (MIFARE) ou 04:5A:2C:91:00:00:81 (UID longo)
-          </p>
         </div>
         
         {/* Configurações Visuais */}

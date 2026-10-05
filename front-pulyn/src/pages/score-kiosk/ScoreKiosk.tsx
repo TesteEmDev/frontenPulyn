@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNFCReader } from '../../hooks/useNFCReader';
+import { useDeviceNFC } from '../../hooks/useDeviceNFC';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import Avatar from '../../components/ui/Avatar';
 import StatusDot from '../../components/ui/StatusDot';
+import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
 
 const CLOSED_EVENT_STATUSES = ['completed', 'cancelled', 'canceled', 'finished'];
 
@@ -168,7 +170,10 @@ export default function ScoreKiosk() {
     'score-kiosk',
   );
 
-  useEffect(() => setNfcConnected(isConnected), [isConnected]);
+  // Leitura alternativa pelo NFC do próprio tablet/celular usado como totem.
+  const deviceNfc = useDeviceNFC(handleBraceletDetected, Boolean(selectedEventId));
+
+  useEffect(() => setNfcConnected(isConnected || deviceNfc.isScanning), [deviceNfc.isScanning, isConnected]);
   useEffect(() => () => {
     if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
   }, []);
@@ -184,6 +189,7 @@ export default function ScoreKiosk() {
           <div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-400/20 text-2xl shadow-lg shadow-cyan-500/20">🏆</div><div><p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-200">Pulyn</p><h1 className="font-display text-2xl font-bold sm:text-3xl">Veja seus pontos</h1></div></div>
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-2 text-xs text-gray-300" title={!isOnline ? 'Sem conexão com a internet' : nfcConnected ? 'Leitor NFC conectado' : 'Aguardando conexão do leitor NFC'}><StatusDot status={!isOnline ? 'offline' : nfcConnected ? 'online' : 'warning'} size="sm" /><span className="hidden sm:inline">{!isOnline ? 'Sem internet' : nfcConnected ? 'Leitor conectado' : 'Leitor aguardando'}</span></div>
+            <DeviceNfcButton status={deviceNfc.status} error={deviceNfc.error} onStart={deviceNfc.start} onStop={deviceNfc.stop} />
             <button type="button" onClick={toggleFullscreen} aria-pressed={isFullscreen} className="rounded-full border border-white/10 bg-black/20 px-3 py-2 text-sm text-gray-300 transition hover:border-cyan-300/60 hover:text-white sm:px-4 sm:text-xs"><span aria-hidden="true">⛶</span><span className="ml-1 hidden sm:inline">{isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}</span></button>
           </div>
         </header>
@@ -203,9 +209,9 @@ export default function ScoreKiosk() {
               <div className={`mb-6 rounded-full border-4 ${state === 'error' ? 'border-danger/40 bg-danger/10' : 'border-cyan-300/30 bg-cyan-300/5'} p-2 shadow-[0_0_50px_rgba(34,211,238,0.18)]`}><BraceletReaderIllustration active={state === 'reading'} /></div>
               <p className={`text-sm font-semibold uppercase tracking-[0.25em] ${state === 'error' ? 'text-danger' : state === 'reading' ? 'text-cyan-200' : 'text-success'}`}>{state === 'reading' ? 'Consultando pontuação' : state === 'error' ? 'Não foi possível consultar' : 'Aguardando pulseira'}</p>
               <h2 className="mt-3 max-w-xl font-display text-3xl font-bold sm:text-5xl">{state === 'reading' ? 'Só um instante...' : state === 'error' ? 'Aproxime novamente' : 'Aproxime sua pulseira'}</h2>
-              <p className={`mt-4 max-w-lg text-base sm:text-lg ${state === 'error' ? 'text-danger' : 'text-gray-400'}`}>{message}</p>
+              <p className={`mt-4 max-w-lg text-base sm:text-lg ${state === 'error' ? 'text-danger' : 'text-gray-400'}`}>{state === 'waiting' && deviceNfc.isScanning ? 'Encoste a pulseira na parte de trás deste aparelho para ver seus pontos' : message}</p>
               {state === 'error' && <button type="button" onClick={resetScreen} className="mt-6 rounded-xl border border-danger/40 bg-danger/10 px-5 py-3 text-sm font-semibold text-danger transition hover:bg-danger/20">Tentar novamente</button>}
-              <div className="mt-8 flex items-center gap-2 text-xs text-gray-500"><span className={`h-2 w-2 rounded-full ${nfcConnected ? 'animate-pulse bg-success' : 'bg-warning'}`} />{nfcConnected ? 'Leitor pronto para receber a pulseira' : 'Verifique a conexão do leitor NFC'}</div>
+              <div className="mt-8 flex items-center gap-2 text-xs text-gray-500"><span className={`h-2 w-2 rounded-full ${nfcConnected && !deviceNfc.error ? 'animate-pulse bg-success' : 'bg-warning'}`} />{deviceNfc.error ? deviceNfc.error : deviceNfc.isScanning ? 'NFC deste aparelho pronto para ler' : nfcConnected ? 'Leitor pronto para receber a pulseira' : 'Verifique a conexão do leitor NFC'}</div>
             </div>
           </section>
         )}

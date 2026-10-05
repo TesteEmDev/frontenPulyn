@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Trophy, Users, ArrowUp, ArrowDown, Minus, Gamepad2, Play, MapPin } from 'lucide-react';
+import { Trophy, Users, ArrowUp, ArrowDown, Minus, Gamepad2, MessageSquare } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -11,9 +11,7 @@ import ScoreCounter from '../../components/ui/ScoreCounter';
 const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
   { icon: <Users size={20} />, label: 'Times', path: '/game-master/teams' },
-  { icon: <Play size={20} />, label: 'Controle', path: '/game-master/control' },
-  { icon: <MapPin size={20} />, label: 'Mensagens', path: '/game-master/messages' },
-  { icon: <Trophy size={20} />, label: 'Ranking', path: '/game-master/ranking' },
+  { icon: <MessageSquare size={20} />, label: 'Mensagens', path: '/game-master/messages' },
 ];
 
 type ViewMode = 'individual' | 'team';

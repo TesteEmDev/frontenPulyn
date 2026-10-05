@@ -213,3 +213,17 @@ POST /api/leituras/reception
 **Status**: ✅ **PRONTO PARA PRODUÇÃO**  
 **Versão**: 2.0.0 (Otimizada)  
 **Última Atualização**: Agosto 2026
+## 📶 TROCAR A REDE WI-FI SEM REGRAVAR O FIRMWARE
+
+A rede deixou de ser fixa no código: o ESP32 usa a rede gravada pelo portal e, se
+não houver nenhuma, a de `WIFI_SSID` / `WIFI_PASSWORD` do arquivo de configuração.
+
+1. Abra o portal: ele abre sozinho se não conectar na inicialização ou ficar 2 min
+   sem rede; ou segure o botão **BOOT** por 3 segundos com o aparelho ligado.
+2. No celular, conecte no Wi-Fi **`Pulyn-Recepcao-<id>`** (senha `pulyn1234`).
+3. A página abre sozinha; se não abrir, acesse `http://192.168.4.1`.
+4. Escolha a rede, digite a senha e toque em **Salvar e reiniciar**.
+
+Esta pasta não tem o `.ino` principal (só `pullynReception_otimizado.backup`). Para usar os comandos pelo Monitor Serial (`WIFI_PORTAL`, `WIFI_STATUS`, `WIFI_RESET`), chame `wifi.openPortal()`, `wifi.printStatus()` e `wifi.forgetNetwork()` no tratamento de comandos do seu `.ino`, como no `pullynC2_modular`. O portal abre sozinho e pelo botão BOOT sem isso.
+
+Ao copiar os arquivos para a pasta do sketch, copie também o `wifi_portal.h`.

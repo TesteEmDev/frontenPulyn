@@ -98,8 +98,9 @@ public:
     if (httpCode == 200) {
       String resp = http.getString();
       
-      // Buffer otimizado
-      StaticJsonDocument<256> respDoc;
+      // Buffer com folga: a resposta da recepção é pequena, mas 256 ficava no limite
+      // (o JSON copia as strings) e uma mensagem maior viraria "erro" mesmo com sucesso.
+      StaticJsonDocument<384> respDoc;
       DeserializationError parseError = deserializeJson(respDoc, resp);
       
       if (!parseError) {
@@ -111,7 +112,10 @@ public:
         Serial.print(ok ? "OK" : "Erro");
         Serial.print(" - Cadastrada: ");
         Serial.println(registered ? "SIM" : "NÃO");
-        
+
+        // Igual ao checkpoint de jogo: encerra a requisição sempre, mantendo a
+        // conexão aberta para a próxima leitura (setReuse).
+        http.end();
         return ok;
       } else {
         registerFailure("reception/json");

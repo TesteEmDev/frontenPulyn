@@ -18,16 +18,14 @@
 
 ```
 checkpoints/pullynC2_modular/
-├── pullynC2_modular.ino          # Arquivo PRINCIPAL otimizado
-├── api_module_optimized.h        # Comunicação API otimizada (✔️ USAR ESTE)
-├── api_module.h                  # Cópia idêntica (ignorar)
-├── config.h                      # Configurações otimizadas (✔️ USAR ESTE)
-├── config_optimized.h            # Cópia idêntica (ignorar)
-├── rfid_module.h                 # RFID otimizado (RFIDModuleOptimized)
-├── rfid_module_optimized.h       # Cópia idêntica (ignorar)
-├── led_module.h                  # Controle LED
-├── wifi_module.h                 # Gerenciamento WiFi
+├── pullynC2_modular.ino          # Arquivo PRINCIPAL
+├── config.h                      # Configurações (rede padrão, servidor, ID do checkpoint)
+├── api_module_optimized.h        # Comunicação com a API
+├── rfid_module.h                 # Leitor RFID (RFIDModuleOptimized)
+├── led_module.h                  # Controle dos LEDs
 ├── sound_module.h                # Sons
+├── wifi_module.h                 # Conexão Wi-Fi
+├── wifi_portal.h                 # Portal para trocar a rede pelo celular
 └── README_OTIMIZADO.md           # Este arquivo
 ```
 
@@ -138,3 +136,49 @@ const uint16_t HTTP_RESPONSE_TIMEOUT_FAST = 6000;  // 6s
 **Status**: ✅ **PRONTO PARA COMPILAR E TESTAR**
 **Arquivo correto**: `checkpoints/pullynC2_modular/pullynC2_modular.ino`
 **Objetivo**: Reduzir delay de ~1s para <200ms
+## 📶 TROCAR A REDE WI-FI SEM REGRAVAR O FIRMWARE
+
+A rede deixou de ser fixa no código. O ESP32 usa a rede gravada pelo portal e,
+se não houver nenhuma, a de `WIFI_SSID` / `WIFI_PASSWORD` do `config.h`.
+
+**Como trocar a rede (pelo celular):**
+1. Abra o portal de um destes jeitos:
+   - ele abre sozinho se não conseguir conectar na inicialização ou ficar 2 min sem rede;
+   - segure o botão **BOOT** por 3 segundos com o aparelho já ligado;
+   - ou digite `WIFI_PORTAL` no Monitor Serial (115200).
+2. No celular, conecte no Wi-Fi **`Pulyn-CP-<id do checkpoint>`** (senha `pulyn1234`,
+   alterável em `PORTAL_AP_PASSWORD`).
+3. A página abre sozinha; se não abrir, acesse `http://192.168.4.1`.
+4. Escolha a rede, digite a senha e toque em **Salvar e reiniciar**.
+
+O portal fecha sozinho depois de 3 minutos sem uso. Para voltar à rede padrão do
+firmware, use **Esquecer rede salva** na página ou `WIFI_RESET` no Monitor Serial.
+
+Arquivos: `wifi_portal.h` (portal e memória) e `wifi_module.h` (conexão).
+
+### Trocar a rede com o checkpoint já conectado (sem apertar botão)
+
+Enquanto está conectado, o ESP32 também serve a página de configuração na rede do
+local. Com o celular **no mesmo Wi-Fi do checkpoint**, abra no navegador:
+
+- `http://pulyn-cp-<id>.local` (exemplo: `http://pulyn-cp-23.local`), ou
+- `http://<IP do checkpoint>` (o IP aparece no Monitor Serial ao conectar, com o
+  comando `WIFI_STATUS`, ou na lista de aparelhos do roteador).
+
+A página pede **usuário `admin`** e a **senha do portal** (`PORTAL_AP_PASSWORD`,
+padrão `pulyn1234`). Escolha a nova rede, salve, e o checkpoint reinicia nela.
+Se a nova rede não funcionar, o portal próprio (`Pulyn-CP-<id>`) abre sozinho.
+
+### IP fixo (opcional)
+
+Na mesma página de configuração há os campos **IP fixo**, **Gateway**, **Máscara** e
+**DNS**. Deixe o IP em branco para o roteador escolher sozinho (padrão).
+
+- Use um IP livre, da mesma faixa do roteador e fora da faixa automática dele
+  (ex.: roteador `192.168.0.1`, checkpoint `192.168.0.50`).
+- Máscara em branco = `255.255.255.0`; DNS em branco = igual ao gateway.
+- Para mudar só o IP, deixe o nome da rede e a senha em branco: a rede salva é mantida.
+- Ao mudar de local, apague o IP (ou ajuste à nova faixa); se o IP não servir na nova
+  rede, o aparelho não conecta e o portal próprio abre sozinho.
+- Alternativa sem mexer no aparelho: no roteador, reserve um IP para o MAC do ESP32
+  (função "DHCP estático" / "reserva de IP").

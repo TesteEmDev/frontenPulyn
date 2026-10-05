@@ -103,6 +103,11 @@ export interface Event {
   duration?: number;
   childrenCount?: number;
   status: 'active' | 'scheduled' | 'finished' | 'upcoming' | 'ongoing' | 'completed';
+  responsible_name?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  auto_start?: number | null;
+  auto_end?: number | null;
 }
 
 export interface DisplayMessage {
@@ -123,6 +128,7 @@ interface PulynStore {
   games: Game[];
   events: Event[];
   currentGameId: string | null;
+  currentPartidaId: string | null;
   readingsLog: ReadingLog[];
   scoreLog: ScoreLog[];
   activeGame: Game | null;
@@ -153,6 +159,7 @@ interface PulynStore {
   updateGame: (id: string, data: Partial<Game>) => void;
   deleteGame: (id: string) => void;
   setCurrentGame: (id: string | null) => void;
+  setCurrentPartida: (id: string | null) => void;
   
   addScore: (childId: string, checkpointId: string, points: number) => void;
   addScoreWithReason: (childId: string, checkpointId: string, points: number, justification?: string) => void;
@@ -178,6 +185,7 @@ interface PulynStore {
   loadBrincadeiras: () => Promise<any[]>;
   loadGames: () => Promise<Game[]>;
   loadScoreLog: () => Promise<void>;
+  clearScoreLog: () => void;
   loadClientes: () => Promise<any[]>;
   loadTimes: () => Promise<void>;
   loadPulseiras: () => Promise<any[]>;
@@ -206,6 +214,7 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
   games: mockGames,
   events: mockEvents,
   currentGameId: null,
+  currentPartidaId: null,
   readingsLog: [],
   scoreLog: [],
   activeGame: null,
@@ -325,9 +334,11 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
   loadScoreLog: async () => {
     try {
       const eventId = get().eventoAtualId;
-      const activeGame = get().activeGame;
+      const currentPartidaId = get().currentPartidaId;
       if (!eventId) return;
-      const history = await api.getScoreHistory(eventId, 100, activeGame?.id);
+
+      // 🆕 Passar sessionId para filtrar apenas dados da sessão atual
+      const history = await api.getScoreHistory(eventId, 100, currentPartidaId);
       if (get().eventoAtualId !== eventId) return;
 
       const normalizedHistory = (Array.isArray(history) ? history : []).map((entry: any) => ({
@@ -345,6 +356,9 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
       console.error('❌ Erro ao carregar histórico de pontuações:', error);
     }
   },
+
+  // 🆕 Resetar scoreLog quando novo jogo começa
+  clearScoreLog: () => set({ scoreLog: [] }),
 
   loadEventos: async () => {
     try {
@@ -557,6 +571,7 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
   deleteGame: (id) => set((state) => ({ games: state.games.filter((g) => g.id !== id) })),
   
   setCurrentGame: (id) => set({ currentGameId: id }),
+  setCurrentPartida: (id) => set({ currentPartidaId: id }),
 
   // ==================== SCORES ====================
   
@@ -669,31 +684,19 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
   // ==================== SETTINGS ====================
   
   loadSettings: async () => {
-    try {
-      const settings = await api.getSettings();
-      set({ settings });
-      return settings;
-    } catch (error) {
-      console.error('❌ Erro ao carregar configurações:', error);
-      return {};
-    }
+    const settings = await api.getSettings();
+    set({ settings });
+    return settings;
   },
 
+  // Os erros sobem para quem chamou: engolir a falha fazia a tela mostrar "salvo" sem ter salvo.
   updateSetting: async (key: string, value: string) => {
-    try {
-      await api.updateSetting(key, value);
-      await get().loadSettings();
-    } catch (error) {
-      console.error('❌ Erro ao atualizar configuração:', error);
-    }
+    await api.updateSetting(key, value);
+    await get().loadSettings();
   },
 
   updateSettings: async (settings: Record<string, string>) => {
-    try {
-      await api.updateSettings(settings);
-      await get().loadSettings();
-    } catch (error) {
-      console.error('❌ Erro ao atualizar configurações:', error);
-    }
+    await api.updateSettings(settings);
+    await get().loadSettings();
   },
 }));

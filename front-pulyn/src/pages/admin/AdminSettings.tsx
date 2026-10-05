@@ -1,13 +1,16 @@
 // src/pages/admin/AdminSettings.tsx
-import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
 import {
-  LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  FileText, RefreshCw, Settings, Upload, Save, Shield, Database, Monitor
+  Settings, Upload, Save, Database, Trash2, Loader2
 } from 'lucide-react';
-import { usePulynStore } from '../../store/mockData';
-import Sidebar from '../../components/layout/Sidebar';
-import TopBar from '../../components/layout/TopBar';
+import { api } from '../../services/api';
+import { maskCnpj, isValidCnpj, onlyDigits } from '../../utils/cnpj';
+import { maskPhone, validatePhone, countPhoneDigits } from '../../utils/phone';
+import { useAuth } from '../../hooks/useAuth';
+import { useBuffetNameStore } from '../../hooks/useBuffetName';
+import { optimizeLogo, LOGO_ACCEPT } from '../../utils/logoImage';
+import AdminSidebar from '../../components/layout/AdminSidebar';
+import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -16,27 +19,32 @@ import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import ProgressBar from '../../components/ui/ProgressBar';
 
-const navItems = [
-  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/admin' },
-  { icon: <Calendar size={20} />, label: 'Eventos', path: '/admin/events' },
-  { icon: <Users size={20} />, label: 'Crianças', path: '/admin/children' },
-  { icon: <Gamepad2 size={20} />, label: 'Jogos', path: '/admin/games' },
-  { icon: <MapPin size={20} />, label: 'Checkpoints', path: '/admin/checkpoints' },
-  { icon: <Map size={20} />, label: 'Mapa', path: '/admin/map' },
-  { icon: <Users size={20} />, label: 'Usuários', path: '/admin/users' },
-  { icon: <Users size={20} />, label: 'Times', path: '/admin/teams' },
-  { icon: <FileText size={20} />, label: 'Relatórios', path: '/admin/reports' },
-  { icon: <RefreshCw size={20} />, label: 'Sincronização', path: '/admin/sync' },
-  { icon: <Settings size={20} />, label: 'Configurações', path: '/admin/settings' },
-];
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function AdminSettings() {
-  const location = useLocation();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { loadSettings, updateSettings } = usePulynStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const empresaId = useAuth(state => state.user?.empresa_id);
+
+  // Só dá para salvar depois de carregar o cadastro: salvar com o formulário vazio
+  // por falha de carregamento apagaria os dados reais.
+  const [companyLoaded, setCompanyLoaded] = useState(false);
+
+  // Cadastro da unidade (tabela clientes). O CNPJ fica na tabela empresas.
+  const [cnpj, setCnpj] = useState('');
+  const [cnpjError, setCnpjError] = useState('');
+  const [nameError, setNameError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+
+  // Logo/foto da unidade: enviada e salva na hora (não depende do botão Salvar).
+  const [logoUrl, setLogoUrl] = useState('');
+  const [logoName, setLogoName] = useState('');
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoError, setLogoError] = useState('');
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const [unitSettings, setUnitSettings] = useState({
     unit_name: '',
@@ -45,87 +53,153 @@ export default function AdminSettings() {
     unit_email: '',
   });
 
-  const [displaySettings, setDisplaySettings] = useState({
-    theme: 'dark',
-    update_interval: '5',
-  });
-
-  const [fraudSettings, setFraudSettings] = useState({
-    cooldown_default: '30',
-    repetition_limit: '3',
-  });
-
   const [backupSettings, setBackupSettings] = useState({
     backup_frequency: 'daily',
   });
 
-  // Carregar configurações da API
+  // Preenche o formulário com o que está salvo no servidor (campos vazios ficam vazios).
+  const applyProfile = (profile: Awaited<ReturnType<typeof api.getEmpresa>>) => {
+    setUnitSettings({
+      unit_name: profile.name || '',
+      unit_address: profile.address || '',
+      unit_phone: maskPhone(profile.phone || ''),
+      unit_email: profile.email || '',
+    });
+    setBackupSettings({ backup_frequency: profile.backupFrequency || 'daily' });
+    setCnpj(profile.cnpj || '');
+    setNameError('');
+    setEmailError('');
+    setPhoneError('');
+    setCnpjError('');
+    // O cabeçalho das telas do admin mostra este nome.
+    if (empresaId) useBuffetNameStore.getState().setName(empresaId, profile.name || '');
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      const loadedSettings = await loadSettings();
-      if (loadedSettings) {
-        setUnitSettings({
-          unit_name: loadedSettings.unit_name || 'Buffet Pulyn',
-          unit_address: loadedSettings.unit_address || 'Rua das Crianças, 123 - São Paulo, SP',
-          unit_phone: loadedSettings.unit_phone || '(11) 3456-7890',
-          unit_email: loadedSettings.unit_email || 'contato@buffetpulyn.com.br',
-        });
-        setDisplaySettings({
-          theme: loadedSettings.theme || 'dark',
-          update_interval: loadedSettings.update_interval || '5',
-        });
-        setFraudSettings({
-          cooldown_default: loadedSettings.cooldown_default || '30',
-          repetition_limit: loadedSettings.repetition_limit || '3',
-        });
-        setBackupSettings({
-          backup_frequency: loadedSettings.backup_frequency || 'daily',
-        });
-      }
-      setLoading(false);
-    };
-    loadData();
-  }, [loadSettings]);
+    let active = true;
+    api.getEmpresaLogo()
+      .then(logo => {
+        if (!active) return;
+        setLogoUrl(logo?.dataUrl || '');
+        setLogoName(logo?.name || '');
+      })
+      .catch(error => {
+        console.error('Erro ao carregar a logo:', error);
+        if (active) setLogoError('Não foi possível carregar a logo atual.');
+      });
+    api.getEmpresa()
+      .then(profile => {
+        if (!active) return;
+        applyProfile(profile);
+        setCompanyLoaded(true);
+      })
+      .catch(error => {
+        console.error('Erro ao carregar dados do buffet:', error);
+        if (active) setSaveError('Não foi possível carregar os dados do buffet. Recarregue a página antes de editar.');
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const syncHeaderLogo = (dataUrl: string) => {
+    if (empresaId) useBuffetNameStore.getState().setLogo(empresaId, dataUrl);
+  };
+
+  const handleLogoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setLogoBusy(true);
+    setLogoError('');
+    try {
+      const { dataUrl } = await optimizeLogo(file);
+      await api.saveEmpresaLogo({ dataUrl, name: file.name });
+      setLogoUrl(dataUrl);
+      setLogoName(file.name);
+      syncHeaderLogo(dataUrl);
+    } catch (error) {
+      console.error('Erro ao enviar a logo:', error);
+      setLogoError(error instanceof Error && error.message ? error.message : 'Não foi possível salvar a logo.');
+    } finally {
+      setLogoBusy(false);
+    }
+  };
+
+  const handleLogoRemove = async () => {
+    if (logoBusy) return;
+    setLogoBusy(true);
+    setLogoError('');
+    try {
+      await api.deleteEmpresaLogo();
+      setLogoUrl('');
+      setLogoName('');
+      syncHeaderLogo('');
+    } catch (error) {
+      console.error('Erro ao remover a logo:', error);
+      setLogoError(error instanceof Error && error.message ? error.message : 'Não foi possível remover a logo.');
+    } finally {
+      setLogoBusy(false);
+    }
+  };
 
   const updateUnit = (field: string, value: string) => {
     setUnitSettings(prev => ({ ...prev, [field]: value }));
   };
 
+  const validateEmail = (value: string) => {
+    if (!value.trim()) return 'Informe o e-mail da unidade.';
+    return EMAIL_PATTERN.test(value.trim()) ? '' : 'E-mail inválido.';
+  };
+
   const handleSave = async () => {
-    setSaving(true);
     setSaveSuccess(false);
-    
+    setSaveError('');
+    if (!companyLoaded) {
+      setSaveError('Os dados do buffet não foram carregados. Recarregue a página antes de salvar.');
+      return;
+    }
+
+    const problems = {
+      name: unitSettings.unit_name.trim() ? '' : 'Informe o nome da unidade.',
+      email: validateEmail(unitSettings.unit_email),
+      phone: validatePhone(unitSettings.unit_phone),
+      cnpj: onlyDigits(cnpj) && !isValidCnpj(cnpj) ? 'CNPJ inválido. Confira os 14 dígitos.' : '',
+    };
+    setNameError(problems.name);
+    setEmailError(problems.email);
+    setPhoneError(problems.phone);
+    setCnpjError(problems.cnpj);
+    if (Object.values(problems).some(Boolean)) return;
+
+    setSaving(true);
     try {
-      const allSettings = {
-        ...unitSettings,
-        ...displaySettings,
-        ...fraudSettings,
-        ...backupSettings,
-      };
-      
-      await updateSettings(allSettings);
+      const saved = await api.updateEmpresa({
+        name: unitSettings.unit_name.trim(),
+        email: unitSettings.unit_email.trim(),
+        phone: unitSettings.unit_phone.trim(),
+        address: unitSettings.unit_address.trim(),
+        backupFrequency: backupSettings.backup_frequency,
+        cnpj: onlyDigits(cnpj),
+      });
+      // Mostra o que ficou realmente salvo (o servidor pode ter normalizado algum valor).
+      applyProfile(saved);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);
-      alert('Erro ao salvar configurações. Tente novamente.');
+      setSaveError(error instanceof Error && error.message ? error.message : 'Erro ao salvar configurações. Tente novamente.');
     } finally {
       setSaving(false);
     }
   };
 
+  const phoneDigits = countPhoneDigits(unitSettings.unit_phone);
+
   if (loading) {
     return (
       <div className="flex h-screen bg-dark text-white overflow-hidden">
-        <Sidebar
-          items={navItems}
-          activePath={location.pathname}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
-          title="Pulyn Admin"
-          accentColor="#1E9BD7"
-        />
+        <AdminSidebar />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
@@ -138,17 +212,10 @@ export default function AdminSettings() {
 
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">
-      <Sidebar
-        items={navItems}
-        activePath={location.pathname}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
-        title="Pulyn Admin"
-        accentColor="#1E9BD7"
-      />
+      <AdminSidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar title="Gestão do Buffet" subtitle="Configurações" />
+        <BuffetTopBar subtitle="Configurações" />
 
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
@@ -158,20 +225,47 @@ export default function AdminSettings() {
           />
 
           <div className="max-w-3xl space-y-6">
-            {/* Logo Upload */}
+            {!companyLoaded && saveError && (
+              <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{saveError}</p>
+            )}
+            {/* Logo / foto da unidade */}
             <Card>
-              <h2 className="font-display text-lg text-white mb-4">Logo da Unidade</h2>
+              <h2 className="font-display text-lg text-white mb-4">Logo / foto da unidade</h2>
               <div className="flex items-center gap-4">
-                <div className="w-20 h-20 rounded-xl bg-primary/20 border-2 border-dashed border-primary/50 flex items-center justify-center">
-                  <span className="text-3xl font-bold text-primary">P</span>
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-primary/50 bg-primary/20">
+                  {logoUrl ? (
+                    <img src={logoUrl} alt="Logo da unidade" className="h-full w-full object-contain" />
+                  ) : (
+                    <span className="text-3xl font-bold text-primary" aria-hidden="true">
+                      {(unitSettings.unit_name.trim().charAt(0) || 'P').toUpperCase()}
+                    </span>
+                  )}
                 </div>
-                <div className="flex-1">
-                  <Button variant="ghost" className="border border-border">
-                    <Upload size={16} className="mr-1.5" />
-                    Upload Logo
-                  </Button>
-                  <p className="text-xs text-gray-500 mt-2">PNG ou SVG, recomendado 200x200px</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      className="border border-border"
+                      onClick={() => logoInputRef.current?.click()}
+                      disabled={logoBusy}
+                    >
+                      {logoBusy ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <Upload size={16} className="mr-1.5" />}
+                      {logoUrl ? 'Trocar imagem' : 'Enviar imagem'}
+                    </Button>
+                    {logoUrl && (
+                      <Button variant="ghost" onClick={handleLogoRemove} disabled={logoBusy}>
+                        <Trash2 size={16} className="mr-1.5" />
+                        Remover
+                      </Button>
+                    )}
+                  </div>
+                  <p className="mt-2 truncate text-xs text-gray-500">
+                    {logoName || 'PNG, JPG, WEBP ou SVG. Recomendado 200x200 px.'}
+                  </p>
+                  <p className="text-xs text-gray-500">Aparece no menu lateral e é salva assim que você escolhe a imagem.</p>
+                  {logoError && <p role="alert" className="mt-2 text-sm text-danger">{logoError}</p>}
                 </div>
+                <input ref={logoInputRef} type="file" accept={LOGO_ACCEPT} className="hidden" onChange={handleLogoChange} />
               </div>
             </Card>
 
@@ -180,86 +274,74 @@ export default function AdminSettings() {
               <h2 className="font-display text-lg text-white mb-4">Dados da Unidade</h2>
               <div className="space-y-4">
                 <Input
-                  label="Nome da unidade"
+                  label="Nome da unidade *"
+                  placeholder="Ex: Buffet Alegria"
+                  maxLength={100}
                   value={unitSettings.unit_name}
-                  onChange={e => updateUnit('unit_name', e.target.value)}
+                  error={nameError || undefined}
+                  onChange={e => { updateUnit('unit_name', e.target.value); setNameError(''); }}
                 />
+                <div>
+                  <Input
+                    label="CNPJ"
+                    placeholder="00.000.000/0000-00"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={18}
+                    value={cnpj}
+                    disabled={!companyLoaded}
+                    error={cnpjError || undefined}
+                    onChange={e => { setCnpj(maskCnpj(e.target.value)); setCnpjError(''); }}
+                    onBlur={() => {
+                      if (onlyDigits(cnpj) && !isValidCnpj(cnpj)) setCnpjError('CNPJ inválido. Confira os 14 dígitos.');
+                    }}
+                  />
+                  {!companyLoaded && (
+                    <p className="mt-1 text-xs text-gray-500">Não foi possível carregar o CNPJ agora. Recarregue a página.</p>
+                  )}
+                </div>
                 <Input
                   label="Endereço"
+                  placeholder="Rua, número - cidade, UF"
                   value={unitSettings.unit_address}
                   onChange={e => updateUnit('unit_address', e.target.value)}
                 />
                 <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Input
+                      label="Telefone"
+                      placeholder="(00) 00000-0000"
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel-national"
+                      maxLength={15}
+                      value={unitSettings.unit_phone}
+                      error={phoneError || undefined}
+                      onChange={e => {
+                        updateUnit('unit_phone', maskPhone(e.target.value));
+                        setPhoneError('');
+                      }}
+                      onBlur={() => setPhoneError(validatePhone(unitSettings.unit_phone))}
+                    />
+                    <p className="mt-1 text-xs text-gray-500" aria-live="polite">
+                      {phoneDigits === 0
+                        ? 'DDD + número: 10 dígitos (fixo) ou 11 (celular).'
+                        : phoneDigits < 10
+                        ? `${phoneDigits} de 10 dígitos`
+                        : `${phoneDigits} dígitos (${phoneDigits === 10 ? 'fixo' : 'celular'})`}
+                    </p>
+                  </div>
                   <Input
-                    label="Telefone"
-                    value={unitSettings.unit_phone}
-                    onChange={e => updateUnit('unit_phone', e.target.value)}
-                  />
-                  <Input
-                    label="E-mail"
+                    label="E-mail *"
+                    placeholder="contato@seubuffet.com.br"
                     type="email"
+                    maxLength={100}
                     value={unitSettings.unit_email}
-                    onChange={e => updateUnit('unit_email', e.target.value)}
+                    error={emailError || undefined}
+                    onChange={e => { updateUnit('unit_email', e.target.value); setEmailError(''); }}
+                    onBlur={() => setEmailError(validateEmail(unitSettings.unit_email))}
                   />
                 </div>
-              </div>
-            </Card>
-
-            {/* Display Settings */}
-            <Card>
-              <div className="flex items-center gap-2 mb-4">
-                <Monitor size={20} className="text-secondary" />
-                <h2 className="font-display text-lg text-white">Configurações de Display</h2>
-              </div>
-              <div className="space-y-4">
-                <Select
-                  label="Tema"
-                  options={[
-                    { value: 'dark', label: 'Escuro' },
-                    { value: 'light', label: 'Claro' },
-                    { value: 'auto', label: 'Automático' },
-                  ]}
-                  value={displaySettings.theme}
-                  onChange={e => setDisplaySettings(prev => ({ ...prev, theme: e.target.value }))}
-                />
-                <Select
-                  label="Intervalo de atualização (segundos)"
-                  options={[
-                    { value: '1', label: '1s (Tempo real)' },
-                    { value: '3', label: '3s' },
-                    { value: '5', label: '5s' },
-                    { value: '10', label: '10s' },
-                    { value: '30', label: '30s' },
-                  ]}
-                  value={displaySettings.update_interval}
-                  onChange={e => setDisplaySettings(prev => ({ ...prev, update_interval: e.target.value }))}
-                />
-              </div>
-            </Card>
-
-            {/* Anti-fraud */}
-            <Card>
-              <div className="flex items-center gap-2 mb-4">
-                <Shield size={20} className="text-success" />
-                <h2 className="font-display text-lg text-white">Regras Anti-fraude</h2>
-              </div>
-              <div className="space-y-4">
-                <Input
-                  label="Cooldown padrão (segundos)"
-                  type="number"
-                  value={fraudSettings.cooldown_default}
-                  onChange={e => setFraudSettings(prev => ({ ...prev, cooldown_default: e.target.value }))}
-                />
-                <Input
-                  label="Limite de repetição"
-                  type="number"
-                  value={fraudSettings.repetition_limit}
-                  onChange={e => setFraudSettings(prev => ({ ...prev, repetition_limit: e.target.value }))}
-                />
-                <p className="text-xs text-gray-500">
-                  O cooldown impede que a mesma pulseira seja lida em intervalo menor que o configurado.
-                  O limite de repetição controla quantas vezes o mesmo checkpoint pode ser lido pelo mesmo participante.
-                </p>
               </div>
             </Card>
 
@@ -303,34 +385,6 @@ export default function AdminSettings() {
               </div>
             </Card>
 
-            {/* Future Integrations */}
-            <Card>
-              <h2 className="font-display text-lg text-white mb-4">Integrações Futuras</h2>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-surface/50">
-                  <div>
-                    <p className="text-sm text-white font-semibold">WhatsApp Business</p>
-                    <p className="text-xs text-gray-500">Notificações para responsáveis</p>
-                  </div>
-                  <Badge variant="muted">Em breve</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-surface/50">
-                  <div>
-                    <p className="text-sm text-white font-semibold">ERP / Faturamento</p>
-                    <p className="text-xs text-gray-500">Integração com sistema financeiro</p>
-                  </div>
-                  <Badge variant="muted">Em breve</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-surface/50">
-                  <div>
-                    <p className="text-sm text-white font-semibold">BI / Data Warehouse</p>
-                    <p className="text-xs text-gray-500">Exportação para análise avançada</p>
-                  </div>
-                  <Badge variant="muted">Em breve</Badge>
-                </div>
-              </div>
-            </Card>
-
             {/* Save */}
             <div className="flex justify-end pb-6">
               <Button variant="primary" size="lg" onClick={handleSave} disabled={saving}>
@@ -338,7 +392,10 @@ export default function AdminSettings() {
                 {saving ? 'Salvando...' : 'Salvar Configurações'}
               </Button>
               {saveSuccess && (
-                <span className="ml-3 text-success text-sm">✓ Configurações salvas com sucesso!</span>
+                <span role="status" className="ml-3 text-success text-sm">✓ Configurações salvas com sucesso!</span>
+              )}
+              {saveError && (
+                <span role="alert" className="ml-3 max-w-md text-danger text-sm">{saveError}</span>
               )}
             </div>
           </div>

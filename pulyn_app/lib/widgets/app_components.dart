@@ -80,14 +80,14 @@ class PulynCard extends StatelessWidget {
   final double elevation;
 
   const PulynCard({
-    Key? key,
+    super.key,
     required this.child,
     this.padding = const EdgeInsets.all(16),
     this.onTap,
     this.borderColor,
     this.isHighlight = false,
     this.elevation = 0,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -138,14 +138,14 @@ class AvatarCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const AvatarCard({
-    Key? key,
+    super.key,
     required this.initials,
     required this.name,
     required this.subtitle,
     required this.avatarColor,
     this.badge,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -255,14 +255,14 @@ class PulynButton extends StatelessWidget {
   final Color? backgroundColor;
 
   const PulynButton({
-    Key? key,
+    super.key,
     required this.label,
     required this.onPressed,
     this.isLoading = false,
     this.isSecondary = false,
     this.icon,
     this.backgroundColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -307,13 +307,13 @@ class PulynIconButton extends StatelessWidget {
   final double size;
 
   const PulynIconButton({
-    Key? key,
+    super.key,
     required this.icon,
     required this.onPressed,
     this.backgroundColor,
     this.iconColor,
     this.size = 48,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -363,7 +363,7 @@ class PulynTextField extends StatefulWidget {
   final int maxLines;
 
   const PulynTextField({
-    Key? key,
+    super.key,
     required this.label,
     this.hint,
     required this.controller,
@@ -372,7 +372,7 @@ class PulynTextField extends StatefulWidget {
     this.prefixIcon,
     this.validator,
     this.maxLines = 1,
-  }) : super(key: key);
+  });
 
   @override
   State<PulynTextField> createState() => _PulynTextFieldState();
@@ -452,12 +452,12 @@ class ScoreBadge extends StatelessWidget {
   final bool isLarge;
 
   const ScoreBadge({
-    Key? key,
+    super.key,
     required this.score,
     this.label,
     this.backgroundColor,
     this.isLarge = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -512,11 +512,11 @@ class StatusIndicator extends StatelessWidget {
   final IconData? icon;
 
   const StatusIndicator({
-    Key? key,
+    super.key,
     required this.label,
     required this.color,
     this.icon,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -560,12 +560,12 @@ class EmptyState extends StatelessWidget {
   final Widget? action;
 
   const EmptyState({
-    Key? key,
+    super.key,
     required this.icon,
     required this.title,
     this.subtitle,
     this.action,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -610,10 +610,10 @@ class ErrorState extends StatelessWidget {
   final VoidCallback? onRetry;
 
   const ErrorState({
-    Key? key,
+    super.key,
     required this.message,
     this.onRetry,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -661,11 +661,11 @@ class SkeletonLoader extends StatelessWidget {
   final double borderRadius;
 
   const SkeletonLoader({
-    Key? key,
+    super.key,
     this.height = 16,
     this.width,
     this.borderRadius = 8,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

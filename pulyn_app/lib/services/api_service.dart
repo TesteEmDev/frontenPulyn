@@ -4,6 +4,7 @@ import '../models/family_models.dart';
 import '../config/api_config.dart';
 import '../utils/network_helper.dart';
 import '../utils/logger.dart';
+import '../utils/text_sanitizer.dart';
 
 class ApiService {
   late Dio _dio;
@@ -13,6 +14,9 @@ class ApiService {
 
   // ✅ Expor Dio publicamente para uso direto
   Dio get dio => _dio;
+
+  // ✅ Expor SharedPreferences publicamente para uso em helpers
+  SharedPreferences get prefs => _prefs;
 
   ApiService() {
     _baseUrl = ApiConfig.getApiBaseUrl();
@@ -285,7 +289,12 @@ class ApiService {
   /// ✅ GET /leituras/eventos/{eventoId}/historico - Histórico de conquistas
   Future<List<Map<String, dynamic>>> getScoreHistory(String eventoId) async {
     try {
-      final response = await _dio.get('/leituras/eventos/$eventoId/historico');
+      final response = await _dio.get(
+        '/leituras/eventos/$eventoId/historico',
+        // allGames=1: inclui leituras de Tesouro/Monstro/Zone Conquest, que não
+        // gravam em `pontuacoes` — necessário pro rastreio do avatar.
+        queryParameters: {'allGames': '1'},
+      );
       final data = response.data;
       
       if (data is List) {
@@ -320,15 +329,14 @@ class ApiService {
       }
       
       // ✅ Sanitizar strings para evitar problemas UTF-16
-      final sanitizeString = (String? str) {
+      String? sanitizeString(String? str) {
         if (str == null) return null;
         try {
-          // Tentar codificar/decodificar para limpar caracteres inválidos
-          return String.fromCharCodes(str.codeUnits);
+          return sanitizeUtf16(str);
         } catch (e) {
           return ''; // Fallback para string vazia
         }
-      };
+      }
       
       // ✅ Mapear e sanitizar dados antes de desserializar
       final sanitizedList = childrenList.map((child) {
@@ -466,10 +474,10 @@ class ApiService {
     }
   }
 
-  /// ✅ GET /eventos/:id/floor-plan - Planta baixa do evento (imagem base64 do buffet)
-  Future<String?> getFloorPlan(String eventoId) async {
+  /// ✅ GET /company-map/floor-plan - Planta baixa do buffet (imagem base64, vale para todos os eventos)
+  Future<String?> getFloorPlan() async {
     try {
-      final response = await _dio.get('/eventos/$eventoId/floor-plan');
+      final response = await _dio.get('/company-map/floor-plan');
       final data = _validateResponseData(response.data);
       
       // Backend retorna { floorPlan: { dataUrl, name, type } }
@@ -498,6 +506,19 @@ class ApiService {
     }
   }
 
+  /// ✅ GET /company-map/zones - Zonas do buffet (vale para todos os eventos)
+  Future<List<Map<String, dynamic>>> getZones() async {
+    try {
+      final response = await _dio.get('/company-map/zones');
+
+      final data = _validateResponseList(response.data);
+      return data.map((item) => item as Map<String, dynamic>).toList();
+    } catch (e) {
+      log.e('[API] ❌ Erro ao buscar zonas: $e');
+      return [];
+    }
+  }
+
   /// ✅ GET /familias/active-event/checkpoints - Checkpoints do evento ativo
   Future<List<Map<String, dynamic>>> getActiveEventCheckpoints() async {
     try {
@@ -513,7 +534,16 @@ class ApiService {
   /// ✅ GET /checkpoints/evento/{eventoId} - Checkpoints de um evento específico (mesmo que admin usa)
   Future<List<Map<String, dynamic>>> getCheckpointsByEvent(String eventoId) async {
     try {
+      log.i('[API] 🔍 Buscando checkpoints para evento: $eventoId');
+      
+      if (eventoId.isEmpty) {
+        log.w('[API] ⚠️ eventoId está vazio!');
+        return [];
+      }
+      
       final response = await _dio.get('/checkpoints/evento/$eventoId');
+      
+      log.i('[API] ✅ Checkpoints carregados com sucesso: ${response.data}');
       
       final data = _validateResponseList(response.data);
       final checkpoints = data.map((item) => item as Map<String, dynamic>).toList()
@@ -530,9 +560,14 @@ class ApiService {
         })
         .toList();
       
+      log.i('[API] ✅ Checkpoints retornados: ${checkpoints.length}');
       return checkpoints;
     } catch (e) {
-      log.e('[API] ❌ Erro ao buscar checkpoints: $e');
+      log.e('[API] ❌ Erro ao buscar checkpoints para evento $eventoId: $e');
+      if (e is DioException) {
+        log.e('[API] 🔴 Status Code: ${e.response?.statusCode}');
+        log.e('[API] 📝 Response: ${e.response?.data}');
+      }
       return [];
     }
   }
@@ -572,7 +607,7 @@ class ApiService {
         'parentName': parentName,
         'email': email,
         'password': password,
-        if (children != null) 'children': children,
+        'children': ?children,
       };
       
       log.i('[API] 📦 Enviando corpo da requisição: $requestBody');
@@ -616,7 +651,19 @@ class ApiService {
         };
       }
       
-      // Cenário 2: Resposta sem token (registro pendente de aprovação)
+      // Cenário 2: convite genérico e cadastro só do responsável (sem crianças): a
+      // conta já nasce ativa e a criança é vinculada depois, lendo o QR Code no app
+      if (data['success'] == true && data['status'] == 'active') {
+        log.i('[API] ✅ Conta criada (sem crianças): vínculo depois, pelo QR Code');
+        return {
+          'success': true,
+          'type': 'created',
+          'status': 'active',
+          'message': data['message'] ?? 'Conta criada!',
+        };
+      }
+
+      // Cenário 3: Resposta sem token (registro pendente de aprovação)
       // Usado quando é convite genérico para múltiplas crianças
       if (data['success'] == true && data['status'] == 'pending') {
         log.i('[API] ✅ Registro em pendência de aprovação');
@@ -669,6 +716,102 @@ class ApiService {
       rethrow;
     }
   }
+
+
+  /// POST /family/bracelet/validate - Vincular criança lendo a pulseira NFC.
+  /// [uid] é o UID da pulseira em hexadecimal (veja `uidToHex`). Devolve o mesmo formato do QR
+  /// (`success` + `linkedChild`); o vínculo fica pendente até a recepção aprovar.
+  Future<Map<String, dynamic>> linkChildWithBracelet(String uid) async {
+    try {
+      if (!_initialized) await init();
+
+      final response = await _dio.post('/family/bracelet/validate', data: {'uid': uid});
+      final data = _validateResponseData(response.data);
+
+      if (data['success'] != true || data['linkedChild'] == null) {
+        throw Exception('${data['error'] ?? 'Dados da criança ausentes na resposta'}');
+      }
+      log.i('[API] Criança vinculada pela pulseira: ${data['linkedChild']['nickname'] ?? data['linkedChild']['name']}');
+      return data;
+    } on DioException catch (e) {
+      log.e('[API] Erro ao vincular pela pulseira: ${e.response?.statusCode} ${e.response?.data}');
+      var message = 'Erro ao vincular pela pulseira';
+      final body = e.response?.data;
+      if (body is Map && body['error'] is String) message = body['error'] as String;
+      throw Exception(message);
+    }
+  }
+
+  /// ✅ POST /family/qrcode/validate - Vincular criança com QR code
+Future<Map<String, dynamic>> linkChildWithQRCode(String qrCodeValue) async {
+  try {
+    log.i('[API] 📱 Vinculando criança com QR: $qrCodeValue');
+    log.i('[API] 📊 URL: /family/qrcode/validate');
+    log.i('[API] 📦 Payload: {qrCodeValue: $qrCodeValue}');
+    
+    if (!_initialized) {
+      log.i('[API] ⏳ Inicializando ApiService...');
+      await init();
+    }
+    
+    final response = await _dio.post(
+      '/family/qrcode/validate',
+      data: {'qrCodeValue': qrCodeValue},
+    );
+    
+    log.i('[API] ✅ Resposta recebida com status: ${response.statusCode}');
+    log.i('[API] 📊 Dados brutos: ${response.data}');
+    log.i('[API] 📊 Tipo: ${response.data.runtimeType}');
+    
+    final data = _validateResponseData(response.data);
+    
+    // ✅ Validar que tem 'success' e 'linkedChild'
+    if (data['success'] != true) {
+      log.e('[API] ❌ Resposta não confirmou sucesso: $data');
+      throw DioException(
+        requestOptions: RequestOptions(path: '/family/qrcode/validate'),
+        error: data['error'] ?? 'Resposta sem confirmação de sucesso',
+        type: DioExceptionType.unknown,
+      );
+    }
+    
+    final linkedChild = data['linkedChild'];
+    if (linkedChild == null) {
+      log.e('[API] ❌ Falta "linkedChild" na resposta: $data');
+      throw DioException(
+        requestOptions: RequestOptions(path: '/family/qrcode/validate'),
+        error: 'Dados da criança ausentes na resposta',
+        type: DioExceptionType.unknown,
+      );
+    }
+    
+    log.i('[API] ✅ Criança vinculada com sucesso!');
+    log.i('[API] 👶 Criança: ${linkedChild['nickname'] ?? linkedChild['name']} (ID: ${linkedChild['id']})');
+    log.i('[API] 🎮 Evento: ${linkedChild['evento']}');
+    
+    return data;
+  } on DioException catch (e) {
+    log.e('[API] ❌ ERRO DIO ao vincular: ${e.message}');
+    log.e('[API] 🔴 Status Code: ${e.response?.statusCode}');
+    log.e('[API] 📝 Resposta do erro: ${e.response?.data}');
+    log.e('[API] 📍 Stack: ${StackTrace.current}');
+    
+    // Re-lançar com mensagem mais amigável
+    String userMessage = 'Erro ao vincular criança';
+    try {
+      if (e.response?.data is Map) {
+        userMessage = e.response?.data['error'] ?? userMessage;
+      }
+    } catch (_) {}
+    
+    throw Exception(userMessage);
+  } catch (e) {
+    log.e('[API] ❌ ERRO GENÉRICO ao vincular: $e');
+    log.e('[API] 📍 Tipo: ${e.runtimeType}');
+    log.e('[API] 📍 Stack: ${StackTrace.current}');
+    rethrow;
+  }
+}
 
   // WebSocket para atualizações em tempo real
   String getWebSocketUrl() => _baseUrl.replaceFirst('http', 'ws');

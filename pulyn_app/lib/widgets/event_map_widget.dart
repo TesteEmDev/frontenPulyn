@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +8,7 @@ import '../models/family_models.dart';
 import '../config/theme.dart';
 import '../providers/index.dart';
 import '../utils/logger.dart';
+import '../utils/text_sanitizer.dart';
 
 /// Zone configuration para o mapa do buffet
 class ZoneConfig {
@@ -55,16 +59,40 @@ class AvatarPosition {
   }
 }
 
+/// 📐 Onde a planta baixa é desenhada, em coordenadas do canvas 450x320.
+///
+/// No admin web e no telão a planta usa object-contain dentro de uma área BEM mais
+/// larga que o canvas, enquanto as zonas e checkpoints usam as coordenadas do canvas
+/// (SVG viewBox 450x320). Nessa situação a planta ocupa a altura toda (320) e a largura
+/// que a proporção dela pedir, centralizada — passando das laterais do canvas.
+/// É por isso que zonas desenhadas sobre a planta têm x < 0 ou x > 450.
+/// Encaixar a planta só dentro dos 450px de largura a deixava menor que as zonas.
+Rect floorPlanRect(double aspect) {
+  const canvasWidth = 450.0;
+  const canvasHeight = 320.0;
+  if (!aspect.isFinite || aspect <= 0) {
+    return const Rect.fromLTWH(0, 0, canvasWidth, canvasHeight);
+  }
+  final width = canvasHeight * aspect;
+  return Rect.fromLTWH(canvasWidth / 2 - width / 2, 0, width, canvasHeight);
+}
+
 /// 🗺️ Widget de Mapa do Evento com Zonas, Checkpoints e Filhos - VERSÃO MELHORADA
 class EventMapWidget extends ConsumerStatefulWidget {
   final List<Child>? childrenList; // Lista de filhos vinculados no app (todos são "meus filhos")
   final String? eventoId; // ID do evento para carregar floor plan
   final Map<String, dynamic>? activeGame; // Jogo ativo para exibição
 
+  /// Avisa quando o dedo entra/sai do mapa. A tela que hospeda o mapa usa isso
+  /// para travar a própria rolagem (vertical e troca de abas) enquanto o mapa é
+  /// arrastado — senão essas rolagens roubam o gesto e o mapa parece travado.
+  final ValueChanged<bool>? onInteractionChanged;
+
   const EventMapWidget({
     required this.childrenList,
     this.eventoId,
     this.activeGame,
+    this.onInteractionChanged,
     super.key,
   });
 
@@ -72,9 +100,12 @@ class EventMapWidget extends ConsumerStatefulWidget {
   ConsumerState<EventMapWidget> createState() => _EventMapWidgetState();
 }
 
-class _EventMapWidgetState extends ConsumerState<EventMapWidget> 
+class _EventMapWidgetState extends ConsumerState<EventMapWidget>
     with TickerProviderStateMixin {
   String? _floorPlanUrl;
+  // ✅ Decodificado uma única vez quando a planta carrega (evita rodar
+  // base64Decode em toda rebuild, já que a imagem pode ter vários MB).
+  ImageProvider? _floorPlanImage;
   
   // 🎮 Controllers para animações
   late AnimationController _pulseController;
@@ -83,18 +114,59 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
   late Animation<double> _zoomAnimation;
   
   // 🗺️ Posições dos avatares com animação
-  late AnimationController _avatarMoveController;
+  // Um controller por criança: se dois avatares andam ao mesmo tempo, um não
+  // cancela o outro (com um controller compartilhado, o `forward(from: 0)` de
+  // um interrompia o do outro e deixava listeners órfãos movendo o avatar).
+  final Map<String, AnimationController> _avatarAnims = {};
   final Map<String, AvatarPosition> _avatarPositions = {};
   final Map<String, Offset> _avatarTargets = {};
   
   // 🗺️ Transform controller para zoom/pan
   final TransformationController _transformController = TransformationController();
+
+  // 📐 Área visível do mapa: usada para encaixar o canvas 450x320 inteiro na tela
+  Size? _viewportSize;
+  bool _initialFitDone = false;
+
+  // 🖐️ Gestos do mapa
+  late AnimationController _viewAnimController; // zoom animado (botões / duplo toque)
+  Animation<Matrix4>? _viewAnim;
+  int _activePointers = 0;
+  bool _tapMoved = false;
+  bool _multiTouch = false;
+  Offset _tapDownPos = Offset.zero;
+  Offset? _pendingTapPos; // 1º toque esperando o 2º (duplo toque)
+  Timer? _doubleTapTimer;
+
+  // 🏁 Feedback de chegada ao checkpoint (pulso no avatar + aviso no rodapé)
+  final Map<String, int> _arrivalRings = {};
+  final Map<String, Timer> _ringTimers = {};
+  Timer? _messageTimer;
+  String? _arrivalMessage;
   
   // 📱 Estados do UI (removido filtros para interface mais limpa)
   
   // 📏 Dimensões
-  static const double mapWidth = 350;
-  static const double mapHeight = 280;
+  // ✅ Mesma "tela" (450x320) usada no admin web e no telão (AdminMap.tsx /
+  // DisplayMap.tsx) — os map_x/map_y salvos pelos checkpoints são pixels
+  // dentro desse canvas. Usar um tamanho diferente aqui deixava os
+  // checkpoints e avatares fora da posição relativa correta no mobile.
+  static const double mapWidth = 450;
+  static const double mapHeight = 320;
+
+  // 🌍 Área que o mapa realmente ocupa: o canvas 450x320 MAIS tudo que passa dele
+  // (zonas, checkpoints com rótulo, avatares com nome). O admin web aceita e salva
+  // coordenadas fora do canvas (o SVG dele tem sobra em volta); sem isto o app
+  // cortava essas zonas na borda.
+  Rect _world = const Rect.fromLTWH(0, 0, mapWidth, mapHeight);
+  Rect? _fittedWorld; // mundo usado no último encaixe
+  bool _userMovedView = false; // a pessoa já mexeu no zoom/posição
+  double? _floorPlanAspect; // largura/altura da planta (só depois de decodificada)
+
+  // A planta não tem provider próprio (fica em estado local, decodificada uma
+  // única vez) — por isso observa esse contador na mão pra saber quando
+  // "puxar pra atualizar"/WebSocket pede uma releitura.
+  int? _lastMapRefreshTick;
 
   @override
   void initState() {
@@ -112,11 +184,14 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
       vsync: this,
     );
     
-    _avatarMoveController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+    _viewAnimController = AnimationController(
+      duration: const Duration(milliseconds: 280),
       vsync: this,
-    );
-    
+    )..addListener(() {
+        final anim = _viewAnim;
+        if (anim != null) _transformController.value = anim.value;
+      });
+
     _pulseAnimation = Tween<double>(
       begin: 1.0,
       end: 1.3,
@@ -143,8 +218,13 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
       });
       
       ref.read(webSocketServiceProvider).on('TERRITORY_CONQUERED', (data) {
-        log.i('📍 [EVENT_MAP_WIDGET] TERRITORY_CONQUERED RECEBIDO! Data: $data');
-        _handleTerritoryConquered(data);
+        ref.read(mapRefreshProvider.notifier).refresh();
+      });
+
+      // O avatar se move sozinho: CHILD_CHECKPOINT_PASSED atualiza o último
+      // checkpoint da criança (realtimeCheckpointTrackingProvider), o build
+      // recalcula o alvo e _syncAvatarTargets anima até o centro do checkpoint.
+      ref.read(webSocketServiceProvider).on('CHILD_CHECKPOINT_PASSED', (data) {
         ref.read(mapRefreshProvider.notifier).refresh();
       });
       
@@ -153,330 +233,432 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
       });
     });
 
-    // ✅ NOVO: Escutar mudanças no provider de posições de avatares (rastreio em tempo real)
-    Future.microtask(() {
-      ref.listen<Map<String, Map<String, dynamic>>>(
-        avatarTrackingPositionsProvider,
-        (previous, next) {
-          if (previous == null) return; // Skip na primeira vez
-          
-          log.i('[TRACKING_LISTENER] 🔄 Posições atualizadas! ${next.length} crianças');
-          
-          // Para cada criança com nova posição
-          next.forEach((childId, posData) {
-            final newX = (posData['x'] as num?)?.toDouble() ?? 175.0;
-            final newY = (posData['y'] as num?)?.toDouble() ?? 140.0;
-            
-            log.i('[TRACKING_LISTENER] 📍 $childId → ($newX, $newY)');
-            
-            // Animar avatar para nova posição
-            _animateAvatarToPosition(childId, newX, newY);
-          });
-        },
-      );
-    });
+
   }
   
   @override
   void dispose() {
     _pulseController.dispose();
     _zoomController.dispose();
-    _avatarMoveController.dispose();
+    for (final controller in _avatarAnims.values) {
+      controller.dispose();
+    }
+    _avatarAnims.clear();
+    for (final timer in _ringTimers.values) {
+      timer.cancel();
+    }
+    _messageTimer?.cancel();
+    _doubleTapTimer?.cancel();
+    // Se o mapa sair da tela com o dedo em cima, destrava a rolagem da tela pai.
+    final onInteractionChanged = widget.onInteractionChanged;
+    if (_activePointers > 0 && onInteractionChanged != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => onInteractionChanged(false));
+    }
+    _viewAnimController.dispose();
     _transformController.dispose();
     super.dispose();
   }
 
   Future<void> _loadFloorPlanFromRef() async {
-    if (widget.eventoId == null) {
-      return;
-    }
-
     try {
       final apiService = ref.read(apiServiceProvider);
-      final floorPlanUrl = await apiService.getFloorPlan(widget.eventoId!);
-      
+      final floorPlanUrl = await apiService.getFloorPlan();
+
       if (mounted && floorPlanUrl != null && floorPlanUrl.isNotEmpty) {
+        final image = _decodeFloorPlanImage(floorPlanUrl);
         setState(() {
           _floorPlanUrl = floorPlanUrl;
+          _floorPlanImage = image;
+          _floorPlanAspect = null;
         });
+        if (image != null) _resolveFloorPlanAspect(image);
       }
     } catch (e) {
       log.w('[MAP] ⚠️ Erro ao carregar floor plan: $e');
     }
   }
 
-  /// 🎯 Gerencia o movimento do avatar quando um território é conquistado
-  /// Suporta todos os tipos de jogos: zone_conquest, treasure_hunt, monster_hunt
-  void _handleTerritoryConquered(Map<String, dynamic> data) {
+  /// Descobre largura/altura da planta para posicioná-la como no admin/telão.
+  void _resolveFloorPlanAspect(ImageProvider image) {
+    final stream = image.resolve(ImageConfiguration.empty);
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (info, _) {
+        stream.removeListener(listener);
+        if (!mounted) return;
+        final height = info.image.height;
+        if (height > 0) setState(() => _floorPlanAspect = info.image.width / height);
+      },
+      onError: (_, _) => stream.removeListener(listener),
+    );
+    stream.addListener(listener);
+  }
+
+  /// ✅ O backend guarda a planta como data URI base64
+  /// ("data:image/png;base64,..."), não como uma URL http real — por isso
+  /// não dá pra usar NetworkImage aqui, precisa decodificar pra bytes.
+  ImageProvider? _decodeFloorPlanImage(String value) {
     try {
-      // 🔍 Debug completo do evento
-      log.i('🎯 [MAP] ========== TERRITORY_CONQUERED RECEBIDO ==========');
-      log.i('🎯 [MAP] Dados completos: $data');
-      
-      // Extrai dados do evento - suporta tanto o formato antigo quanto o novo
-      final criancaId = data['criancaId'] as String? ?? data['payload']?['criancaId'] as String?;
-      final criancaName = data['criancaName'] as String? ?? data['payload']?['criancaName'] as String?;
-      final checkpointId = data['checkpointId'] as String? ?? data['payload']?['checkpointId'] as String?;
-      final teamColor = (data['teamColor'] as String? ?? data['payload']?['teamColor'] as String?) ?? '#FF0000';
-      final gameType = (data['gameType'] as String? ?? data['payload']?['gameType'] as String?) ?? 'zone_conquest';
-      final mapX = data['mapX'] ?? data['payload']?['mapX'];
-      final mapY = data['mapY'] ?? data['payload']?['mapY'];
-      
-      log.i('🔍 [MAP] Dados extraídos:');
-      log.i('🔍 [MAP]   - criancaId: $criancaId');
-      log.i('🔍 [MAP]   - checkpointId: $checkpointId');
-      log.i('🔍 [MAP]   - criancaName: $criancaName');
-      log.i('🔍 [MAP]   - teamColor: $teamColor');
-      log.i('🔍 [MAP]   - gameType: $gameType');
-      log.i('🔍 [MAP]   - mapX: $mapX, mapY: $mapY');
-      
-      if (criancaId == null || checkpointId == null) {
-        log.w('❌ [MAP] Dados inválidos! criancaId=$criancaId, checkpointId=$checkpointId');
-        log.w('❌ [MAP] Payload structure: ${data.keys.toList()}');
-        return;
+      if (value.startsWith('data:')) {
+        final base64Part = value.split(',').last;
+        return MemoryImage(base64Decode(base64Part));
       }
-      
-      log.i('✅ [MAP] Validação passou! Chamando animação para $gameType...');
-      
-      // 🎬 Anima o avatar em movimento
-      _animateAvatarToCheckpoint(
-        childId: criancaId,
-        childName: criancaName ?? 'Criança',
-        checkpointId: checkpointId,
-        teamColor: teamColor,
-        directMapX: (mapX as num?)?.toDouble(),
-        directMapY: (mapY as num?)?.toDouble(),
-      );
-      
-      log.i('✅ [MAP] Função de animação chamada para $criancaName no $gameType!');
-    } catch (e, st) {
-      log.e('🎯 [MAP] ❌ ERRO ao processar TERRITORY_CONQUERED: $e');
-      log.e('🎯 [MAP] Stack: $st');
+      return NetworkImage(value);
+    } catch (e) {
+      log.e('[MAP] ❌ Erro ao decodificar imagem da planta baixa: $e');
+      return null;
     }
   }
-  
-  /// 🎬 Anima um avatar movendo de sua posição atual para um checkpoint
-  /// Suporta ambos: buscar coordenadas do banco OU usar coordenadas diretas do evento
-  Future<void> _animateAvatarToCheckpoint({
-    required String childId,
-    required String childName,
-    required String checkpointId,
-    required String teamColor,
-    double? directMapX,
-    double? directMapY,
-  }) async {
-    try {
-      log.i('🎬 [MAP] ========== INICIANDO ANIMAÇÃO ==========');
-      log.i('🎬 [MAP] Criança: $childName ($childId)');
-      log.i('🎬 [MAP] Checkpoint alvo: $checkpointId');
-      log.i('🎬 [MAP] Coordenadas diretas: directMapX=$directMapX, directMapY=$directMapY');
-      
-      // Se ainda não existe posição para este filho, cria uma posição inicial genérica
-      if (!_avatarPositions.containsKey(childId)) {
-        _avatarPositions[childId] = AvatarPosition(
-          childId: childId,
-          childName: childName,
-          teamColor: teamColor,
-          x: mapWidth / 2,
-          y: mapHeight / 2,
-        );
-        log.i('🎯 [MAP] Criada posição inicial em center: (${mapWidth / 2}, ${mapHeight / 2})');
-      }
-      
-      // 📍 Calcula a posição alvo do checkpoint
-      late Offset checkpointPos;
-      
-      // ✨ NOVO: Se as coordenadas foram enviadas diretamente no evento, usa elas primeiro
-      if (directMapX != null && directMapY != null && directMapX >= 0 && directMapY >= 0) {
-        checkpointPos = Offset(directMapX, directMapY);
-        log.i('✅ [MAP] Coordenadas diretas do evento: ($directMapX, $directMapY) pixels');
-      } else {
-        // Fallback: Buscar do checkpoint no cache/API
-        Map<String, dynamic>? checkpoint;
-        String foundEventId = '';
-        
-        try {
-          // Tenta ler o evento ativo SINCRONAMENTE (se já foi carregado)
-          final activeEventAsync = ref.read(activeEventProvider);
-          
-          log.i('📊 [MAP] Tipo de activeEventAsync: ${activeEventAsync.runtimeType}');
-          
-          if (activeEventAsync is AsyncData && activeEventAsync.value != null) {
-            final event = activeEventAsync.value!;
-            foundEventId = event['id'] as String;
-            log.i('✅ [MAP] Evento encontrado: $foundEventId');
-            
-            // Tenta ler checkpoints SINCRONAMENTE (se já foram carregados)
-            final checkpointsAsync = ref.read(checkpointsByEventProvider(foundEventId));
-            
-            log.i('📊 [MAP] Tipo de checkpointsAsync: ${checkpointsAsync.runtimeType}');
-            
-            if (checkpointsAsync is AsyncData) {
-              final checkpoints = checkpointsAsync.value ?? [];
-              log.i('📊 [MAP] Checkpoints em cache: ${checkpoints.length}');
-              
-              if (checkpoints.isNotEmpty) {
-                checkpoint = checkpoints.firstWhere(
-                  (cp) => cp['id'].toString().toLowerCase() == checkpointId.toLowerCase(),
-                  orElse: () {
-                    log.w('❌ [MAP] Checkpoint $checkpointId não encontrado em ${checkpoints.length} disponíveis');
-                    // Debug: lista todos os IDs disponíveis
-                    log.i('📋 [MAP] IDs disponíveis: ${checkpoints.map((c) => '${c['id']} (${c['name']})').join(", ")}');
-                    return {};
-                  },
-                );
-                
-                if (checkpoint.isNotEmpty) {
-                  log.i('✅ [MAP] Checkpoint encontrado: ${checkpoint['name']}');
-                }
-              } else {
-                log.w('⚠️ [MAP] Nenhum checkpoint no cache!');
-                // 🔄 FALLBACK: Busca checkpoints diretamente da API se não estão em cache
-                log.i('🔄 [MAP] Tentando buscar checkpoints da API...');
-                final apiService = ref.read(apiServiceProvider);
-                await apiService.init();
-                final checkpointsFromApi = await apiService.getCheckpointsByEvent(foundEventId);
-                log.i('📍 [MAP] Checkpoints da API: ${checkpointsFromApi.length}');
-                
-                if (checkpointsFromApi.isNotEmpty) {
-                  checkpoint = checkpointsFromApi.firstWhere(
-                    (cp) => cp['id'].toString().toLowerCase() == checkpointId.toLowerCase(),
-                    orElse: () => {},
-                  );
-                  if (checkpoint.isNotEmpty) {
-                    log.i('✅ [MAP] Checkpoint encontrado via API!');
-                  }
-                }
-              }
-            } else {
-              log.w('⚠️ [MAP] checkpointsAsync não é AsyncData, é: ${checkpointsAsync.runtimeType}');
-              // 🔄 FALLBACK: Busca checkpoints diretamente da API
-              log.i('🔄 [MAP] Tentando buscar checkpoints da API (AsyncData failed)...');
-              final apiService = ref.read(apiServiceProvider);
-              await apiService.init();
-              final checkpointsFromApi = await apiService.getCheckpointsByEvent(foundEventId);
-              log.i('📍 [MAP] Checkpoints da API: ${checkpointsFromApi.length}');
-              
-              if (checkpointsFromApi.isNotEmpty) {
-                checkpoint = checkpointsFromApi.firstWhere(
-                  (cp) => cp['id'].toString().toLowerCase() == checkpointId.toLowerCase(),
-                  orElse: () => {},
-                );
-                if (checkpoint.isNotEmpty) {
-                  log.i('✅ [MAP] Checkpoint encontrado via API!');
-                }
-              }
-            }
-          } else {
-            log.w('⚠️ [MAP] activeEventAsync não é AsyncData ou value é null');
-            log.i('   Tipo: ${activeEventAsync.runtimeType}');
-          }
-        } catch (e) {
-          log.w('⚠️ [MAP] Erro ao buscar checkpoint: $e');
-        }
-        
-        if (checkpoint != null && checkpoint.isNotEmpty) {
-          // ✅ Usa coordenadas reais do checkpoint (em pixels, não percentual!)
-          final storedX = checkpoint['map_x'] ?? checkpoint['mapX'];
-          final storedY = checkpoint['map_y'] ?? checkpoint['mapY'];
-          
-          log.i('🔍 [MAP] Procurando coords: map_x=$storedX, map_y=$storedY');
-          
-          if (storedX != null && storedY != null) {
-            try {
-              final x = double.tryParse(storedX.toString());
-              final y = double.tryParse(storedY.toString());
-              
-              if (x != null && y != null && x.isFinite && y.isFinite) {
-                // ✅ As coords são EM PIXELS dentro do mapa (0-350 x 0-280)
-                checkpointPos = Offset(x, y);
-                log.i('✅ [MAP] Coords válidas: ($x, $y) pixels');
-              } else {
-                checkpointPos = Offset(mapWidth / 2, mapHeight / 2);
-                log.w('⚠️ [MAP] Parse falhou: x=$x, y=$y, usando center');
-              }
-            } catch (e) {
-              checkpointPos = Offset(mapWidth / 2, mapHeight / 2);
-              log.w('⚠️ [MAP] Erro ao parsear: $e');
-            }
-          } else {
-            checkpointPos = Offset(mapWidth / 2, mapHeight / 2);
-            log.w('⚠️ [MAP] Coords NULL, usando center');
-          }
-        } else {
-          // Fallback - se checkpoint não encontrado
-          checkpointPos = Offset(mapWidth / 2, mapHeight / 2);
-          log.w('⚠️ [MAP] Checkpoint vazio, usando center');
-        }
-      }
-      
-      _avatarTargets[childId] = checkpointPos;
-      
-      final currentPos = _avatarPositions[childId]!;
-      log.i('🎬 [MAP] Animação: (${currentPos.x}, ${currentPos.y}) → (${checkpointPos.dx}, ${checkpointPos.dy})');
-      
-      // 🎬 Anima a transição (800ms suave) COM ATUALIZAÇÃO DE POSIÇÃO DURANTE A ANIMAÇÃO
-      if (mounted) {
-        log.i('🎬 [MAP] Widget mounted, iniciando animação...');
-        
-        // Posição inicial e final
-        final startX = currentPos.x;
-        final startY = currentPos.y;
-        final endX = checkpointPos.dx;
-        final endY = checkpointPos.dy;
-        
-        // 🎬 Listener que atualiza a posição A CADA FRAME da animação
-        void onAnimationUpdate() {
-          if (mounted) {
-            final progress = _avatarMoveController.value; // 0.0 a 1.0
-            
-            final newX = startX + (endX - startX) * progress;
-            final newY = startY + (endY - startY) * progress;
-            
-            setState(() {
-              final current = _avatarPositions[childId];
-              if (current != null) {
-                _avatarPositions[childId] = current.copyWith(
-                  x: newX,
-                  y: newY,
-                );
-              }
-            });
-          }
-        }
-        
-        // Registra listener e inicia animação
-        _avatarMoveController.addListener(onAnimationUpdate);
-        
-        try {
-          await _avatarMoveController.forward(from: 0.0);
-        } finally {
-          // Remove listener após animação terminar
-          _avatarMoveController.removeListener(onAnimationUpdate);
-          
-          // Garante que posição final está correta
-          if (mounted) {
-            setState(() {
-              final current = _avatarPositions[childId];
-              if (current != null) {
-                _avatarPositions[childId] = current.copyWith(
-                  x: endX,
-                  y: endY,
-                );
-                log.i('✅ [MAP] Posição final atualizada!');
-              }
-            });
-          }
-        }
-      } else {
-        log.w('⚠️ [MAP] Widget NÃO mounted, animação cancelada');
-      }
-      
-      log.i('✨ [MAP] ========== ANIMAÇÃO CONCLUÍDA ==========');
-    } catch (e, st) {
-      log.w('❌ [MAP] ❌ ERRO NA ANIMAÇÃO: $e');
-      log.w('❌ [MAP] Stack:\n$st');
+
+  /// 📍 Alvo de cada avatar: o CENTRO do checkpoint onde a criança está, no
+  /// mesmo ponto em que o marcador do checkpoint é desenhado (o círculo do
+  /// checkpoint e o do avatar têm 40px, então o avatar cobre o checkpoint).
+  /// Só quando mais de uma criança está no mesmo ponto elas são afastadas
+  /// lado a lado, para nenhuma ficar escondida atrás da outra.
+  Map<String, Offset> _computeAvatarTargets(List<Map<String, dynamic>> childPositions) {
+    final byPoint = <String, List<String>>{};
+    final base = <String, Offset>{};
+
+    for (final p in childPositions) {
+      final id = (p['child'] as Child).id;
+      final x = (p['x'] as num).toDouble();
+      final y = (p['y'] as num).toDouble();
+      base[id] = Offset(x, y);
+      byPoint.putIfAbsent('${x.round()}:${y.round()}', () => []).add(id);
     }
+
+    const spacing = 14.0;
+    final targets = <String, Offset>{};
+    for (final ids in byPoint.values) {
+      for (var i = 0; i < ids.length; i++) {
+        final dx = (i - (ids.length - 1) / 2) * spacing;
+        targets[ids[i]] = base[ids[i]]! + Offset(dx, 0);
+      }
+    }
+    return targets;
+  }
+
+  /// Leva cada avatar até o alvo calculado. Chamado a cada build, mas só age
+  /// quando o alvo de uma criança mudou (nova leitura de checkpoint).
+  void _syncAvatarTargets(List<Map<String, dynamic>> childPositions, Map<String, Offset> targets) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      for (final p in childPositions) {
+        final child = p['child'] as Child;
+        final target = targets[child.id];
+        if (target == null || _avatarTargets[child.id] == target) continue;
+
+        final isFirstTime = !_avatarPositions.containsKey(child.id);
+        _avatarTargets[child.id] = target;
+
+        if (isFirstTime) {
+          // Primeira vez que vemos a criança (ex.: app reaberto): já nasce no
+          // lugar certo, sem atravessar o mapa.
+          setState(() {
+            _avatarPositions[child.id] = AvatarPosition(
+              childId: child.id,
+              childName: child.nickname.isNotEmpty ? child.nickname : child.name,
+              teamColor: child.teamColor,
+              x: target.dx,
+              y: target.dy,
+            );
+          });
+        } else {
+          final checkpointName = p['checkpointName'] as String?;
+          _moveAvatarTo(
+            child.id,
+            target,
+            onArrived: (p['hasCheckpoint'] == true && checkpointName != null && checkpointName.isNotEmpty)
+                ? () => _onAvatarArrived(child, checkpointName)
+                : null,
+          );
+        }
+      }
+    });
+  }
+
+  /// 🎬 Anima o avatar da posição atual até [target] (800ms).
+  void _moveAvatarTo(String childId, Offset target, {VoidCallback? onArrived}) {
+    final avatar = _avatarPositions[childId];
+    if (avatar == null) return;
+
+    _avatarAnims.remove(childId)?.dispose();
+
+    final startX = avatar.x;
+    final startY = avatar.y;
+    final controller = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    final curve = CurvedAnimation(parent: controller, curve: Curves.easeInOutCubic);
+    _avatarAnims[childId] = controller;
+
+    controller.addListener(() {
+      if (!mounted) return;
+      setState(() {
+        avatar.x = startX + (target.dx - startX) * curve.value;
+        avatar.y = startY + (target.dy - startY) * curve.value;
+      });
+    });
+
+    controller.forward().whenComplete(() {
+      if (identical(_avatarAnims[childId], controller)) {
+        _avatarAnims.remove(childId);
+        controller.dispose();
+        onArrived?.call();
+      }
+    });
+  }
+
+  /// Retângulo (em coordenadas do canvas) que contém o canvas 450x320 e todo o
+  /// conteúdo, com folga para rótulos e nomes. Limitado a 2x o canvas para cada
+  /// lado, para um dado absurdo não encolher o mapa inteiro.
+  Rect _computeWorld(
+    List<ZoneConfig> zones,
+    List<Map<String, dynamic>> checkpoints,
+    List<Map<String, dynamic>> childPositions,
+  ) {
+    var left = 0.0, top = 0.0, right = mapWidth, bottom = mapHeight;
+    void include(double l, double t, double r, double b) {
+      if (!(l.isFinite && t.isFinite && r.isFinite && b.isFinite)) return;
+      left = math.min(left, l);
+      top = math.min(top, t);
+      right = math.max(right, r);
+      bottom = math.max(bottom, b);
+    }
+
+    final planAspect = _floorPlanAspect;
+    if (_floorPlanImage != null && planAspect != null) {
+      final plan = floorPlanRect(planAspect);
+      include(plan.left, plan.top, plan.right, plan.bottom);
+    }
+    for (final z in zones) {
+      include(z.x - 2, z.y - 2, z.x + z.w + 2, z.y + z.h + 2);
+    }
+    for (final cp in checkpoints) {
+      try {
+        final pos = _getCheckpointPosition(cp, checkpoints);
+        final x = pos['x']!, y = pos['y']!;
+        include(x - 60, y - 20, x + 60, y + 66); // círculo de 40px + rótulo com o nome
+      } catch (_) {
+        // checkpoint sem posição utilizável: não altera o tamanho do mapa
+      }
+    }
+    for (final p in childPositions) {
+      final x = (p['x'] as num).toDouble(), y = (p['y'] as num).toDouble();
+      include(x - 45, y - 46, x + 45, y + 20); // avatar + nome acima
+    }
+
+    return Rect.fromLTRB(
+      math.max(left, -mapWidth),
+      math.max(top, -mapHeight),
+      math.min(right, mapWidth * 3),
+      math.min(bottom, mapHeight * 3),
+    );
+  }
+
+  /// Menor zoom = mapa inteiro na tela ("encaixe"). O maior é 4x isso.
+  static const double _maxZoomFactor = 4.0;
+
+  /// Folga (em px de cena) que dá para arrastar além da borda do mapa. Zero: o
+  /// que fica fora do mapa é só fundo vazio (cinza), então nunca deve aparecer.
+  static const double _panMargin = 0;
+
+  /// Matriz da câmera: escala [scale] e deslocamento ([tx], [ty]).
+  ///
+  /// A escala tem que ser IGUAL nos três eixos (inclusive Z). O InteractiveViewer
+  /// lê a escala atual com getMaxScaleOnAxis(), que considera o Z: com Z fixo em 1 e o
+  /// mapa reduzido (escala < 1) ele achava que a escala atual era 1, errava a conta do
+  /// limite mínimo e deixava a pinça de afastar encolher o mapa além do encaixe,
+  /// mostrando o fundo cinza.
+  Matrix4 _cameraMatrix(double scale, double tx, double ty) =>
+      Matrix4(scale, 0, 0, 0, 0, scale, 0, 0, 0, 0, scale, 0, tx, ty, 0, 1);
+
+  double _fitScale(Size viewport) =>
+      math.min(viewport.width / _world.width, viewport.height / _world.height).clamp(0.3, 1.5).toDouble();
+
+  /// 📐 Matriz que encaixa o canvas 450x320 inteiro (e centralizado) na área
+  /// visível. Sem isso o mapa abria cortado em telas de ~360-400dp de largura.
+  Matrix4 _fitMatrix(Size viewport) {
+    final scale = _fitScale(viewport);
+    final dx = (viewport.width - _world.width * scale) / 2;
+    final dy = (viewport.height - _world.height * scale) / 2;
+    return _cameraMatrix(scale, dx, dy);
+  }
+
+  /// Limite do arrasto: a borda do mapa nunca entra na área visível, então não
+  /// aparece fundo cinza em volta (antes a margem fixa de 200 deixava arrastar o
+  /// mapa para fora e se perder).
+  EdgeInsets _mapBoundary(Size viewport) {
+    final fit = _fitScale(viewport);
+    final extraX = math.max(0.0, (viewport.width / fit - _world.width) / 2);
+    final extraY = math.max(0.0, (viewport.height / fit - _world.height) / 2);
+    return EdgeInsets.symmetric(horizontal: extraX + _panMargin, vertical: extraY + _panMargin);
+  }
+
+  /// Aplica os mesmos limites do arrasto a transformações feitas por código
+  /// (botões +/− e duplo toque), que o InteractiveViewer não corrige sozinho.
+  Matrix4 _clampView(Matrix4 m, Size viewport) {
+    final s = m.entry(0, 0);
+    final boundary = _mapBoundary(viewport);
+
+    double axis(double t, double view, double content, double margin) {
+      final lo = view - content - margin * s;
+      final hi = margin * s;
+      return lo > hi ? (view - content) / 2 : t.clamp(lo, hi).toDouble();
+    }
+
+    final tx = axis(m.entry(0, 3), viewport.width, _world.width * s, boundary.left);
+    final ty = axis(m.entry(1, 3), viewport.height, _world.height * s, boundary.top);
+    return _cameraMatrix(s, tx, ty);
+  }
+
+  /// Anima a câmera do mapa até [target] (280ms).
+  void _animateViewTo(Matrix4 target) {
+    _viewAnim = Matrix4Tween(begin: _transformController.value, end: target).animate(
+      CurvedAnimation(parent: _viewAnimController, curve: Curves.easeOutCubic),
+    );
+    _viewAnimController.forward(from: 0);
+  }
+
+  /// Volta ao mapa inteiro na tela.
+  void _resetView() {
+    final viewport = _viewportSize;
+    if (viewport == null) return;
+    _userMovedView = false;
+    _animateViewTo(_fitMatrix(viewport));
+  }
+
+  /// Aproxima/afasta multiplicando o zoom por [factor] em volta de [focal]
+  /// (por padrão o centro da área visível).
+  void _zoomBy(double factor, {Offset? focal}) {
+    final viewport = _viewportSize;
+    if (viewport == null) return;
+
+    _userMovedView = true;
+    final current = _transformController.value;
+    final s = current.entry(0, 0);
+    final fit = _fitScale(viewport);
+    final target = (s * factor).clamp(fit, fit * _maxZoomFactor).toDouble();
+    if ((target - s).abs() < 0.001) return;
+
+    final k = target / s;
+    final f = focal ?? Offset(viewport.width / 2, viewport.height / 2);
+    // Escala em volta de f: p' = k·p + f·(1 − k)
+    final zoom = _cameraMatrix(k, f.dx * (1 - k), f.dy * (1 - k));
+    _animateViewTo(_clampView(zoom.multiplied(current), viewport));
+  }
+
+  /// Duplo toque: aproxima no ponto tocado; se já estiver aproximado, volta ao encaixe.
+  void _handleDoubleTap(Offset position) {
+    final viewport = _viewportSize;
+    if (viewport == null) return;
+    final fit = _fitScale(viewport);
+    if (_transformController.value.entry(0, 0) > fit * 1.4) {
+      _resetView();
+    } else {
+      HapticFeedback.selectionClick();
+      _zoomBy(2.2, focal: position);
+    }
+  }
+
+  // 🖐️ Toques no mapa. Feitos com Listener (e não com onDoubleTap do
+  // GestureDetector) porque o onDoubleTap segura a arena de gestos e atrasaria
+  // em ~300ms o toque nos checkpoints e nos avatares.
+  void _handlePointerDown(PointerDownEvent event) {
+    _activePointers++;
+    if (_activePointers == 1) {
+      _tapMoved = false;
+      _multiTouch = false;
+      _tapDownPos = event.localPosition;
+      widget.onInteractionChanged?.call(true);
+    } else {
+      _multiTouch = true;
+    }
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    if ((event.localPosition - _tapDownPos).distance > 12) _tapMoved = true;
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    final wasSingleTap = _activePointers == 1 && !_multiTouch && !_tapMoved;
+    _releasePointer();
+
+    _doubleTapTimer?.cancel();
+    if (!wasSingleTap) {
+      _pendingTapPos = null;
+      return;
+    }
+    final pending = _pendingTapPos;
+    if (pending != null && (event.localPosition - pending).distance < 40) {
+      _pendingTapPos = null;
+      _handleDoubleTap(event.localPosition);
+    } else {
+      // 1º toque: se o 2º não vier em 300ms, deixa de valer como duplo toque
+      _pendingTapPos = event.localPosition;
+      _doubleTapTimer = Timer(const Duration(milliseconds: 300), () => _pendingTapPos = null);
+    }
+  }
+
+  void _releasePointer() {
+    _activePointers = math.max(0, _activePointers - 1);
+    if (_activePointers == 0) widget.onInteractionChanged?.call(false);
+  }
+
+  Widget _buildHeaderButton(IconData icon, String tooltip, VoidCallback onPressed) {
+    return IconButton(
+      onPressed: () {
+        HapticFeedback.selectionClick();
+        onPressed();
+      },
+      icon: Icon(icon),
+      iconSize: 20,
+      color: PulynColors.textMuted,
+      tooltip: tooltip,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+    );
+  }
+
+  /// Encaixa o mapa na primeira vez que a área visível é conhecida.
+  void _scheduleInitialFit(Size viewport) {
+    _viewportSize = viewport;
+    // Também refaz o encaixe quando o conteúdo muda de tamanho (zonas/checkpoints
+    // acabaram de carregar) e a pessoa ainda não mexeu na vista.
+    final worldChanged = _fittedWorld != _world;
+    if (_initialFitDone && !(worldChanged && !_userMovedView)) return;
+
+    final world = _world;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _transformController.value = _fitMatrix(_viewportSize ?? viewport);
+      _fittedWorld = world;
+      if (!_initialFitDone) setState(() => _initialFitDone = true);
+    });
+  }
+
+  /// 🏁 Feedback quando um avatar termina de chegar a um checkpoint: vibração
+  /// leve, pulso em volta do avatar e um aviso curto no rodapé do mapa.
+  void _onAvatarArrived(Child child, String checkpointName) {
+    if (!mounted) return;
+    HapticFeedback.lightImpact();
+
+    final name = child.nickname.isNotEmpty ? child.nickname : child.name.split(' ').first;
+    setState(() {
+      _arrivalRings[child.id] = DateTime.now().millisecondsSinceEpoch;
+      _arrivalMessage = '$name chegou em $checkpointName';
+    });
+
+    _ringTimers[child.id]?.cancel();
+    _ringTimers[child.id] = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _arrivalRings.remove(child.id));
+    });
+    _messageTimer?.cancel();
+    _messageTimer = Timer(const Duration(milliseconds: 3500), () {
+      if (mounted) setState(() => _arrivalMessage = null);
+    });
   }
 
   /// 🎯 Mostra detalhes de checkpoint em bottom sheet
@@ -560,7 +742,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
             ),
             const SizedBox(height: 24),
             
-            // Status e pontos
+            // Status
             Row(
               children: [
                 Expanded(
@@ -588,33 +770,6 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
                             color: checkpoint['status'] == 'online'
                               ? PulynColors.success
                               : PulynColors.danger,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: PulynColors.darkSurface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      children: [
-                        const Icon(
-                          Icons.star,
-                          color: PulynColors.accent,
-                          size: 24,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '+${checkpoint['points']} pts',
-                          style: const TextStyle(
-                            color: PulynColors.accent,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -821,41 +976,64 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
     return PulynColors.danger;
   }
 
-  // Zonas do buffet
-  static final List<ZoneConfig> zones = [
-    ZoneConfig(
-      name: 'Entrada',
-      color: const Color(0xFF1E9BD7),
-      x: 30,
-      y: 5,
-      w: 40,
-      h: 18,
-    ),
-    ZoneConfig(
-      name: 'Área Verde',
-      color: const Color(0xFF10B981),
-      x: 5,
-      y: 28,
-      w: 42,
-      h: 38,
-    ),
-    ZoneConfig(
-      name: 'Área Azul',
-      color: const Color(0xFF1E9BD7),
-      x: 53,
-      y: 28,
-      w: 42,
-      h: 38,
-    ),
-    ZoneConfig(
-      name: 'Área Central',
-      color: const Color(0xFFF59E0B),
-      x: 20,
-      y: 70,
-      w: 60,
-      h: 25,
-    ),
-  ];
+  // Zonas do buffet - AGORA BUSCADAS DO BACKEND!
+  // Removidas as zonas hardcoded - agora vêm do backend via provider
+  static final List<ZoneConfig> zones = []; // Vazio - será preenchido pelo provider
+
+  /// Retorna zonas padrão como fallback
+  List<ZoneConfig> _getDefaultZones() {
+    return [
+      ZoneConfig(
+        name: 'Entrada',
+        color: const Color(0xFF1E9BD7),
+        x: 30,
+        y: 5,
+        w: 40,
+        h: 18,
+      ),
+      ZoneConfig(
+        name: 'Área Verde',
+        color: const Color(0xFF10B981),
+        x: 5,
+        y: 28,
+        w: 42,
+        h: 38,
+      ),
+      ZoneConfig(
+        name: 'Área Azul',
+        color: const Color(0xFF1E9BD7),
+        x: 53,
+        y: 28,
+        w: 42,
+        h: 38,
+      ),
+      ZoneConfig(
+        name: 'Área Central',
+        color: const Color(0xFFF59E0B),
+        x: 20,
+        y: 70,
+        w: 60,
+        h: 25,
+      ),
+    ];
+  }
+
+  /// Converte string de cor para Color
+  Color _getZoneColor(dynamic colorInput) {
+    if (colorInput == null) return const Color(0xFF1E9BD7); // Padrão azul
+    
+    try {
+      if (colorInput is String) {
+        // Tenta converter hex string: "0xFF1E9BD7" ou "#1E9BD7"
+        String hex = colorInput.replaceFirst('#', '0xFF');
+        return Color(int.parse(hex));
+      }
+    } catch (e) {
+      log.w('⚠️ Erro ao converter cor: $colorInput');
+    }
+    
+    return const Color(0xFF1E9BD7); // Fallback
+  }
 
   /// Busca checkpoints usando provider com cache
   Widget _buildCheckpointsFromProvider() {
@@ -864,7 +1042,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
     
     return activeEventAsync.when(
       loading: () => Container(
-        height: 380,
+        height: 480,
         decoration: BoxDecoration(
           color: PulynColors.darkCard,
           borderRadius: BorderRadius.circular(16),
@@ -875,7 +1053,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
         ),
       ),
       error: (error, _) => Container(
-        height: 380,
+        height: 480,
         decoration: BoxDecoration(
           color: PulynColors.darkCard,
           borderRadius: BorderRadius.circular(16),
@@ -897,17 +1075,20 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
       ),
       data: (activeEvent) {
         if (activeEvent == null) {
-          return _buildMapWithCheckpoints(_getFallbackCheckpoints());
+          return _buildMapWithCheckpoints(_getFallbackCheckpoints(), []);  // ✅ Adicionado segundo arg
         }
         
         final eventoId = activeEvent['id'] as String;
         
-        // ✅ Agora busca checkpoints usando provider com cache
+        // ✅ Busca checkpoints usando provider com cache
         final checkpointsAsync = ref.watch(checkpointsByEventProvider(eventoId));
+        
+        // ✅ Zonas são do buffet (empresa), não mudam por evento
+        final zonesAsync = ref.watch(zonesProvider);
         
         return checkpointsAsync.when(
           loading: () => Container(
-            height: 380,
+            height: 480,
             decoration: BoxDecoration(
               color: PulynColors.darkCard,
               borderRadius: BorderRadius.circular(16),
@@ -918,14 +1099,19 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
             ),
           ),
           error: (error, _) {
-            return _buildMapWithCheckpoints(_getFallbackCheckpoints());
+            return _buildMapWithCheckpoints(_getFallbackCheckpoints(), []);
           },
           data: (checkpoints) {
             if (checkpoints.isEmpty) {
-              return _buildMapWithCheckpoints(_getFallbackCheckpoints());
+              return _buildMapWithCheckpoints(_getFallbackCheckpoints(), []);
             }
             
-            return _buildMapWithCheckpoints(checkpoints);
+            // ✅ Retorna também as zonas
+            return zonesAsync.when(
+              loading: () => _buildMapWithCheckpoints(checkpoints, []),
+              error: (error, _) => _buildMapWithCheckpoints(checkpoints, []),
+              data: (zones) => _buildMapWithCheckpoints(checkpoints, zones),
+            );
           },
         );
       },
@@ -1007,7 +1193,10 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
       }
     }
     
-    // ✅ Fallback: calcular pela zona
+    // ✅ Fallback: calcular pela zona (sem zonas carregadas, cai no centro do mapa)
+    if (zones.isEmpty) {
+      return {'x': 0.5, 'y': 0.5};
+    }
     final zoneName = checkpoint['zone'] ?? checkpoint['location'] ?? 'Entrada';
     final zone = zones.firstWhere(
       (z) => _normalizeZoneName(z.name) == _normalizeZoneName(zoneName),
@@ -1031,13 +1220,21 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
 
   @override
   Widget build(BuildContext context) {
+    // ✅ Recarregar a planta quando o "puxar pra atualizar"/WebSocket disparar
+    // mapRefreshProvider (zonas e checkpoints já reagem via provider próprio).
+    final refreshTick = ref.watch(mapRefreshProvider);
+    if (_lastMapRefreshTick != null && _lastMapRefreshTick != refreshTick) {
+      _floorPlanUrl = null;
+    }
+    _lastMapRefreshTick = refreshTick;
+
     // ✅ Carregar floor plan na primeira vez que o widget for construído
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_floorPlanUrl == null && widget.eventoId != null) {
+      if (_floorPlanUrl == null) {
         _loadFloorPlanFromRef();
       }
     });
-    
+
     // ✅ Usar provider com cache para evitar loading infinito
     return _buildCheckpointsFromProvider();
   }
@@ -1075,6 +1272,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
             'x': cpPos['x'] ?? 50,
             'y': cpPos['y'] ?? 50,
             'zone': checkpoint['zone'] ?? checkpoint['location'] ?? 'Checkpoint',
+            'checkpointName': checkpoint['name'],
             'hasCheckpoint': true,
           });
           
@@ -1083,27 +1281,82 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
       }
       
       // ✅ Criança sem checkpoint ainda - distribui nas zonas
-      final zoneIdx = childrenToDisplay.indexOf(child) % zones.length;
-      final zone = zones[zoneIdx];
-      const cols = 2;
-      final col = (childrenToDisplay.indexOf(child) % cols);
+      if (zones.isEmpty) {
+        // Se não tem zonas, coloca no centro
+        positions.add({
+          'child': child,
+          'x': mapWidth / 2,
+          'y': mapHeight / 2,
+          'zone': 'Centro',
+          'hasCheckpoint': false,
+        });
+      } else {
+        // ✅ Proteção extra contra divisão por zero
+        if (zones.isEmpty || childrenToDisplay.isEmpty) {
+          positions.add({
+            'child': child,
+            'x': mapWidth / 2,
+            'y': mapHeight / 2,
+            'zone': 'Centro (fallback)',
+            'hasCheckpoint': false,
+          });
+          continue;
+        }
+        
+        final zoneIdx = childrenToDisplay.indexOf(child) % zones.length;
+        final zone = zones[zoneIdx];
+        const cols = 2;
+        final col = (childrenToDisplay.indexOf(child) % cols);
 
-      final x = zone.x + zone.w * (col == 0 ? 0.3 : 0.7);
-      final y = zone.y + zone.h * (0.3 + (childrenToDisplay.indexOf(child) ~/ cols) * 0.25);
+        final x = zone.x + zone.w * (col == 0 ? 0.3 : 0.7);
+        final y = zone.y + zone.h * (0.3 + (childrenToDisplay.indexOf(child) ~/ cols) * 0.25);
 
-      positions.add({
-        'child': child,
-        'x': x,
-        'y': y,
-        'zone': zone.name,
-        'hasCheckpoint': false,
-      });
+        positions.add({
+          'child': child,
+          'x': x,
+          'y': y,
+          'zone': zone.name,
+          'hasCheckpoint': false,
+        });
+      }
     }
 
     return positions;
   }
 
-  Widget _buildMapWithCheckpoints(List<Map<String, dynamic>> checkpoints) {
+  /// Online = status "online" (igual ao AdminCheckpoints e ao backend: qualquer outro
+  /// valor, ou ausência de status, conta como offline).
+  bool _isCheckpointOnline(Map<String, dynamic> checkpoint) =>
+      '${checkpoint['status'] ?? ''}'.trim().toLowerCase() == 'online';
+
+  Widget _buildMapWithCheckpoints(
+    List<Map<String, dynamic>> checkpoints,
+    List<Map<String, dynamic>> zonesFromBackend,
+  ) {
+    // ✅ Converte zonas do backend para ZoneConfig
+    // Backend envia: {id, name, color, x, y, width, height}
+    List<ZoneConfig> convertedZones = zonesFromBackend.isEmpty
+        ? _getDefaultZones() // Fallback se vazio
+        : zonesFromBackend.map((zone) {
+            final x = double.tryParse(zone['x']?.toString() ?? '0') ?? 0;
+            final y = double.tryParse(zone['y']?.toString() ?? '0') ?? 0;
+            final w = double.tryParse((zone['width'] ?? zone['w'])?.toString() ?? '20') ?? 20;
+            final h = double.tryParse((zone['height'] ?? zone['h'])?.toString() ?? '20') ?? 20;
+            
+            log.i('🎨 [MAP] Convertendo zona: ${zone['name']} (x:$x, y:$y, w:$w, h:$h)');
+            
+            return ZoneConfig(
+              name: sanitizeUtf16((zone['name'] ?? 'Zona Desconhecida').toString()),
+              color: _getZoneColor(zone['color']),
+              x: x,
+              y: y,
+              w: w,
+              h: h,
+            );
+          }).toList();
+
+    log.i('🎨 [MAP] ✅ Zonas carregadas: ${convertedZones.length} áreas do backend');
+    
     // ✅ Watch TODOS os providers em tempo real
     final childrenRealtime = ref.watch(mapChildrenRealtimeProvider);
     final childLastCheckpoint = ref.watch(childLastCheckpointProvider);
@@ -1118,123 +1371,153 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
       childLastCheckpoint,
     );
 
+    // Checkpoints offline não aparecem no mapa do app (nem ampliam a área do mapa).
+    // A regra é a mesma do admin e do backend: só o status "online" conta como online.
+    // A posição das crianças continua usando a lista completa: se o último checkpoint
+    // de uma criança ficou offline depois, o avatar continua onde ela realmente esteve.
+    final visibleCheckpoints = checkpoints.where(_isCheckpointOnline).toList();
+
+    _world = _computeWorld(convertedZones, visibleCheckpoints, childPositions);
+
+    // 📍 Onde cada avatar deve ficar (centro do checkpoint) e animação até lá
+    final avatarTargets = _computeAvatarTargets(childPositions);
+    _syncAvatarTargets(childPositions, avatarTargets);
+
     return ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: Container(
-            height: 380, // Altura reduzida após remoção dos filtros
+            // Sem altura fixa: a área do mapa abaixo tem a proporção exata do canvas
+            // (450x320), então o mapa preenche tudo, sem faixas vazias em volta.
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: PulynColors.darkBorder),
             ),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Header com filtros
+                // Cabeçalho
                 Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
                   decoration: const BoxDecoration(
                     border: Border(
                       bottom: BorderSide(color: PulynColors.darkBorder),
                     ),
                   ),
-                  child: Column(
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Mapa do Evento',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Arraste, pince ou toque 2x para dar zoom',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: PulynColors.textMuted,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Jogo em andamento: um único selo (antes o nome aparecia duas vezes)
+                      if (widget.activeGame != null)
+                        Flexible(
+                          flex: 2,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: PulynColors.success.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: PulynColors.success.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
-                                  'Mapa Interativo',
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: PulynColors.success,
                                   ),
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  widget.activeGame != null 
-                                    ? '${widget.activeGame!['name'] ?? 'Jogo'} em andamento ⚡'
-                                    : 'Toque para interagir • Pinçar para zoom',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: PulynColors.textMuted,
-                                    fontSize: 10,
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    '${widget.activeGame!['gameName'] ?? widget.activeGame!['name'] ?? 'Jogo ativo'}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: PulynColors.success,
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          // Botão centralizar
-                          IconButton(
-                            onPressed: () {
-                              HapticFeedback.lightImpact();
-                              // Reset zoom
-                              _transformController.value = Matrix4.identity();
-                            },
-                            icon: const Icon(Icons.center_focus_strong),
-                            tooltip: 'Centralizar',
-                            iconSize: 20,
-                            color: PulynColors.textMuted,
-                          ),
-                          if (widget.activeGame != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    PulynColors.success,
-                                    PulynColors.success.withValues(alpha: 0.8),
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: PulynColors.success.withValues(alpha: 0.3),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.play_circle_filled,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    widget.activeGame!['gameName'] ?? 'Nenhum jogo ativo',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
+                        ),
+                      // Zoom e "mapa inteiro" no cabeçalho: sobre o mapa eles cobriam
+                      // e bloqueavam o toque em checkpoints do canto.
+                      _buildHeaderButton(Icons.remove, 'Afastar', () => _zoomBy(1 / 1.6)),
+                      _buildHeaderButton(Icons.add, 'Aproximar', () => _zoomBy(1.6)),
+                      _buildHeaderButton(Icons.center_focus_strong, 'Centralizar', _resetView),
                     ],
                   ),
                 ),
 
                 // Mapa interativo
-                Expanded(
-                  child: InteractiveViewer(
+                AspectRatio(
+                  aspectRatio: _world.width / _world.height,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final viewport = Size(constraints.maxWidth, constraints.maxHeight);
+                      _scheduleInitialFit(viewport);
+                      final fitScale = _fitScale(viewport);
+                      // Desloca o conteúdo: (0,0) do canvas pode não ser o canto do mundo
+                      final ox = -_world.left;
+                      final oy = -_world.top;
+                      final planAspect = _floorPlanAspect;
+                      final planRect = planAspect != null ? floorPlanRect(planAspect) : null;
+                      return Stack(
+                        children: [
+                          Positioned.fill(
+                            // Escondido só até o encaixe inicial (1 frame), para não piscar cortado
+                            child: Listener(
+                              behavior: HitTestBehavior.translucent,
+                              onPointerDown: _handlePointerDown,
+                              onPointerMove: _handlePointerMove,
+                              onPointerUp: _handlePointerUp,
+                              onPointerCancel: (_) => _releasePointer(),
+                              child: Opacity(
+                              opacity: _initialFitDone ? 1 : 0,
+                              child: InteractiveViewer(
                     transformationController: _transformController,
-                    minScale: 0.8,
-                    maxScale: 3.0,
+                    // Não deixa afastar além do "mapa inteiro" nem arrastar o mapa para fora da tela
+                    minScale: fitScale,
+                    maxScale: fitScale * _maxZoomFactor,
+                    boundaryMargin: _mapBoundary(viewport),
+                    // Tocar no mapa durante uma animação de zoom assume o controle
+                    onInteractionStart: (_) {
+                      _userMovedView = true;
+                      _viewAnimController.stop();
+                    },
                     constrained: false,
                     child: Container(
-                      width: mapWidth,
-                      height: mapHeight,
+                      width: _world.width,
+                      height: _world.height,
                       decoration: BoxDecoration(
                         color: PulynColors.darkCard.withValues(alpha: 0.3),
                         gradient: LinearGradient(
@@ -1245,58 +1528,70 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
                             const Color(0xFF2a3a4a).withValues(alpha: 0.5),
                           ],
                         ),
-                        image: _floorPlanUrl != null
-                            ? DecorationImage(
-                                image: NetworkImage(_floorPlanUrl!),
-                                fit: BoxFit.cover,
-                                opacity: 0.4,
-                              )
-                            : null,
                       ),
                       child: Stack(
                         children: [
                           // Background decorativo (padrão de piso)
-                          if (_floorPlanUrl == null)
+                          if (_floorPlanImage == null)
                             Positioned.fill(
                               child: CustomPaint(
                                 painter: _FloorPatternPainter(),
                               ),
                             ),
 
+                          // Planta baixa INTEIRA (nunca cortada), na mesma posição/tamanho do
+                          // admin e do telão — veja floorPlanRect. A caixa já tem a proporção
+                          // da imagem, então fill não distorce.
+                          if (_floorPlanImage != null && planRect != null)
+                            Positioned(
+                              left: planRect.left + ox,
+                              top: planRect.top + oy,
+                              width: planRect.width,
+                              height: planRect.height,
+                              child: Image(
+                                image: _floorPlanImage!,
+                                fit: BoxFit.fill,
+                                opacity: const AlwaysStoppedAnimation(0.4),
+                              ),
+                            ),
+
                           // Zonas background com animação
-                          ...zones.map((zone) => AnimatedBuilder(
-                            animation: _zoomAnimation,
-                            builder: (context, child) => Positioned(
-                              left: (zone.x / 100) * mapWidth,
-                              top: (zone.y / 100) * mapHeight,
-                              child: Container(
-                                width: (zone.w / 100) * mapWidth,
-                                height: (zone.h / 100) * mapHeight,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: zone.color.withValues(alpha: 0.6),
-                                    width: 2,
+                          ...convertedZones.map((zone) {
+                            log.i('🎨 [ZONES] Renderizando zona: ${zone.name} @ (${zone.x}, ${zone.y})');
+                            return AnimatedBuilder(
+                              animation: _zoomAnimation,
+                              builder: (context, child) => Positioned(
+                                left: zone.x + ox,
+                                top: zone.y + oy,
+                                child: Container(
+                                  width: zone.w,
+                                  height: zone.h,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: zone.color.withValues(alpha: 0.8),  // ✅ Aumentei alpha para 0.8
+                                      width: 2,
+                                    ),
+                                    color: zone.color.withValues(alpha: 0.2),  // ✅ Aumentei alpha para 0.2
                                   ),
-                                  color: zone.color.withValues(alpha: 0.12),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(8),
-                                  child: Text(
-                                    zone.name,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: zone.color,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8),
+                                    child: Text(
+                                      zone.name,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: zone.color,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                          )),
+                            );
+                          }),
 
                           // Checkpoints com animação e interatividade
-                          ...checkpoints.map((checkpoint) {
+                          ...visibleCheckpoints.map((checkpoint) {
                             final pos = _getCheckpointPosition(checkpoint, checkpoints);
                             final color = _getCheckpointColor(checkpoint);
                             
@@ -1307,8 +1602,13 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
                             );
 
                             return Positioned(
-                              left: (pos['x']! / 100) * mapWidth - 20,
-                              top: (pos['y']! / 100) * mapHeight - 20,
+                              // Caixa de largura FIXA (120px) centrada em map_x: o círculo
+                              // (40px) fica sempre exatamente em (map_x, map_y). Antes a caixa
+                              // crescia com o nome do checkpoint e o círculo saía deslocado pra
+                              // direita, e o avatar não cobria o checkpoint. x/y são pixels.
+                              left: pos['x']! - 60 + ox,
+                              top: pos['y']! - 20 + oy,
+                              width: 120,
                               child: GestureDetector(
                                 onTap: () => _showCheckpointDetails(checkpoint),
                                 child: AnimatedBuilder(
@@ -1370,14 +1670,6 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                               ),
-                                              Text(
-                                                '+${checkpoint['points']}pts',
-                                                style: TextStyle(
-                                                  fontSize: 9,
-                                                  color: color,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
                                             ],
                                           ),
                                         ),
@@ -1389,205 +1681,242 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
                             );
                           }),
 
-                          // 👶 Filhos no mapa com interatividade
+                          // 👶 Filhos no mapa
                           ...childPositions.map((childPos) {
                             final childData = childPos['child'] as Child;
-                            
-                            // ✅ CORREÇÃO: Usa posição animada se existir
-                            late double leftPixel;
-                            late double topPixel;
 
-                            if (_avatarPositions.containsKey(childData.id)) {
-                              // Avatar foi movido - usa posição em pixels diretamente
-                              final avatarPos = _avatarPositions[childData.id]!;
-                              leftPixel = avatarPos.x - 20; // Avatar tem 40px de largura, centraliza
-                              topPixel = avatarPos.y - 20;   // Avatar tem 40px de altura, centraliza
+                            // Centro do avatar: posição animada, ou o alvo direto no
+                            // 1º frame. x/y são PIXELS do canvas 450x320.
+                            late double centerX;
+                            late double centerY;
+                            final animated = _avatarPositions[childData.id];
+                            if (animated != null) {
+                              centerX = animated.x;
+                              centerY = animated.y;
                             } else {
-                              // Avatar não foi movido - converte percentual para pixel
-                              final xPercent = childPos['x'] as double;
-                              final yPercent = childPos['y'] as double;
-                              leftPixel = (xPercent / 100) * mapWidth - 20;
-                              topPixel = (yPercent / 100) * mapHeight - 20;
+                              final target = avatarTargets[childData.id] ??
+                                  Offset((childPos['x'] as num).toDouble(), (childPos['y'] as num).toDouble());
+                              centerX = target.dx;
+                              centerY = target.dy;
                             }
-                            
+
                             try {
                               final teamColor = Color(int.parse('0xFF${childData.teamColor.replaceFirst('#', '')}'));
-                              
+                              final displayName = childData.nickname.isNotEmpty
+                                  ? childData.nickname
+                                  : childData.name.split(' ').first;
+                              final initial = childData.nickname.isNotEmpty
+                                  ? childData.nickname[0].toUpperCase()
+                                  : childData.name[0].toUpperCase();
+                              final ringId = _arrivalRings[childData.id];
+
+                              // Caixa 40x40 centrada no checkpoint. O avatar (34px) deixa o
+                              // anel do checkpoint aparecendo em volta, e o nome fica ACIMA:
+                              // assim o rótulo do checkpoint, logo abaixo, continua tocável.
                               return Positioned(
-                                left: leftPixel,
-                                top: topPixel,
-                                child: GestureDetector(
-                                  onTap: () => _showChildDetails(childData),
-                                  child: AnimatedBuilder(
-                                    animation: _pulseAnimation, // Todas as crianças têm animação no app da família
-                                    builder: (context, child) => Transform.scale(
-                                      scale: _pulseAnimation.value,
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          // Avatar do filho melhorado
-                                          Container(
-                                            width: 40,
-                                            height: 40,
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              gradient: LinearGradient(
-                                                colors: [
-                                                  teamColor,
-                                                  teamColor.withValues(alpha: 0.7),
-                                                ],
-                                                begin: Alignment.topLeft,
-                                                end: Alignment.bottomRight,
+                                left: centerX - 20 + ox,
+                                top: centerY - 20 + oy,
+                                width: 40,
+                                height: 40,
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  alignment: Alignment.center,
+                                  children: [
+                                    // Pulso de chegada (só por ~1,5s; antes todos pulsavam para sempre)
+                                    if (ringId != null)
+                                      IgnorePointer(
+                                        child: TweenAnimationBuilder<double>(
+                                          key: ValueKey(ringId),
+                                          tween: Tween<double>(begin: 0, end: 1),
+                                          duration: const Duration(milliseconds: 1400),
+                                          curve: Curves.easeOut,
+                                          builder: (context, t, _) => Opacity(
+                                            opacity: (1 - t).clamp(0.0, 1.0),
+                                            child: Container(
+                                              width: 40 + 56 * t,
+                                              height: 40 + 56 * t,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                border: Border.all(color: teamColor, width: 3),
                                               ),
-                                              border: Border.all(
-                                                color: Colors.yellow, // Todas as crianças são "meus filhos"
-                                                width: 3,
-                                              ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: teamColor.withValues(alpha: 0.5),
-                                                  blurRadius: 12,
-                                                  spreadRadius: 2,
-                                                ),
-                                              ],
                                             ),
-                                            child: childData.profileImage != null && childData.profileImage!.isNotEmpty
-                                                ? ClipOval(
-                                                    child: Image.network(
-                                                      childData.profileImage!,
-                                                      fit: BoxFit.cover,
-                                                      errorBuilder: (context, error, stackTrace) {
-                                                        return Center(
-                                                          child: Text(
-                                                            childData.nickname.isNotEmpty
-                                                                ? childData.nickname[0].toUpperCase()
-                                                                : childData.name[0].toUpperCase(),
-                                                            style: const TextStyle(
-                                                              color: Colors.white,
-                                                              fontWeight: FontWeight.bold,
-                                                              fontSize: 16,
-                                                            ),
-                                                          ),
-                                                        );
-                                                      },
-                                                    ),
-                                                  )
-                                                : Center(
+                                          ),
+                                        ),
+                                      ),
+                                    GestureDetector(
+                                      onTap: () => _showChildDetails(childData),
+                                      child: Container(
+                                        width: 34,
+                                        height: 34,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          gradient: LinearGradient(
+                                            colors: [teamColor, teamColor.withValues(alpha: 0.7)],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
+                                          border: Border.all(color: Colors.yellow, width: 3),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: teamColor.withValues(alpha: 0.5),
+                                              blurRadius: 10,
+                                              spreadRadius: 1,
+                                            ),
+                                          ],
+                                        ),
+                                        child: childData.profileImage != null && childData.profileImage!.isNotEmpty
+                                            ? ClipOval(
+                                                child: Image.network(
+                                                  childData.profileImage!,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error, stackTrace) => Center(
                                                     child: Text(
-                                                      childData.nickname.isNotEmpty
-                                                          ? childData.nickname[0].toUpperCase()
-                                                          : childData.name[0].toUpperCase(),
+                                                      initial,
                                                       style: const TextStyle(
                                                         color: Colors.white,
                                                         fontWeight: FontWeight.bold,
-                                                        fontSize: 16,
+                                                        fontSize: 14,
                                                       ),
                                                     ),
                                                   ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          // Nome melhorado
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 3,
-                                            ),
+                                                ),
+                                              )
+                                            : Center(
+                                                child: Text(
+                                                  initial,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                              ),
+                                      ),
+                                    ),
+                                    // Nome acima do avatar
+                                    Positioned(
+                                      bottom: 42,
+                                      left: -40,
+                                      right: -40,
+                                      child: IgnorePointer(
+                                        child: Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color: PulynColors.darkCard.withValues(alpha: 0.9),
+                                              color: PulynColors.darkCard.withValues(alpha: 0.92),
                                               borderRadius: BorderRadius.circular(6),
                                               border: Border.all(
-                                                color: Colors.yellow.withValues(alpha: 0.5), // Todas são "meus filhos"
+                                                color: Colors.yellow.withValues(alpha: 0.5),
                                               ),
                                             ),
                                             child: Text(
-                                              childData.nickname.isNotEmpty
-                                                  ? childData.nickname
-                                                  : childData.name.split(' ').first,
+                                              displayName,
                                               style: const TextStyle(
                                                 fontSize: 9,
-                                                color: Colors.yellow, // Todas são "meus filhos"
+                                                color: Colors.yellow,
                                                 fontWeight: FontWeight.bold,
                                               ),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
-                                        ],
+                                        ),
                                       ),
                                     ),
-                                  ),
+                                  ],
                                 ),
                               );
                             } catch (e) {
                               return const SizedBox.shrink();
                             }
                           }),
-                          // Mini mapa de navegação no canto
-                          Positioned(
-                            top: 16,
-                            right: 16,
-                            child: Container(
-                              width: 80,
-                              height: 60,
-                              decoration: BoxDecoration(
-                                color: PulynColors.darkCard.withValues(alpha: 0.9),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: PulynColors.darkBorder),
-                              ),
-                              child: CustomPaint(
-                                painter: _MiniMapPainter(
-                                  zones: zones,
-                                  checkpoints: checkpoints,
-                                  childrenPositions: childPositions,
-                                ),
-                              ),
-                            ),
-                          ),
                         ],
                       ),
                     ),
                   ),
+                            ),
+                            ),
+                          ),
+                          // Aviso de chegada ("Lucas chegou em Torre Encantada")
+                          Positioned(
+                            left: 12,
+                            right: 12,
+                            top: 12,
+                            child: IgnorePointer(
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 250),
+                                transitionBuilder: (child, animation) => FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position: Tween<Offset>(
+                                      begin: const Offset(0, 0.3),
+                                      end: Offset.zero,
+                                    ).animate(animation),
+                                    child: child,
+                                  ),
+                                ),
+                                child: _arrivalMessage == null
+                                    ? const SizedBox.shrink(key: ValueKey('sem-aviso'))
+                                    : Container(
+                                        key: ValueKey(_arrivalMessage),
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                        decoration: BoxDecoration(
+                                          color: PulynColors.darkCard.withValues(alpha: 0.96),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: PulynColors.success.withValues(alpha: 0.6),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(
+                                              Icons.location_on,
+                                              color: PulynColors.success,
+                                              size: 18,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Flexible(
+                                              child: Text(
+                                                _arrivalMessage!,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
 
-                // Legend melhorada
+                // Legenda (uma linha compacta: sobra mais altura para o mapa)
                 Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                   decoration: const BoxDecoration(
                     border: Border(
                       top: BorderSide(color: PulynColors.darkBorder),
                     ),
                   ),
-                  child: Column(
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 16,
+                    runSpacing: 6,
                     children: [
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.info_outline,
-                            size: 16,
-                            color: PulynColors.textMuted,
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Legenda:',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: PulynColors.textMuted,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 16,
-                        runSpacing: 8,
-                        children: [
-                          _buildLegendItem('🟢 Online', PulynColors.primary),
-                          _buildLegendItem('🔴 Offline', PulynColors.danger),
-                          _buildLegendItem('✅ Conquistado', PulynColors.success),
-                          _buildLegendItem('👶 Meus Filhos', Colors.yellow),
-                        ],
-                      ),
+                      _buildLegendItem('Meus filhos', Colors.yellow),
+                      _buildLegendItem('Conquistado', PulynColors.success),
+                      _buildLegendItem('Disponível', PulynColors.primary),
                     ],
                   ),
                 ),
@@ -1618,7 +1947,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
         ),
         const SizedBox(width: 6),
         Text(
-          label.replaceAll(RegExp(r'[🟢🔴✅⭐]'), '').trim(),
+          label,
           style: const TextStyle(
             fontSize: 11,
             color: PulynColors.textMuted,
@@ -1629,60 +1958,6 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
     );
   }
 
-  /// 🎯 NOVO: Anima avatar de sua posição atual para uma nova posição
-  /// Usado pelo avatarTrackingPositionsProvider para rastreio em tempo real
-  /// Muito mais simples que _animateAvatarToCheckpoint - apenas move para coordenadas diretas
-  Future<void> _animateAvatarToPosition(String childId, double newX, double newY) async {
-    try {
-      log.i('🎬 [ANIMATE_POS] Animando $childId para ($newX, $newY)');
-      
-      // Se não existe avatar para essa criança, criar um na posição atual
-      if (!_avatarPositions.containsKey(childId)) {
-        log.i('🎬 [ANIMATE_POS] Avatar $childId não existe, criando em posição inicial');
-        _avatarPositions[childId] = AvatarPosition(
-          childId: childId,
-          childName: 'Criança',
-          teamColor: '#FFFFFF',
-          x: mapWidth / 2,
-          y: mapHeight / 2,
-        );
-      }
-      
-      final currentAvatar = _avatarPositions[childId]!;
-      final startX = currentAvatar.x;
-      final startY = currentAvatar.y;
-      
-      log.i('🎬 [ANIMATE_POS] De ($startX, $startY) para ($newX, $newY)');
-      
-      // Reset e play da animação
-      _avatarMoveController.reset();
-      await _avatarMoveController.forward();
-      
-      // Animar suavemente com Tween
-      final animationX = Tween<double>(begin: startX, end: newX).animate(
-        CurvedAnimation(parent: _avatarMoveController, curve: Curves.easeInOutCubic),
-      );
-      
-      final animationY = Tween<double>(begin: startY, end: newY).animate(
-        CurvedAnimation(parent: _avatarMoveController, curve: Curves.easeInOutCubic),
-      );
-      
-      // Listener para atualizar posição durante animação
-      _avatarMoveController.addListener(() {
-        if (mounted) {
-          setState(() {
-            currentAvatar.x = animationX.value;
-            currentAvatar.y = animationY.value;
-          });
-        }
-      });
-      
-      log.i('✅ [ANIMATE_POS] Animação concluída para $childId');
-    } catch (e, st) {
-      log.e('❌ [ANIMATE_POS] Erro ao animar: $e');
-      log.e('❌ [ANIMATE_POS] Stack: $st');
-    }
-  }
 }
 
 /// 🎨 CustomPainter para desenhar padrão de piso do buffet
@@ -1717,82 +1992,4 @@ class _FloorPatternPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_FloorPatternPainter oldDelegate) => false;
-}
-
-/// 🗺️ CustomPainter para mini mapa
-class _MiniMapPainter extends CustomPainter {
-  final List<ZoneConfig> zones;
-  final List<Map<String, dynamic>> checkpoints;
-  final List<Map<String, dynamic>> childrenPositions;
-
-  _MiniMapPainter({
-    required this.zones,
-    required this.checkpoints,
-    required this.childrenPositions,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Desenhar zonas
-    for (final zone in zones) {
-      final paint = Paint()
-        ..color = zone.color.withValues(alpha: 0.3)
-        ..style = PaintingStyle.fill;
-        
-      final rect = Rect.fromLTWH(
-        (zone.x / 100) * size.width,
-        (zone.y / 100) * size.height,
-        (zone.w / 100) * size.width,
-        (zone.h / 100) * size.height,
-      );
-      
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(2)),
-        paint,
-      );
-    }
-    
-    // Desenhar checkpoints
-    for (final checkpoint in checkpoints) {
-      final paint = Paint()
-        ..color = checkpoint['status'] == 'online' 
-          ? PulynColors.primary 
-          : PulynColors.danger
-        ..style = PaintingStyle.fill;
-        
-      // Posição simplificada para mini mapa
-      final x = (checkpoint['zone'] == 'Entrada' ? 0.4 : 
-                checkpoint['zone'] == 'Área Verde' ? 0.2 :
-                checkpoint['zone'] == 'Área Azul' ? 0.8 : 0.5) * size.width;
-      final y = size.height * 0.5;
-      
-      canvas.drawCircle(
-        Offset(x, y),
-        2,
-        paint,
-      );
-    }
-    
-    // Desenhar crianças
-    for (final child in childrenPositions) {
-      final paint = Paint()
-        ..color = Colors.yellow
-        ..style = PaintingStyle.fill;
-        
-      final x = (child['x'] as double) / 100 * size.width;
-      final y = (child['y'] as double) / 100 * size.height;
-      
-      canvas.drawCircle(
-        Offset(x, y),
-        1.5,
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_MiniMapPainter oldDelegate) => 
-    zones != oldDelegate.zones || 
-    checkpoints != oldDelegate.checkpoints ||
-    childrenPositions != oldDelegate.childrenPositions;
 }

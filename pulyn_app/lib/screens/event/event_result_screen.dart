@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
+import '../../widgets/pulyn_logo.dart';
 
 /// 🎯 FASE 4: EVENT RESULT SCREEN
 /// Mostra quando: Evento tem status 'completed' (após encerramento)
@@ -71,6 +71,7 @@ class _EventResultScreenState extends State<EventResultScreen> with TickerProvid
         title: const Text('Resultado Final'),
         elevation: 0,
         automaticallyImplyLeading: false,
+        actions: const [PulynAppBarLogo()],
       ),
       body: Stack(
         children: [
@@ -81,7 +82,7 @@ class _EventResultScreenState extends State<EventResultScreen> with TickerProvid
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Theme.of(context).primaryColor.withOpacity(0.1),
+                  Theme.of(context).primaryColor.withValues(alpha: 0.1),
                   Colors.transparent,
                 ],
               ),
@@ -204,7 +205,7 @@ class _ResultHeader extends StatelessWidget {
             gradient: LinearGradient(
               colors: [
                 Theme.of(context).primaryColor,
-                Theme.of(context).primaryColor.withOpacity(0.7),
+                Theme.of(context).primaryColor.withValues(alpha: 0.7),
               ],
             ),
             borderRadius: BorderRadius.circular(12),
@@ -242,7 +243,7 @@ class _ResultHeader extends StatelessWidget {
                 child: Text(
                   eventName,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                       ),
                 ),
               ),
@@ -279,7 +280,7 @@ class _ChildResultCard extends StatelessWidget {
       1: '🥇',
       2: '🥈',
       3: '🥉',
-    }[rank] ?? '${rank}º';
+    }[rank] ?? '$rankº';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),

@@ -1,31 +1,16 @@
-import { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  FileText, RefreshCw, Settings, Plus, ToggleLeft, ToggleRight, Trash2
+  Gamepad2, Plus, ToggleLeft, ToggleRight, Trash2
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
-import Sidebar from '../../components/layout/Sidebar';
-import TopBar from '../../components/layout/TopBar';
+import AdminSidebar from '../../components/layout/AdminSidebar';
+import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
-
-const navItems = [
-  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/admin' },
-  { icon: <Calendar size={20} />, label: 'Eventos', path: '/admin/events' },
-  { icon: <Users size={20} />, label: 'Crianças', path: '/admin/children' },
-  { icon: <Gamepad2 size={20} />, label: 'Jogos', path: '/admin/games' },
-  { icon: <MapPin size={20} />, label: 'Checkpoints', path: '/admin/checkpoints' },
-  { icon: <Map size={20} />, label: 'Mapa', path: '/admin/map' },
-  { icon: <Users size={20} />, label: 'Usuários', path: '/admin/users' },
-  { icon: <Users size={20} />, label: 'Times', path: '/admin/teams' },
-  { icon: <FileText size={20} />, label: 'Relatórios', path: '/admin/reports' },
-  { icon: <RefreshCw size={20} />, label: 'Sincronização', path: '/admin/sync' },
-  { icon: <Settings size={20} />, label: 'Configurações', path: '/admin/settings' },
-];
 
 const typeBadge: Record<string, { variant: 'primary' | 'secondary' | 'accent'; label: string }> = {
   team: { variant: 'primary', label: 'Equipe' },
@@ -34,14 +19,15 @@ const typeBadge: Record<string, { variant: 'primary' | 'secondary' | 'accent'; l
 };
 
 export default function AdminGames() {
-  const location = useLocation();
   const navigate = useNavigate();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { brincadeiras, loadBrincadeiras } = usePulynStore();
 
   const [localGames, setLocalGames] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingGameId, setDeletingGameId] = useState<string | null>(null);
+  const [togglingGameId, setTogglingGameId] = useState<string | null>(null);
+  // Trava síncrona: o estado só vale depois da próxima renderização, e um duplo clique rápido passaria.
+  const togglingRef = useRef(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Carregar brincadeiras quando o componente monta
@@ -59,14 +45,47 @@ export default function AdminGames() {
     setLocalGames(Array.isArray(brincadeiras) ? brincadeiras : []);
   }, [brincadeiras]);
 
-  const toggleGameStatus = (gameId: string) => {
-    setLocalGames(prev =>
-      prev.map(g =>
-        g.id === gameId
-          ? { ...g, status: g.status === 'active' ? 'inactive' as const : 'active' as const }
-          : g
-      )
-    );
+  // Sem status registrado, o servidor trata o jogo como ativo.
+  const isGameActive = (game: any) => String(game.status || 'active').toLowerCase() === 'active';
+
+  // Some a mensagem de sucesso sozinha; erros ficam até a próxima ação.
+  useEffect(() => {
+    if (feedback?.type !== 'success') return undefined;
+    const timer = setTimeout(() => setFeedback(null), 3500);
+    return () => clearTimeout(timer);
+  }, [feedback]);
+
+  // Ativa/desativa o jogo de verdade (salva no servidor). A tela muda na hora e
+  // volta atrás se o servidor recusar. Antes o botão só mudava o estado local,
+  // então o status não era salvo e o jogo voltava ao que estava ao recarregar.
+  const toggleGameStatus = async (game: any) => {
+    if (togglingRef.current) return;
+    togglingRef.current = true;
+    const wasActive = isGameActive(game);
+    const nextStatus = wasActive ? 'inactive' : 'active';
+
+    setTogglingGameId(game.id);
+    setFeedback(null);
+    setLocalGames(prev => prev.map(g => (g.id === game.id ? { ...g, status: nextStatus } : g)));
+    try {
+      await api.setBrincadeiraStatus(game.id, nextStatus);
+      await loadBrincadeiras();
+      setFeedback({
+        type: 'success',
+        message: `Jogo "${game.name}" ${nextStatus === 'active' ? 'ativado' : 'desativado'}.`,
+      });
+    } catch (error) {
+      setLocalGames(prev => prev.map(g => (g.id === game.id ? { ...g, status: wasActive ? 'active' : 'inactive' } : g)));
+      setFeedback({
+        type: 'error',
+        message: error instanceof Error && error.message
+          ? error.message
+          : `Não foi possível ${wasActive ? 'desativar' : 'ativar'} o jogo.`,
+      });
+    } finally {
+      togglingRef.current = false;
+      setTogglingGameId(null);
+    }
   };
 
   const handleDeleteGame = async (game: any) => {
@@ -99,17 +118,10 @@ export default function AdminGames() {
 
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">
-      <Sidebar
-        items={navItems}
-        activePath={location.pathname}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
-        title="Pulyn Admin"
-        accentColor="#1E9BD7"
-      />
+      <AdminSidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar title="Gestão do Buffet" subtitle="Jogos" />
+        <BuffetTopBar subtitle="Jogos" />
 
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
@@ -146,7 +158,8 @@ export default function AdminGames() {
             ) : localGames && localGames.length > 0 ? (
               localGames.map(game => {
                 const typeInfo = typeBadge[game.type] || { variant: 'muted' as const, label: game.type };
-                const isActive = game.status === 'active';
+                const isActive = isGameActive(game);
+                const isToggling = togglingGameId === game.id;
 
                 return (
                   <Card
@@ -167,10 +180,14 @@ export default function AdminGames() {
                           type="button"
                           onClick={e => {
                             e.stopPropagation();
-                            toggleGameStatus(game.id);
+                            void toggleGameStatus(game);
                           }}
-                          className="text-gray-400 hover:text-white transition-colors"
-                          title={isActive ? 'Desativar' : 'Ativar'}
+                          disabled={isToggling}
+                          role="switch"
+                          aria-checked={isActive}
+                          aria-label={`${isActive ? 'Desativar' : 'Ativar'} o jogo ${game.name}`}
+                          className="text-gray-400 hover:text-white transition-colors disabled:cursor-wait disabled:opacity-50"
+                          title={isToggling ? 'Salvando...' : isActive ? 'Desativar' : 'Ativar'}
                         >
                           {isActive ? (
                             <ToggleRight size={28} className="text-success" />

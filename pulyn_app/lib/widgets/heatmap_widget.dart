@@ -9,8 +9,8 @@ class CheckpointHeatmapWidget extends StatelessWidget {
 
   const CheckpointHeatmapWidget({
     required this.child,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Users, Trophy, Plus, Edit2, Trash2, Save, X, Gamepad2, Play, MapPin } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, Save, X, Gamepad2, MessageSquare, Shuffle } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -11,13 +11,12 @@ import Badge from '../../components/ui/Badge';
 import Avatar from '../../components/ui/Avatar';
 import ScoreCounter from '../../components/ui/ScoreCounter';
 import { api } from '../../services/api';
+import RandomTeamDistributionModal from '../../components/team/RandomTeamDistributionModal';
 
 const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
   { icon: <Users size={20} />, label: 'Times', path: '/game-master/teams' },
-  { icon: <Play size={20} />, label: 'Controle', path: '/game-master/control' },
-  { icon: <MapPin size={20} />, label: 'Mensagens', path: '/game-master/messages' },
-  { icon: <Trophy size={20} />, label: 'Ranking', path: '/game-master/ranking' },
+  { icon: <MessageSquare size={20} />, label: 'Mensagens', path: '/game-master/messages' },
 ];
 
 export default function GameMasterTeams() {
@@ -28,6 +27,7 @@ export default function GameMasterTeams() {
   const [editingTeam, setEditingTeam] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ name: '', color: '#1E9BD7' });
   const [showNewTeamForm, setShowNewTeamForm] = useState(false);
+  const [showDistributeModal, setShowDistributeModal] = useState(false);
   const [newTeam, setNewTeam] = useState({ name: '', color: '#1E9BD7' });
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<any[]>([]);
@@ -143,6 +143,8 @@ export default function GameMasterTeams() {
   };
 
   const safeTeams = teams || [];
+  const teamIds = new Set(safeTeams.map(team => team.id));
+  const unassignedCount = children.filter(child => !child.time_id || !teamIds.has(child.time_id)).length;
   const sortedTeams = [...safeTeams].sort((a, b) => getTeamScore(b.id) - getTeamScore(a.id));
 
   if (loading) {
@@ -182,10 +184,21 @@ export default function GameMasterTeams() {
             description="Gerencie os times da competição"
             icon={<Users size={28} />}
             action={
-              <Button variant="primary" onClick={() => setShowNewTeamForm(true)}>
-                <Plus size={16} className="mr-1.5" />
-                Novo Time
-              </Button>
+              <div className="flex gap-3">
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowDistributeModal(true)}
+                  disabled={!selectedEventId || children.length === 0}
+                  title={children.length === 0 ? 'Ainda não há participantes neste evento' : undefined}
+                >
+                  <Shuffle size={16} className="mr-1.5" />
+                  Sortear times
+                </Button>
+                <Button variant="primary" onClick={() => setShowNewTeamForm(true)}>
+                  <Plus size={16} className="mr-1.5" />
+                  Novo Time
+                </Button>
+              </div>
             }
           />
 
@@ -406,6 +419,16 @@ export default function GameMasterTeams() {
           </div>
         </div>
       </main>
+
+      <RandomTeamDistributionModal
+        isOpen={showDistributeModal}
+        onClose={() => setShowDistributeModal(false)}
+        eventoId={selectedEventId}
+        teamCount={safeTeams.length}
+        totalChildren={children.length}
+        unassignedCount={unassignedCount}
+        onDistributed={async () => { await Promise.all([loadTeams(), loadChildren()]); }}
+      />
     </div>
   );
 }

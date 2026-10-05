@@ -86,6 +86,54 @@ function getAuthHeaders() {
   }
 }
 
+async function analyticsRequest(path: string) {
+  const res = await fetch(`${API_URL}${path}`, { headers: getAuthHeaders() });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error((data && data.error) || `Erro ao carregar analytics (${res.status})`);
+  return data;
+}
+
+// Relatório geral (todos os eventos do buffet), devolvido por GET /reports/overview.
+export interface GeneralReportData {
+  totals: {
+    events: number;
+    finishedEvents: number;
+    runningEvents: number;
+    participants: number;
+    teams: number;
+    totalPoints: number;
+    avgPoints: number;
+    scorings: number;
+  };
+  events: Array<{
+    id: string; name: string; date: string; status: string;
+    participants: number; teams: number; totalPoints: number; avgPoints: number; scorings: number;
+  }>;
+  byMonth: Array<{ month: string; events: number; participants: number }>;
+  topParticipants: Array<{
+    id: string; name: string; nickname: string; age: number | null; scores: number;
+    eventName: string; teamName: string; teamColor: string;
+  }>;
+  topTeams: Array<{ id: string; name: string; color: string; points: number; eventName: string }>;
+  topCheckpoints: Array<{ id: string; name: string; zone: string; eventName: string; readings: number }>;
+  topGames: Array<{ id: string; name: string; plays: number }>;
+}
+
+// Cadastro do buffet logado: nome, e-mail, telefone, endereço e backup vêm de `clientes`; cnpj de `empresas`.
+export interface EmpresaProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  backupFrequency: string;
+  cnpj: string;
+  // Domínio dos e-mails dos usuários do buffet, derivado do nome (ex.: "buffetadv.com").
+  emailDomain: string | null;
+}
+
 export const api = {
   // ==================== AUTENTICAÇÃO ====================
   async login(email: string, password: string) {
@@ -189,6 +237,16 @@ export const api = {
       headers: getAuthHeaders(),
     });
     return res.json();
+  },
+
+  // Detalhes completos de um cliente (somente master): cadastro, plano e uso, usuários, eventos e suporte
+  async getClienteDetalhes(id: string) {
+    const res = await fetch(`${API_URL}/clientes/${encodeURIComponent(id)}/detalhes`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar detalhes do cliente (${res.status})`);
+    return data;
   },
 
   async createCliente(data: any) {
@@ -327,82 +385,30 @@ export const api = {
     }
   },
 
+  // Analytics do master: falha de rede ou da API vira erro (a tela mostra o motivo em vez de
+  // exibir gráficos vazios como se não houvesse dados).
   async getMetricsAnalytics() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/metrics`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return {};
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar métricas:', err);
-      return {};
-    }
+    return analyticsRequest('/analytics/metrics');
   },
 
   async getMRR() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/mrr`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return { mrr: 0 };
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar MRR:', err);
-      return { mrr: 0 };
-    }
+    return analyticsRequest('/analytics/mrr');
   },
 
   async getClientGrowth() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/client-growth`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return [];
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar crescimento de clientes:', err);
-      return [];
-    }
+    return analyticsRequest('/analytics/client-growth');
   },
 
   async getEventsPerMonth() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/events-per-month`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return [];
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar eventos por mês:', err);
-      return [];
-    }
+    return analyticsRequest('/analytics/events-per-month');
   },
 
   async getCheckpointsOverTime() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/checkpoints-over-time`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return [];
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar checkpoints:', err);
-      return [];
-    }
+    return analyticsRequest('/analytics/checkpoints-over-time');
   },
 
   async getRevenueByPlan() {
-    try {
-      const res = await fetch(`${API_URL}/analytics/revenue-by-plan`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return [];
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao buscar receita por plano:', err);
-      return [];
-    }
+    return analyticsRequest('/analytics/revenue-by-plan');
   },
 
   // ==================== LOGS ====================
@@ -413,11 +419,16 @@ export const api = {
     return res.json();
   },
 
-  async getScoreHistory(eventoId: string, limit = 100, brincadeiraId?: string) {
+  async getScoreHistory(eventoId: string, limit = 100, sessionId?: string) {
     let url = `${API_URL}/leituras/eventos/${encodeURIComponent(eventoId)}/historico?limit=${limit}`;
-    if (brincadeiraId) {
-      url += `&brincadeiraId=${encodeURIComponent(brincadeiraId)}`;
+
+    // 🆕 Adicionar sessionId como query param se fornecido — o backend filtra
+    // leituras.session_id por esse valor (routes/leituras.js), não por
+    // brincadeira_id, então esse é o único parâmetro que ele reconhece.
+    if (sessionId) {
+      url += `&sessionId=${encodeURIComponent(sessionId)}`;
     }
+
     const res = await fetch(url, {
       headers: getAuthHeaders(),
     });
@@ -660,8 +671,10 @@ export const api = {
     return res.json();
   },
 
-  async getFloorPlan(eventoId: string) {
-    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/floor-plan`, {
+  // Planta do buffet: fica ligada à empresa (não ao evento), já que o espaço
+  // físico não muda de uma festa para outra.
+  async getFloorPlan() {
+    const res = await fetch(`${API_URL}/company-map/floor-plan`, {
       headers: getAuthHeaders(),
     });
     const data = await res.json().catch(() => ({}));
@@ -669,8 +682,8 @@ export const api = {
     return data.floorPlan || null;
   },
 
-  async saveFloorPlan(eventoId: string, data: { dataUrl: string; name: string; type: string }) {
-    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/floor-plan`, {
+  async saveFloorPlan(data: { dataUrl: string; name: string; type: string }) {
+    const res = await fetch(`${API_URL}/company-map/floor-plan`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -680,8 +693,8 @@ export const api = {
     return response;
   },
 
-  async deleteFloorPlan(eventoId: string) {
-    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/floor-plan`, {
+  async deleteFloorPlan() {
+    const res = await fetch(`${API_URL}/company-map/floor-plan`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -696,7 +709,9 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao criar evento (${res.status})`);
+    return body;
   },
 
   async updateEvento(id: string, data: any) {
@@ -705,7 +720,53 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao atualizar evento (${res.status})`);
+    return body;
+  },
+
+  // Ciclo de vida do evento: agendado -> ativo -> encerrado
+  async startEvento(id: string) {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(id)}/start`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao iniciar evento (${res.status})`);
+    return body;
+  },
+
+  async rescheduleEvento(id: string, data: { date: string; time: string; duration?: number | null }) {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(id)}/reschedule`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao reagendar evento (${res.status})`);
+    return body;
+  },
+
+  // Reabre um evento encerrado: volta a "agendado" numa nova data e horário (no futuro)
+  async reopenEvento(id: string, data: { date: string; time: string; duration?: number | null }) {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(id)}/reopen`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao reabrir evento (${res.status})`);
+    return body;
+  },
+
+  async finishEvento(id: string) {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(id)}/finish`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao encerrar evento (${res.status})`);
+    return body;
   },
 
   async deleteEvento(id: string) {
@@ -747,6 +808,18 @@ export const api = {
     return res.json();
   },
 
+  // Ativa ou desativa um jogo (só o status)
+  async setBrincadeiraStatus(id: string, status: 'active' | 'inactive') {
+    const res = await fetch(`${API_URL}/brincadeiras/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ status }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao alterar o status do jogo (${res.status})`);
+    return data;
+  },
+
   async deleteBrincadeira(id: string) {
     const res = await fetch(`${API_URL}/brincadeiras/${id}`, {
       method: 'DELETE',
@@ -782,6 +855,16 @@ export const api = {
     return res.json();
   },
 
+  async getZoneConquestStatus(eventoId: string) {
+    const res = await fetch(`${API_URL}/leituras/${encodeURIComponent(eventoId)}/zone-conquest/status`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      throw new Error(`Erro ao consultar Zone Conquest (${res.status})`);
+    }
+    return res.json();
+  },
+
   async getGameState(eventoId: string) {
     const res = await fetch(`${API_URL}/debug/game-state/${encodeURIComponent(eventoId)}`, {
       headers: getAuthHeaders(),
@@ -802,6 +885,9 @@ export const api = {
     return data;
   },
 
+  // O modo equipe/individual do Zone Conquest não é mais enviado pelo
+  // cliente: o backend deriva isso de brincadeiras.type (escolhido no
+  // AdminGameForm ao criar o jogo), que é a fonte de verdade persistida.
   async startGame(gameId: string, gameName: string, eventoId: string) {
     const res = await fetch(`${API_URL}/debug/start-game`, {
       method: 'POST',
@@ -889,6 +975,41 @@ export const api = {
     return res.json();
   },
 
+  // Times padrão da empresa (modelos sem evento) e cópia deles para um evento.
+  async getDefaultTimes() {
+    const res = await fetch(`${API_URL}/times/padrao`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ([]));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao carregar times padrão (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async applyDefaultTimes(eventoId: string) {
+    const res = await fetch(`${API_URL}/times/eventos/${encodeURIComponent(eventoId)}/aplicar-padrao`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao aplicar times padrão (${res.status})`);
+    return data as { created: number; skipped: number };
+  },
+
+  // Sorteia as crianças do evento entre os times. 'unassigned' = só quem está sem time.
+  async distributeChildrenRandomly(eventoId: string, mode: 'unassigned' | 'all') {
+    const res = await fetch(`${API_URL}/times/eventos/${encodeURIComponent(eventoId)}/distribuir-aleatorio`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ mode }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao distribuir participantes (${res.status})`);
+    return data as {
+      mode: 'unassigned' | 'all';
+      distributed: number;
+      totalChildren: number;
+      teams: Array<{ id: string; name: string; members: number }>;
+    };
+  },
+
   async updateTime(id: string, data: any) {
     const res = await fetch(`${API_URL}/times/${id}`, {
       method: 'PUT',
@@ -907,6 +1028,14 @@ export const api = {
   },
 
   // ==================== CRIANÇAS ====================
+  // Crianças de todos os eventos do buffet (com evento e time já resolvidos)
+  async getAllCriancas() {
+    const res = await fetch(`${API_URL}/criancas`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar crianças (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
   async getCriancas(eventoId: string) {
     try {
       const res = await fetch(`${API_URL}/criancas/eventos/${eventoId}/criancas`, {
@@ -1064,6 +1193,14 @@ export const api = {
   },
 
   // ==================== CHECKPOINTS ====================
+  // Contagem de checkpoints por evento (cadastrados e online) de todos os eventos do buffet
+  async getCheckpointsSummary() {
+    const res = await fetch(`${API_URL}/checkpoints/resumo`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar resumo de checkpoints (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
   async getCheckpoints(eventoId: string) {
     try {
       const res = await fetch(`${API_URL}/checkpoints/evento/${eventoId}`, {
@@ -1176,12 +1313,70 @@ export const api = {
     return res.json();
   },
 
+  // ==================== EMPRESA (dados do próprio buffet) ====================
+  async getEmpresa() {
+    const res = await fetch(`${API_URL}/empresa/me`, { headers: getAuthHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao carregar dados do buffet (${res.status})`);
+    return body as EmpresaProfile;
+  },
+
+  // Atualiza só os campos enviados. O cadastro fica em `clientes` e o CNPJ em `empresas`.
+  async updateEmpresa(data: Partial<Pick<EmpresaProfile, 'name' | 'email' | 'phone' | 'address' | 'backupFrequency' | 'cnpj'>>): Promise<EmpresaProfile> {
+    const res = await fetch(`${API_URL}/empresa/me`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar dados do buffet (${res.status})`);
+    return body as EmpresaProfile;
+  },
+
+  // Relatório geral: totais, resumo por evento e destaques de todos os eventos do buffet.
+  async getGeneralReport(): Promise<GeneralReportData> {
+    const res = await fetch(`${API_URL}/reports/overview`, { headers: getAuthHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao carregar o relatório geral (${res.status})`);
+    return body as GeneralReportData;
+  },
+
+  // Logo/foto da unidade (guardada em `clientes`, como data URL).
+  async getEmpresaLogo(): Promise<{ dataUrl: string; name: string; type: string } | null> {
+    const res = await fetch(`${API_URL}/empresa/me/logo`, { headers: getAuthHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao carregar a logo (${res.status})`);
+    return body.logo || null;
+  },
+
+  async saveEmpresaLogo(data: { dataUrl: string; name: string }) {
+    const res = await fetch(`${API_URL}/empresa/me/logo`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar a logo (${res.status})`);
+    return body;
+  },
+
+  async deleteEmpresaLogo() {
+    const res = await fetch(`${API_URL}/empresa/me/logo`, { method: 'DELETE', headers: getAuthHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao remover a logo (${res.status})`);
+    return body;
+  },
+
   // ==================== SETTINGS ====================
-  async getSettings() {
+  // Retorna as configurações do buffet como objeto { chave: valor }.
+  async getSettings(): Promise<Record<string, string>> {
     const res = await fetch(`${API_URL}/settings`, {
       headers: getAuthHeaders(),
     });
-    return res.json();
+    const body = await res.json().catch(() => ([]));
+    if (!res.ok) throw new Error((body as any).error || `Erro ao carregar configurações (${res.status})`);
+    const rows: Array<{ setting_key: string; setting_value: string | null }> = Array.isArray(body) ? body : [];
+    return Object.fromEntries(rows.map(row => [row.setting_key, row.setting_value ?? '']));
   },
 
   async getSetting(key: string) {
@@ -1197,7 +1392,9 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify({ value }),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar configuração (${res.status})`);
+    return body;
   },
 
   async updateSettings(settings: Record<string, string>) {
@@ -1206,7 +1403,9 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(settings),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar configurações (${res.status})`);
+    return body;
   },
 
   // ==================== USUÁRIOS (LOGINS) ====================
@@ -1308,18 +1507,18 @@ export const api = {
     }
   },
 
-  // ==================== ZONAS DO MAPA ====================
-  async getZones(eventoId: string) {
+  // ==================== ZONAS DO MAPA (por buffet, não por evento) ====================
+  async getZones() {
     try {
-      const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/zones`, {
+      const res = await fetch(`${API_URL}/company-map/zones`, {
         headers: getAuthHeaders(),
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `Erro ao carregar zonas (${res.status})`);
       }
-      
+
       return res.json();
     } catch (error) {
       console.error('❌ Erro ao carregar zonas:', error);
@@ -1327,22 +1526,256 @@ export const api = {
     }
   },
 
-  async saveZones(eventoId: string, zones: any[]) {
+  async saveZones(zones: any[]) {
     try {
-      const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/zones`, {
+      const res = await fetch(`${API_URL}/company-map/zones`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ zones }),
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `Erro ao salvar zonas (${res.status})`);
       }
-      
+
       return res.json();
     } catch (error) {
       console.error('❌ Erro ao salvar zonas:', error);
+      throw error;
+    }
+  },
+
+  // ==================== ZONE CONQUEST STATE ====================
+  
+  /**
+   * Inicializa os estados de checkpoint e zona para uma nova partida
+   */
+  async initializeZoneConquestState(
+    eventoId: string,
+    partidaId: string,
+    empresaId: string,
+    gameType: 'team' | 'individual' = 'team'
+  ) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/initialize/${encodeURIComponent(eventoId)}/${encodeURIComponent(partidaId)}?gameType=${gameType}`,
+        {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ empresaId }),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao inicializar zone conquest state (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao inicializar zone conquest state:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Recupera todos os estados de checkpoint para uma partida
+   */
+  async getCheckpointStates(eventoId: string, partidaId: string) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/checkpoint-states/${encodeURIComponent(eventoId)}/${encodeURIComponent(partidaId)}`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao carregar checkpoint states (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao carregar checkpoint states:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Recupera estado de um checkpoint específico
+   */
+  async getCheckpointState(eventoId: string, checkpointId: string, partidaId: string) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/checkpoint-state/${encodeURIComponent(eventoId)}/${encodeURIComponent(checkpointId)}/${encodeURIComponent(partidaId)}`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao carregar checkpoint state (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao carregar checkpoint state:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Atualiza o estado de um checkpoint
+   */
+  async updateCheckpointState(stateId: string, updates: any) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/checkpoint-state/${encodeURIComponent(stateId)}`,
+        {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(updates),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao atualizar checkpoint state (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao atualizar checkpoint state:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Recupera todos os estados de zona para uma partida
+   */
+  async getZoneStates(eventoId: string, partidaId: string) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/zone-states/${encodeURIComponent(eventoId)}/${encodeURIComponent(partidaId)}`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao carregar zone states (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao carregar zone states:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Recupera estado de uma zona específica
+   */
+  async getZoneState(eventoId: string, zoneId: string, partidaId: string) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/zone-state/${encodeURIComponent(eventoId)}/${encodeURIComponent(zoneId)}/${encodeURIComponent(partidaId)}`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao carregar zone state (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao carregar zone state:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Atualiza o estado de uma zona
+   */
+  async updateZoneState(stateId: string, updates: any) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/zone-state/${encodeURIComponent(stateId)}`,
+        {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(updates),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao atualizar zone state (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao atualizar zone state:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Recupera todas as partidas TEAM para um evento
+   */
+  async getZoneConquestTeamPartidas(eventoId: string) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/team-partidas/${encodeURIComponent(eventoId)}`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao carregar partidas TEAM (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao carregar partidas TEAM:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Recupera todas as partidas INDIVIDUAL para um evento
+   */
+  async getZoneConquestIndividualPartidas(eventoId: string) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/individual-partidas/${encodeURIComponent(eventoId)}`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao carregar partidas INDIVIDUAL (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao carregar partidas INDIVIDUAL:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Limpa todos os estados de uma partida
+   */
+  async clearZoneConquestState(eventoId: string, partidaId: string) {
+    try {
+      const res = await fetch(
+        `${API_URL}/zone-conquest/clear/${encodeURIComponent(eventoId)}/${encodeURIComponent(partidaId)}`,
+        {
+          method: 'DELETE',
+          headers: getAuthHeaders(),
+        }
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ao limpar zone conquest state (${res.status})`);
+      }
+      return res.json();
+    } catch (error) {
+      console.error('❌ Erro ao limpar zone conquest state:', error);
       throw error;
     }
   },

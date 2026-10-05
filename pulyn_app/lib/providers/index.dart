@@ -1,6 +1,7 @@
 // Providers locais definidos aqui
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'auth_provider.dart';
 import 'websocket_provider.dart';
 import '../models/family_models.dart';
@@ -12,7 +13,7 @@ export 'websocket_provider.dart' show webSocketConnectionProvider, webSocketServ
 export 'events_provider.dart' show currentEventProvider, upcomingEventsProvider, eventDetailsProvider, eventResultsProvider, certificateProvider;
 
 // ✅ Exporta providers locais
-export 'index.dart' show activeEventProvider, activeGameProvider, mapChildrenRealtimeProvider, checkpointsByEventProvider, checkpointsCacheProvider, mapRefreshProvider, scoreLogProvider, childLastCheckpointProvider;
+export 'index.dart' show activeEventProvider, activeGameProvider, mapChildrenRealtimeProvider, checkpointsByEventProvider, zonesProvider, checkpointsCacheProvider, mapRefreshProvider, scoreLogProvider, childLastCheckpointProvider;
 
 // ✅ Provider para evento ativo (StreamProvider com polling a cada 5 segundos)
 // MUDADO DE FutureProvider PARA StreamProvider para refetch automático!
@@ -187,35 +188,57 @@ final scoreLogProvider = StreamProvider.autoDispose<List<Map<String, dynamic>>>(
 });
 
 /// Provider que calcula o ÚLTIMO checkpoint conquistado de cada criança
+///
+/// ✅ Combina duas fontes:
+/// 1. scoreLogProvider (histórico via `pontuacoes`, alimentado por polling) —
+///    hoje só é gravado pelo fluxo de Zona (Zone Conquest).
+/// 2. realtimeCheckpointTrackingProvider (leituras via WebSocket
+///    TERRITORY_CONQUERED) — o backend já dispara esse evento para os 3
+///    jogos (Zona, Caça ao Tesouro, Caça ao Monstro), então é essa fonte
+///    que faz o rastreio funcionar em todos os jogos, não só na Zona.
 final childLastCheckpointProvider = Provider.autoDispose<Map<String, Map<String, dynamic>>>((ref) {
   final scoreLogAsync = ref.watch(scoreLogProvider);
-  
-  return scoreLogAsync.whenData((scoreLog) {
-    final lastCheckpointMap = <String, Map<String, dynamic>>{};
-    
-    if (scoreLog.isEmpty) {
-      return lastCheckpointMap;
-    }
-    
-    // Inverte a lista (mais recentes primeiro)
-    final sorted = [...scoreLog].reversed.toList();
-    
+  final realtimeTracking = ref.watch(realtimeCheckpointTrackingProvider);
+
+  final lastCheckpointMap = <String, Map<String, dynamic>>{};
+  final scoreLog = scoreLogAsync.value ?? [];
+
+  if (scoreLog.isNotEmpty) {
+    // Mais recentes primeiro. O backend já devolve em ordem decrescente de
+    // created_at; inverter a lista (como era feito) fazia a criança voltar ao
+    // checkpoint MAIS ANTIGO ao reabrir o app. Ordena explicitamente.
+    DateTime createdAt(Map<String, dynamic> e) =>
+        DateTime.tryParse('${e['created_at'] ?? e['createdAt'] ?? ''}') ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+    final sorted = [...scoreLog]..sort((a, b) => createdAt(b).compareTo(createdAt(a)));
+
     for (final entry in sorted) {
       try {
         // ✅ Tentar TODOS os possíveis nomes de campo
         String? childId;
-        if (entry.containsKey('child_id')) childId = entry['child_id'] as String?;
-        else if (entry.containsKey('childId')) childId = entry['childId'] as String?;
-        else if (entry.containsKey('crianca_id')) childId = entry['crianca_id'] as String?;
+        if (entry.containsKey('child_id')) {
+          childId = entry['child_id'] as String?;
+        } else if (entry.containsKey('childId')) {
+          childId = entry['childId'] as String?;
+        } else if (entry.containsKey('crianca_id')) {
+          childId = entry['crianca_id'] as String?;
+        }
         
         String? checkpointId;
-        if (entry.containsKey('checkpoint_id')) checkpointId = entry['checkpoint_id'] as String?;
-        else if (entry.containsKey('checkpointId')) checkpointId = entry['checkpointId'] as String?;
-        else if (entry.containsKey('checkpoint')) checkpointId = entry['checkpoint'] as String?;
+        if (entry.containsKey('checkpoint_id')) {
+          checkpointId = entry['checkpoint_id'] as String?;
+        } else if (entry.containsKey('checkpointId')) {
+          checkpointId = entry['checkpointId'] as String?;
+        } else if (entry.containsKey('checkpoint')) {
+          checkpointId = entry['checkpoint'] as String?;
+        }
         
         String? checkpointName;
-        if (entry.containsKey('checkpoint_name')) checkpointName = entry['checkpoint_name'] as String?;
-        else if (entry.containsKey('checkpointName')) checkpointName = entry['checkpointName'] as String?;
+        if (entry.containsKey('checkpoint_name')) {
+          checkpointName = entry['checkpoint_name'] as String?;
+        } else if (entry.containsKey('checkpointName')) {
+          checkpointName = entry['checkpointName'] as String?;
+        }
         
         if (childId == null) {
           continue;
@@ -238,9 +261,21 @@ final childLastCheckpointProvider = Provider.autoDispose<Map<String, Map<String,
         // sem log
       }
     }
-    
-    return lastCheckpointMap;
-  }).value ?? {};
+  }
+
+  // ✅ Sobrepõe com leituras em tempo real via WebSocket. Cobre Caça ao
+  // Tesouro e Caça ao Monstro, que hoje não gravam em `pontuacoes` (fonte
+  // usada acima) — sem isso, o avatar só se movia no jogo Zona.
+  realtimeTracking.forEach((childId, reading) {
+    lastCheckpointMap[childId] = {
+      'checkpointId': reading.checkpointId,
+      'checkpointName': reading.checkpointName,
+      'timestamp': reading.timestamp.toIso8601String(),
+      'points': reading.points,
+    };
+  });
+
+  return lastCheckpointMap;
 });
 
 /// Provider para cache de checkpoints por evento
@@ -278,7 +313,9 @@ final checkpointsByEventProvider = FutureProvider.family<List<Map<String, dynami
   final apiService = ref.read(apiServiceProvider);
   await apiService.init();
   
+  log.i('[CHECKPOINTS] 🔄 Buscando checkpoints para evento: $eventoId');
   final checkpoints = await apiService.getCheckpointsByEvent(eventoId);
+  log.i('[CHECKPOINTS] ✅ Retorno da API: ${checkpoints.length} checkpoints');
   
   // Salva no cache
   ref.read(checkpointsCacheProvider.notifier).setCheckpoints(eventoId, checkpoints);
@@ -286,6 +323,87 @@ final checkpointsByEventProvider = FutureProvider.family<List<Map<String, dynami
   return checkpoints;
 });
 
+/// Provider para buscar zonas (áreas) do buffet no backend.
+/// As zonas são do espaço físico do buffet, não do evento — por isso não
+/// variam por eventoId (diferente de checkpointsByEventProvider).
+final zonesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  try {
+    // ✅ Mesmo gatilho de "puxar pra atualizar"/WebSocket do resto do mapa.
+    ref.watch(mapRefreshProvider);
+
+    final apiService = ref.read(apiServiceProvider);
+    await apiService.init();
+
+    log.i('[ZONES] 🔄 Buscando zonas do buffet no backend');
+
+    try {
+      final zones = await apiService.getZones();
+
+      if (zones.isNotEmpty) {
+        log.i('[ZONES] ✅ Zonas carregadas do backend: ${zones.length} áreas');
+        // Atualizar cache
+        await _cacheZonesToStorage(apiService, zones);
+        return zones;
+      } else {
+        log.i('[ZONES] 📝 Nenhuma zona no backend');
+        // Tentar cache
+        final cached = await _loadZonesFromStorage(apiService);
+        if (cached.isNotEmpty) {
+          log.i('[ZONES] ✅ Zonas carregadas do cache: ${cached.length} áreas');
+          return cached;
+        }
+        return [];
+      }
+    } catch (apiError) {
+      log.w('[ZONES] ⚠️ Erro ao chamar API: $apiError');
+      // Tentar cache quando API falha
+      final cached = await _loadZonesFromStorage(apiService);
+      if (cached.isNotEmpty) {
+        log.i('[ZONES] ✅ Zonas carregadas do cache (fallback após erro): ${cached.length} áreas');
+        return cached;
+      }
+      return [];
+    }
+  } catch (e, st) {
+    log.e('[ZONES] ❌ Erro ao carregar zonas: $e');
+    log.e('[ZONES] Stack: $st');
+    return [];
+  }
+});
+
+const _zonesCacheKey = 'zones_company';
+
+/// Carrega zonas do cache (SharedPreferences)
+Future<List<Map<String, dynamic>>> _loadZonesFromStorage(dynamic apiService) async {
+  try {
+    final stored = apiService.prefs.getString(_zonesCacheKey);
+
+    if (stored != null) {
+      final zones = (jsonDecode(stored) as List)
+          .map((z) => Map<String, dynamic>.from(z as Map))
+          .toList();
+      log.i('[ZONES] 📦 Zonas do cache: ${zones.length} áreas');
+      return zones;
+    }
+  } catch (e) {
+    log.w('[ZONES] ⚠️ Erro ao carregar cache: $e');
+  }
+  return [];
+}
+
+/// Salva zonas no cache (SharedPreferences)
+Future<void> _cacheZonesToStorage(
+  dynamic apiService,
+  List<Map<String, dynamic>> zones,
+) async {
+  try {
+    final zonesJson = jsonEncode(zones);
+    await apiService.prefs.setString(_zonesCacheKey, zonesJson);
+    log.i('[ZONES] 📦 Zonas cacheadas com sucesso');
+  } catch (e) {
+    log.w('[ZONES] ⚠️ Erro ao cachear zonas: $e');
+  }
+}
 
 // ✅ Provider para rastreamento em TEMPO REAL via WebSocket
 // Escuta eventos de SCORE_UPDATE e atualiza posições de crianças instantaneamente
@@ -298,14 +416,17 @@ final realtimeCheckpointTrackingProvider = StateNotifierProvider<RealtimeTrackin
     
     // Escuta evento SCORE_UPDATE quando criança lê uma pulseira
     webSocketService.on('SCORE_UPDATE', (data) {
-      log.i('⚡ PULSEIRA LIDA - Criança: ${data['child_name'] ?? 'N/A'} | Checkpoint: ${data['checkpoint_name'] ?? 'N/A'} | Pontos: ${data['points'] ?? 0}');
-      
+      // ✅ O WebSocketService entrega a mensagem inteira ({type, payload}),
+      // não só o payload — os campos ficam dentro de data['payload'].
+      final payload = (data['payload'] as Map?)?.cast<String, dynamic>() ?? data;
+      log.i('⚡ PULSEIRA LIDA - Criança: ${payload['child_name'] ?? payload['criancaName'] ?? 'N/A'} | Checkpoint: ${payload['checkpoint_name'] ?? payload['checkpointName'] ?? 'N/A'} | Pontos: ${payload['points'] ?? 0}');
+
       try {
-        final childId = data['child_id'] ?? data['childId'];
-        final checkpointId = data['checkpoint_id'] ?? data['checkpointId'] ?? data['checkpoint'];
-        final checkpointName = data['checkpoint_name'] ?? data['checkpointName'] ?? '';
-        final points = data['points'] ?? 0;
-        
+        final childId = payload['criancaId'] ?? payload['crianca_id'] ?? payload['child_id'] ?? payload['childId'];
+        final checkpointId = payload['checkpointId'] ?? payload['checkpoint_id'] ?? payload['checkpoint'];
+        final checkpointName = payload['checkpointName'] ?? payload['checkpoint_name'] ?? '';
+        final points = payload['points'] ?? 0;
+
         if (childId != null && checkpointId != null) {
           notifier.updateChildCheckpoint(
             childId.toString(),
@@ -318,23 +439,29 @@ final realtimeCheckpointTrackingProvider = StateNotifierProvider<RealtimeTrackin
         // erro silencioso
       }
     });
-    
-    // Escuta evento TERRITORY_CONQUERED (zona conquistada)
-    webSocketService.on('TERRITORY_CONQUERED', (data) {
-      log.i('🏆 TERRITÓRIO CONQUISTADO - Time: ${data['teamName'] ?? 'N/A'} | Checkpoint: ${data['checkpoint_name'] ?? 'N/A'}');
-      
+
+    // Escuta CHILD_CHECKPOINT_PASSED. Enviado pelo backend em TODOS os jogos
+    // (Zona, Zone Conquest equipe/individual, Caça ao Tesouro, Caça ao
+    // Monstro) sempre que a criança passa por um checkpoint. Não usar
+    // TERRITORY_CONQUERED aqui: ele não é enviado pelos modos Zone Conquest.
+    webSocketService.on('CHILD_CHECKPOINT_PASSED', (data) {
+      // ✅ Mesmo bug do SCORE_UPDATE: os campos vêm dentro de data['payload'].
+      final payload = (data['payload'] as Map?)?.cast<String, dynamic>() ?? data;
+      log.i('🏆 TERRITÓRIO CONQUISTADO - Criança: ${payload['criancaName'] ?? 'N/A'} | Checkpoint: ${payload['checkpointId'] ?? 'N/A'}');
+
       try {
-        final childId = data['crianca_id'] ?? data['child_id'] ?? data['childId'];
-        final checkpointId = data['checkpoint_id'] ?? data['checkpointId'];
-        final checkpointName = data['checkpoint_name'] ?? data['checkpointName'] ?? '';
-        final teamColor = data['teamColor'] ?? '#FFFFFF';
-        
+        final childId = payload['criancaId'] ?? payload['crianca_id'] ?? payload['child_id'] ?? payload['childId'];
+        final checkpointId = payload['checkpointId'] ?? payload['checkpoint_id'];
+        final checkpointName = payload['checkpointName'] ?? payload['checkpoint_name'] ?? '';
+        final teamColor = payload['teamColor'] ?? '#FFFFFF';
+        final points = payload['points'] ?? 10;
+
         if (childId != null && checkpointId != null) {
           notifier.updateChildCheckpoint(
             childId.toString(),
             checkpointId.toString(),
             checkpointName.toString(),
-            10, // default points
+            points is num ? points.toInt() : 10,
             teamColor: teamColor.toString(),
           );
         }
@@ -407,123 +534,3 @@ class RealtimeTrackingNotifier extends StateNotifier<Map<String, CheckpointReadi
     }
   }
 }
-
-
-/// 🎯 PROVIDER PARA RASTREIO: Calcula posições de avatares baseado em scoreLog
-/// 
-/// Regra: Avatar é posicionado no último checkpoint que a criança conquistou
-/// Aplicável para: Zone Conquest, Treasure Hunt, Monster Hunt
-final avatarTrackingPositionsProvider = Provider.autoDispose<Map<String, Map<String, dynamic>>>((ref) {
-  final childrenAsync = ref.watch(mapChildrenRealtimeProvider);
-  final scoreLogAsync = ref.watch(scoreLogProvider);
-  final checkpointsAsync = ref.watch(checkpointsByEventProvider(ref.watch(activeEventProvider).value?['id'] as String? ?? ''));
-  
-  return childrenAsync.whenData((children) {
-    return scoreLogAsync.whenData((scoreLog) {
-      return checkpointsAsync.whenData((checkpoints) {
-        final positions = <String, Map<String, dynamic>>{};
-        
-        log.i('[TRACKING] 🎯 Calculando posições para ${children.length} crianças');
-        log.i('[TRACKING] 📊 Histórico de checkpoints: ${scoreLog.length} leituras');
-        
-        // Step 1: Encontrar último checkpoint de cada criança
-        final childLastCheckpoint = <String, Map<String, dynamic>>{};
-        
-        // Ordenar scoreLog por data (mais recentes primeiro)
-        final sorted = [...scoreLog];
-        sorted.sort((a, b) {
-          final aTime = DateTime.tryParse(a['timestamp']?.toString() ?? a['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
-          final bTime = DateTime.tryParse(b['timestamp']?.toString() ?? b['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
-          return bTime.compareTo(aTime);
-        });
-        
-        for (final entry in sorted) {
-          final childId = entry['childId'] ?? entry['child_id'];
-          if (childId == null || childLastCheckpoint.containsKey(childId)) continue;
-          
-          final checkpointId = entry['checkpointId'] ?? entry['checkpoint_id'] ?? entry['checkpoint'];
-          final checkpointName = entry['checkpointName'] ?? entry['checkpoint_name'] ?? 'Checkpoint';
-          
-          if (checkpointId != null) {
-            // Buscar coordenadas do checkpoint
-            final checkpoint = checkpoints.firstWhere(
-              (cp) => cp['id'].toString() == checkpointId.toString(),
-              orElse: () => <String, dynamic>{},
-            );
-            
-            childLastCheckpoint[childId] = {
-              'checkpointId': checkpointId,
-              'checkpointName': checkpointName,
-              'mapX': checkpoint['map_x'] ?? checkpoint['mapX'],
-              'mapY': checkpoint['map_y'] ?? checkpoint['mapY'],
-            };
-          }
-        }
-        
-        log.i('[TRACKING] ✅ Último checkpoint encontrado para ${childLastCheckpoint.length} crianças');
-        
-        // Step 2: Calcular posição de cada criança
-        final checkpointSlots = <String, int>{}; // Conta quantas crianças já estão em cada checkpoint
-        
-        for (final child in children) {
-          final lastInfo = childLastCheckpoint[child.id];
-          
-          if (lastInfo != null && lastInfo['mapX'] != null && lastInfo['mapY'] != null) {
-            // Avatar vai para o checkpoint
-            final baseX = (lastInfo['mapX'] as num).toDouble();
-            final baseY = (lastInfo['mapY'] as num).toDouble();
-            final slot = checkpointSlots[lastInfo['checkpointId']] ?? 0;
-            checkpointSlots[lastInfo['checkpointId']] = slot + 1;
-            
-            // Distribuir avatares em volta do checkpoint (não sobrepor)
-            final offsets = [-35.0, 0.0, 35.0];
-            final offsetX = offsets[slot % offsets.length];
-            final row = (slot / 3).floor();
-            
-            positions[child.id] = {
-              'x': baseX + offsetX,
-              'y': baseY + 68 + (row * 50),
-              'checkpointId': lastInfo['checkpointId'],
-              'checkpointName': lastInfo['checkpointName'],
-            };
-            
-            log.i('[TRACKING] 📍 ${child.nickname}: checkpoint=${lastInfo['checkpointName']} @ (${baseX + offsetX}, ${baseY + 68 + (row * 50)})');
-          } else {
-            // Se não tem leitura, coloca em posição padrão (centro do mapa)
-            positions[child.id] = {
-              'x': 225.0, // Centro da largura (450/2)
-              'y': 160.0, // Centro da altura (320/2)
-              'checkpointId': null,
-              'checkpointName': 'Centro',
-            };
-            
-            log.i('[TRACKING] 📍 ${child.nickname}: sem leitura, posicionado no centro');
-          }
-        }
-        
-        log.i('[TRACKING] ✅ Posições calculadas para ${positions.length} crianças');
-        return positions;
-      }).value ?? {};
-    }).value ?? {};
-  }).value ?? {};
-});
-
-/// Provider que retorna posições em tempo real quando scoreLog muda
-/// (dispara recalcuação automática)
-final liveAvatarPositionsProvider = StreamProvider.autoDispose<Map<String, Map<String, dynamic>>>((ref) async* {
-  // Emitir valor inicial
-  final initialPositions = ref.read(avatarTrackingPositionsProvider);
-  yield initialPositions;
-  
-  // Escutar mudanças no scoreLog
-  ref.listen(scoreLogProvider, (previous, next) {
-    log.i('[TRACKING] 🔄 scoreLog mudou, recalculando posições...');
-  });
-  
-  // Polling periódico para garantir sincronização
-  while (true) {
-    await Future.delayed(const Duration(seconds: 2));
-    final positions = ref.read(avatarTrackingPositionsProvider);
-    yield positions;
-  }
-});

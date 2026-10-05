@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../widgets/pulyn_logo.dart';
+import '../qr_scan/open_qr_scanner.dart';
 
 /// 🎯 FASE 2: PRÉ-FESTA SCREEN
 /// Mostra quando: Evento tem status 'scheduled' (antes de iniciar)
@@ -84,6 +86,7 @@ class _PreEventScreenState extends State<PreEventScreen> {
       appBar: AppBar(
         title: const Text('Festa'),
         elevation: 0,
+        actions: const [PulynAppBarLogo()],
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -131,9 +134,19 @@ class _PreEventScreenState extends State<PreEventScreen> {
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    context.push('/qr-scan');
-                  },
+                  // Antes chamava context.push('/qr-scan'), uma rota que não existe no app
+                  onPressed: () => openQrScanner(
+                    context,
+                    onChildLinked: () {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Criança vinculada!'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                  ),
                   icon: const Icon(Icons.qr_code),
                   label: const Text('Vincular Mais Filhos'),
                 ),
@@ -146,8 +159,8 @@ class _PreEventScreenState extends State<PreEventScreen> {
                   height: 48,
                   child: ElevatedButton.icon(
                     onPressed: () {
-                      // Vai para Event Live Map (Fase 3)
-                      context.pushReplacement('/event-map');
+                      // O mapa ao vivo (Fase 3) fica na Home
+                      context.go('/home');
                     },
                     icon: const Icon(Icons.play_arrow),
                     label: const Text('Entrar na Festa'),
@@ -182,7 +195,7 @@ class _EventHeaderCard extends StatelessWidget {
         gradient: LinearGradient(
           colors: [
             Theme.of(context).primaryColor,
-            Theme.of(context).primaryColor.withOpacity(0.8),
+            Theme.of(context).primaryColor.withValues(alpha: 0.8),
           ],
         ),
         borderRadius: BorderRadius.circular(12),
@@ -364,7 +377,7 @@ class _ChildCard extends StatelessWidget {
             width: 50,
             height: 50,
             decoration: BoxDecoration(
-              color: teamColor != null ? Color(int.parse('0xff${teamColor.replaceFirst('#', '')}')).withOpacity(0.2) : Colors.grey.shade200,
+              color: teamColor != null ? Color(int.parse('0xff${teamColor.replaceFirst('#', '')}')).withValues(alpha: 0.2) : Colors.grey.shade200,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(

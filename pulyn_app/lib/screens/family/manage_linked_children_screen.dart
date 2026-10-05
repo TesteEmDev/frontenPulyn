@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../models/family_models.dart';
 import '../../services/api_service.dart';
 import '../../config/theme.dart';
@@ -67,9 +68,15 @@ class _ManageLinkedChildrenScreenState
     final childrenAsyncValue = ref.watch(linkedChildrenProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Gerenciar Crianças'),
+         appBar: AppBar(
+        title: const Text('Gerenciar Crianças Vinculadas'),
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          // Se a tela foi aberta com context.go() não há rota anterior para
+          // dar pop — nesse caso volta pra home em vez de não fazer nada.
+          onPressed: () => context.canPop() ? context.pop() : context.go('/home'),
+        ),
       ),
       body: childrenAsyncValue.when(
         loading: () => const Center(

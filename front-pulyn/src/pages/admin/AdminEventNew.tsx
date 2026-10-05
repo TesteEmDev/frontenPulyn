@@ -1,31 +1,17 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
-  LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  FileText, RefreshCw, Settings, Check, ChevronLeft, ChevronRight
+  Check, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
-import Sidebar from '../../components/layout/Sidebar';
+import AdminSidebar from '../../components/layout/AdminSidebar';
 import TopBar from '../../components/layout/TopBar';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
-
-const navItems = [
-  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/admin' },
-  { icon: <Calendar size={20} />, label: 'Eventos', path: '/admin/events' },
-  { icon: <Users size={20} />, label: 'Crianças', path: '/admin/children' },
-  { icon: <Gamepad2 size={20} />, label: 'Jogos', path: '/admin/games' },
-  { icon: <MapPin size={20} />, label: 'Checkpoints', path: '/admin/checkpoints' },
-  { icon: <Map size={20} />, label: 'Mapa', path: '/admin/map' },
-  { icon: <Users size={20} />, label: 'Usuários', path: '/admin/users' },
-  { icon: <Users size={20} />, label: 'Times', path: '/admin/teams' },
-  { icon: <FileText size={20} />, label: 'Relatórios', path: '/admin/reports' },
-  { icon: <RefreshCw size={20} />, label: 'Sincronização', path: '/admin/sync' },
-  { icon: <Settings size={20} />, label: 'Configurações', path: '/admin/settings' },
-];
+import TimeInput from '../../components/ui/TimeInput';
 
 const steps = [
   { number: 1, label: 'Informações' },
@@ -35,12 +21,16 @@ const steps = [
 
 export default function AdminEventNew() {
   const navigate = useNavigate();
+  const { id: editingId } = useParams<{ id: string }>();
+  const isEditing = Boolean(editingId);
   const auth = useAuth();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [brincadeiras, setBrincadeiras] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  // Na edição, os jogos atuais do evento precisam ter sido carregados para a lista poder ser enviada:
+  // se falhar, os jogos do evento ficam como estão em vez de serem apagados por engano.
+  const [gamesLoaded, setGamesLoaded] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -49,6 +39,9 @@ export default function AdminEventNew() {
     duration: '120',
     enableDisplay: true,
     enableLocation: false,
+    responsibleName: '',
+    autoStart: true,
+    autoEnd: true,
     selectedGames: [] as string[],
   });
 
@@ -59,6 +52,38 @@ export default function AdminEventNew() {
         // Buscar brincadeiras da API
         const brincadeirasData = await api.getBrincadeiras();
         setBrincadeiras(brincadeirasData);
+
+        // Edição: carrega o evento existente no formulário
+        if (editingId) {
+          const evento = await api.getEvento(editingId);
+          if (!evento || evento.error || !evento.id) {
+            alert('Evento não encontrado.');
+            navigate('/admin/events');
+            return;
+          }
+          setFormData(prev => ({
+            ...prev,
+            name: evento.name || '',
+            description: evento.description || '',
+            date: String(evento.date || '').split('T')[0],
+            time: String(evento.time || '').slice(0, 5),
+            duration: String(evento.duration || 120),
+            enableDisplay: Boolean(evento.enable_display),
+            enableLocation: Boolean(evento.enable_location),
+            responsibleName: evento.responsible_name || '',
+            autoStart: Boolean(evento.auto_start),
+            autoEnd: Boolean(evento.auto_end),
+          }));
+
+          // Jogos que já fazem parte do evento vêm marcados
+          try {
+            const eventGames = await api.getBrincadeiras(editingId);
+            setFormData(prev => ({ ...prev, selectedGames: eventGames.map((game: any) => String(game.id)) }));
+          } catch (gamesError) {
+            console.error('Erro ao carregar os jogos do evento:', gamesError);
+            setGamesLoaded(false);
+          }
+        }
       } catch (err) {
         console.error('Erro ao carregar dados:', err);
       } finally {
@@ -82,14 +107,16 @@ export default function AdminEventNew() {
   };
 
   const canGoNext = () => {
-    if (currentStep === 1) return formData.name && formData.date && formData.time;
+    if (currentStep === 1) {
+      return formData.name && formData.responsibleName.trim() && formData.date && formData.time;
+    }
     return true;
   };
 
-  const handleCreate = async () => {
+  const handleSave = async () => {
     setSaving(true);
     try {
-      await api.createEvento({
+      const payload = {
         name: formData.name,
         description: formData.description,
         date: formData.date,
@@ -97,11 +124,18 @@ export default function AdminEventNew() {
         duration: parseInt(formData.duration),
         enableDisplay: formData.enableDisplay,
         enableLocation: formData.enableLocation,
-      });
+        responsibleName: formData.responsibleName.trim(),
+        autoStart: formData.autoStart,
+        autoEnd: formData.autoEnd,
+        // Jogos do evento (vínculo gravado no banco)
+        ...(gamesLoaded ? { games: formData.selectedGames } : {}),
+      };
+      if (editingId) await api.updateEvento(editingId, payload);
+      else await api.createEvento(payload);
       navigate('/admin/events');
     } catch (error) {
-      console.error('Erro ao criar evento:', error);
-      alert('Erro ao criar evento. Tente novamente.');
+      console.error('Erro ao salvar evento:', error);
+      alert(error instanceof Error && error.message ? error.message : 'Erro ao salvar evento. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -110,14 +144,7 @@ export default function AdminEventNew() {
   if (loading) {
     return (
       <div className="flex h-screen bg-dark text-white overflow-hidden">
-        <Sidebar
-          items={navItems}
-          activePath="/admin/events/new"
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
-          title="Pulyn Admin"
-          accentColor="#1E9BD7"
-        />
+        <AdminSidebar activePath="/admin/events" />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
@@ -130,18 +157,12 @@ export default function AdminEventNew() {
 
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">
-      <Sidebar
-        items={navItems}
-        activePath="/admin/events/new"
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
-        accentColor="#1E9BD7"
-      />
+      <AdminSidebar activePath="/admin/events" />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar
-          title="Novo Evento"
-          subtitle="Etapa 1 de 3"
+          title={isEditing ? 'Editar Evento' : 'Novo Evento'}
+          subtitle={`Etapa ${currentStep} de 3`}
           onBack={() => navigate('/admin/events')}
         />
 
@@ -200,6 +221,17 @@ export default function AdminEventNew() {
                     onChange={e => updateField('name', e.target.value)}
                     required
                   />
+                  <div>
+                    <Input
+                      label="Contratante / Responsável"
+                      placeholder="Ex: Maria da Silva"
+                      value={formData.responsibleName}
+                      onChange={e => updateField('responsibleName', e.target.value)}
+                      maxLength={150}
+                      required
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Nome de quem contratou o evento.</p>
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <Input
                       label="Data"
@@ -208,11 +240,10 @@ export default function AdminEventNew() {
                       onChange={e => updateField('date', e.target.value)}
                       required
                     />
-                    <Input
+                    <TimeInput
                       label="Horário"
-                      type="time"
                       value={formData.time}
-                      onChange={e => updateField('time', e.target.value)}
+                      onChange={time => updateField('time', time)}
                       required
                     />
                   </div>
@@ -223,6 +254,38 @@ export default function AdminEventNew() {
                     value={formData.duration}
                     onChange={e => updateField('duration', e.target.value)}
                   />
+
+                  <div className="rounded-lg border border-border bg-surface/40 p-4 space-y-3">
+                    <p className="text-sm font-body font-semibold text-gray-300">Início e encerramento</p>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.autoStart}
+                        onChange={e => updateField('autoStart', e.target.checked)}
+                        className="mt-0.5 w-4 h-4 rounded border-border bg-surface text-primary focus:ring-primary"
+                      />
+                      <span className="text-sm text-gray-300">
+                        Iniciar automaticamente na data e horário agendados
+                        <span className="block text-xs text-gray-500">
+                          Desmarcado, o evento só começa quando você clicar em "Iniciar" na lista de eventos.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.autoEnd}
+                        onChange={e => updateField('autoEnd', e.target.checked)}
+                        className="mt-0.5 w-4 h-4 rounded border-border bg-surface text-primary focus:ring-primary"
+                      />
+                      <span className="text-sm text-gray-300">
+                        Encerrar automaticamente após a duração
+                        <span className="block text-xs text-gray-500">
+                          A contagem começa quando o evento realmente inicia (automático ou manual).
+                        </span>
+                      </span>
+                    </label>
+                  </div>
                   <div className="w-full">
                     <label className="mb-1.5 block text-sm font-body font-medium text-gray-300">
                       Descrição
@@ -244,6 +307,11 @@ export default function AdminEventNew() {
                 <h2 className="font-display text-lg text-white mb-4">Jogos e Configuração</h2>
                 <div className="space-y-4">
                   <p className="text-sm text-gray-400">Selecione os jogos para este evento:</p>
+                  {!gamesLoaded && (
+                    <p className="text-xs text-warning" role="alert">
+                      Não foi possível carregar os jogos atuais deste evento. Eles serão mantidos como estão ao salvar.
+                    </p>
+                  )}
                   <div className="grid grid-cols-1 gap-3">
                     {(brincadeiras || []).map((game: any) => {
                       const isSelected = formData.selectedGames.includes(game.id);
@@ -319,6 +387,10 @@ export default function AdminEventNew() {
                       <p className="text-sm text-white font-semibold">{formData.name}</p>
                     </div>
                     <div>
+                      <p className="text-xs text-gray-500">Contratante / Responsável</p>
+                      <p className="text-sm text-white font-semibold">{formData.responsibleName}</p>
+                    </div>
+                    <div>
                       <p className="text-xs text-gray-500">Data</p>
                       <p className="text-sm text-white font-semibold">{formData.date}</p>
                     </div>
@@ -329,6 +401,14 @@ export default function AdminEventNew() {
                     <div>
                       <p className="text-xs text-gray-500">Duração</p>
                       <p className="text-sm text-white font-semibold">{formData.duration}min</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Início</p>
+                      <p className="text-sm text-white font-semibold">{formData.autoStart ? 'Automático' : 'Manual'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Encerramento</p>
+                      <p className="text-sm text-white font-semibold">{formData.autoEnd ? 'Automático' : 'Manual'}</p>
                     </div>
                   </div>
                   {formData.description && (
@@ -383,8 +463,8 @@ export default function AdminEventNew() {
                   <ChevronRight size={16} className="ml-1" />
                 </Button>
               ) : (
-                <Button variant="primary" onClick={handleCreate} disabled={saving}>
-                  {saving ? 'Salvando...' : <><Check size={16} className="mr-1" /> Criar Evento</>}
+                <Button variant="primary" onClick={handleSave} disabled={saving}>
+                  {saving ? 'Salvando...' : <><Check size={16} className="mr-1" /> {isEditing ? 'Salvar alterações' : 'Criar Evento'}</>}
                 </Button>
               )}
             </div>

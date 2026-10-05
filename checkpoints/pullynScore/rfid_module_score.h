@@ -73,7 +73,7 @@ public:
   
   String getUID() {
     // Versão otimizada sem conversão para String intermediária
-    char uidBuffer[9]; // 8 chars hex + null terminator
+    char uidBuffer[21]; // até 10 bytes de UID (20 chars hex) + terminador; NTAG tem 7 bytes (14 chars)
     int pos = 0;
     
     for (byte i = 0; i < mfrc522.uid.size; i++) {

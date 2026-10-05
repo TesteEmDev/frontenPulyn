@@ -238,7 +238,7 @@ class MyApp extends ConsumerWidget {
     return isFirstTimeAsync.when(
       data: (isFirstTime) => isFirstTime ? '/onboarding' : '/login',
       loading: () => '/login',
-      error: (_, __) => '/login',
+      error: (_, _) => '/login',
     );
   }
 }

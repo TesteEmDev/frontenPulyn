@@ -194,3 +194,17 @@ Status: ✅ Leitura enviada para telão!
 
 **🎯 SISTEMA OTIMIZADO PARA PERFORMANCE MÁXIMA**
 **📡 ALCANCE: 8-15cm | ⚡ TEMPO: <200ms | 📊 CONFIABILIDADE: 99%+**
+## 📶 TROCAR A REDE WI-FI SEM REGRAVAR O FIRMWARE
+
+A rede deixou de ser fixa no código: o ESP32 usa a rede gravada pelo portal e, se
+não houver nenhuma, a de `WIFI_SSID` / `WIFI_PASSWORD` do arquivo de configuração.
+
+1. Abra o portal: ele abre sozinho se não conectar na inicialização ou ficar 2 min
+   sem rede; ou segure o botão **BOOT** por 3 segundos com o aparelho ligado.
+2. No celular, conecte no Wi-Fi **`Pulyn-Placar`** (senha `pulyn1234`).
+3. A página abre sozinha; se não abrir, acesse `http://192.168.4.1`.
+4. Escolha a rede, digite a senha e toque em **Salvar e reiniciar**.
+
+Os comandos `WIFI_PORTAL`, `WIFI_STATUS` e `WIFI_RESET` já estão no `pullynScore_otimizado.ino`.
+
+Ao copiar os arquivos para a pasta do sketch, copie também o `wifi_portal.h`.

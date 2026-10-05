@@ -90,6 +90,7 @@ void setup() {
   Serial.println("  HELP              - Mostra comandos");
   Serial.println("  TEST_SENSITIVITY  - Testa alcance RFID por 10s");
   Serial.println("  STATUS            - Mostra configurações");
+  Serial.println("  WIFI_PORTAL       - Troca a rede Wi-Fi pelo celular");
   Serial.println("==========================================\n");
   
   // Inicializar módulos
@@ -190,10 +191,19 @@ void handleSerialCommands() {
       testRFIDSensitivity();
     } else if (command == "STATUS") {
       printRFIDStatus();
+    } else if (command == "WIFI_PORTAL") {
+      wifi.openPortal();
+    } else if (command == "WIFI_STATUS") {
+      wifi.printStatus();
+    } else if (command == "WIFI_RESET") {
+      wifi.forgetNetwork();
     } else if (command == "HELP") {
       Serial.println("\n🔧 COMANDOS DISPONÍVEIS:");
       Serial.println("TEST_SENSITIVITY  - Testa alcance RFID por 10 segundos");
       Serial.println("STATUS            - Mostra configurações do sistema");
+      Serial.println("WIFI_PORTAL       - Abre o portal para trocar a rede Wi-Fi");
+      Serial.println("WIFI_STATUS       - Mostra a rede e a conexão atuais");
+      Serial.println("WIFI_RESET        - Apaga a rede salva e reinicia");
       Serial.println("HELP              - Mostra esta ajuda");
       Serial.println("\n📡 Sistema configurado para alcance máximo (48dB)");
       Serial.println("🎯 Alcance esperado: 8-15cm dependendo da pulseira");

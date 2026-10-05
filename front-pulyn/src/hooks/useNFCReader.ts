@@ -75,21 +75,13 @@ export function useNFCReader(
       const ws = createAuthenticatedWebSocket(wsUrl, token);
       socketRef.current = ws;
 
-      console.log(`🔗 Conectando WebSocket NFC ao evento ${eventoId}: ${wsUrl}`);
-
       ws.onopen = () => {
         if (disposed || socketRef.current !== ws) return;
 
-        console.log(`✅ WebSocket NFC conectado com sucesso (evento: ${eventoId})`);
         setIsConnected(true);
         reconnectAttemptsRef.current = 0;
         if (expectedSource !== 'reception' && expectedSource !== 'score-kiosk') {
           ws.send(JSON.stringify({ type: 'SET_MODE', mode }));
-          console.log(`📡 Modo enviado: ${mode} (evento: ${eventoId})`);
-        } else if (expectedSource === 'score-kiosk') {
-          console.log(`📡 Score Kiosk conectado ao canal de pontuação (evento: ${eventoId})`);
-        } else {
-          console.log(`📡 Kiosk conectado ao canal de recepção (evento: ${eventoId})`);
         }
       };
 
@@ -98,7 +90,6 @@ export function useNFCReader(
 
         try {
           const msg = JSON.parse(event.data);
-          if (import.meta.env.DEV) console.debug('📨 Mensagem NFC recebida:', msg.type);
 
           const isNfcMessage = msg.type === 'NFC_READING_DETECTED' || msg.type === 'BRACELET_DETECTED';
           const messageEventId = msg.payload?.eventoId || msg.payload?.eventId;
@@ -113,7 +104,6 @@ export function useNFCReader(
 
           if (isNfcMessage && belongsToSelectedEvent && isExpectedReceptionMessage) {
             const code = msg.payload?.braceletCode || msg.payload?.code || msg.payload?.uid;
-            if (import.meta.env.DEV) console.debug('📱 NFC detectado:', code);
             if (code) onBraceletDetectedRef.current(code);
           }
         } catch (e) {
@@ -130,7 +120,6 @@ export function useNFCReader(
       ws.onclose = () => {
         if (disposed || socketRef.current !== ws) return;
 
-        console.log('⚠️ WebSocket NFC desconectado');
         setIsConnected(false);
         socketRef.current = null;
 
@@ -169,7 +158,6 @@ export function useNFCReader(
       }
     } else {
       setIsConnected(false);
-      console.log('⚠️ WebSocket NFC aguardando evento selecionado');
     }
 
     return () => {

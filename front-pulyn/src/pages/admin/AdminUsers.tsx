@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  FileText, RefreshCw, Settings, X, UserPlus, Loader2, Eye, EyeOff
+  Users, Settings, X, UserPlus, Loader2, Eye, EyeOff
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
-import Sidebar from '../../components/layout/Sidebar';
-import TopBar from '../../components/layout/TopBar';
+import AdminSidebar from '../../components/layout/AdminSidebar';
+import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -16,20 +14,6 @@ import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import StatusDot from '../../components/ui/StatusDot';
 import Modal from '../../components/ui/Modal';
-
-const navItems = [
-  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/admin' },
-  { icon: <Calendar size={20} />, label: 'Eventos', path: '/admin/events' },
-  { icon: <Users size={20} />, label: 'Crianças', path: '/admin/children' },
-  { icon: <Gamepad2 size={20} />, label: 'Jogos', path: '/admin/games' },
-  { icon: <MapPin size={20} />, label: 'Checkpoints', path: '/admin/checkpoints' },
-  { icon: <Map size={20} />, label: 'Mapa', path: '/admin/map' },
-  { icon: <Users size={20} />, label: 'Usuários', path: '/admin/users' },
-  { icon: <Users size={20} />, label: 'Times', path: '/admin/teams' },
-  { icon: <FileText size={20} />, label: 'Relatórios', path: '/admin/reports' },
-  { icon: <RefreshCw size={20} />, label: 'Sincronização', path: '/admin/sync' },
-  { icon: <Settings size={20} />, label: 'Configurações', path: '/admin/settings' },
-];
 
 type UserRole = 'admin' | 'reception' | 'game_master' | 'display' | 'family' | 'kiosk' | 'score_kiosk';
 
@@ -51,18 +35,26 @@ const roleConfig: Record<UserRole, { label: string; description: string; variant
   score_kiosk: { label: 'Consulta de pontuação', description: 'Totem para consultar pontos', variant: 'accent' },
 };
 
+// Mesma regra do backend (utils/unitEmail.js): minúsculas, números e . _ - entre letras/números.
+const USERNAME_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
+
+// Deixa só o que cabe antes do @: minúsculas, sem espaços; se colarem um e-mail, usa o que vem antes do @.
+const sanitizeUsername = (value: string) =>
+  value.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 64);
+
 export default function AdminUsers() {
-  const location = useLocation();
   const { user } = useAuth();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // O e-mail é "[usuario]@[domínio da unidade]": o admin digita só a parte antes do @.
+  const [emailDomain, setEmailDomain] = useState<string | null | undefined>(undefined); // undefined = carregando
+  const [modalError, setModalError] = useState<string | null>(null);
   const [newUser, setNewUser] = useState({
-    email: '',
+    username: '',
     password: '',
     role: 'reception' as UserRole,
   });
@@ -92,35 +84,62 @@ export default function AdminUsers() {
     loadUsers();
   }, [user]);
 
+  useEffect(() => {
+    let active = true;
+    api.getEmpresa()
+      .then(profile => { if (active) setEmailDomain(profile.emailDomain); })
+      .catch(err => {
+        console.error('❌ Erro ao carregar o domínio de e-mail da unidade:', err);
+        if (active) setEmailDomain(null);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const closeAddModal = () => {
+    setShowAddModal(false);
+    setNewUser({ username: '', password: '', role: 'reception' });
+    setModalError(null);
+    setShowPassword(false);
+  };
+
   const handleAddUser = async () => {
-    if (!newUser.email || !newUser.password || !user?.empresa_id) {
-      setError('Preencha email, senha e selecione um perfil');
+    if (!newUser.username || !newUser.password || !user?.empresa_id) {
+      setModalError('Preencha o usuário, a senha e selecione um perfil.');
+      return;
+    }
+
+    if (!emailDomain) {
+      setModalError('Defina o nome da unidade em Configurações para gerar o e-mail dos usuários.');
+      return;
+    }
+
+    if (!USERNAME_PATTERN.test(newUser.username)) {
+      setModalError('Use só letras, números, ponto, hífen ou sublinhado, sem espaços, e não comece nem termine com símbolo.');
       return;
     }
 
     if (newUser.password.length < 6) {
-      setError('Senha deve ter no mínimo 6 caracteres');
+      setModalError('Senha deve ter no mínimo 6 caracteres.');
       return;
     }
 
     setSubmitting(true);
-    setError(null);
+    setModalError(null);
 
     try {
       const createdUser = await api.createUser({
-        email: newUser.email,
+        email: `${newUser.username}@${emailDomain}`,
         password: newUser.password,
         role: newUser.role,
         empresa_id: user.empresa_id
       });
 
       setUsers(prev => [...prev, createdUser]);
-      setNewUser({ email: '', password: '', role: 'reception' });
-      setShowAddModal(false);
+      closeAddModal();
       
     } catch (err: any) {
       console.error('❌ Erro ao criar usuário:', err);
-      setError(err.message || 'Erro ao criar usuário. Tente novamente.');
+      setModalError(err.message || 'Erro ao criar usuário. Tente novamente.');
     } finally {
       setSubmitting(false);
     }
@@ -140,17 +159,10 @@ export default function AdminUsers() {
 
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">
-      <Sidebar
-        items={navItems}
-        activePath={location.pathname}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
-        title="Pulyn Admin"
-        accentColor="#1E9BD7"
-      />
+      <AdminSidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar title="Gestão do Buffet" subtitle="Equipe" />
+        <BuffetTopBar subtitle="Equipe" />
 
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
@@ -260,21 +272,39 @@ export default function AdminUsers() {
           {/* Add User Modal */}
           <Modal
             isOpen={showAddModal}
-            onClose={() => {
-              setShowAddModal(false);
-              setNewUser({ email: '', password: '', role: 'reception' });
-              setError(null);
-            }}
+            onClose={closeAddModal}
             title="Criar Novo Usuário"
           >
             <div className="space-y-4">
-              <Input
-                label="Email *"
-                placeholder="Ex: recreacionista@buffet.com"
-                type="email"
-                value={newUser.email}
-                onChange={e => setNewUser(prev => ({ ...prev, email: e.target.value }))}
-              />
+              <div>
+                <label htmlFor="new-user-username" className="mb-1.5 block text-sm font-body font-semibold text-gray-300">
+                  E-mail de acesso *
+                </label>
+                <div className="flex items-stretch rounded-xl border border-white/[0.10] bg-dark-card transition-all duration-200 focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500/15">
+                  <input
+                    id="new-user-username"
+                    value={newUser.username}
+                    onChange={e => setNewUser(prev => ({ ...prev, username: sanitizeUsername(e.target.value) }))}
+                    placeholder="recreacionista"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    maxLength={64}
+                    aria-describedby="new-user-email-preview"
+                    className="min-w-0 flex-1 rounded-l-xl bg-transparent px-3.5 py-3 font-body text-white placeholder-gray-500 focus:outline-none"
+                  />
+                  <span className="flex shrink-0 items-center rounded-r-xl border-l border-white/[0.10] bg-white/[0.04] px-3.5 font-body text-sm text-gray-300">
+                    {emailDomain === undefined ? 'carregando...' : emailDomain ? `@${emailDomain}` : '@—'}
+                  </span>
+                </div>
+                <p id="new-user-email-preview" className="mt-1.5 break-all text-xs text-gray-500">
+                  {emailDomain === null
+                    ? 'Defina o nome da unidade em Configurações para gerar o e-mail dos usuários.'
+                    : newUser.username && emailDomain
+                    ? `O usuário entrará com ${newUser.username}@${emailDomain}`
+                    : 'O domínio vem do nome da unidade, sem espaços. Digite só o início do e-mail.'}
+                </p>
+              </div>
               
               <div className="relative">
                 <Input
@@ -308,10 +338,16 @@ export default function AdminUsers() {
                 </p>
               </div>
 
+              {modalError && (
+                <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                  {modalError}
+                </p>
+              )}
+
               <div className="flex justify-end gap-2 pt-2">
                 <Button 
                   variant="ghost" 
-                  onClick={() => setShowAddModal(false)}
+                  onClick={closeAddModal}
                   disabled={submitting}
                 >
                   Cancelar
@@ -319,7 +355,7 @@ export default function AdminUsers() {
                 <Button 
                   variant="primary" 
                   onClick={handleAddUser}
-                  disabled={!newUser.email || !newUser.password || submitting}
+                  disabled={!newUser.username || !newUser.password || !emailDomain || submitting}
                 >
                   {submitting ? (
                     <><Loader2 size={16} className="mr-2 animate-spin" /> Criando...</>
