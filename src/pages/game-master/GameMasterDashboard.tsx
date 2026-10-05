@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Play, Pause, Square, RotateCcw, Gamepad2, Trophy, MapPin, Users, Clock, Shield } from 'lucide-react';
+import { Play, Pause, Square, RotateCcw, Gamepad2, Trophy, MapPin, MessageSquare, Users, Clock, Shield } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useGameWebSocket, GameEvent } from '../../hooks/useGameWebSocket';
 import Sidebar from '../../components/layout/Sidebar';
@@ -16,8 +16,7 @@ import { api, API_URL } from '../../services/api';
 const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
   { icon: <Users size={20} />, label: 'Times', path: '/game-master/teams' },
-  { icon: <Play size={20} />, label: 'Controle', path: '/game-master/control' },
-  { icon: <MapPin size={20} />, label: 'Mensagens', path: '/game-master/messages' },
+  { icon: <MessageSquare size={20} />, label: 'Mensagens', path: '/game-master/messages' },
 ];
 
 interface TerritoryStatus {
