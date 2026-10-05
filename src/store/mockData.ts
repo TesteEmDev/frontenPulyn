@@ -684,31 +684,19 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
   // ==================== SETTINGS ====================
   
   loadSettings: async () => {
-    try {
-      const settings = await api.getSettings();
-      set({ settings });
-      return settings;
-    } catch (error) {
-      console.error('❌ Erro ao carregar configurações:', error);
-      return {};
-    }
+    const settings = await api.getSettings();
+    set({ settings });
+    return settings;
   },
 
+  // Os erros sobem para quem chamou: engolir a falha fazia a tela mostrar "salvo" sem ter salvo.
   updateSetting: async (key: string, value: string) => {
-    try {
-      await api.updateSetting(key, value);
-      await get().loadSettings();
-    } catch (error) {
-      console.error('❌ Erro ao atualizar configuração:', error);
-    }
+    await api.updateSetting(key, value);
+    await get().loadSettings();
   },
 
   updateSettings: async (settings: Record<string, string>) => {
-    try {
-      await api.updateSettings(settings);
-      await get().loadSettings();
-    } catch (error) {
-      console.error('❌ Erro ao atualizar configurações:', error);
-    }
+    await api.updateSettings(settings);
+    await get().loadSettings();
   },
 }));

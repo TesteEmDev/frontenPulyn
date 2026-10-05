@@ -11,15 +11,24 @@ import {
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import AdminSidebar from '../../components/layout/AdminSidebar';
-import TopBar from '../../components/layout/TopBar';
+import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Select from '../../components/ui/Select';
+import GeneralReport, { formatReportDate } from '../../components/reports/GeneralReport';
+import type { GeneralReportData } from '../../services/api';
+import { toCsv, downloadCsv } from '../../utils/csv';
 
 export default function AdminReports() {
   const { events = [], loadEvents } = usePulynStore();
+
+  // 'event' = relatório de um evento; 'general' = todos os eventos juntos.
+  const [view, setView] = useState<'event' | 'general'>('event');
+  const [overview, setOverview] = useState<GeneralReportData | null>(null);
+  const [loadingOverview, setLoadingOverview] = useState(false);
+  const [overviewError, setOverviewError] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [loadingEventData, setLoadingEventData] = useState(false);
@@ -100,6 +109,27 @@ export default function AdminReports() {
     return () => { disposed = true; };
   }, [selectedEventId]);
 
+  // O relatório geral é buscado ao abrir a aba (e a cada volta a ela, para vir sempre atualizado).
+  useEffect(() => {
+    if (view !== 'general') return;
+    let disposed = false;
+    setLoadingOverview(true);
+    setOverviewError('');
+    api.getGeneralReport()
+      .then(data => { if (!disposed) setOverview(data); })
+      .catch(error => {
+        console.error('Erro ao carregar o relatório geral:', error);
+        if (!disposed) setOverviewError(error instanceof Error ? error.message : 'Não foi possível carregar o relatório geral.');
+      })
+      .finally(() => { if (!disposed) setLoadingOverview(false); });
+    return () => { disposed = true; };
+  }, [view]);
+
+  const openEventReport = useCallback((eventId: string) => {
+    setSelectedEventId(eventId);
+    setView('event');
+  }, []);
+
   const safeChildren = Array.isArray(children) ? children : [];
   const safeCheckpoints = Array.isArray(checkpoints) ? checkpoints : [];
   const safeTeams = Array.isArray(teams) ? teams : [];
@@ -164,6 +194,22 @@ export default function AdminReports() {
     .sort((a, b) => (b.scores || 0) - (a.scores || 0))
     .slice(0, 10);
 
+  const handleExportGeneralCSV = () => {
+    if (!overview) return;
+    const statusLabel: Record<string, string> = {
+      scheduled: 'Agendado', active: 'Em andamento', ongoing: 'Em andamento',
+      finished: 'Encerrado', completed: 'Encerrado', cancelled: 'Cancelado', canceled: 'Cancelado',
+    };
+    const csv = toCsv(
+      ['Evento', 'Data', 'Status', 'Participantes', 'Times', 'Pontos totais', 'Média de pontos', 'Pontuações'],
+      overview.events.map(event => [
+        event.name, formatReportDate(event.date), statusLabel[event.status] || event.status,
+        event.participants, event.teams, event.totalPoints, event.avgPoints, event.scorings,
+      ])
+    );
+    downloadCsv('relatorio-geral.csv', csv);
+  };
+
   const handleExportCSV = () => {
     const headers = ['Posição', 'Nome', 'Apelido', 'Idade', 'Pontuação'];
     const rows = rankingData.map((child, i) =>
@@ -198,20 +244,60 @@ export default function AdminReports() {
       <AdminSidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar title="Gestão do Buffet" subtitle="Relatórios" />
+        <BuffetTopBar subtitle="Relatórios" />
 
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Relatórios"
-            description="Análise de dados e métricas do evento selecionado"
+            description={view === 'general' ? 'Visão geral de todos os eventos do buffet' : 'Análise de dados e métricas do evento selecionado'}
             icon={<FileText size={28} />}
             action={
-              <Button variant="accent" onClick={handleExportCSV}>
+              <Button
+                variant="accent"
+                onClick={view === 'general' ? handleExportGeneralCSV : handleExportCSV}
+                disabled={view === 'general' && !overview}
+              >
                 <Download size={16} className="mr-1.5" />
                 Exportar CSV
               </Button>
             }
           />
+
+          <div className="inline-flex rounded-lg border border-dark-border bg-dark-surface p-1" role="tablist" aria-label="Tipo de relatório">
+            {([
+              ['event', 'Por evento'],
+              ['general', 'Geral (todos os eventos)'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={view === value}
+                onClick={() => setView(value)}
+                className={`rounded-md px-4 py-1.5 text-sm font-semibold transition-colors ${
+                  view === value ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {view === 'general' ? (
+            loadingOverview && !overview ? (
+              <Card>
+                <p className="py-10 text-center text-gray-400">Carregando relatório geral...</p>
+              </Card>
+            ) : overviewError ? (
+              <Card>
+                <p role="alert" className="py-6 text-center text-sm text-danger">{overviewError}</p>
+              </Card>
+            ) : overview ? (
+              <div className={loadingOverview ? 'opacity-60' : undefined}>
+                <GeneralReport data={overview} onOpenEvent={openEventReport} />
+              </div>
+            ) : null
+          ) : (<>
 
           {/* Event Selector */}
           {safeEvents.length > 0 && (
@@ -374,6 +460,7 @@ export default function AdminReports() {
               </Card>
             </div>
           )}
+          </>)}
         </main>
       </div>
     </div>

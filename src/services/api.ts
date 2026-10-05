@@ -93,6 +93,47 @@ async function analyticsRequest(path: string) {
   return data;
 }
 
+// Relatório geral (todos os eventos do buffet), devolvido por GET /reports/overview.
+export interface GeneralReportData {
+  totals: {
+    events: number;
+    finishedEvents: number;
+    runningEvents: number;
+    participants: number;
+    teams: number;
+    totalPoints: number;
+    avgPoints: number;
+    scorings: number;
+  };
+  events: Array<{
+    id: string; name: string; date: string; status: string;
+    participants: number; teams: number; totalPoints: number; avgPoints: number; scorings: number;
+  }>;
+  byMonth: Array<{ month: string; events: number; participants: number }>;
+  topParticipants: Array<{
+    id: string; name: string; nickname: string; age: number | null; scores: number;
+    eventName: string; teamName: string; teamColor: string;
+  }>;
+  topTeams: Array<{ id: string; name: string; color: string; points: number; eventName: string }>;
+  topCheckpoints: Array<{ id: string; name: string; zone: string; eventName: string; readings: number }>;
+  topGames: Array<{ id: string; name: string; plays: number }>;
+}
+
+// Cadastro do buffet logado: nome, e-mail, telefone, endereço e backup vêm de `clientes`; cnpj de `empresas`.
+export interface EmpresaProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  backupFrequency: string;
+  cnpj: string;
+  // Domínio dos e-mails dos usuários do buffet, derivado do nome (ex.: "buffetadv.com").
+  emailDomain: string | null;
+}
+
 export const api = {
   // ==================== AUTENTICAÇÃO ====================
   async login(email: string, password: string) {
@@ -934,6 +975,24 @@ export const api = {
     return res.json();
   },
 
+  // Times padrão da empresa (modelos sem evento) e cópia deles para um evento.
+  async getDefaultTimes() {
+    const res = await fetch(`${API_URL}/times/padrao`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ([]));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao carregar times padrão (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async applyDefaultTimes(eventoId: string) {
+    const res = await fetch(`${API_URL}/times/eventos/${encodeURIComponent(eventoId)}/aplicar-padrao`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao aplicar times padrão (${res.status})`);
+    return data as { created: number; skipped: number };
+  },
+
   // Sorteia as crianças do evento entre os times. 'unassigned' = só quem está sem time.
   async distributeChildrenRandomly(eventoId: string, mode: 'unassigned' | 'all') {
     const res = await fetch(`${API_URL}/times/eventos/${encodeURIComponent(eventoId)}/distribuir-aleatorio`, {
@@ -1259,10 +1318,11 @@ export const api = {
     const res = await fetch(`${API_URL}/empresa/me`, { headers: getAuthHeaders() });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Erro ao carregar dados do buffet (${res.status})`);
-    return body as { id: string; name: string; cnpj: string; city: string; state: string; phone: string };
+    return body as EmpresaProfile;
   },
 
-  async updateEmpresa(data: { cnpj: string }) {
+  // Atualiza só os campos enviados. O cadastro fica em `clientes` e o CNPJ em `empresas`.
+  async updateEmpresa(data: Partial<Pick<EmpresaProfile, 'name' | 'email' | 'phone' | 'address' | 'backupFrequency' | 'cnpj'>>): Promise<EmpresaProfile> {
     const res = await fetch(`${API_URL}/empresa/me`, {
       method: 'PUT',
       headers: getAuthHeaders(),
@@ -1270,15 +1330,53 @@ export const api = {
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Erro ao salvar dados do buffet (${res.status})`);
-    return body as { updated: boolean; cnpj: string };
+    return body as EmpresaProfile;
+  },
+
+  // Relatório geral: totais, resumo por evento e destaques de todos os eventos do buffet.
+  async getGeneralReport(): Promise<GeneralReportData> {
+    const res = await fetch(`${API_URL}/reports/overview`, { headers: getAuthHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao carregar o relatório geral (${res.status})`);
+    return body as GeneralReportData;
+  },
+
+  // Logo/foto da unidade (guardada em `clientes`, como data URL).
+  async getEmpresaLogo(): Promise<{ dataUrl: string; name: string; type: string } | null> {
+    const res = await fetch(`${API_URL}/empresa/me/logo`, { headers: getAuthHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao carregar a logo (${res.status})`);
+    return body.logo || null;
+  },
+
+  async saveEmpresaLogo(data: { dataUrl: string; name: string }) {
+    const res = await fetch(`${API_URL}/empresa/me/logo`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar a logo (${res.status})`);
+    return body;
+  },
+
+  async deleteEmpresaLogo() {
+    const res = await fetch(`${API_URL}/empresa/me/logo`, { method: 'DELETE', headers: getAuthHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao remover a logo (${res.status})`);
+    return body;
   },
 
   // ==================== SETTINGS ====================
-  async getSettings() {
+  // Retorna as configurações do buffet como objeto { chave: valor }.
+  async getSettings(): Promise<Record<string, string>> {
     const res = await fetch(`${API_URL}/settings`, {
       headers: getAuthHeaders(),
     });
-    return res.json();
+    const body = await res.json().catch(() => ([]));
+    if (!res.ok) throw new Error((body as any).error || `Erro ao carregar configurações (${res.status})`);
+    const rows: Array<{ setting_key: string; setting_value: string | null }> = Array.isArray(body) ? body : [];
+    return Object.fromEntries(rows.map(row => [row.setting_key, row.setting_value ?? '']));
   },
 
   async getSetting(key: string) {
@@ -1294,7 +1392,9 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify({ value }),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar configuração (${res.status})`);
+    return body;
   },
 
   async updateSettings(settings: Record<string, string>) {
@@ -1303,7 +1403,9 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(settings),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar configurações (${res.status})`);
+    return body;
   },
 
   // ==================== USUÁRIOS (LOGINS) ====================

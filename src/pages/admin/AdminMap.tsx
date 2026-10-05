@@ -3,7 +3,7 @@ import { MapPin, Map, RefreshCw, Upload, Pencil, Trash2, Plus, Save, Loader2 } f
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import AdminSidebar from '../../components/layout/AdminSidebar';
-import TopBar from '../../components/layout/TopBar';
+import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -714,7 +714,7 @@ export default function AdminMap() {
       <AdminSidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar title="Gestão do Buffet" subtitle="Mapa do Espaço" />
+        <BuffetTopBar subtitle="Mapa do Espaço" />
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Mapa do Espaço"
