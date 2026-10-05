@@ -93,6 +93,19 @@ async function analyticsRequest(path: string) {
   return data;
 }
 
+// Cadastro do buffet logado: nome, e-mail, telefone, endereço e backup vêm de `clientes`; cnpj de `empresas`.
+export interface EmpresaProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  backupFrequency: string;
+  cnpj: string;
+}
+
 export const api = {
   // ==================== AUTENTICAÇÃO ====================
   async login(email: string, password: string) {
@@ -1275,10 +1288,11 @@ export const api = {
     const res = await fetch(`${API_URL}/empresa/me`, { headers: getAuthHeaders() });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Erro ao carregar dados do buffet (${res.status})`);
-    return body as { id: string; name: string; cnpj: string; city: string; state: string; phone: string };
+    return body as EmpresaProfile;
   },
 
-  async updateEmpresa(data: { cnpj: string }) {
+  // Atualiza só os campos enviados. O cadastro fica em `clientes` e o CNPJ em `empresas`.
+  async updateEmpresa(data: Partial<Pick<EmpresaProfile, 'name' | 'email' | 'phone' | 'address' | 'backupFrequency' | 'cnpj'>>): Promise<EmpresaProfile> {
     const res = await fetch(`${API_URL}/empresa/me`, {
       method: 'PUT',
       headers: getAuthHeaders(),
@@ -1286,7 +1300,7 @@ export const api = {
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Erro ao salvar dados do buffet (${res.status})`);
-    return body as { updated: boolean; cnpj: string };
+    return body as EmpresaProfile;
   },
 
   // ==================== SETTINGS ====================

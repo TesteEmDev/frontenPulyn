@@ -11,7 +11,7 @@ interface BuffetNameStore {
   setName: (empresaId: string, name: string) => void;
 }
 
-// Cache do nome da unidade (configuração unit_name). Fica por empresa para não
+// Cache do nome da unidade (campo "Nome da unidade" do cadastro em clientes). Fica por empresa para não
 // mostrar o nome de outro buffet se alguém trocar de conta sem recarregar a página.
 export const useBuffetNameStore = create<BuffetNameStore>((set) => ({
   empresaId: null,
@@ -21,8 +21,8 @@ export const useBuffetNameStore = create<BuffetNameStore>((set) => ({
 
 let loadingFor: string | null = null;
 
-// Nome do buffet para o cabeçalho: o "Nome da unidade" das Configurações; se não houver,
-// o nome da empresa do cadastro; por último, o título genérico.
+// Nome do buffet para o cabeçalho: o "Nome da unidade" das Configurações; se ainda não
+// carregou (ou falhou), o nome da empresa no token; por último, o título genérico.
 export function useBuffetName(): string {
   const empresaId = useAuth(state => state.user?.empresa_id) || null;
   const accountName = useAuth(state => state.user?.name) || '';
@@ -31,8 +31,8 @@ export function useBuffetName(): string {
   useEffect(() => {
     if (!empresaId || useBuffetNameStore.getState().empresaId === empresaId || loadingFor === empresaId) return;
     loadingFor = empresaId;
-    api.getSettings()
-      .then(settings => useBuffetNameStore.getState().setName(empresaId, settings.unit_name || ''))
+    api.getEmpresa()
+      .then(profile => useBuffetNameStore.getState().setName(empresaId, profile.name || ''))
       .catch(() => undefined)
       .finally(() => { if (loadingFor === empresaId) loadingFor = null; });
   }, [empresaId]);

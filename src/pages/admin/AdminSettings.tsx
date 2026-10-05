@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import {
   Settings, Upload, Save, Database
 } from 'lucide-react';
-import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import { maskCnpj, isValidCnpj, onlyDigits } from '../../utils/cnpj';
 import { maskPhone, validatePhone, countPhoneDigits } from '../../utils/phone';
@@ -19,20 +18,25 @@ import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import ProgressBar from '../../components/ui/ProgressBar';
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function AdminSettings() {
-  const { loadSettings, updateSettings } = usePulynStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const empresaId = useAuth(state => state.user?.empresa_id);
 
-  // CNPJ é um dado do próprio buffet (tabela empresas), não uma configuração genérica.
+  // Só dá para salvar depois de carregar o cadastro: salvar com o formulário vazio
+  // por falha de carregamento apagaria os dados reais.
+  const [companyLoaded, setCompanyLoaded] = useState(false);
+
+  // Cadastro da unidade (tabela clientes). O CNPJ fica na tabela empresas.
   const [cnpj, setCnpj] = useState('');
   const [cnpjError, setCnpjError] = useState('');
+  const [nameError, setNameError] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [phoneError, setPhoneError] = useState('');
-  const empresaId = useAuth(state => state.user?.empresa_id);
-  const [companyLoaded, setCompanyLoaded] = useState(false);
 
   const [unitSettings, setUnitSettings] = useState({
     unit_name: '',
@@ -45,89 +49,82 @@ export default function AdminSettings() {
     backup_frequency: 'daily',
   });
 
-  // Carregar configurações da API
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const empresa = await api.getEmpresa();
-        setCnpj(empresa.cnpj || '');
-        setCompanyLoaded(true);
-      } catch (error) {
-        // Sem carregar, o campo fica bloqueado para não apagar um CNPJ já salvo.
-        console.error('Erro ao carregar dados do buffet:', error);
-        setCompanyLoaded(false);
-      }
-      try {
-        applySettings(await loadSettings());
-        setSettingsLoaded(true);
-      } catch (error) {
-        // Sem carregar, salvar sobrescreveria os valores reais com campos vazios.
-        console.error('Erro ao carregar configurações:', error);
-        setSettingsLoaded(false);
-        setSaveError('Não foi possível carregar as configurações salvas. Recarregue a página antes de editar.');
-      }
-      setLoading(false);
-    };
-    loadData();
-  }, [loadSettings]);
-
   // Preenche o formulário com o que está salvo no servidor (campos vazios ficam vazios).
-  const applySettings = (saved: Record<string, string>) => {
+  const applyProfile = (profile: Awaited<ReturnType<typeof api.getEmpresa>>) => {
     setUnitSettings({
-      unit_name: saved.unit_name || '',
-      unit_address: saved.unit_address || '',
-      unit_phone: maskPhone(saved.unit_phone || ''),
-      unit_email: saved.unit_email || '',
+      unit_name: profile.name || '',
+      unit_address: profile.address || '',
+      unit_phone: maskPhone(profile.phone || ''),
+      unit_email: profile.email || '',
     });
-    setBackupSettings({ backup_frequency: saved.backup_frequency || 'daily' });
+    setBackupSettings({ backup_frequency: profile.backupFrequency || 'daily' });
+    setCnpj(profile.cnpj || '');
+    setNameError('');
+    setEmailError('');
     setPhoneError('');
+    setCnpjError('');
     // O cabeçalho das telas do admin mostra este nome.
-    if (empresaId) useBuffetNameStore.getState().setName(empresaId, saved.unit_name || '');
+    if (empresaId) useBuffetNameStore.getState().setName(empresaId, profile.name || '');
   };
+
+  useEffect(() => {
+    let active = true;
+    api.getEmpresa()
+      .then(profile => {
+        if (!active) return;
+        applyProfile(profile);
+        setCompanyLoaded(true);
+      })
+      .catch(error => {
+        console.error('Erro ao carregar dados do buffet:', error);
+        if (active) setSaveError('Não foi possível carregar os dados do buffet. Recarregue a página antes de editar.');
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const updateUnit = (field: string, value: string) => {
     setUnitSettings(prev => ({ ...prev, [field]: value }));
   };
 
+  const validateEmail = (value: string) => {
+    if (!value.trim()) return 'Informe o e-mail da unidade.';
+    return EMAIL_PATTERN.test(value.trim()) ? '' : 'E-mail inválido.';
+  };
+
   const handleSave = async () => {
     setSaveSuccess(false);
     setSaveError('');
-    if (!settingsLoaded) {
-      setSaveError('As configurações não foram carregadas. Recarregue a página antes de salvar.');
+    if (!companyLoaded) {
+      setSaveError('Os dados do buffet não foram carregados. Recarregue a página antes de salvar.');
       return;
     }
 
-    const phoneProblem = validatePhone(unitSettings.unit_phone);
-    if (phoneProblem) {
-      setPhoneError(phoneProblem);
-      return;
-    }
-
-    if (companyLoaded && onlyDigits(cnpj) && !isValidCnpj(cnpj)) {
-      setCnpjError('CNPJ inválido. Confira os 14 dígitos.');
-      return;
-    }
+    const problems = {
+      name: unitSettings.unit_name.trim() ? '' : 'Informe o nome da unidade.',
+      email: validateEmail(unitSettings.unit_email),
+      phone: validatePhone(unitSettings.unit_phone),
+      cnpj: onlyDigits(cnpj) && !isValidCnpj(cnpj) ? 'CNPJ inválido. Confira os 14 dígitos.' : '',
+    };
+    setNameError(problems.name);
+    setEmailError(problems.email);
+    setPhoneError(problems.phone);
+    setCnpjError(problems.cnpj);
+    if (Object.values(problems).some(Boolean)) return;
 
     setSaving(true);
     try {
-      if (companyLoaded) {
-        const saved = await api.updateEmpresa({ cnpj: onlyDigits(cnpj) });
-        setCnpj(saved.cnpj || '');
-        setCnpjError('');
-      }
-
-      const allSettings = {
-        unit_name: unitSettings.unit_name.trim(),
-        unit_address: unitSettings.unit_address.trim(),
-        unit_phone: unitSettings.unit_phone.trim(),
-        unit_email: unitSettings.unit_email.trim(),
-        ...backupSettings,
-      };
-
-      await updateSettings(allSettings);
+      const saved = await api.updateEmpresa({
+        name: unitSettings.unit_name.trim(),
+        email: unitSettings.unit_email.trim(),
+        phone: unitSettings.unit_phone.trim(),
+        address: unitSettings.unit_address.trim(),
+        backupFrequency: backupSettings.backup_frequency,
+        cnpj: onlyDigits(cnpj),
+      });
       // Mostra o que ficou realmente salvo (o servidor pode ter normalizado algum valor).
-      applySettings(usePulynStore.getState().settings);
+      applyProfile(saved);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {
@@ -169,7 +166,7 @@ export default function AdminSettings() {
           />
 
           <div className="max-w-3xl space-y-6">
-            {!settingsLoaded && saveError && (
+            {!companyLoaded && saveError && (
               <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{saveError}</p>
             )}
             {/* Logo Upload */}
@@ -194,10 +191,12 @@ export default function AdminSettings() {
               <h2 className="font-display text-lg text-white mb-4">Dados da Unidade</h2>
               <div className="space-y-4">
                 <Input
-                  label="Nome da unidade"
+                  label="Nome da unidade *"
                   placeholder="Ex: Buffet Alegria"
+                  maxLength={100}
                   value={unitSettings.unit_name}
-                  onChange={e => updateUnit('unit_name', e.target.value)}
+                  error={nameError || undefined}
+                  onChange={e => { updateUnit('unit_name', e.target.value); setNameError(''); }}
                 />
                 <div>
                   <Input
@@ -250,11 +249,14 @@ export default function AdminSettings() {
                     </p>
                   </div>
                   <Input
-                    label="E-mail"
+                    label="E-mail *"
                     placeholder="contato@seubuffet.com.br"
                     type="email"
+                    maxLength={100}
                     value={unitSettings.unit_email}
-                    onChange={e => updateUnit('unit_email', e.target.value)}
+                    error={emailError || undefined}
+                    onChange={e => { updateUnit('unit_email', e.target.value); setEmailError(''); }}
+                    onBlur={() => setEmailError(validateEmail(unitSettings.unit_email))}
                   />
                 </div>
               </div>
