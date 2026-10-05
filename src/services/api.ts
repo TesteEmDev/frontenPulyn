@@ -932,6 +932,23 @@ export const api = {
     return res.json();
   },
 
+  // Sorteia as crianças do evento entre os times. 'unassigned' = só quem está sem time.
+  async distributeChildrenRandomly(eventoId: string, mode: 'unassigned' | 'all') {
+    const res = await fetch(`${API_URL}/times/eventos/${encodeURIComponent(eventoId)}/distribuir-aleatorio`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ mode }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao distribuir participantes (${res.status})`);
+    return data as {
+      mode: 'unassigned' | 'all';
+      distributed: number;
+      totalChildren: number;
+      teams: Array<{ id: string; name: string; members: number }>;
+    };
+  },
+
   async updateTime(id: string, data: any) {
     const res = await fetch(`${API_URL}/times/${id}`, {
       method: 'PUT',
