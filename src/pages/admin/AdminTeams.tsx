@@ -12,6 +12,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import ColorPicker from '../../components/ui/ColorPicker';
+import AllEventsTeams, { type EventTeam } from '../../components/team/AllEventsTeams';
 import { normalizeHex, readableTextOn } from '../../utils/color';
 
 interface Team {
@@ -34,7 +35,10 @@ export default function AdminTeams() {
   const { user } = useAuth();
   const [teamsList, setTeamsList] = useState<Team[]>([]);
   // 'event' = times do evento selecionado; 'default' = times padrão (modelos da empresa).
-  const [scope, setScope] = useState<'event' | 'default'>('event');
+  // 'all' = visão somente leitura dos times de todos os eventos.
+  const [scope, setScope] = useState<'event' | 'default' | 'all'>('event');
+  const [allTeams, setAllTeams] = useState<EventTeam[]>([]);
+  const [loadingAll, setLoadingAll] = useState(false);
   const [defaultTeams, setDefaultTeams] = useState<Team[]>([]);
   const [applying, setApplying] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -86,6 +90,27 @@ export default function AdminTeams() {
     loadData();
     loadDefaultTeams();
   }, [user]);
+
+  useEffect(() => {
+    if (scope !== 'all') return;
+    let active = true;
+    setLoadingAll(true);
+    api.getTimes()
+      .then(data => { if (active) setAllTeams(Array.isArray(data) ? data : []); })
+      .catch(err => {
+        console.error('❌ Erro ao carregar times de todos os eventos:', err);
+        if (active) setError('Não foi possível carregar os times de todos os eventos');
+      })
+      .finally(() => { if (active) setLoadingAll(false); });
+    return () => { active = false; };
+  }, [scope]);
+
+  const openEventTeams = (eventoId: string) => {
+    setSelectedEventId(eventoId);
+    setScope('event');
+    setError(null);
+    setNotice(null);
+  };
 
   const loadDefaultTeams = async () => {
     try {
@@ -237,7 +262,7 @@ export default function AdminTeams() {
             title="Times"
             description="Crie times para cada evento ou mantenha times padrão para reaproveitar"
             icon={<Users size={28} />}
-            action={
+            action={scope === 'all' ? undefined : (
               <div className="flex gap-3">
                 {!isDefaultScope && (
                   <Button
@@ -255,13 +280,14 @@ export default function AdminTeams() {
                   {isDefaultScope ? 'Novo Time Padrão' : 'Novo Time'}
                 </Button>
               </div>
-            }
+            )}
           />
 
           <div className="inline-flex rounded-lg border border-dark-border bg-dark-surface p-1" role="tablist" aria-label="Tipo de time">
             {([
               ['event', 'Times do evento'],
               ['default', `Times padrão (${defaultTeams.length})`],
+              ['all', 'Todos os eventos'],
             ] as const).map(([value, label]) => (
               <button
                 key={value}
@@ -290,6 +316,9 @@ export default function AdminTeams() {
             </div>
           )}
 
+          {scope === 'all' ? (
+            <AllEventsTeams events={events} teams={allTeams} loading={loadingAll} onOpenEvent={openEventTeams} />
+          ) : (<>
           {/* Seletor de Evento */}
           {isDefaultScope ? (
             <Card>
@@ -389,6 +418,8 @@ export default function AdminTeams() {
               </>
             )}
           </Card>
+
+          </>)}
 
           {/* Add/Edit Team Modal */}
           <Modal
