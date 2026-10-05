@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MessageSquare, Send, Eye, Gamepad2, Users, Play, MapPin } from 'lucide-react';
+import { MessageSquare, Send, Eye, Gamepad2, Users } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
@@ -12,8 +12,7 @@ import Input from '../../components/ui/Input';
 const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
   { icon: <Users size={20} />, label: 'Times', path: '/game-master/teams' },
-  { icon: <Play size={20} />, label: 'Controle', path: '/game-master/control' },
-  { icon: <MapPin size={20} />, label: 'Mensagens', path: '/game-master/messages' },
+  { icon: <MessageSquare size={20} />, label: 'Mensagens', path: '/game-master/messages' },
 ];
 
 const presetMessages = [
@@ -21,8 +20,8 @@ const presetMessages = [
   { text: 'Jogo iniciado!', color: '#22C55E', bg: 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-500/40' },
   { text: 'Faltam 5 minutos!', color: '#E53935', bg: 'bg-red-500/20 hover:bg-red-500/30 border-red-500/40' },
   { text: 'Equipe vencedora!', color: '#E91E8C', bg: 'bg-pink-500/20 hover:bg-pink-500/30 border-pink-500/40' },
-  { text: 'Parabens a todos!', color: '#1E9BD7', bg: 'bg-blue-500/20 hover:bg-blue-500/30 border-blue-500/40' },
-  { text: 'Atencao ao proximo desafio!', color: '#29B6F6', bg: 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-500/40' },
+  { text: 'Parabéns a todos!', color: '#1E9BD7', bg: 'bg-blue-500/20 hover:bg-blue-500/30 border-blue-500/40' },
+  { text: 'Atenção ao próximo desafio!', color: '#29B6F6', bg: 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-500/40' },
 ];
 
 export default function GameMasterMessages() {
@@ -37,6 +36,8 @@ export default function GameMasterMessages() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [customMessage, setCustomMessage] = useState('');
   const [previewMessage, setPreviewMessage] = useState<string | null>(null);
+  const [sendingText, setSendingText] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     if (events.length === 0) loadEventos();
@@ -62,15 +63,30 @@ export default function GameMasterMessages() {
   const safeDisplayMessages = Array.isArray(displayMessages) ? displayMessages : [];
   const selectedEvent = events.find((event) => event.id === eventoAtualId);
 
+  useEffect(() => {
+    if (!feedback) return;
+    const timer = window.setTimeout(() => setFeedback(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [feedback]);
+
   const publishMessage = async (text: string, type: 'preset' | 'custom') => {
-    if (!eventoAtualId) return;
+    if (!eventoAtualId || sendingText) return false;
+    setSendingText(text);
+    setFeedback(null);
     try {
       const message = await api.createDisplayMessage(eventoAtualId, { text, type });
-      setDisplayMessages((previous) => [message, ...previous].slice(0, 50));
+      // O telão pode já ter exibido a mensagem pelo WebSocket; evita duplicar no histórico.
+      setDisplayMessages((previous) => [message, ...previous.filter((item) => item.id !== message.id)].slice(0, 50));
       setPreviewMessage(text);
+      setFeedback({ kind: 'success', text: 'Mensagem enviada para o telão!' });
       window.setTimeout(() => setPreviewMessage((current) => current === text ? null : current), 5000);
+      return true;
     } catch (error) {
       console.error('Erro ao enviar mensagem para o display:', error);
+      setFeedback({ kind: 'error', text: error instanceof Error ? `Não foi possível enviar. ${error.message}` : 'Não foi possível enviar a mensagem.' });
+      return false;
+    } finally {
+      setSendingText(null);
     }
   };
 
@@ -78,11 +94,11 @@ export default function GameMasterMessages() {
     publishMessage(text, 'preset');
   };
 
-  const handleSendCustom = () => {
+  const handleSendCustom = async () => {
     const text = customMessage.trim();
     if (!text) return;
-    publishMessage(text, 'custom');
-    setCustomMessage('');
+    // Só limpa o campo se enviou; em caso de erro o texto digitado é mantido.
+    if (await publishMessage(text, 'custom')) setCustomMessage('');
   };
 
   return (
@@ -99,7 +115,7 @@ export default function GameMasterMessages() {
         <div className="max-w-5xl mx-auto">
           <PageHeader
             title="Mensagens no Display"
-            description="Envie mensagens para o painel de exibicao em tempo real"
+            description="Envie mensagens para o painel de exibição em tempo real"
             icon={<MessageSquare size={28} />}
           />
 
@@ -120,13 +136,22 @@ export default function GameMasterMessages() {
 
           {/* Preset Messages Grid */}
           <Card variant="glow" className="mb-6">
-            <h3 className="font-display text-lg text-white mb-4">Mensagens Rápidas</h3>
+            <h3 className="font-display text-lg text-white mb-1">Mensagens Rápidas</h3>
+            <p className="mb-4 text-sm text-gray-400">Um toque envia na hora para o telão do evento.</p>
+            {feedback && (
+              <div
+                role="status"
+                className={`mb-4 rounded-lg border px-4 py-2 text-sm font-semibold ${feedback.kind === 'success' ? 'border-success/40 bg-success/10 text-success' : 'border-danger/40 bg-danger/10 text-danger'}`}
+              >
+                {feedback.text}
+              </div>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {presetMessages.map(msg => (
                 <button
                   key={msg.text}
                   onClick={() => handleSendPreset(msg.text)}
-                  disabled={!eventoAtualId}
+                  disabled={!eventoAtualId || Boolean(sendingText)}
                   className={`
                     p-4 rounded-xl border text-center transition-all duration-200
                     hover:scale-[1.02] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40
@@ -137,7 +162,7 @@ export default function GameMasterMessages() {
                     className="text-lg font-display font-bold"
                     style={{ color: msg.color }}
                   >
-                    {msg.text}
+                    {sendingText === msg.text ? 'Enviando...' : msg.text}
                   </span>
                 </button>
               ))}
@@ -162,7 +187,7 @@ export default function GameMasterMessages() {
                 variant="primary"
                 size="md"
                 onClick={handleSendCustom}
-                disabled={!customMessage.trim() || !eventoAtualId}
+                disabled={!customMessage.trim() || !eventoAtualId || Boolean(sendingText)}
               >
                 <Send size={18} className="mr-2" />
                 Enviar
@@ -213,7 +238,7 @@ export default function GameMasterMessages() {
                       {msg.type === 'preset' ? 'Rápida' : 'Custom'}
                     </Badge>
                     <span className="font-mono text-xs text-gray-500 shrink-0">
-                      {msg.timestamp}
+                      {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}
                     </span>
                   </div>
                 ))}
