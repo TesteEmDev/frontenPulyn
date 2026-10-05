@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
 import PulynLogo from '../ui/PulynLogo';
 import { useAuth, roleLabels } from '../../hooks/useAuth';
-import { useBuffetName, DEFAULT_BUFFET_TITLE } from '../../hooks/useBuffetName';
+import { useBuffetName, useBuffetNameStore, DEFAULT_BUFFET_TITLE } from '../../hooks/useBuffetName';
 
 interface SidebarItem {
   icon: ReactNode;
@@ -32,6 +32,7 @@ export default function Sidebar({
   // No admin, o nome exibido é o "Nome da unidade" do cadastro do buffet.
   const unitName = useBuffetName(user?.role === 'admin');
   const displayName = user?.role === 'admin' && unitName !== DEFAULT_BUFFET_TITLE ? unitName : user?.name || '';
+  const logoUrl = useBuffetNameStore(state => (user?.role === 'admin' && state.empresaId === user.empresa_id ? state.logoUrl : ''));
 
   const handleLogout = () => {
     logout();
@@ -52,12 +53,16 @@ export default function Sidebar({
       {user && (
         <div className="flex items-center gap-3 px-4 py-3 border-b border-dark-border overflow-hidden">
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white font-bold text-sm"
+            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden text-white font-bold text-sm"
             style={{
-              background: `linear-gradient(135deg, ${accentColor}, #29B6F6)`,
+              background: logoUrl ? 'rgba(255,255,255,0.08)' : `linear-gradient(135deg, ${accentColor}, #29B6F6)`,
             }}
           >
-            {displayName.charAt(0)}
+            {logoUrl ? (
+              <img src={logoUrl} alt={`Logo de ${displayName}`} className="h-full w-full object-cover" />
+            ) : (
+              displayName.charAt(0)
+            )}
           </div>
           <div
             className="min-w-0 transition-opacity duration-300"

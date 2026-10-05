@@ -1303,6 +1303,32 @@ export const api = {
     return body as EmpresaProfile;
   },
 
+  // Logo/foto da unidade (guardada em `clientes`, como data URL).
+  async getEmpresaLogo(): Promise<{ dataUrl: string; name: string; type: string } | null> {
+    const res = await fetch(`${API_URL}/empresa/me/logo`, { headers: getAuthHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao carregar a logo (${res.status})`);
+    return body.logo || null;
+  },
+
+  async saveEmpresaLogo(data: { dataUrl: string; name: string }) {
+    const res = await fetch(`${API_URL}/empresa/me/logo`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar a logo (${res.status})`);
+    return body;
+  },
+
+  async deleteEmpresaLogo() {
+    const res = await fetch(`${API_URL}/empresa/me/logo`, { method: 'DELETE', headers: getAuthHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao remover a logo (${res.status})`);
+    return body;
+  },
+
   // ==================== SETTINGS ====================
   // Retorna as configurações do buffet como objeto { chave: valor }.
   async getSettings(): Promise<Record<string, string>> {

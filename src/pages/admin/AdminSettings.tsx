@@ -1,13 +1,14 @@
 // src/pages/admin/AdminSettings.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
-  Settings, Upload, Save, Database
+  Settings, Upload, Save, Database, Trash2, Loader2
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { maskCnpj, isValidCnpj, onlyDigits } from '../../utils/cnpj';
 import { maskPhone, validatePhone, countPhoneDigits } from '../../utils/phone';
 import { useAuth } from '../../hooks/useAuth';
 import { useBuffetNameStore } from '../../hooks/useBuffetName';
+import { optimizeLogo, LOGO_ACCEPT } from '../../utils/logoImage';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -37,6 +38,13 @@ export default function AdminSettings() {
   const [nameError, setNameError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [phoneError, setPhoneError] = useState('');
+
+  // Logo/foto da unidade: enviada e salva na hora (não depende do botão Salvar).
+  const [logoUrl, setLogoUrl] = useState('');
+  const [logoName, setLogoName] = useState('');
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoError, setLogoError] = useState('');
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const [unitSettings, setUnitSettings] = useState({
     unit_name: '',
@@ -69,6 +77,16 @@ export default function AdminSettings() {
 
   useEffect(() => {
     let active = true;
+    api.getEmpresaLogo()
+      .then(logo => {
+        if (!active) return;
+        setLogoUrl(logo?.dataUrl || '');
+        setLogoName(logo?.name || '');
+      })
+      .catch(error => {
+        console.error('Erro ao carregar a logo:', error);
+        if (active) setLogoError('Não foi possível carregar a logo atual.');
+      });
     api.getEmpresa()
       .then(profile => {
         if (!active) return;
@@ -83,6 +101,47 @@ export default function AdminSettings() {
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const syncHeaderLogo = (dataUrl: string) => {
+    if (empresaId) useBuffetNameStore.getState().setLogo(empresaId, dataUrl);
+  };
+
+  const handleLogoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setLogoBusy(true);
+    setLogoError('');
+    try {
+      const { dataUrl } = await optimizeLogo(file);
+      await api.saveEmpresaLogo({ dataUrl, name: file.name });
+      setLogoUrl(dataUrl);
+      setLogoName(file.name);
+      syncHeaderLogo(dataUrl);
+    } catch (error) {
+      console.error('Erro ao enviar a logo:', error);
+      setLogoError(error instanceof Error && error.message ? error.message : 'Não foi possível salvar a logo.');
+    } finally {
+      setLogoBusy(false);
+    }
+  };
+
+  const handleLogoRemove = async () => {
+    if (logoBusy) return;
+    setLogoBusy(true);
+    setLogoError('');
+    try {
+      await api.deleteEmpresaLogo();
+      setLogoUrl('');
+      setLogoName('');
+      syncHeaderLogo('');
+    } catch (error) {
+      console.error('Erro ao remover a logo:', error);
+      setLogoError(error instanceof Error && error.message ? error.message : 'Não foi possível remover a logo.');
+    } finally {
+      setLogoBusy(false);
+    }
+  };
 
   const updateUnit = (field: string, value: string) => {
     setUnitSettings(prev => ({ ...prev, [field]: value }));
@@ -169,20 +228,44 @@ export default function AdminSettings() {
             {!companyLoaded && saveError && (
               <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{saveError}</p>
             )}
-            {/* Logo Upload */}
+            {/* Logo / foto da unidade */}
             <Card>
-              <h2 className="font-display text-lg text-white mb-4">Logo da Unidade</h2>
+              <h2 className="font-display text-lg text-white mb-4">Logo / foto da unidade</h2>
               <div className="flex items-center gap-4">
-                <div className="w-20 h-20 rounded-xl bg-primary/20 border-2 border-dashed border-primary/50 flex items-center justify-center">
-                  <span className="text-3xl font-bold text-primary">P</span>
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-primary/50 bg-primary/20">
+                  {logoUrl ? (
+                    <img src={logoUrl} alt="Logo da unidade" className="h-full w-full object-contain" />
+                  ) : (
+                    <span className="text-3xl font-bold text-primary" aria-hidden="true">
+                      {(unitSettings.unit_name.trim().charAt(0) || 'P').toUpperCase()}
+                    </span>
+                  )}
                 </div>
-                <div className="flex-1">
-                  <Button variant="ghost" className="border border-border">
-                    <Upload size={16} className="mr-1.5" />
-                    Upload Logo
-                  </Button>
-                  <p className="text-xs text-gray-500 mt-2">PNG ou SVG, recomendado 200x200px</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      className="border border-border"
+                      onClick={() => logoInputRef.current?.click()}
+                      disabled={logoBusy}
+                    >
+                      {logoBusy ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <Upload size={16} className="mr-1.5" />}
+                      {logoUrl ? 'Trocar imagem' : 'Enviar imagem'}
+                    </Button>
+                    {logoUrl && (
+                      <Button variant="ghost" onClick={handleLogoRemove} disabled={logoBusy}>
+                        <Trash2 size={16} className="mr-1.5" />
+                        Remover
+                      </Button>
+                    )}
+                  </div>
+                  <p className="mt-2 truncate text-xs text-gray-500">
+                    {logoName || 'PNG, JPG, WEBP ou SVG. Recomendado 200x200 px.'}
+                  </p>
+                  <p className="text-xs text-gray-500">Aparece no menu lateral e é salva assim que você escolhe a imagem.</p>
+                  {logoError && <p role="alert" className="mt-2 text-sm text-danger">{logoError}</p>}
                 </div>
+                <input ref={logoInputRef} type="file" accept={LOGO_ACCEPT} className="hidden" onChange={handleLogoChange} />
               </div>
             </Card>
 
