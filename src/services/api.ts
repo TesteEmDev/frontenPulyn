@@ -93,6 +93,32 @@ async function analyticsRequest(path: string) {
   return data;
 }
 
+// Relatório geral (todos os eventos do buffet), devolvido por GET /reports/overview.
+export interface GeneralReportData {
+  totals: {
+    events: number;
+    finishedEvents: number;
+    runningEvents: number;
+    participants: number;
+    teams: number;
+    totalPoints: number;
+    avgPoints: number;
+    scorings: number;
+  };
+  events: Array<{
+    id: string; name: string; date: string; status: string;
+    participants: number; teams: number; totalPoints: number; avgPoints: number; scorings: number;
+  }>;
+  byMonth: Array<{ month: string; events: number; participants: number }>;
+  topParticipants: Array<{
+    id: string; name: string; nickname: string; age: number | null; scores: number;
+    eventName: string; teamName: string; teamColor: string;
+  }>;
+  topTeams: Array<{ id: string; name: string; color: string; points: number; eventName: string }>;
+  topCheckpoints: Array<{ id: string; name: string; zone: string; eventName: string; readings: number }>;
+  topGames: Array<{ id: string; name: string; plays: number }>;
+}
+
 // Cadastro do buffet logado: nome, e-mail, telefone, endereço e backup vêm de `clientes`; cnpj de `empresas`.
 export interface EmpresaProfile {
   id: string;
@@ -1303,6 +1329,14 @@ export const api = {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Erro ao salvar dados do buffet (${res.status})`);
     return body as EmpresaProfile;
+  },
+
+  // Relatório geral: totais, resumo por evento e destaques de todos os eventos do buffet.
+  async getGeneralReport(): Promise<GeneralReportData> {
+    const res = await fetch(`${API_URL}/reports/overview`, { headers: getAuthHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao carregar o relatório geral (${res.status})`);
+    return body as GeneralReportData;
   },
 
   // Logo/foto da unidade (guardada em `clientes`, como data URL).
