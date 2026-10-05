@@ -1290,11 +1290,15 @@ export const api = {
   },
 
   // ==================== SETTINGS ====================
-  async getSettings() {
+  // Retorna as configurações do buffet como objeto { chave: valor }.
+  async getSettings(): Promise<Record<string, string>> {
     const res = await fetch(`${API_URL}/settings`, {
       headers: getAuthHeaders(),
     });
-    return res.json();
+    const body = await res.json().catch(() => ([]));
+    if (!res.ok) throw new Error((body as any).error || `Erro ao carregar configurações (${res.status})`);
+    const rows: Array<{ setting_key: string; setting_value: string | null }> = Array.isArray(body) ? body : [];
+    return Object.fromEntries(rows.map(row => [row.setting_key, row.setting_value ?? '']));
   },
 
   async getSetting(key: string) {
@@ -1310,7 +1314,9 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify({ value }),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar configuração (${res.status})`);
+    return body;
   },
 
   async updateSettings(settings: Record<string, string>) {
@@ -1319,7 +1325,9 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(settings),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar configurações (${res.status})`);
+    return body;
   },
 
   // ==================== USUÁRIOS (LOGINS) ====================

@@ -21,6 +21,8 @@ export default function AdminSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   // CNPJ é um dado do próprio buffet (tabela empresas), não uma configuração genérica.
   const [cnpj, setCnpj] = useState('');
@@ -51,22 +53,30 @@ export default function AdminSettings() {
         console.error('Erro ao carregar dados do buffet:', error);
         setCompanyLoaded(false);
       }
-      const loadedSettings = await loadSettings();
-      if (loadedSettings) {
-        setUnitSettings({
-          unit_name: loadedSettings.unit_name || 'Buffet Pulyn',
-          unit_address: loadedSettings.unit_address || 'Rua das Crianças, 123 - São Paulo, SP',
-          unit_phone: loadedSettings.unit_phone || '(11) 3456-7890',
-          unit_email: loadedSettings.unit_email || 'contato@buffetpulyn.com.br',
-        });
-        setBackupSettings({
-          backup_frequency: loadedSettings.backup_frequency || 'daily',
-        });
+      try {
+        applySettings(await loadSettings());
+        setSettingsLoaded(true);
+      } catch (error) {
+        // Sem carregar, salvar sobrescreveria os valores reais com campos vazios.
+        console.error('Erro ao carregar configurações:', error);
+        setSettingsLoaded(false);
+        setSaveError('Não foi possível carregar as configurações salvas. Recarregue a página antes de editar.');
       }
       setLoading(false);
     };
     loadData();
   }, [loadSettings]);
+
+  // Preenche o formulário com o que está salvo no servidor (campos vazios ficam vazios).
+  const applySettings = (saved: Record<string, string>) => {
+    setUnitSettings({
+      unit_name: saved.unit_name || '',
+      unit_address: saved.unit_address || '',
+      unit_phone: saved.unit_phone || '',
+      unit_email: saved.unit_email || '',
+    });
+    setBackupSettings({ backup_frequency: saved.backup_frequency || 'daily' });
+  };
 
   const updateUnit = (field: string, value: string) => {
     setUnitSettings(prev => ({ ...prev, [field]: value }));
@@ -74,6 +84,11 @@ export default function AdminSettings() {
 
   const handleSave = async () => {
     setSaveSuccess(false);
+    setSaveError('');
+    if (!settingsLoaded) {
+      setSaveError('As configurações não foram carregadas. Recarregue a página antes de salvar.');
+      return;
+    }
 
     if (companyLoaded && onlyDigits(cnpj) && !isValidCnpj(cnpj)) {
       setCnpjError('CNPJ inválido. Confira os 14 dígitos.');
@@ -92,14 +107,15 @@ export default function AdminSettings() {
         ...unitSettings,
         ...backupSettings,
       };
-      
+
       await updateSettings(allSettings);
+      // Mostra o que ficou realmente salvo (o servidor pode ter normalizado algum valor).
+      applySettings(usePulynStore.getState().settings);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);
-      if (error instanceof Error && error.message) setCnpjError(error.message);
-      alert(error instanceof Error && error.message ? error.message : 'Erro ao salvar configurações. Tente novamente.');
+      setSaveError(error instanceof Error && error.message ? error.message : 'Erro ao salvar configurações. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -134,6 +150,9 @@ export default function AdminSettings() {
           />
 
           <div className="max-w-3xl space-y-6">
+            {!settingsLoaded && saveError && (
+              <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{saveError}</p>
+            )}
             {/* Logo Upload */}
             <Card>
               <h2 className="font-display text-lg text-white mb-4">Logo da Unidade</h2>
@@ -157,6 +176,7 @@ export default function AdminSettings() {
               <div className="space-y-4">
                 <Input
                   label="Nome da unidade"
+                  placeholder="Ex: Buffet Alegria"
                   value={unitSettings.unit_name}
                   onChange={e => updateUnit('unit_name', e.target.value)}
                 />
@@ -181,17 +201,20 @@ export default function AdminSettings() {
                 </div>
                 <Input
                   label="Endereço"
+                  placeholder="Rua, número - cidade, UF"
                   value={unitSettings.unit_address}
                   onChange={e => updateUnit('unit_address', e.target.value)}
                 />
                 <div className="grid grid-cols-2 gap-4">
                   <Input
                     label="Telefone"
+                    placeholder="(00) 00000-0000"
                     value={unitSettings.unit_phone}
                     onChange={e => updateUnit('unit_phone', e.target.value)}
                   />
                   <Input
                     label="E-mail"
+                    placeholder="contato@seubuffet.com.br"
                     type="email"
                     value={unitSettings.unit_email}
                     onChange={e => updateUnit('unit_email', e.target.value)}
@@ -247,7 +270,10 @@ export default function AdminSettings() {
                 {saving ? 'Salvando...' : 'Salvar Configurações'}
               </Button>
               {saveSuccess && (
-                <span className="ml-3 text-success text-sm">✓ Configurações salvas com sucesso!</span>
+                <span role="status" className="ml-3 text-success text-sm">✓ Configurações salvas com sucesso!</span>
+              )}
+              {saveError && (
+                <span role="alert" className="ml-3 max-w-md text-danger text-sm">{saveError}</span>
               )}
             </div>
           </div>
