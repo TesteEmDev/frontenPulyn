@@ -6,8 +6,11 @@ import {
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import { maskCnpj, isValidCnpj, onlyDigits } from '../../utils/cnpj';
+import { maskPhone, validatePhone, countPhoneDigits } from '../../utils/phone';
+import { useAuth } from '../../hooks/useAuth';
+import { useBuffetNameStore } from '../../hooks/useBuffetName';
 import AdminSidebar from '../../components/layout/AdminSidebar';
-import TopBar from '../../components/layout/TopBar';
+import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -27,6 +30,8 @@ export default function AdminSettings() {
   // CNPJ é um dado do próprio buffet (tabela empresas), não uma configuração genérica.
   const [cnpj, setCnpj] = useState('');
   const [cnpjError, setCnpjError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const empresaId = useAuth(state => state.user?.empresa_id);
   const [companyLoaded, setCompanyLoaded] = useState(false);
 
   const [unitSettings, setUnitSettings] = useState({
@@ -72,10 +77,13 @@ export default function AdminSettings() {
     setUnitSettings({
       unit_name: saved.unit_name || '',
       unit_address: saved.unit_address || '',
-      unit_phone: saved.unit_phone || '',
+      unit_phone: maskPhone(saved.unit_phone || ''),
       unit_email: saved.unit_email || '',
     });
     setBackupSettings({ backup_frequency: saved.backup_frequency || 'daily' });
+    setPhoneError('');
+    // O cabeçalho das telas do admin mostra este nome.
+    if (empresaId) useBuffetNameStore.getState().setName(empresaId, saved.unit_name || '');
   };
 
   const updateUnit = (field: string, value: string) => {
@@ -87,6 +95,12 @@ export default function AdminSettings() {
     setSaveError('');
     if (!settingsLoaded) {
       setSaveError('As configurações não foram carregadas. Recarregue a página antes de salvar.');
+      return;
+    }
+
+    const phoneProblem = validatePhone(unitSettings.unit_phone);
+    if (phoneProblem) {
+      setPhoneError(phoneProblem);
       return;
     }
 
@@ -104,7 +118,10 @@ export default function AdminSettings() {
       }
 
       const allSettings = {
-        ...unitSettings,
+        unit_name: unitSettings.unit_name.trim(),
+        unit_address: unitSettings.unit_address.trim(),
+        unit_phone: unitSettings.unit_phone.trim(),
+        unit_email: unitSettings.unit_email.trim(),
         ...backupSettings,
       };
 
@@ -120,6 +137,8 @@ export default function AdminSettings() {
       setSaving(false);
     }
   };
+
+  const phoneDigits = countPhoneDigits(unitSettings.unit_phone);
 
   if (loading) {
     return (
@@ -140,7 +159,7 @@ export default function AdminSettings() {
       <AdminSidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar title="Gestão do Buffet" subtitle="Configurações" />
+        <BuffetTopBar subtitle="Configurações" />
 
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
@@ -206,12 +225,30 @@ export default function AdminSettings() {
                   onChange={e => updateUnit('unit_address', e.target.value)}
                 />
                 <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    label="Telefone"
-                    placeholder="(00) 00000-0000"
-                    value={unitSettings.unit_phone}
-                    onChange={e => updateUnit('unit_phone', e.target.value)}
-                  />
+                  <div>
+                    <Input
+                      label="Telefone"
+                      placeholder="(00) 00000-0000"
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel-national"
+                      maxLength={15}
+                      value={unitSettings.unit_phone}
+                      error={phoneError || undefined}
+                      onChange={e => {
+                        updateUnit('unit_phone', maskPhone(e.target.value));
+                        setPhoneError('');
+                      }}
+                      onBlur={() => setPhoneError(validatePhone(unitSettings.unit_phone))}
+                    />
+                    <p className="mt-1 text-xs text-gray-500" aria-live="polite">
+                      {phoneDigits === 0
+                        ? 'DDD + número: 10 dígitos (fixo) ou 11 (celular).'
+                        : phoneDigits < 10
+                        ? `${phoneDigits} de 10 dígitos`
+                        : `${phoneDigits} dígitos (${phoneDigits === 10 ? 'fixo' : 'celular'})`}
+                    </p>
+                  </div>
                   <Input
                     label="E-mail"
                     placeholder="contato@seubuffet.com.br"
