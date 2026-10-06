@@ -59,9 +59,9 @@ import FamilyNotifications from './pages/family/FamilyNotifications';
 import FamilyInviteRegister from './pages/family/FamilyInviteRegister';
 import ReceptionFamilyLinks from './pages/reception/ReceptionFamilyLinks';
 
-function EventControlBridge({ enabled }: { enabled: boolean }) {
+function EventControlBridge({ enabled, pollMs = 0 }: { enabled: boolean; pollMs?: number }) {
   const setEventoAtual = usePulynStore(state => state.setEventoAtual);
-  useEventControl((eventId) => setEventoAtual(eventId), enabled);
+  useEventControl((eventId) => setEventoAtual(eventId), enabled, pollMs);
   return null;
 }
 
@@ -174,7 +174,10 @@ function App() {
   return (
     <BrowserRouter>
       <EventoProvider>
-        <EventControlBridge enabled={isAuthenticated && Boolean(user?.empresa_id)} />
+        <EventControlBridge
+          enabled={isAuthenticated && Boolean(user?.empresa_id)}
+          pollMs={user && ['kiosk', 'score_kiosk', 'display'].includes(user.role) ? 8000 : 0}
+        />
         <DisplayRealtimeBridge enabled={isAuthenticated && user?.role === 'display'} />
         <Toaster
           position="top-right"

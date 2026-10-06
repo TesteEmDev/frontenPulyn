@@ -3,7 +3,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useNFCReader } from '../../hooks/useNFCReader';
 import { useDeviceNFC } from '../../hooks/useDeviceNFC';
 import { usePulynStore } from '../../store/mockData';
-import { api } from '../../services/api';
+import { api, API_URL } from '../../services/api';
 import Avatar from '../../components/ui/Avatar';
 import StatusDot from '../../components/ui/StatusDot';
 import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
@@ -68,6 +68,8 @@ export default function ScoreKiosk() {
   const scoreStateRef = useRef<ScoreKioskState>('waiting');
 
   const selectedEvent = events.find(event => String(event.id) === String(selectedEventId));
+  // Mostra em qual servidor a tela está ligada: se o totem enviar leituras para outro, nada chega aqui.
+  const serverHost = API_URL.replace(/^https?:\/\//, '').replace(/\/api\/?$/, '');
 
   useEffect(() => {
     scoreStateRef.current = state;
@@ -195,7 +197,7 @@ export default function ScoreKiosk() {
         </header>
         <section className="mb-3 flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-2 backdrop-blur">
           <div className="flex min-w-0 items-center gap-2 text-xs text-gray-400"><span className={`h-2 w-2 shrink-0 rounded-full ${selectedEventId ? 'bg-success shadow-[0_0_10px_rgba(34,197,94,0.8)]' : 'bg-warning'}`} /><span className="truncate">{selectedEventId ? <>Evento controlado pela recepção: <strong className="text-white">{selectedEvent?.name || 'carregando...'}</strong></> : 'Aguardando a recepção selecionar um evento'}</span></div>
-          <div className="flex shrink-0 items-center gap-3 text-xs text-gray-500"><span>Consulta de pontuação</span><button type="button" onClick={logout} className="underline hover:text-white">Sair</button></div>
+          <div className="flex shrink-0 items-center gap-3 text-xs text-gray-500"><span className="hidden md:inline" title="O totem precisa enviar as leituras para este mesmo servidor">Servidor: {serverHost}</span><span>Consulta de pontuação</span><button type="button" onClick={logout} className="underline hover:text-white">Sair</button></div>
         </section>
 
         {!selectedEventId ? (
