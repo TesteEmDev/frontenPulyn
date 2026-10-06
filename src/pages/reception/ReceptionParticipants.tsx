@@ -23,6 +23,8 @@ interface Child {
   nickname: string;
   age: number;
   bracelet_code?: string | null;
+  // Última pulseira que a criança usou (fica guardada depois que a pulseira é liberada).
+  last_bracelet_code?: string | null;
   time_id?: string | null;
   status?: 'active' | 'inactive' | 'pending';
   avatar?: string;
@@ -169,7 +171,8 @@ export default function ReceptionParticipants() {
         c =>
           c.name.toLowerCase().includes(q) ||
           c.nickname.toLowerCase().includes(q) ||
-          (c.bracelet_code && c.bracelet_code.toLowerCase().includes(q))
+          (c.bracelet_code && c.bracelet_code.toLowerCase().includes(q)) ||
+          (c.last_bracelet_code && c.last_bracelet_code.toLowerCase().includes(q))
       );
     }
 
@@ -574,6 +577,11 @@ export default function ReceptionParticipants() {
                           <td className="px-4 py-3">
                             {child.bracelet_code ? (
                               <Badge variant="success">{child.bracelet_code}</Badge>
+                            ) : child.last_bracelet_code ? (
+                              <div className="flex flex-col items-start gap-0.5" title="Pulseira liberada: era a última que esta criança usou">
+                                <Badge variant="muted">{child.last_bracelet_code}</Badge>
+                                <span className="text-[10px] text-gray-500">última pulseira</span>
+                              </div>
                             ) : (
                               <Badge variant="muted">--</Badge>
                             )}
