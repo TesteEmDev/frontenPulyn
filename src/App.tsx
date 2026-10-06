@@ -57,7 +57,7 @@ import FamilyQuiz from './pages/family/FamilyQuiz';
 import FamilyProfile from './pages/family/FamilyProfile';
 import FamilyNotifications from './pages/family/FamilyNotifications';
 import FamilyInviteRegister from './pages/family/FamilyInviteRegister';
-import FamilyLinkManagement from './pages/master/FamilyLinkManagement';
+import ReceptionFamilyLinks from './pages/reception/ReceptionFamilyLinks';
 
 function EventControlBridge({ enabled }: { enabled: boolean }) {
   const setEventoAtual = usePulynStore(state => state.setEventoAtual);
@@ -207,7 +207,7 @@ function App() {
           <Route path="/reception/participants" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionParticipants /></ProtectedRoute>} />
           <Route path="/reception/bracelets" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionBracelets /></ProtectedRoute>} />
           <Route path="/reception/families" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionFamilies /></ProtectedRoute>} />
-          <Route path="/reception/family-links" element={<ProtectedRoute allowedRoles={['reception']}><FamilyLinkManagement /></ProtectedRoute>} />
+          <Route path="/reception/family-links" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionFamilyLinks /></ProtectedRoute>} />
 
           {/* Recreacionista */}
           <Route path="/game-master" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterDashboard /></ProtectedRoute>} />
