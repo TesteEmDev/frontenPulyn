@@ -111,7 +111,7 @@ export interface GeneralReportData {
   }>;
   byMonth: Array<{ month: string; events: number; participants: number }>;
   topParticipants: Array<{
-    id: string; name: string; nickname: string; age: number | null; scores: number;
+    id: string; name: string; nickname: string; age: number | null; scores: number; braceletCode: string;
     eventName: string; teamName: string; teamColor: string;
   }>;
   topTeams: Array<{ id: string; name: string; color: string; points: number; eventName: string }>;
