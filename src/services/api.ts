@@ -554,6 +554,35 @@ export const api = {
     return data;
   },
 
+  // Lista de objetos da brincadeira "Ache o objeto" (por empresa).
+  async getParallelObjects(): Promise<Array<{ id: string; name: string }>> {
+    const res = await fetch(`${API_URL}/parallel-games/objects`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao carregar os objetos (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async addParallelObject(name: string): Promise<{ id: string; name: string }> {
+    const res = await fetch(`${API_URL}/parallel-games/objects`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ name }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao adicionar o objeto (${res.status})`);
+    return data as { id: string; name: string };
+  },
+
+  async renameParallelObject(id: string, name: string): Promise<{ id: string; name: string }> {
+    const res = await fetch(`${API_URL}/parallel-games/objects/${encodeURIComponent(id)}`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ name }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao renomear o objeto (${res.status})`);
+    return data as { id: string; name: string };
+  },
+
+  async deleteParallelObject(id: string) {
+    const res = await fetch(`${API_URL}/parallel-games/objects/${encodeURIComponent(id)}`, { method: 'DELETE', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao remover o objeto (${res.status})`);
+    return data;
+  },
+
   async stopParallelGame(eventoId: string) {
     const res = await fetch(`${API_URL}/parallel-games/eventos/${encodeURIComponent(eventoId)}/stop`, { method: 'POST', headers: getAuthHeaders() });
     const data = await res.json().catch(() => ({}));

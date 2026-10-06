@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Zap, Gamepad2, Users, MessageSquare, Medal, Play, Square, Loader2 } from 'lucide-react';
+import { Zap, Gamepad2, Users, MessageSquare, Medal, Play, Square, Loader2, Search } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
@@ -9,6 +9,8 @@ import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
+import ParallelObjectsList from '../../components/game-master/ParallelObjectsList';
+import RouletteOverlay, { type RouletteData } from '../../components/game-master/RouletteOverlay';
 
 const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
@@ -38,6 +40,7 @@ interface ParallelGame {
   id: string;
   checkpointId: string;
   checkpointName: string;
+  objectName?: string;
   status: string;
   startedAt: string;
   finishReason: string | null;
@@ -100,6 +103,8 @@ export default function GameMasterParallel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirmStop, setConfirmStop] = useState(false);
+  const [objectCount, setObjectCount] = useState<number | null>(null);
+  const [roulette, setRoulette] = useState<RouletteData | null>(null);
 
   useEffect(() => {
     if (events.length === 0) loadEventos();
@@ -151,7 +156,16 @@ export default function GameMasterParallel() {
     setBusy(true);
     setError('');
     try {
-      await api.startParallelGame(eventoAtualId, checkpointId);
+      const started = await api.startParallelGame(eventoAtualId, checkpointId);
+      // O objeto já foi sorteado no servidor; a roleta só mostra o resultado girando.
+      if (started?.roulette?.segments?.length) {
+        setRoulette({
+          segments: started.roulette.segments,
+          winnerIndex: started.roulette.winnerIndex,
+          objectName: started.roulette.objectName || started.objectName,
+          checkpointName: started.checkpointName || selectedCheckpoint?.name,
+        });
+      }
       await loadOverview(eventoAtualId, true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível iniciar a brincadeira paralela.');
@@ -192,7 +206,7 @@ export default function GameMasterParallel() {
         <div className="mx-auto max-w-4xl space-y-6">
           <PageHeader
             title="Brincadeira paralela"
-            description="Uma disputa extra durante a brincadeira principal: os 3 primeiros a ler o checkpoint escolhido ganham 50, 40 e 30 pontos"
+            description="Ache o objeto: a roleta sorteia um objeto e os 3 primeiros a levá-lo ao checkpoint escolhido ganham 50, 40 e 30 pontos"
             icon={<Zap size={28} />}
           />
 
@@ -228,8 +242,13 @@ export default function GameMasterParallel() {
                     <h3 className="font-display text-xl text-white">Em andamento</h3>
                     <Badge variant="success">Ao vivo</Badge>
                   </div>
+                  {active.objectName && (
+                    <p className="mt-2 flex items-center gap-2 font-display text-2xl font-bold text-accent">
+                      <Search size={22} aria-hidden="true" /> Achem: {active.objectName}
+                    </p>
+                  )}
                   <p className="mt-1 text-sm text-gray-400">
-                    Checkpoint: <strong className="text-white">{active.checkpointName || 'checkpoint'}</strong> · iniciada às {formatTime(active.startedAt)}
+                    Levem até <strong className="text-white">{active.checkpointName || 'o checkpoint'}</strong> · iniciada às {formatTime(active.startedAt)}
                   </p>
                 </div>
                 <Button variant="danger" onClick={() => setConfirmStop(true)} disabled={busy}>
@@ -244,12 +263,12 @@ export default function GameMasterParallel() {
             </Card>
           ) : (
             <Card>
-              <h3 className="font-display text-lg text-white">Nova brincadeira paralela</h3>
+              <h3 className="font-display text-lg text-white">Nova brincadeira: ache o objeto</h3>
               <p className="mt-1 text-sm text-gray-400">
-                Precisa de uma brincadeira principal em andamento. Escolha o checkpoint que as crianças vão disputar.
+                Precisa de uma brincadeira principal em andamento. Ao iniciar, a roleta sorteia o objeto que as crianças devem achar e levar ao checkpoint escolhido.
               </p>
 
-              <label className="mb-2 mt-5 block text-sm font-semibold text-gray-300" htmlFor="parallel-checkpoint">Checkpoint da disputa</label>
+              <label className="mb-2 mt-5 block text-sm font-semibold text-gray-300" htmlFor="parallel-checkpoint">Checkpoint onde levar o objeto</label>
               <select
                 id="parallel-checkpoint"
                 value={checkpointId}
@@ -279,13 +298,15 @@ export default function GameMasterParallel() {
               )}
 
               <div className="mt-5 flex justify-end">
-                <Button variant="primary" onClick={handleStart} disabled={!checkpointId || busy}>
+                <Button variant="primary" onClick={handleStart} disabled={!checkpointId || busy || objectCount === 0}>
                   {busy ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <Play size={16} className="mr-1.5" />}
-                  Iniciar brincadeira paralela
+                  Girar a roleta e iniciar
                 </Button>
               </div>
             </Card>
           )}
+
+          <ParallelObjectsList onCountChange={setObjectCount} />
 
           {history.length > 0 && (
             <Card>
@@ -294,7 +315,9 @@ export default function GameMasterParallel() {
                 {history.map(game => (
                   <li key={game.id} className="rounded-xl border border-white/[0.08] bg-surface/30 p-4">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-white">{game.checkpointName || 'Checkpoint'}</span>
+                      <span className="text-sm font-semibold text-white">
+                        {game.objectName ? `${game.objectName} → ` : ''}{game.checkpointName || 'Checkpoint'}
+                      </span>
                       <span className="text-xs text-gray-500">
                         {formatTime(game.startedAt)} · {FINISH_LABEL[game.finishReason || ''] || 'Encerrada'}
                       </span>
@@ -313,6 +336,8 @@ export default function GameMasterParallel() {
           )}
         </div>
       </main>
+
+      {roulette && <RouletteOverlay data={roulette} onClose={() => setRoulette(null)} />}
 
       <Modal isOpen={confirmStop} onClose={busy ? () => undefined : () => setConfirmStop(false)} title="Encerrar brincadeira paralela" size="sm">
         <div className="space-y-4">
