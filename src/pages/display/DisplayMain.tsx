@@ -402,6 +402,10 @@ export default function DisplayMain() {
           progress: monsters?.length ? monsters : prev?.progress,
         }));
         refreshMonsterStatus();
+      } else if (event.type === 'GAME_CHECKPOINTS_UPDATED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        // A lista de checkpoints do jogo mudou: busca de novo o alvo do Tesouro / o especial do Monstro.
+        refreshTreasureStatus();
+        refreshMonsterStatus();
       } else if (event.type === 'GAME_STARTED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const treasure = event.payload?.treasure;
 

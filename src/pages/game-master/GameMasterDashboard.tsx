@@ -13,6 +13,7 @@ import StatusDot from '../../components/ui/StatusDot';
 import Timer from '../../components/ui/Timer';
 import ScoreCounter from '../../components/ui/ScoreCounter';
 import { api, API_URL } from '../../services/api';
+import LiveGameCheckpoints from '../../components/game-master/LiveGameCheckpoints';
 
 const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
@@ -224,6 +225,11 @@ export default function GameMasterDashboard() {
         at: receivedAt,
       });
       loadMonsterStatus();
+    } else if (event.type === 'GAME_CHECKPOINTS_UPDATED') {
+      // Os checkpoints do jogo foram trocados (aqui ou em outra tela): recarrega alvo/especial e a lista do jogo.
+      loadTreasureStatus();
+      loadMonsterStatus();
+      usePulynStore.getState().loadBrincadeiras().catch(() => undefined);
     } else if (event.type === 'TERRITORY_CONQUERED') {
       setLastGameEvent({
         label: 'Conquista registrada',
@@ -842,6 +848,15 @@ export default function GameMasterDashboard() {
               </div>
             </div>
           </Card>
+
+          {activeGame && (
+            <LiveGameCheckpoints
+              game={games.find(game => String(game.id) === String(activeGame.id)) || activeGame}
+              eventCheckpoints={safeCheckpoints}
+              running={gameRunning}
+              onSaved={async () => { await usePulynStore.getState().loadBrincadeiras(); }}
+            />
+          )}
 
           {/* Active Game Card */}
           <Card variant="glow" className="mb-6">

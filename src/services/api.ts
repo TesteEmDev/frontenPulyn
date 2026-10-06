@@ -523,6 +523,18 @@ export const api = {
     return res.json();
   },
 
+  // Troca só os checkpoints de um jogo (vale também com a partida em andamento).
+  async updateGameCheckpoints(gameId: string, data: { checkpoints: string[]; specialCheckpointId?: string }) {
+    const res = await fetch(`${API_URL}/brincadeiras/${encodeURIComponent(gameId)}/checkpoints`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar os checkpoints (${res.status})`);
+    return body;
+  },
+
   // ==================== BRINCADEIRA PARALELA (recreacionista) ====================
   async getParallelGame(eventoId: string) {
     const res = await fetch(`${API_URL}/parallel-games/eventos/${encodeURIComponent(eventoId)}`, { headers: getAuthHeaders() });
