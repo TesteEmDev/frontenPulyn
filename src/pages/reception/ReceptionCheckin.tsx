@@ -1,10 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import { useNFCReader } from '../../hooks/useNFCReader';
-import Sidebar from '../../components/layout/Sidebar';
-import TopBar from '../../components/layout/TopBar';
+import ReceptionSidebar from '../../components/layout/ReceptionSidebar';
+import ReceptionTopBar from '../../components/layout/ReceptionTopBar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -13,50 +12,6 @@ import StatusDot from '../../components/ui/StatusDot';
 import Avatar from '../../components/ui/Avatar';
 import AvatarSelector from '../../components/ui/AvatarSelector';
 import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
-
-const navItems = [
-  {
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-      </svg>
-    ),
-    label: 'Dashboard',
-    path: '/reception',
-  },
-  {
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-      </svg>
-    ),
-    label: 'Check-in',
-    path: '/reception/checkin',
-  },
-  {
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M18 20a6 6 0 00-12 0m12 0h3v-2a3 3 0 00-5.356-1.857M6 20H3v-2a3 3 0 015.356-1.857M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ),
-    label: 'Participantes',
-    path: '/reception/participants',
-  },
-  {
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
-      </svg>
-    ),
-    label: 'Pulseiras',
-    path: '/reception/bracelets',
-  },
-  {
-    icon: <span>👪</span>,
-    label: 'Famílias',
-    path: '/reception/families',
-  },
-];
 
 const normalizeUid = (value: string) => value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
 
@@ -73,7 +28,6 @@ const CLOSED_EVENT_STATUSES = ['completed', 'cancelled', 'canceled', 'finished']
 const isOpenEvent = (event: any) => !CLOSED_EVENT_STATUSES.includes(String(event.status || '').trim().toLowerCase());
 
 export default function ReceptionCheckin() {
-  const location = useLocation();
   const {
     teams = [],
     loadTeams,
@@ -82,7 +36,6 @@ export default function ReceptionCheckin() {
     eventoAtualId,
     setEventoAtual,
   } = usePulynStore();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -276,14 +229,7 @@ export default function ReceptionCheckin() {
   if (loading) {
     return (
       <div className="flex h-screen bg-dark">
-        <Sidebar
-          items={navItems}
-          activePath={location.pathname}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(previous => !previous)}
-          title="Recepcao"
-          accentColor="#F59E0B"
-        />
+        <ReceptionSidebar />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
@@ -296,17 +242,10 @@ export default function ReceptionCheckin() {
 
   return (
     <div className="flex h-screen bg-dark">
-      <Sidebar
-        items={navItems}
-        activePath={location.pathname}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(previous => !previous)}
-        title="Recepcao"
-        accentColor="#F59E0B"
-      />
+      <ReceptionSidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar title="Check-in" subtitle="Conferência de pulseiras NFC" />
+        <ReceptionTopBar subtitle="Conferência de pulseiras NFC" />
 
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
