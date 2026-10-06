@@ -25,6 +25,7 @@ import GameMasterDashboard from './pages/game-master/GameMasterDashboard';
 import GameMasterTeams from './pages/game-master/GameMasterTeams';
 import GameMasterCheckpoints from './pages/game-master/GameMasterCheckpoints';
 import GameMasterMessages from './pages/game-master/GameMasterMessages';
+import GameMasterParallel from './pages/game-master/GameMasterParallel';
 import GameMasterRanking from './pages/game-master/GameMasterRanking';
 import GameMasterZoneSetup from './pages/game-master/GameMasterZoneSetup';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -220,6 +221,7 @@ function App() {
   <Route path="/game-master/dashboard" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterDashboard /></ProtectedRoute>} />
   <Route path="/game-master/control" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterDashboard /></ProtectedRoute>} />
           <Route path="/game-master/messages" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterMessages /></ProtectedRoute>} />
+          <Route path="/game-master/parallel" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterParallel /></ProtectedRoute>} />
           <Route path="/game-master/ranking" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterRanking /></ProtectedRoute>} />
           <Route path="/game-master/zone-setup" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterZoneSetup /></ProtectedRoute>} />
 

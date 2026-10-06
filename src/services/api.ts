@@ -523,6 +523,32 @@ export const api = {
     return res.json();
   },
 
+  // ==================== BRINCADEIRA PARALELA (recreacionista) ====================
+  async getParallelGame(eventoId: string) {
+    const res = await fetch(`${API_URL}/parallel-games/eventos/${encodeURIComponent(eventoId)}`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar a brincadeira paralela (${res.status})`);
+    return data;
+  },
+
+  async startParallelGame(eventoId: string, checkpointId: string) {
+    const res = await fetch(`${API_URL}/parallel-games/eventos/${encodeURIComponent(eventoId)}/start`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ checkpointId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao iniciar a brincadeira paralela (${res.status})`);
+    return data;
+  },
+
+  async stopParallelGame(eventoId: string) {
+    const res = await fetch(`${API_URL}/parallel-games/eventos/${encodeURIComponent(eventoId)}/stop`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao encerrar a brincadeira paralela (${res.status})`);
+    return data;
+  },
+
   // ==================== MENSAGENS DO DISPLAY ====================
   async getDisplayMessages(eventoId: string, limit = 50) {
     const res = await fetch(`${API_URL}/messages/eventos/${eventoId}?limit=${limit}`, {
