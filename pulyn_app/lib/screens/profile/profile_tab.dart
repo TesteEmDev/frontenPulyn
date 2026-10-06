@@ -197,8 +197,8 @@ class ProfileTab extends StatelessWidget {
   }
 }
 
-String _roleLabel(String role) {
-  switch (role.toLowerCase()) {
+String _roleLabel(String perfil) {
+  switch (perfil.toLowerCase()) {
     case 'family':
       return 'Responsável';
     case 'admin':
@@ -208,7 +208,7 @@ String _roleLabel(String role) {
     case 'master':
       return 'Master';
     default:
-      return role;
+      return perfil;
   }
 }
 
@@ -227,7 +227,7 @@ class _ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = user.name.trim().isNotEmpty ? user.name.trim()[0].toUpperCase() : '?';
+    final initial = user.nome.trim().isNotEmpty ? user.nome.trim()[0].toUpperCase() : '?';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -273,7 +273,7 @@ class _ProfileHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  user.name.isEmpty ? 'Usuário' : user.name,
+                  user.nome.isEmpty ? 'Usuário' : user.nome,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -297,7 +297,7 @@ class _ProfileHeader extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    _roleLabel(user.role),
+                    _roleLabel(user.perfil),
                     style: const TextStyle(
                       color: PulynColors.primaryLight,
                       fontSize: 12,
@@ -419,9 +419,9 @@ class _ChildTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _parseHex(child.teamColor);
-    final name = child.nickname.isNotEmpty ? child.nickname : child.name.split(' ').first;
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final cor = _parseHex(child.teamColor);
+    final nome = child.apelido.isNotEmpty ? child.apelido : child.nome.split(' ').first;
+    final initial = nome.isNotEmpty ? nome[0].toUpperCase() : '?';
     final team = child.teamName.isNotEmpty ? child.teamName : 'Sem time ainda';
 
     return Material(
@@ -447,7 +447,7 @@ class _ChildTile extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [color, color.withValues(alpha: 0.7)],
+                    colors: [cor, cor.withValues(alpha: 0.7)],
                   ),
                 ),
                 child: Text(
@@ -465,7 +465,7 @@ class _ChildTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      name,
+                      nome,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

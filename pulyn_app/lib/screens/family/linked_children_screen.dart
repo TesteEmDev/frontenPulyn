@@ -228,7 +228,7 @@ class _LinkedChildrenScreenState extends State<LinkedChildrenScreen> {
                       ),
                       child: Center(
                         child: Text(
-                          (child.nickname.isNotEmpty ? child.nickname : child.name)
+                          (child.apelido.isNotEmpty ? child.apelido : child.nome)
                               .substring(0, 1)
                               .toUpperCase(),
                           style: const TextStyle(
@@ -245,7 +245,7 @@ class _LinkedChildrenScreenState extends State<LinkedChildrenScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            child.nickname.isNotEmpty ? child.nickname : child.name,
+                            child.apelido.isNotEmpty ? child.apelido : child.nome,
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -253,7 +253,7 @@ class _LinkedChildrenScreenState extends State<LinkedChildrenScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${child.age} anos • ${child.teamName}',
+                            '${child.idade} anos • ${child.teamName}',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey[600],

@@ -12,7 +12,7 @@ import '../utils/text_sanitizer.dart';
 
 /// Zone configuration para o mapa do buffet
 class ZoneConfig {
-  final String name;
+  final String nome;
   final Color color;
   final double x; // percentual
   final double y;
@@ -20,7 +20,7 @@ class ZoneConfig {
   final double h;
 
   ZoneConfig({
-    required this.name,
+    required this.nome,
     required this.color,
     required this.x,
     required this.y,
@@ -80,7 +80,7 @@ Rect floorPlanRect(double aspect) {
 /// 🗺️ Widget de Mapa do Evento com Zonas, Checkpoints e Filhos - VERSÃO MELHORADA
 class EventMapWidget extends ConsumerStatefulWidget {
   final List<Child>? childrenList; // Lista de filhos vinculados no app (todos são "meus filhos")
-  final String? eventoId; // ID do evento para carregar floor plan
+  final String? eventoId; // ID do evento para carregar floor plano
   final Map<String, dynamic>? activeGame; // Jogo ativo para exibição
 
   /// Avisa quando o dedo entra/sai do mapa. A tela que hospeda o mapa usa isso
@@ -148,7 +148,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
   
   // 📏 Dimensões
   // ✅ Mesma "tela" (450x320) usada no admin web e no telão (AdminMap.tsx /
-  // DisplayMap.tsx) — os map_x/map_y salvos pelos checkpoints são pixels
+  // DisplayMap.tsx) — os mapaX/mapaY salvos pelos checkpoints são pixels
   // dentro desse canvas. Usar um tamanho diferente aqui deixava os
   // checkpoints e avatares fora da posição relativa correta no mobile.
   static const double mapWidth = 450;
@@ -274,7 +274,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
         if (image != null) _resolveFloorPlanAspect(image);
       }
     } catch (e) {
-      log.w('[MAP] ⚠️ Erro ao carregar floor plan: $e');
+      log.w('[MAP] ⚠️ Erro ao carregar floor plano: $e');
     }
   }
 
@@ -338,7 +338,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
     return targets;
   }
 
-  /// Leva cada avatar até o alvo calculado. Chamado a cada build, mas só age
+  /// Leva cada avatar até o alvo calculado. Chamado a cada build, mas só idade
   /// quando o alvo de uma criança mudou (nova leitura de checkpoint).
   void _syncAvatarTargets(List<Map<String, dynamic>> childPositions, Map<String, Offset> targets) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -358,7 +358,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
           setState(() {
             _avatarPositions[child.id] = AvatarPosition(
               childId: child.id,
-              childName: child.nickname.isNotEmpty ? child.nickname : child.name,
+              childName: child.apelido.isNotEmpty ? child.apelido : child.nome,
               teamColor: child.teamColor,
               x: target.dx,
               y: target.dy,
@@ -430,8 +430,8 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
 
     final planAspect = _floorPlanAspect;
     if (_floorPlanImage != null && planAspect != null) {
-      final plan = floorPlanRect(planAspect);
-      include(plan.left, plan.top, plan.right, plan.bottom);
+      final plano = floorPlanRect(planAspect);
+      include(plano.left, plano.top, plano.right, plano.bottom);
     }
     for (final z in zones) {
       include(z.x - 2, z.y - 2, z.x + z.w + 2, z.y + z.h + 2);
@@ -645,10 +645,10 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
     if (!mounted) return;
     HapticFeedback.lightImpact();
 
-    final name = child.nickname.isNotEmpty ? child.nickname : child.name.split(' ').first;
+    final nome = child.apelido.isNotEmpty ? child.apelido : child.nome.split(' ').first;
     setState(() {
       _arrivalRings[child.id] = DateTime.now().millisecondsSinceEpoch;
-      _arrivalMessage = '$name chegou em $checkpointName';
+      _arrivalMessage = '$nome chegou em $checkpointName';
     });
 
     _ringTimers[child.id]?.cancel();
@@ -720,7 +720,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        checkpoint['name'],
+                        checkpoint['nome'],
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -729,7 +729,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        checkpoint['zone'] ?? checkpoint['location'] ?? 'Zona não definida',
+                        checkpoint['zona'] ?? checkpoint['localizacao'] ?? 'Zona não definida',
                         style: const TextStyle(
                           fontSize: 14,
                           color: PulynColors.textMuted,
@@ -841,9 +841,9 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
                   ),
                   child: Center(
                     child: Text(
-                      child.nickname.isNotEmpty 
-                        ? child.nickname[0].toUpperCase()
-                        : child.name[0].toUpperCase(),
+                      child.apelido.isNotEmpty 
+                        ? child.apelido[0].toUpperCase()
+                        : child.nome[0].toUpperCase(),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,
@@ -858,7 +858,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        child.nickname.isNotEmpty ? child.nickname : child.name,
+                        child.apelido.isNotEmpty ? child.apelido : child.nome,
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -867,7 +867,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${child.age} anos • ${child.teamName}',
+                        '${child.idade} anos • ${child.teamName}',
                         style: const TextStyle(
                           fontSize: 14,
                           color: PulynColors.textMuted,
@@ -966,7 +966,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
     // Verifica se algum dos meus filhos conquistou este checkpoint
     final childrenToCheck = widget.childrenList ?? [];
     final isConquered = childrenToCheck.any((child) => 
-      child.achievements.any((achievement) => achievement.title == checkpoint['name'])
+      child.achievements.any((achievement) => achievement.title == checkpoint['nome'])
     );
     
     final isOnline = checkpoint['status'] == 'online';
@@ -984,7 +984,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
   List<ZoneConfig> _getDefaultZones() {
     return [
       ZoneConfig(
-        name: 'Entrada',
+        nome: 'Entrada',
         color: const Color(0xFF1E9BD7),
         x: 30,
         y: 5,
@@ -992,7 +992,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
         h: 18,
       ),
       ZoneConfig(
-        name: 'Área Verde',
+        nome: 'Área Verde',
         color: const Color(0xFF10B981),
         x: 5,
         y: 28,
@@ -1000,7 +1000,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
         h: 38,
       ),
       ZoneConfig(
-        name: 'Área Azul',
+        nome: 'Área Azul',
         color: const Color(0xFF1E9BD7),
         x: 53,
         y: 28,
@@ -1008,7 +1008,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
         h: 38,
       ),
       ZoneConfig(
-        name: 'Área Central',
+        nome: 'Área Central',
         color: const Color(0xFFF59E0B),
         x: 20,
         y: 70,
@@ -1029,7 +1029,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
         return Color(int.parse(hex));
       }
     } catch (e) {
-      log.w('⚠️ Erro ao converter cor: $colorInput');
+      log.w('⚠️ Erro ao converter color: $colorInput');
     }
     
     return const Color(0xFF1E9BD7); // Fallback
@@ -1123,45 +1123,45 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
     return [
       {
         'id': '1',
-        'name': 'Torre Encantada',
-        'zone': 'Entrada',
-        'points': 10,
+        'nome': 'Torre Encantada',
+        'zona': 'Entrada',
+        'pontos': 10,
         'status': 'online',
       },
       {
         'id': '2',
-        'name': 'Caverna Misteriosa',
-        'zone': 'Área Verde',
-        'points': 15,
+        'nome': 'Caverna Misteriosa',
+        'zona': 'Área Verde',
+        'pontos': 15,
         'status': 'online',
       },
       {
         'id': '3',
-        'name': 'Jardim Secreto',
-        'zone': 'Área Azul',
-        'points': 10,
+        'nome': 'Jardim Secreto',
+        'zona': 'Área Azul',
+        'pontos': 10,
         'status': 'online',
       },
       {
         'id': '4',
-        'name': 'Castelo da Diversão',
-        'zone': 'Área Central',
-        'points': 20,
+        'nome': 'Castelo da Diversão',
+        'zona': 'Área Central',
+        'pontos': 20,
         'status': 'online',
       },
       {
         'id': '5',
-        'name': 'Floresta Mágica',
-        'zone': 'Área Central',
-        'points': 12,
+        'nome': 'Floresta Mágica',
+        'zona': 'Área Central',
+        'pontos': 12,
         'status': 'offline',
       },
     ];
   }
 
   /// Normaliza nome da zona para comparação
-  String _normalizeZoneName(String? name) {
-    return (name ?? '')
+  String _normalizeZoneName(String? nome) {
+    return (nome ?? '')
         .trim()
         .toLowerCase()
         .replaceAll('á', 'a')
@@ -1172,13 +1172,13 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
   }
 
   /// Obtém posição do checkpoint no mapa
-  /// Primeiro tenta usar map_x e map_y da tabela, senão calcula pela zona
+  /// Primeiro tenta usar mapaX e mapaY da tabela, senão calcula pela zona
   Map<String, double> _getCheckpointPosition(
       Map<String, dynamic> checkpoint,
       List<Map<String, dynamic>> allCheckpoints) {
-    // ✅ Primeiro: tentar puxar posição salva na tabela (map_x, map_y)
-    final storedX = checkpoint['map_x'] ?? checkpoint['mapX'];
-    final storedY = checkpoint['map_y'] ?? checkpoint['mapY'];
+    // ✅ Primeiro: tentar puxar posição salva na tabela (mapaX, mapaY)
+    final storedX = checkpoint['mapaX'] ?? checkpoint['mapX'];
+    final storedY = checkpoint['mapaY'] ?? checkpoint['mapY'];
     
     if (storedX != null && storedY != null) {
       try {
@@ -1197,15 +1197,15 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
     if (zones.isEmpty) {
       return {'x': 0.5, 'y': 0.5};
     }
-    final zoneName = checkpoint['zone'] ?? checkpoint['location'] ?? 'Entrada';
-    final zone = zones.firstWhere(
-      (z) => _normalizeZoneName(z.name) == _normalizeZoneName(zoneName),
+    final zoneName = checkpoint['zona'] ?? checkpoint['localizacao'] ?? 'Entrada';
+    final zona = zones.firstWhere(
+      (z) => _normalizeZoneName(z.nome) == _normalizeZoneName(zoneName),
       orElse: () => zones[0],
     );
 
     final sameZone = allCheckpoints
         .where((c) =>
-            _normalizeZoneName(c['zone'] ?? c['location'] ?? 'Entrada') == _normalizeZoneName(zoneName))
+            _normalizeZoneName(c['zona'] ?? c['localizacao'] ?? 'Entrada') == _normalizeZoneName(zoneName))
         .toList();
     final index = sameZone.indexOf(checkpoint);
     final count = sameZone.length;
@@ -1213,8 +1213,8 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
     final xOffset = count > 1 ? (index / (count - 1)) * 0.6 + 0.2 : 0.5;
 
     return {
-      'x': zone.x + zone.w * xOffset,
-      'y': zone.y + zone.h * 0.75,
+      'x': zona.x + zona.w * xOffset,
+      'y': zona.y + zona.h * 0.75,
     };
   }
 
@@ -1228,7 +1228,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
     }
     _lastMapRefreshTick = refreshTick;
 
-    // ✅ Carregar floor plan na primeira vez que o widget for construído
+    // ✅ Carregar floor plano na primeira vez que o widget for construído
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_floorPlanUrl == null) {
         _loadFloorPlanFromRef();
@@ -1271,8 +1271,8 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
             'child': child,
             'x': cpPos['x'] ?? 50,
             'y': cpPos['y'] ?? 50,
-            'zone': checkpoint['zone'] ?? checkpoint['location'] ?? 'Checkpoint',
-            'checkpointName': checkpoint['name'],
+            'zona': checkpoint['zona'] ?? checkpoint['localizacao'] ?? 'Checkpoint',
+            'checkpointName': checkpoint['nome'],
             'hasCheckpoint': true,
           });
           
@@ -1287,7 +1287,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
           'child': child,
           'x': mapWidth / 2,
           'y': mapHeight / 2,
-          'zone': 'Centro',
+          'zona': 'Centro',
           'hasCheckpoint': false,
         });
       } else {
@@ -1297,25 +1297,25 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
             'child': child,
             'x': mapWidth / 2,
             'y': mapHeight / 2,
-            'zone': 'Centro (fallback)',
+            'zona': 'Centro (fallback)',
             'hasCheckpoint': false,
           });
           continue;
         }
         
         final zoneIdx = childrenToDisplay.indexOf(child) % zones.length;
-        final zone = zones[zoneIdx];
+        final zona = zones[zoneIdx];
         const cols = 2;
         final col = (childrenToDisplay.indexOf(child) % cols);
 
-        final x = zone.x + zone.w * (col == 0 ? 0.3 : 0.7);
-        final y = zone.y + zone.h * (0.3 + (childrenToDisplay.indexOf(child) ~/ cols) * 0.25);
+        final x = zona.x + zona.w * (col == 0 ? 0.3 : 0.7);
+        final y = zona.y + zona.h * (0.3 + (childrenToDisplay.indexOf(child) ~/ cols) * 0.25);
 
         positions.add({
           'child': child,
           'x': x,
           'y': y,
-          'zone': zone.name,
+          'zona': zona.nome,
           'hasCheckpoint': false,
         });
       }
@@ -1334,20 +1334,20 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
     List<Map<String, dynamic>> zonesFromBackend,
   ) {
     // ✅ Converte zonas do backend para ZoneConfig
-    // Backend envia: {id, name, color, x, y, width, height}
+    // Backend envia: {id, nome, color, x, y, width, height}
     List<ZoneConfig> convertedZones = zonesFromBackend.isEmpty
         ? _getDefaultZones() // Fallback se vazio
-        : zonesFromBackend.map((zone) {
-            final x = double.tryParse(zone['x']?.toString() ?? '0') ?? 0;
-            final y = double.tryParse(zone['y']?.toString() ?? '0') ?? 0;
-            final w = double.tryParse((zone['width'] ?? zone['w'])?.toString() ?? '20') ?? 20;
-            final h = double.tryParse((zone['height'] ?? zone['h'])?.toString() ?? '20') ?? 20;
+        : zonesFromBackend.map((zona) {
+            final x = double.tryParse(zona['x']?.toString() ?? '0') ?? 0;
+            final y = double.tryParse(zona['y']?.toString() ?? '0') ?? 0;
+            final w = double.tryParse((zona['width'] ?? zona['w'])?.toString() ?? '20') ?? 20;
+            final h = double.tryParse((zona['height'] ?? zona['h'])?.toString() ?? '20') ?? 20;
             
-            log.i('🎨 [MAP] Convertendo zona: ${zone['name']} (x:$x, y:$y, w:$w, h:$h)');
+            log.i('🎨 [MAP] Convertendo zona: ${zona['nome']} (x:$x, y:$y, w:$w, h:$h)');
             
             return ZoneConfig(
-              name: sanitizeUtf16((zone['name'] ?? 'Zona Desconhecida').toString()),
-              color: _getZoneColor(zone['color']),
+              nome: sanitizeUtf16((zona['nome'] ?? 'Zona Desconhecida').toString()),
+              color: _getZoneColor(zona['cor']),
               x: x,
               y: y,
               w: w,
@@ -1455,7 +1455,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
                                 const SizedBox(width: 6),
                                 Flexible(
                                   child: Text(
-                                    '${widget.activeGame!['gameName'] ?? widget.activeGame!['name'] ?? 'Jogo ativo'}',
+                                    '${widget.activeGame!['gameName'] ?? widget.activeGame!['nome'] ?? 'Jogo ativo'}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -1556,32 +1556,32 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
                             ),
 
                           // Zonas background com animação
-                          ...convertedZones.map((zone) {
-                            log.i('🎨 [ZONES] Renderizando zona: ${zone.name} @ (${zone.x}, ${zone.y})');
+                          ...convertedZones.map((zona) {
+                            log.i('🎨 [ZONES] Renderizando zona: ${zona.nome} @ (${zona.x}, ${zona.y})');
                             return AnimatedBuilder(
                               animation: _zoomAnimation,
                               builder: (context, child) => Positioned(
-                                left: zone.x + ox,
-                                top: zone.y + oy,
+                                left: zona.x + ox,
+                                top: zona.y + oy,
                                 child: Container(
-                                  width: zone.w,
-                                  height: zone.h,
+                                  width: zona.w,
+                                  height: zona.h,
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
-                                      color: zone.color.withValues(alpha: 0.8),  // ✅ Aumentei alpha para 0.8
+                                      color: zona.color.withValues(alpha: 0.8),  // ✅ Aumentei alpha para 0.8
                                       width: 2,
                                     ),
-                                    color: zone.color.withValues(alpha: 0.2),  // ✅ Aumentei alpha para 0.2
+                                    color: zona.color.withValues(alpha: 0.2),  // ✅ Aumentei alpha para 0.2
                                   ),
                                   child: Padding(
                                     padding: const EdgeInsets.all(8),
                                     child: Text(
-                                      zone.name,
+                                      zona.nome,
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
-                                        color: zone.color,
+                                        color: zona.color,
                                       ),
                                     ),
                                   ),
@@ -1593,17 +1593,17 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
                           // Checkpoints com animação e interatividade
                           ...visibleCheckpoints.map((checkpoint) {
                             final pos = _getCheckpointPosition(checkpoint, checkpoints);
-                            final color = _getCheckpointColor(checkpoint);
+                            final cor = _getCheckpointColor(checkpoint);
                             
                             // Verifica se algum dos meus filhos conquistou este checkpoint
                             final childrenToCheck = widget.childrenList ?? [];
                             final isConquered = childrenToCheck.any((child) => 
-                              child.achievements.any((achievement) => achievement.title == checkpoint['name'])
+                              child.achievements.any((achievement) => achievement.title == checkpoint['nome'])
                             );
 
                             return Positioned(
-                              // Caixa de largura FIXA (120px) centrada em map_x: o círculo
-                              // (40px) fica sempre exatamente em (map_x, map_y). Antes a caixa
+                              // Caixa de largura FIXA (120px) centrada em mapaX: o círculo
+                              // (40px) fica sempre exatamente em (mapaX, mapaY). Antes a caixa
                               // crescia com o nome do checkpoint e o círculo saía deslocado pra
                               // direita, e o avatar não cobria o checkpoint. x/y são pixels.
                               left: pos['x']! - 60 + ox,
@@ -1624,11 +1624,11 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
                                           height: 40,
                                           decoration: BoxDecoration(
                                             shape: BoxShape.circle,
-                                            border: Border.all(color: color, width: 3),
+                                            border: Border.all(color: cor, width: 3),
                                             color: PulynColors.darkCard.withValues(alpha: 0.95),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: color.withValues(alpha: 0.4),
+                                                color: cor.withValues(alpha: 0.4),
                                                 blurRadius: 12,
                                                 spreadRadius: 3,
                                               ),
@@ -1641,7 +1641,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
                                                 : checkpoint['status'] == 'online'
                                                   ? Icons.radio_button_unchecked
                                                   : Icons.cancel,
-                                              color: color,
+                                              color: cor,
                                               size: 20,
                                             ),
                                           ),
@@ -1654,13 +1654,13 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
                                             color: PulynColors.darkCard.withValues(alpha: 0.9),
                                             borderRadius: BorderRadius.circular(8),
                                             border: Border.all(
-                                              color: color.withValues(alpha: 0.3),
+                                              color: cor.withValues(alpha: 0.3),
                                             ),
                                           ),
                                           child: Column(
                                             children: [
                                               Text(
-                                                checkpoint['name'],
+                                                checkpoint['nome'],
                                                 style: const TextStyle(
                                                   fontSize: 10,
                                                   color: Colors.white,
@@ -1702,12 +1702,12 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
 
                             try {
                               final teamColor = Color(int.parse('0xFF${childData.teamColor.replaceFirst('#', '')}'));
-                              final displayName = childData.nickname.isNotEmpty
-                                  ? childData.nickname
-                                  : childData.name.split(' ').first;
-                              final initial = childData.nickname.isNotEmpty
-                                  ? childData.nickname[0].toUpperCase()
-                                  : childData.name[0].toUpperCase();
+                              final displayName = childData.apelido.isNotEmpty
+                                  ? childData.apelido
+                                  : childData.nome.split(' ').first;
+                              final initial = childData.apelido.isNotEmpty
+                                  ? childData.apelido[0].toUpperCase()
+                                  : childData.nome[0].toUpperCase();
                               final ringId = _arrivalRings[childData.id];
 
                               // Caixa 40x40 centrada no checkpoint. O avatar (34px) deixa o
@@ -1938,7 +1938,7 @@ class _EventMapWidgetState extends ConsumerState<EventMapWidget>
             color: color,
             boxShadow: [
               BoxShadow(
-                color: color.withValues(alpha: 0.3),
+                color: Colors.grey.withValues(alpha: 0.3),
                 blurRadius: 4,
                 spreadRadius: 1,
               ),

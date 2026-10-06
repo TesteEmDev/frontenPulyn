@@ -20,9 +20,9 @@ class _InviteEntryScreenState extends ConsumerState<InviteEntryScreen> {
   }
 
   void _handleInviteCode() {
-    final code = _codeController.text.trim();
+    final codigo = _codeController.text.trim();
     
-    if (code.isEmpty) {
+    if (codigo.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cole o link ou o código do convite')),
       );
@@ -30,10 +30,10 @@ class _InviteEntryScreenState extends ConsumerState<InviteEntryScreen> {
     }
 
     // ✅ Se o usuário cola a URL completa, extrair apenas o token
-    String token = code;
-    if (code.contains('/family/invite/')) {
+    String token = codigo;
+    if (codigo.contains('/family/invite/')) {
       // Extrai a última parte após /family/invite/
-      token = code.split('/family/invite/').last;
+      token = codigo.split('/family/invite/').last;
       log.i('[InviteEntry] Token extraído de URL: $token');
     }
 

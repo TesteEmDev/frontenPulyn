@@ -16,9 +16,9 @@ typedef CameraViewBuilder = Widget Function(BuildContext context, ValueChanged<S
 Child childFromLinkedChild(Map<String, dynamic> data) {
   return Child(
     id: '${data['id'] ?? ''}',
-    name: '${data['name'] ?? ''}',
-    nickname: '${data['nickname'] ?? ''}',
-    age: data['age'] is num ? (data['age'] as num).toInt() : 0,
+    nome: '${data['nome'] ?? ''}',
+    apelido: '${data['apelido'] ?? ''}',
+    idade: data['idade'] is num ? (data['idade'] as num).toInt() : 0,
     teamName: '${data['evento'] ?? 'Sem time'}',
     profileImage: null,
     currentScore: 0,
@@ -149,16 +149,16 @@ class _QrLinkPanelState extends State<QrLinkPanel> {
     }
   }
 
-  Future<void> _onCode(String code) async {
+  Future<void> _onCode(String codigo) async {
     if (_step != _Step.scanning || _handling) return;
     _handling = true;
     setState(() => _step = _Step.processing);
 
     try {
-      final result = await (widget.linkChild ?? _defaultLinkChild)(code);
+      final result = await (widget.linkChild ?? _defaultLinkChild)(codigo);
       final data = result['linkedChild'];
       if (result['success'] != true || data is! Map) {
-        throw Exception('${result['message'] ?? result['error'] ?? 'Dados da criança não encontrados'}');
+        throw Exception('${result['mensagem'] ?? result['error'] ?? 'Dados da criança não encontrados'}');
       }
       final child = childFromLinkedChild(Map<String, dynamic>.from(data));
       if (!mounted) return;
@@ -179,10 +179,10 @@ class _QrLinkPanelState extends State<QrLinkPanel> {
     }
   }
 
-  static Future<Map<String, dynamic>> _defaultLinkChild(String code) async {
+  static Future<Map<String, dynamic>> _defaultLinkChild(String codigo) async {
     final api = ApiService();
     await api.init();
-    return api.linkChildWithQRCode(code);
+    return api.linkChildWithQRCode(codigo);
   }
 
   @override
@@ -265,7 +265,7 @@ class _QrLinkPanelState extends State<QrLinkPanel> {
     }
   }
 
-  Widget _statusBox(Widget indicator, String text) {
+  Widget _statusBox(Widget indicator, String texto) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 28),
       child: Column(
@@ -274,7 +274,7 @@ class _QrLinkPanelState extends State<QrLinkPanel> {
         children: [
           indicator,
           const SizedBox(height: 16),
-          Text(text, style: const TextStyle(color: PulynColors.textSecondary)),
+          Text(texto, style: const TextStyle(color: PulynColors.textSecondary)),
         ],
       ),
     );
@@ -382,7 +382,7 @@ class _QrLinkPanelState extends State<QrLinkPanel> {
 
   Widget _buildLinked() {
     final child = _linkedChild!;
-    final name = child.nickname.isNotEmpty ? child.nickname : child.name;
+    final nome = child.apelido.isNotEmpty ? child.apelido : child.nome;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -406,8 +406,8 @@ class _QrLinkPanelState extends State<QrLinkPanel> {
         const SizedBox(height: 4),
         Text(
           [
-            name,
-            if (child.age > 0) '${child.age} anos',
+            nome,
+            if (child.idade > 0) '${child.idade} anos',
             if (child.teamName.isNotEmpty) child.teamName,
           ].join(' · '),
           textAlign: TextAlign.center,

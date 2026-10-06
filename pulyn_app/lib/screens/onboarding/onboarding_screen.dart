@@ -58,12 +58,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 _OnboardingCard(
                   image: 'assets/images/onboarding_location.jpg',
                   title: 'Localize Seu Filho',
-                  description: 'Veja em tempo real onde seu filho está durante a festa.',
+                  descricao: 'Veja em tempo real onde seu filho está durante a festa.',
                 ),
                 _OnboardingCard(
                   image: 'assets/images/onboarding_leaderboard.jpg',
                   title: 'Acompanhe Pontuação',
-                  description: 'Confira a pontuação e ranking ao vivo enquanto se diverte.',
+                  descricao: 'Confira a pontuação e ranking ao vivo enquanto se diverte.',
                 ),
               ],
             ),
@@ -128,12 +128,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 class _OnboardingCard extends StatelessWidget {
   final String image;
   final String title;
-  final String description;
+  final String descricao;
 
   const _OnboardingCard({
     required this.image,
     required this.title,
-    required this.description,
+    required this.descricao,
   });
 
   @override
@@ -181,7 +181,7 @@ class _OnboardingCard extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Text(
-            description,
+            descricao,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: Colors.grey[600],

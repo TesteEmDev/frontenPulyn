@@ -164,7 +164,7 @@ class _ChildDetailScreenState extends ConsumerState<ChildDetailScreen> {
     );
   }
 
-  Widget _buildErrorCard(String message) {
+  Widget _buildErrorCard(String mensagem) {
     return Container(
       decoration: BoxDecoration(
         color: PulynColors.darkSurface,
@@ -178,7 +178,7 @@ class _ChildDetailScreenState extends ConsumerState<ChildDetailScreen> {
           const SizedBox(width: 16),
           Expanded(
             child: Text(
-              message,
+              mensagem,
               style: const TextStyle(color: PulynColors.textPrimary),
             ),
           ),
@@ -187,7 +187,7 @@ class _ChildDetailScreenState extends ConsumerState<ChildDetailScreen> {
     );
   }
 
-  Widget _buildEmptyState(String title, String description) {
+  Widget _buildEmptyState(String title, String descricao) {
     return Center(
       child: Column(
         children: [
@@ -199,7 +199,7 @@ class _ChildDetailScreenState extends ConsumerState<ChildDetailScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            description,
+            descricao,
             textAlign: TextAlign.center,
             style: const TextStyle(color: PulynColors.textMuted),
           ),
@@ -250,7 +250,7 @@ class _ChildDetailScreenState extends ConsumerState<ChildDetailScreen> {
             ),
             child: Center(
               child: Text(
-                child.nickname.isNotEmpty ? child.nickname[0].toUpperCase() : '?',
+                child.apelido.isNotEmpty ? child.apelido[0].toUpperCase() : '?',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 32,
@@ -265,7 +265,7 @@ class _ChildDetailScreenState extends ConsumerState<ChildDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  child.nickname.isNotEmpty ? child.nickname : child.name,
+                  child.apelido.isNotEmpty ? child.apelido : child.nome,
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -326,7 +326,7 @@ class _ChildDetailScreenState extends ConsumerState<ChildDetailScreen> {
         ),
         _buildStatCard(
           title: 'Idade',
-          value: '${child.age} anos',
+          value: '${child.idade} anos',
           icon: Icons.cake_outlined,
           color: PulynColors.success,
         ),
@@ -420,7 +420,7 @@ class _ChildDetailScreenState extends ConsumerState<ChildDetailScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  achievement.description,
+                  achievement.descricao,
                   style: const TextStyle(
                     fontSize: 12,
                     color: PulynColors.textMuted,

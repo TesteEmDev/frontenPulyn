@@ -54,14 +54,14 @@ class AuthHeader extends StatelessWidget {
 class AuthInfoCard extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String? message;
+  final String? mensagem;
   final Color accent;
   final Widget? trailing;
 
   const AuthInfoCard({
     required this.icon,
     required this.title,
-    this.message,
+    this.mensagem,
     this.accent = PulynColors.primary,
     this.trailing,
     super.key,
@@ -101,10 +101,10 @@ class AuthInfoCard extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                if (message != null) ...[
+                if (mensagem != null) ...[
                   const SizedBox(height: 2),
                   Text(
-                    message!,
+                    mensagem!,
                     style: const TextStyle(
                       color: PulynColors.textSecondary,
                       fontSize: 13,
@@ -303,9 +303,9 @@ class AuthPrimaryButton extends StatelessWidget {
 /// Passo numerado ("1 · A recepção revisa seu cadastro").
 class AuthStep extends StatelessWidget {
   final int number;
-  final String text;
+  final String texto;
 
-  const AuthStep({required this.number, required this.text, super.key});
+  const AuthStep({required this.number, required this.texto, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -334,7 +334,7 @@ class AuthStep extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Text(
-              text,
+              texto,
               style: const TextStyle(
                 color: PulynColors.textSecondary,
                 fontSize: 14,

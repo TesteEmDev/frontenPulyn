@@ -108,10 +108,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _handleChildLinked(Child child, {bool announce = false}) {
     ref.read(childrenRefreshProvider.notifier).refresh();
     if (!announce || !mounted) return;
-    final name = child.nickname.isNotEmpty ? child.nickname : child.name;
+    final nome = child.apelido.isNotEmpty ? child.apelido : child.nome;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$name vinculado! Agora você acompanha a festa em tempo real.'),
+        content: Text('$nome vinculado! Agora você acompanha a festa em tempo real.'),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -328,7 +328,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _buildRankingCard(
                   position: index + 1,
-                  name: child.nickname.isNotEmpty ? child.nickname : child.name,
+                  nome: child.apelido.isNotEmpty ? child.apelido : child.nome,
                   score: child.currentScore,
                   teamColor: child.teamColor,
                   medal: _getMedalForPosition(index),
@@ -359,8 +359,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         final teamsMap = <String, (String, int, String)>{};
         for (final child in children) {
           if (teamsMap.containsKey(child.teamName)) {
-            final (name, score, color) = teamsMap[child.teamName]!;
-            teamsMap[child.teamName] = (name, score + child.currentScore, color);
+            final (nome, score, color) = teamsMap[child.teamName]!;
+            teamsMap[child.teamName] = (nome, score + child.currentScore, color);
           } else {
             teamsMap[child.teamName] = (child.teamName, child.currentScore, child.teamColor);
           }
@@ -383,7 +383,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _buildTeamRankingCard(
                   position: index + 1,
-                  name: teamName,
+                  nome: teamName,
                   score: totalScore,
                   teamColor: teamColor,
                   medal: _getMedalForPosition(index),
@@ -436,7 +436,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             log.i('📍 [HOME_SCREEN] _buildEventMapSection - Crianças carregadas: ${children.length}');
             if (children.isNotEmpty) {
               for (var child in children) {
-                log.i('   - ${child.nickname}: evento_id=${child.eventoId}');
+                log.i('   - ${child.apelido}: eventoId=${child.eventoId}');
               }
             }
             
@@ -550,7 +550,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Expanded(
             child: authState.when(
               data: (user) => Text(
-                'Olá, ${(user?.name ?? 'Usuário').split(' ').first}! 👋',
+                'Olá, ${(user?.nome ?? 'Usuário').split(' ').first}! 👋',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -800,7 +800,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               child: Center(
                 child: Text(
-                  child.nickname.isNotEmpty ? child.nickname[0].toUpperCase() : '?',
+                  child.apelido.isNotEmpty ? child.apelido[0].toUpperCase() : '?',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
@@ -818,7 +818,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    child.nickname.isNotEmpty ? child.nickname : child.name,
+                    child.apelido.isNotEmpty ? child.apelido : child.nome,
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -829,7 +829,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${child.age} anos • ${child.teamName}',
+                    '${child.idade} anos • ${child.teamName}',
                     style: const TextStyle(
                       fontSize: 12,
                       color: PulynColors.textMuted,
@@ -904,13 +904,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildRankingCard({
     required int position,
-    required String name,
+    required String nome,
     required int score,
     required String teamColor,
     required String medal,
     required bool isTop,
   }) {
-    final color = Color(int.parse('0xFF${teamColor.replaceFirst('#', '')}'));
+    final cor = Color(int.parse('0xFF${teamColor.replaceFirst('#', '')}'));
     
     return Container(
       decoration: BoxDecoration(
@@ -949,12 +949,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             height: 54,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [color, color.withValues(alpha: 0.7)],
+                colors: [cor, cor.withValues(alpha: 0.7)],
               ),
               borderRadius: BorderRadius.circular(27),
               boxShadow: [
                 BoxShadow(
-                  color: color.withValues(alpha: 0.4),
+                  color: cor.withValues(alpha: 0.4),
                   blurRadius: 8,
                 )
               ],
@@ -972,7 +972,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  name,
+                  nome,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -1033,13 +1033,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildTeamRankingCard({
     required int position,
-    required String name,
+    required String nome,
     required int score,
     required String teamColor,
     required String medal,
     required bool isTop,
   }) {
-    final color = Color(int.parse('0xFF${teamColor.replaceFirst('#', '')}'));
+    final cor = Color(int.parse('0xFF${teamColor.replaceFirst('#', '')}'));
     
     return Container(
       decoration: BoxDecoration(
@@ -1078,12 +1078,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             height: 54,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [color, color.withValues(alpha: 0.7)],
+                colors: [cor, cor.withValues(alpha: 0.7)],
               ),
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: color.withValues(alpha: 0.4),
+                  color: cor.withValues(alpha: 0.4),
                   blurRadius: 8,
                 )
               ],
@@ -1101,7 +1101,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  name,
+                  nome,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -1163,27 +1163,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildErrorRanking(String message) {
+  Widget _buildErrorRanking(String mensagem) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Icon(Icons.error_outline, size: 64, color: PulynColors.danger),
           const SizedBox(height: 16),
-          Text(message, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
+          Text(mensagem, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyState(String message) {
+  Widget _buildEmptyState(String mensagem) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Icon(Icons.inbox_outlined, size: 64, color: PulynColors.textMuted),
           const SizedBox(height: 16),
-          Text(message, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
+          Text(mensagem, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
         ],
       ),
     );

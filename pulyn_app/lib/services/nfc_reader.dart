@@ -21,15 +21,15 @@ enum NfcSupport {
 
 /// A leitura não foi concluída (a pessoa cancelou, ou a pulseira não pôde ser lida).
 class NfcReadException implements Exception {
-  final String message;
+  final String mensagem;
 
   /// `true` quando a própria pessoa fechou a leitura (não é um erro a mostrar).
   final bool cancelled;
 
-  const NfcReadException(this.message, {this.cancelled = false});
+  const NfcReadException(this.mensagem, {this.cancelled = false});
 
   @override
-  String toString() => message;
+  String toString() => mensagem;
 }
 
 /// Converte o UID lido pelo celular no formato que o backend usa: hexadecimal,
@@ -84,8 +84,10 @@ class PlatformNfcReader implements NfcReader {
     Future<void> finish({String? uid, NfcReadException? error, String? iosError}) async {
       if (completer.isCompleted) return;
       if (uid != null) {
+        log.i('[NFC] ✅ UID lido com sucesso: $uid');
         completer.complete(uid);
       } else {
+        log.e('[NFC] ❌ Falha ao ler UID');
         completer.completeError(error ?? const NfcReadException('Não foi possível ler a pulseira.'));
       }
       try {
@@ -93,28 +95,46 @@ class PlatformNfcReader implements NfcReader {
           alertMessageIos: uid != null ? 'Pulseira lida!' : null,
           errorMessageIos: iosError,
         );
-      } catch (_) {
-        // A sessão já pode ter sido encerrada pelo sistema.
+      } catch (e) {
+        log.w('[NFC] Erro ao encerrar sessão: $e');
       }
     }
 
     try {
+      log.i('[NFC] 🔍 Iniciando leitura de pulseira...');
       await NfcManager.instance.startSession(
         pollingOptions: {NfcPollingOption.iso14443},
         alertMessageIos: 'Encoste a pulseira do seu filho na parte de cima do iPhone.',
         onDiscovered: (tag) async {
+          log.i('[NFC] 📍 Tag detectada: ${tag.runtimeType}');
           final bytes = _uidBytes(tag);
-          if (bytes == null || bytes.isEmpty) {
-            log.w('[NFC] Tag sem UID legível');
+
+          if (bytes == null) {
+            log.w('[NFC] ⚠️ bytes is null');
             await finish(
-              error: const NfcReadException('Não foi possível ler esta pulseira. Tente novamente.'),
-              iosError: 'Não foi possível ler a pulseira.',
+              error: const NfcReadException('Não foi possível extrair o UID desta pulseira.'),
+              iosError: 'Falha ao extrair dados da pulseira.',
             );
             return;
           }
-          await finish(uid: uidToHex(bytes));
+
+          if (bytes.isEmpty) {
+            log.w('[NFC] ⚠️ bytes is empty');
+            await finish(
+              error: const NfcReadException('Pulseira não possui dados válidos.'),
+              iosError: 'Pulseira vazia.',
+            );
+            return;
+          }
+
+          log.i('[NFC] 📊 UID bytes: ${bytes.length} bytes - $bytes');
+          final hex = uidToHex(bytes);
+          log.i('[NFC] 🔤 UID hex: $hex');
+
+          await finish(uid: hex);
         },
         onSessionErrorIos: (error) {
+          log.e('[NFC] iOS erro: ${error.code}');
           final cancelled = error.code == NfcReaderErrorCodeIos.readerSessionInvalidationErrorUserCanceled;
           if (!completer.isCompleted) {
             completer.completeError(NfcReadException(
@@ -125,9 +145,9 @@ class PlatformNfcReader implements NfcReader {
         },
       );
     } catch (e) {
-      log.e('[NFC] Erro ao iniciar a leitura: $e');
+      log.e('[NFC] ❌ Erro ao iniciar leitura: $e');
       if (!completer.isCompleted) {
-        completer.completeError(const NfcReadException('Não foi possível iniciar o leitor de NFC.'));
+        completer.completeError(NfcReadException('Erro ao iniciar leitor: $e'));
       }
     }
 
