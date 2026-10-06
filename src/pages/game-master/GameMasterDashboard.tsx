@@ -3,7 +3,7 @@ import { Play, Pause, Square, RotateCcw, Gamepad2, Trophy, MapPin, MessageSquare
 import { usePulynStore } from '../../store/mockData';
 import { useGameWebSocket, GameEvent } from '../../hooks/useGameWebSocket';
 import Sidebar from '../../components/layout/Sidebar';
-import { PARALLEL_NAV_ITEM } from '../../components/layout/gameMasterNav';
+import { PARALLEL_NAV_ITEM, GAMES_NAV_ITEM } from '../../components/layout/gameMasterNav';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -20,6 +20,7 @@ const sidebarItems = [
   { icon: <Users size={20} />, label: 'Times', path: '/game-master/teams' },
   { icon: <MessageSquare size={20} />, label: 'Mensagens', path: '/game-master/messages' },
   PARALLEL_NAV_ITEM,
+  GAMES_NAV_ITEM,
 ];
 
 interface TerritoryStatus {
@@ -229,7 +230,7 @@ export default function GameMasterDashboard() {
       // Os checkpoints do jogo foram trocados (aqui ou em outra tela): recarrega alvo/especial e a lista do jogo.
       loadTreasureStatus();
       loadMonsterStatus();
-      usePulynStore.getState().loadBrincadeiras().catch(() => undefined);
+      if (selectedEventId) api.getBrincadeiras(selectedEventId).then(setGames).catch(() => undefined);
     } else if (event.type === 'TERRITORY_CONQUERED') {
       setLastGameEvent({
         label: 'Conquista registrada',
@@ -854,7 +855,7 @@ export default function GameMasterDashboard() {
               game={games.find(game => String(game.id) === String(activeGame.id)) || activeGame}
               eventCheckpoints={safeCheckpoints}
               running={gameRunning}
-              onSaved={async () => { await usePulynStore.getState().loadBrincadeiras(); }}
+              onSaved={async () => { if (selectedEventId) setGames(await api.getBrincadeiras(selectedEventId)); }}
             />
           )}
 

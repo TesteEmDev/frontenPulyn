@@ -4,7 +4,7 @@ import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
-import { PARALLEL_NAV_ITEM } from '../../components/layout/gameMasterNav';
+import { PARALLEL_NAV_ITEM, GAMES_NAV_ITEM } from '../../components/layout/gameMasterNav';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
@@ -15,6 +15,7 @@ const sidebarItems = [
   { icon: <Users size={20} />, label: 'Times', path: '/game-master/teams' },
   { icon: <MessageSquare size={20} />, label: 'Mensagens', path: '/game-master/messages' },
   PARALLEL_NAV_ITEM,
+  GAMES_NAV_ITEM,
 ];
 
 const PRIZES = [50, 40, 30];

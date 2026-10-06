@@ -4,7 +4,7 @@ import { Gamepad2, Users, MessageSquare, MapPin, Radio, Plus, Edit2, Trash2, Sav
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
-import { PARALLEL_NAV_ITEM } from '../../components/layout/gameMasterNav';
+import { PARALLEL_NAV_ITEM, GAMES_NAV_ITEM } from '../../components/layout/gameMasterNav';
 import TopBar from '../../components/layout/TopBar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
@@ -19,6 +19,7 @@ const sidebarItems = [
   { icon: <MapPin size={20} />, label: 'Checkpoints', path: '/game-master/checkpoints' },
   { icon: <MessageSquare size={20} />, label: 'Mensagens', path: '/game-master/messages' },
   PARALLEL_NAV_ITEM,
+  GAMES_NAV_ITEM,
 ];
 
 interface Checkpoint {
