@@ -71,6 +71,13 @@ const configuredForProduction = import.meta.env.PROD
 
 export const API_URL = (configuredForProduction || fallbackApiUrl).replace(/\/+$/, '');
 
+// O backend lê o nome do checkpoint no campo "nome"; as telas trabalham com "name".
+function corpoCheckpoint(dados: any) {
+  if (!dados || typeof dados !== 'object') return dados;
+  const { name, ...resto } = dados;
+  return { ...resto, nome: dados.nome ?? name };
+}
+
 // Helper para obter headers com autenticação
 function getAuthHeaders() {
   try {
@@ -1313,7 +1320,7 @@ export const api = {
       const res = await fetch(url, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify(config),
+        body: JSON.stringify(corpoCheckpoint(config)),
       });
       
       if (!res.ok) {
@@ -1340,14 +1347,14 @@ export const api = {
       const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(corpoCheckpoint(data)),
       });
-      
+
       if (!res.ok) {
         const errorText = await res.text();
         throw new Error(errorText);
       }
-      
+
       return res.json();
     } catch (err) {
       console.error('Erro ao criar checkpoint:', err);
