@@ -25,6 +25,8 @@ import GameMasterDashboard from './pages/game-master/GameMasterDashboard';
 import GameMasterTeams from './pages/game-master/GameMasterTeams';
 import GameMasterCheckpoints from './pages/game-master/GameMasterCheckpoints';
 import GameMasterMessages from './pages/game-master/GameMasterMessages';
+import GameMasterParallel from './pages/game-master/GameMasterParallel';
+import GameMasterGames from './pages/game-master/GameMasterGames';
 import GameMasterRanking from './pages/game-master/GameMasterRanking';
 import GameMasterZoneSetup from './pages/game-master/GameMasterZoneSetup';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -57,11 +59,11 @@ import FamilyQuiz from './pages/family/FamilyQuiz';
 import FamilyProfile from './pages/family/FamilyProfile';
 import FamilyNotifications from './pages/family/FamilyNotifications';
 import FamilyInviteRegister from './pages/family/FamilyInviteRegister';
-import FamilyLinkManagement from './pages/master/FamilyLinkManagement';
+import ReceptionFamilyLinks from './pages/reception/ReceptionFamilyLinks';
 
-function EventControlBridge({ enabled }: { enabled: boolean }) {
+function EventControlBridge({ enabled, pollMs = 0 }: { enabled: boolean; pollMs?: number }) {
   const setEventoAtual = usePulynStore(state => state.setEventoAtual);
-  useEventControl((eventId) => setEventoAtual(eventId), enabled);
+  useEventControl((eventId) => setEventoAtual(eventId), enabled, pollMs);
   return null;
 }
 
@@ -174,7 +176,10 @@ function App() {
   return (
     <BrowserRouter>
       <EventoProvider>
-        <EventControlBridge enabled={isAuthenticated && Boolean(user?.empresa_id)} />
+        <EventControlBridge
+          enabled={isAuthenticated && Boolean(user?.empresa_id)}
+          pollMs={user && ['kiosk', 'score_kiosk', 'display'].includes(user.role) ? 8000 : 0}
+        />
         <DisplayRealtimeBridge enabled={isAuthenticated && user?.role === 'display'} />
         <Toaster
           position="top-right"
@@ -207,7 +212,7 @@ function App() {
           <Route path="/reception/participants" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionParticipants /></ProtectedRoute>} />
           <Route path="/reception/bracelets" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionBracelets /></ProtectedRoute>} />
           <Route path="/reception/families" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionFamilies /></ProtectedRoute>} />
-          <Route path="/reception/family-links" element={<ProtectedRoute allowedRoles={['reception']}><FamilyLinkManagement /></ProtectedRoute>} />
+          <Route path="/reception/family-links" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionFamilyLinks /></ProtectedRoute>} />
 
           {/* Recreacionista */}
           <Route path="/game-master" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterDashboard /></ProtectedRoute>} />
@@ -217,6 +222,8 @@ function App() {
   <Route path="/game-master/dashboard" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterDashboard /></ProtectedRoute>} />
   <Route path="/game-master/control" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterDashboard /></ProtectedRoute>} />
           <Route path="/game-master/messages" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterMessages /></ProtectedRoute>} />
+          <Route path="/game-master/parallel" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterParallel /></ProtectedRoute>} />
+          <Route path="/game-master/games" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterGames /></ProtectedRoute>} />
           <Route path="/game-master/ranking" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterRanking /></ProtectedRoute>} />
           <Route path="/game-master/zone-setup" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterZoneSetup /></ProtectedRoute>} />
 

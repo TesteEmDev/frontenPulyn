@@ -12,6 +12,7 @@ import GameGuide, { type GuideGame } from '../../components/display/GameGuide';
 import FitToBox from '../../components/display/FitToBox';
 import { useTypewriterCycle } from '../../hooks/useTypewriterCycle';
 import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from '../../components/display/TreasureArena';
+import RouletteOverlay, { type RouletteData } from '../../components/game-master/RouletteOverlay';
 
 interface MonsterDisplayMonster {
   teamId: string;
@@ -58,6 +59,8 @@ export default function DisplayMain() {
   const [displayMessages, setDisplayMessages] = useState<any[]>([]);
   // Quando a última mensagem do recreacionista CHEGOU a este telão (o relógio do servidor pode destoar do da TV)
   const [messageArrivedAt, setMessageArrivedAt] = useState(0);
+  // Roleta da brincadeira paralela ("Ache o objeto"): gira no telão quando o recreacionista inicia.
+  const [parallelRoulette, setParallelRoulette] = useState<RouletteData | null>(null);
   const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
   const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
   const [treasureStatus, setTreasureStatus] = useState<TreasureArenaStatus | null>(null);
@@ -380,6 +383,16 @@ export default function DisplayMain() {
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
+      } else if (event.type === 'PARALLEL_GAME_STARTED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        const roulette = event.payload?.roulette;
+        if (roulette?.segments?.length) {
+          setParallelRoulette({
+            segments: roulette.segments,
+            winnerIndex: Number(roulette.winnerIndex) || 0,
+            objectName: String(event.payload?.objectName || ''),
+            checkpointName: event.payload?.checkpointName ? String(event.payload.checkpointName) : undefined,
+          });
+        }
       } else if (event.type === 'DISPLAY_MESSAGE' && sameEventId(event.payload?.evento_id ?? event.payload?.eventoId, selectedEventId)) {
         setDisplayMessages((previous) => [event.payload, ...previous].slice(0, 50));
         setMessageArrivedAt(Date.now());
@@ -401,6 +414,10 @@ export default function DisplayMain() {
           monsters: monsters?.length ? monsters : prev?.monsters,
           progress: monsters?.length ? monsters : prev?.progress,
         }));
+        refreshMonsterStatus();
+      } else if (event.type === 'GAME_CHECKPOINTS_UPDATED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        // A lista de checkpoints do jogo mudou: busca de novo o alvo do Tesouro / o especial do Monstro.
+        refreshTreasureStatus();
         refreshMonsterStatus();
       } else if (event.type === 'GAME_STARTED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const treasure = event.payload?.treasure;
@@ -808,6 +825,9 @@ export default function DisplayMain() {
 
   const conquestOverlay = (
     <>
+      {parallelRoulette && (
+        <RouletteOverlay data={parallelRoulette} onClose={() => setParallelRoulette(null)} autoCloseSeconds={14} />
+      )}
       {/* Notificação Animada de Conquista */}
       {showNotification && notificationData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm pointer-events-none">

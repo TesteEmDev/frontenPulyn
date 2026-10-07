@@ -11,6 +11,9 @@ export interface ControlledEventPayload {
 export function useEventControl(
   onEventSelected: (eventId: string | null, payload?: ControlledEventPayload) => void,
   enabled = true,
+  // Telas sem operador (totem, telão) também reconsultam o evento de tempos em tempos: se a
+  // primeira consulta ou o aviso em tempo real falhar, elas não ficam presas esperando a recepção.
+  pollMs = 0,
 ) {
   const callbackRef = useRef(onEventSelected);
 
@@ -84,12 +87,14 @@ export function useEventControl(
 
     loadCurrentEvent();
     connect();
+    const poll = pollMs > 0 ? setInterval(loadCurrentEvent, pollMs) : null;
 
     return () => {
       disposed = true;
+      if (poll) clearInterval(poll);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       socket?.close();
       socket = null;
     };
-  }, [enabled]);
+  }, [enabled, pollMs]);
 }

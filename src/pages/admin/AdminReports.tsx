@@ -21,6 +21,9 @@ import GeneralReport, { formatReportDate } from '../../components/reports/Genera
 import type { GeneralReportData } from '../../services/api';
 import { toCsv, downloadCsv } from '../../utils/csv';
 
+// Pulseira usada pela criança: a atual ou, depois que o evento termina e a pulseira é liberada, a última que ela usou.
+const braceletOf = (child: any): string => child.bracelet_code || child.last_bracelet_code || '';
+
 export default function AdminReports() {
   const { events = [], loadEvents } = usePulynStore();
 
@@ -211,9 +214,9 @@ export default function AdminReports() {
   };
 
   const handleExportCSV = () => {
-    const headers = ['Posição', 'Nome', 'Apelido', 'Idade', 'Pontuação'];
+    const headers = ['Posição', 'Nome', 'Apelido', 'Idade', 'Pulseira', 'Pontuação'];
     const rows = rankingData.map((child, i) =>
-      [i + 1, child.name, child.nickname || child.name, child.age, child.scores || 0].join(',')
+      [i + 1, child.name, child.nickname || child.name, child.age, braceletOf(child) || '', child.scores || 0].join(',')
     );
     const csv = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -420,6 +423,7 @@ export default function AdminReports() {
                         <th className="pb-3 text-sm font-body font-semibold text-gray-400">Nome</th>
                         <th className="pb-3 text-sm font-body font-semibold text-gray-400">Apelido</th>
                         <th className="pb-3 text-sm font-body font-semibold text-gray-400">Idade</th>
+                        <th className="pb-3 text-sm font-body font-semibold text-gray-400">Pulseira</th>
                         <th className="pb-3 text-sm font-body font-semibold text-gray-400">Pontuação</th>
                       </tr>
                     </thead>
@@ -443,13 +447,19 @@ export default function AdminReports() {
                             <p className="text-sm text-gray-300">{child.age}</p>
                           </td>
                           <td className="py-3 pr-4">
+                            <p className="text-sm text-gray-300 font-mono">{braceletOf(child) || '--'}</p>
+                            {!child.bracelet_code && child.last_bracelet_code && (
+                              <p className="text-[10px] text-gray-500">liberada</p>
+                            )}
+                          </td>
+                          <td className="py-3 pr-4">
                             <p className="text-sm font-bold text-primary">{child.scores || 0}</p>
                           </td>
                         </tr>
                       ))}
                       {rankingData.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="py-8 text-center text-gray-500">
+                          <td colSpan={6} className="py-8 text-center text-gray-500">
                             Nenhum participante ativo
                           </td>
                         </tr>

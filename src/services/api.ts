@@ -111,7 +111,7 @@ export interface GeneralReportData {
   }>;
   byMonth: Array<{ month: string; events: number; participants: number }>;
   topParticipants: Array<{
-    id: string; name: string; nickname: string; age: number | null; scores: number;
+    id: string; name: string; nickname: string; age: number | null; scores: number; braceletCode: string;
     eventName: string; teamName: string; teamColor: string;
   }>;
   topTeams: Array<{ id: string; name: string; color: string; points: number; eventName: string }>;
@@ -196,6 +196,22 @@ export const api = {
     const res = await fetch(`${API_URL}/familias/approved${query}`, { headers: getAuthHeaders() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erro ao carregar famílias aprovadas (${res.status})`);
+    return data;
+  },
+
+  // Todas as vinculações (aprovadas, pendentes, desvinculadas e rejeitadas), com criança e responsável.
+  async getFamilyLinks(eventoId?: string) {
+    const query = eventoId ? `?evento_id=${encodeURIComponent(eventoId)}` : '';
+    const res = await fetch(`${API_URL}/familias/links${query}`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar vinculações (${res.status})`);
+    return data;
+  },
+
+  async unlinkFamilyLink(linkId: string) {
+    const res = await fetch(`${API_URL}/familias/links/${linkId}/unlink`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro ao desvincular');
     return data;
   },
 
@@ -505,6 +521,73 @@ export const api = {
     const res = await fetch(`${API_URL}/support/stats`, { headers: getAuthHeaders() });
     if (!res.ok) throw new Error(`Erro ao carregar estatísticas de suporte (${res.status})`);
     return res.json();
+  },
+
+  // Troca só os checkpoints de um jogo (vale também com a partida em andamento).
+  async updateGameCheckpoints(gameId: string, data: { checkpoints: string[]; specialCheckpointId?: string }) {
+    const res = await fetch(`${API_URL}/brincadeiras/${encodeURIComponent(gameId)}/checkpoints`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar os checkpoints (${res.status})`);
+    return body;
+  },
+
+  // ==================== BRINCADEIRA PARALELA (recreacionista) ====================
+  async getParallelGame(eventoId: string) {
+    const res = await fetch(`${API_URL}/parallel-games/eventos/${encodeURIComponent(eventoId)}`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar a brincadeira paralela (${res.status})`);
+    return data;
+  },
+
+  async startParallelGame(eventoId: string, checkpointId: string) {
+    const res = await fetch(`${API_URL}/parallel-games/eventos/${encodeURIComponent(eventoId)}/start`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ checkpointId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao iniciar a brincadeira paralela (${res.status})`);
+    return data;
+  },
+
+  // Lista de objetos da brincadeira "Ache o objeto" (por empresa).
+  async getParallelObjects(): Promise<Array<{ id: string; name: string }>> {
+    const res = await fetch(`${API_URL}/parallel-games/objects`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao carregar os objetos (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async addParallelObject(name: string): Promise<{ id: string; name: string }> {
+    const res = await fetch(`${API_URL}/parallel-games/objects`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ name }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao adicionar o objeto (${res.status})`);
+    return data as { id: string; name: string };
+  },
+
+  async renameParallelObject(id: string, name: string): Promise<{ id: string; name: string }> {
+    const res = await fetch(`${API_URL}/parallel-games/objects/${encodeURIComponent(id)}`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ name }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao renomear o objeto (${res.status})`);
+    return data as { id: string; name: string };
+  },
+
+  async deleteParallelObject(id: string) {
+    const res = await fetch(`${API_URL}/parallel-games/objects/${encodeURIComponent(id)}`, { method: 'DELETE', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao remover o objeto (${res.status})`);
+    return data;
+  },
+
+  async stopParallelGame(eventoId: string) {
+    const res = await fetch(`${API_URL}/parallel-games/eventos/${encodeURIComponent(eventoId)}/stop`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao encerrar a brincadeira paralela (${res.status})`);
+    return data;
   },
 
   // ==================== MENSAGENS DO DISPLAY ====================

@@ -3,6 +3,7 @@ import { MessageSquare, Send, Eye, Gamepad2, Users } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
+import { PARALLEL_NAV_ITEM, GAMES_NAV_ITEM } from '../../components/layout/gameMasterNav';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -13,6 +14,8 @@ const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
   { icon: <Users size={20} />, label: 'Times', path: '/game-master/teams' },
   { icon: <MessageSquare size={20} />, label: 'Mensagens', path: '/game-master/messages' },
+  PARALLEL_NAV_ITEM,
+  GAMES_NAV_ITEM,
 ];
 
 const presetMessages = [

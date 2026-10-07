@@ -1,11 +1,10 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
 import { QrCode, Edit, RotateCw, Unlink } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useNFCReader } from '../../hooks/useNFCReader';
 import { api } from '../../services/api';
-import Sidebar from '../../components/layout/Sidebar';
-import TopBar from '../../components/layout/TopBar';
+import ReceptionSidebar from '../../components/layout/ReceptionSidebar';
+import ReceptionTopBar from '../../components/layout/ReceptionTopBar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -16,50 +15,6 @@ import Modal from '../../components/ui/Modal';
 import QRCodeModal from '../../components/ui/QRCodeModal';
 import StatusDot from '../../components/ui/StatusDot';
 
-const navItems = [
-  {
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-      </svg>
-    ),
-    label: 'Dashboard',
-    path: '/reception',
-  },
-  {
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-      </svg>
-    ),
-    label: 'Check-in',
-    path: '/reception/checkin',
-  },
-  {
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ),
-    label: 'Participantes',
-    path: '/reception/participants',
-  },
-  {
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
-      </svg>
-    ),
-    label: 'Pulseiras',
-    path: '/reception/bracelets',
-  },
-  {
-    icon: <span>👪</span>,
-    label: 'Famílias',
-    path: '/reception/families',
-  },
-];
-
 type FilterTab = 'all' | 'with-bracelet' | 'without-bracelet' | 'by-team';
 
 interface Child {
@@ -68,6 +23,8 @@ interface Child {
   nickname: string;
   age: number;
   bracelet_code?: string | null;
+  // Última pulseira que a criança usou (fica guardada depois que a pulseira é liberada).
+  last_bracelet_code?: string | null;
   time_id?: string | null;
   status?: 'active' | 'inactive' | 'pending';
   avatar?: string;
@@ -80,10 +37,8 @@ interface Team {
 }
 
 export default function ReceptionParticipants() {
-  const location = useLocation();
   const { eventoAtualId, setEventoAtual } = usePulynStore();
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [selectedTeam, setSelectedTeam] = useState<string>('');
@@ -216,7 +171,8 @@ export default function ReceptionParticipants() {
         c =>
           c.name.toLowerCase().includes(q) ||
           c.nickname.toLowerCase().includes(q) ||
-          (c.bracelet_code && c.bracelet_code.toLowerCase().includes(q))
+          (c.bracelet_code && c.bracelet_code.toLowerCase().includes(q)) ||
+          (c.last_bracelet_code && c.last_bracelet_code.toLowerCase().includes(q))
       );
     }
 
@@ -459,17 +415,10 @@ export default function ReceptionParticipants() {
 
   return (
     <div className="flex h-screen bg-dark">
-      <Sidebar
-        items={navItems}
-        activePath={location.pathname}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
-        title="Recepcao"
-        accentColor="#F59E0B"
-      />
+      <ReceptionSidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar title="Participantes" subtitle="Gerencie criancas e pulseiras" />
+        <ReceptionTopBar subtitle="Gerencie criancas e pulseiras" />
 
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
@@ -628,6 +577,11 @@ export default function ReceptionParticipants() {
                           <td className="px-4 py-3">
                             {child.bracelet_code ? (
                               <Badge variant="success">{child.bracelet_code}</Badge>
+                            ) : child.last_bracelet_code ? (
+                              <div className="flex flex-col items-start gap-0.5" title="Pulseira liberada: era a última que esta criança usou">
+                                <Badge variant="muted">{child.last_bracelet_code}</Badge>
+                                <span className="text-[10px] text-gray-500">última pulseira</span>
+                              </div>
                             ) : (
                               <Badge variant="muted">--</Badge>
                             )}
