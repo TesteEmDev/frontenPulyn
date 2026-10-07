@@ -96,15 +96,15 @@ export default function ReceptionParticipants() {
           'canceled',
           'finished',
         ].includes(String(event.status || '').toLowerCase());
-        const activeEvent = eventosData?.find(e => e.status === 'active' || e.status === 'ongoing');
+        const activeEvent = eventosData?.find((e: any) => e.status === 'active' || e.status === 'ongoing');
         const storedEvent = eventoAtualId
-          ? eventosData?.find(e => e.eventoId === eventoAtualId && isOpenEvent(e))
+          ? eventosData?.find((e: any) => e.eventoId === eventoAtualId && isOpenEvent(e))
           : null;
         const openEvents = (eventosData || []).filter(isOpenEvent);
         const eventToSelect = activeEvent || storedEvent || (openEvents.length === 1 ? openEvents[0] : null);
 
         setSelectedEventId(currentId => {
-          if (currentId && eventosData?.some(event => event.eventoId === currentId)) return currentId;
+          if (currentId && eventosData?.some((event: any) => event.eventoId === currentId)) return currentId;
           return eventToSelect?.eventoId || null;
         });
         if (eventToSelect) {
