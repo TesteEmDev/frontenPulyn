@@ -86,42 +86,60 @@ class _BraceletLinkPanelState extends State<BraceletLinkPanel> {
 
   Future<void> _startReading() async {
     if (!mounted || _step == _Step.reading || _step == _Step.processing) return;
+    log.i('[BRACELET] 🔍 Iniciando leitura de pulseira...');
     setState(() => _step = _Step.reading);
 
     String uid;
     try {
+      log.i('[BRACELET] ⏳ Aguardando leitura do NFC...');
       uid = await _reader.readBraceletUid();
+      log.i('[BRACELET] ✅ UID lido: $uid');
     } on NfcReadException catch (e) {
+      log.w('[BRACELET] ⚠️ NFC Exception: ${e.mensagem} (cancelled: ${e.cancelled})');
       if (!mounted) return;
       // A pessoa fechou a janela de leitura: volta ao botão, sem mostrar erro.
       setState(() {
         if (e.cancelled) {
+          log.i('[BRACELET] 📴 Leitura cancelada pelo usuário');
           _step = _Step.ready;
         } else {
-          _errorMessage = e.message;
+          log.e('[BRACELET] ❌ Erro NFC: ${e.mensagem}');
+          _errorMessage = e.mensagem;
           _step = _Step.error;
         }
+      });
+      return;
+    } catch (e) {
+      log.e('[BRACELET] ❌ Erro inesperado ao ler: $e');
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = '$e'.toString();
+        _step = _Step.error;
       });
       return;
     }
     if (!mounted) return;
 
+    log.i('[BRACELET] 🔗 Processando vinculação com UID: $uid');
     setState(() => _step = _Step.processing);
     try {
+      log.i('[BRACELET] 📡 Chamando API...');
       final result = await (widget.linkChild ?? _defaultLinkChild)(uid);
+      log.i('[BRACELET] 📦 Resposta da API: $result');
       final data = result['linkedChild'];
       if (result['success'] != true || data is! Map) {
-        throw Exception('${result['message'] ?? result['error'] ?? 'Dados da criança não encontrados'}');
+        throw Exception('${result['mensagem'] ?? result['error'] ?? 'Dados da criança não encontrados'}');
       }
       final child = childFromLinkedChild(Map<String, dynamic>.from(data));
       if (!mounted) return;
+      log.i('[BRACELET] ✅ Criança vinculada: ${child.nome}');
       setState(() {
         _linkedChild = child;
         _step = _Step.linked;
       });
       widget.onLinked?.call(child);
     } catch (e) {
-      log.e('[NFC] Erro ao vincular: $e');
+      log.e('[BRACELET] ❌ Erro ao vincular: $e');
       if (!mounted) return;
       setState(() {
         _errorMessage = '$e'.replaceFirst('Exception: ', '');
@@ -193,7 +211,7 @@ class _BraceletLinkPanelState extends State<BraceletLinkPanel> {
           icon: Icons.phonelink_erase_rounded,
           color: PulynColors.warning,
           title: 'Este celular não lê pulseiras',
-          text: 'Seu aparelho não tem NFC. Use o QR Code que a recepção entregou.',
+          texto: 'Seu aparelho não tem NFC. Use o QR Code que a recepção entregou.',
           showQrButton: true,
         );
       case _Step.disabled:
@@ -201,7 +219,7 @@ class _BraceletLinkPanelState extends State<BraceletLinkPanel> {
           icon: Icons.nfc_rounded,
           color: PulynColors.warning,
           title: 'O NFC está desligado',
-          text: 'Ative o NFC nas configurações do celular e toque em "Tentar de novo".',
+          texto: 'Ative o NFC nas configurações do celular e toque em "Tentar de novo".',
           retryLabel: 'Tentar de novo',
           onRetry: _prepare,
           showQrButton: true,
@@ -211,7 +229,7 @@ class _BraceletLinkPanelState extends State<BraceletLinkPanel> {
           icon: Icons.nfc_rounded,
           color: PulynColors.primary,
           title: 'Encoste a pulseira',
-          text: 'Toque em "Ler pulseira" e encoste a pulseira do seu filho atrás do celular.',
+          texto: 'Toque em "Ler pulseira" e encoste a pulseira do seu filho atrás do celular.',
           retryLabel: 'Ler pulseira',
           onRetry: _startReading,
           showQrButton: true,
@@ -237,7 +255,7 @@ class _BraceletLinkPanelState extends State<BraceletLinkPanel> {
     }
   }
 
-  Widget _statusBox(Widget indicator, String text) {
+  Widget _statusBox(Widget indicator, String texto) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 28),
       child: Column(
@@ -245,7 +263,7 @@ class _BraceletLinkPanelState extends State<BraceletLinkPanel> {
         children: [
           indicator,
           const SizedBox(height: 16),
-          Text(text, textAlign: TextAlign.center, style: const TextStyle(color: PulynColors.textSecondary)),
+          Text(texto, textAlign: TextAlign.center, style: const TextStyle(color: PulynColors.textSecondary)),
         ],
       ),
     );
@@ -255,7 +273,7 @@ class _BraceletLinkPanelState extends State<BraceletLinkPanel> {
     required IconData icon,
     required Color color,
     required String title,
-    String? text,
+    String? texto,
     String? retryLabel,
     VoidCallback? onRetry,
     bool showQrButton = false,
@@ -271,10 +289,10 @@ class _BraceletLinkPanelState extends State<BraceletLinkPanel> {
           textAlign: TextAlign.center,
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16, height: 1.3),
         ),
-        if (text != null) ...[
+        if (texto != null) ...[
           const SizedBox(height: 6),
           Text(
-            text,
+            texto,
             textAlign: TextAlign.center,
             style: const TextStyle(color: PulynColors.textSecondary, height: 1.4),
           ),
@@ -300,7 +318,7 @@ class _BraceletLinkPanelState extends State<BraceletLinkPanel> {
 
   Widget _buildLinked() {
     final child = _linkedChild!;
-    final name = child.nickname.isNotEmpty ? child.nickname : child.name;
+    final nome = child.apelido.isNotEmpty ? child.apelido : child.nome;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -324,8 +342,8 @@ class _BraceletLinkPanelState extends State<BraceletLinkPanel> {
         const SizedBox(height: 4),
         Text(
           [
-            name,
-            if (child.age > 0) '${child.age} anos',
+            nome,
+            if (child.idade > 0) '${child.idade} anos',
             if (child.teamName.isNotEmpty) child.teamName,
           ].join(' · '),
           textAlign: TextAlign.center,

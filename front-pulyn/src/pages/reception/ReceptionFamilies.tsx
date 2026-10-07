@@ -1,24 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Copy, Link as LinkIcon, Check, Users, UserCheck, UserX, QrCode, Share2, Download } from 'lucide-react';
 import { api } from '../../services/api';
-import Sidebar from '../../components/layout/Sidebar';
-import TopBar from '../../components/layout/TopBar';
+import ReceptionSidebar from '../../components/layout/ReceptionSidebar';
+import ReceptionTopBar from '../../components/layout/ReceptionTopBar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import { QRCodeSVG as QRCode } from 'qrcode.react';
 
-const navItems = [
-  { icon: <span>▦</span>, label: 'Dashboard', path: '/reception' },
-  { icon: <span>＋</span>, label: 'Check-in', path: '/reception/checkin' },
-  { icon: <span>♟</span>, label: 'Participantes', path: '/reception/participants' },
-  { icon: <span>⌁</span>, label: 'Pulseiras', path: '/reception/bracelets' },
-  { icon: <Users size={18} />, label: 'Famílias', path: '/reception/families' },
-];
-
 export default function ReceptionFamilies() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
   const [eventId, setEventId] = useState('');
   const [pending, setPending] = useState<any[]>([]);
@@ -52,7 +43,7 @@ export default function ReceptionFamilies() {
         const eventData = await api.getEventos();
         setEvents(eventData || []);
         const active = (eventData || []).find((item: any) => item.status === 'active' || item.status === 'ongoing');
-        const nextEventId = active?.id || '';
+        const nextEventId = active?.eventoId || '';
         setEventId(nextEventId);
         await loadFamilyData(nextEventId);
       } catch (err: any) {
@@ -132,11 +123,15 @@ export default function ReceptionFamilies() {
 
   return (
     <div className="flex h-screen bg-dark">
-      <Sidebar items={navItems} activePath="/reception/families" collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((value) => !value)} accentColor="#F59E0B" />
+      <ReceptionSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar title="Famílias" subtitle="Convites e aprovações" />
+        <ReceptionTopBar subtitle="Convites e aprovações" />
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader title="Famílias" description="Cadastre responsáveis por convite e aprove os vínculos" icon={<Users size={24} />} />
+
+          {error && (
+            <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{error}</p>
+          )}
 
           <Card variant="glow">
             <div className="flex items-start gap-3 mb-4">
@@ -149,7 +144,7 @@ export default function ReceptionFamilies() {
             <div className="flex flex-col sm:flex-row gap-3">
               <select value={eventId} onChange={(event) => { setEventId(event.target.value); loadFamilyData(event.target.value); }} className="flex-1 rounded-lg border border-border bg-dark-surface px-3 py-2 text-white">
                 <option value="">Selecione o evento</option>
-                {events.map((event) => <option key={event.id} value={event.id}>{event.name}</option>)}
+                {events.map((event) => <option key={event.eventoId} value={event.eventoId}>{event.nome}</option>)}
               </select>
               <Button onClick={createInvite} disabled={!eventId}>Gerar link</Button>
             </div>
@@ -182,7 +177,7 @@ export default function ReceptionFamilies() {
               {pending.map((item) => (
                 <Card key={item.link_id} className="flex flex-col md:flex-row md:items-center gap-4">
                   <div className="flex-1">
-                    <p className="text-white font-semibold">{item.family_name || item.email}</p>
+                    <p className="text-white font-semibold">{item.nomeFamilia || item.email}</p>
                     <p className="text-sm text-gray-300">Criança: {item.crianca_name} {item.age ? `(${item.age} anos)` : ''}</p>
                     <p className="text-xs text-gray-500">{item.evento_name} · {item.email}</p>
                   </div>
@@ -211,7 +206,7 @@ export default function ReceptionFamilies() {
                 <Card key={item.link_id} className="flex flex-col lg:flex-row lg:items-center gap-4">
                   <div className="flex-1">
                     <p className="text-white font-semibold">{item.crianca_name}</p>
-                    <p className="text-sm text-gray-300">Responsável: {item.family_name || item.email}</p>
+                    <p className="text-sm text-gray-300">Responsável: {item.nomeFamilia || item.email}</p>
                     <p className="text-xs text-gray-500">{item.evento_name} · {item.email}</p>
                   </div>
                 </Card>

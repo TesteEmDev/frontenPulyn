@@ -182,13 +182,13 @@ export default function MasterClients() {
     
     try {
       const data = await api.createCliente({
-        name: newName,
-        city: newCity,
-        state: newState,
+        nome: newName,
+        cidade: newCity,
+        estado: newState,
         plan: newPlan,
         email: newEmail,
-        password: newPassword,
-        phone: newPhone
+        senha: newPassword,
+        telefone: newPhone
       });
       
       if (data) {

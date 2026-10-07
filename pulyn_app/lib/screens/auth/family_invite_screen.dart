@@ -83,7 +83,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
 
         // Se tem criança vinculada, não precisa de formulário de crianças
         if (hasLinkedChild) {
-          log.i('[INVITE] ✅ Criança vinculada: ${linkedChild['name']}');
+          log.i('[INVITE] ✅ Criança vinculada: ${linkedChild['nome']}');
         }
       });
     } catch (e) {
@@ -97,10 +97,10 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
     }
   }
 
-  void _showError(String message) {
+  void _showError(String mensagem) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(mensagem),
         backgroundColor: PulynColors.danger,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
@@ -117,11 +117,11 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
     // 🔽 Fecha o teclado
     FocusScope.of(context).unfocus();
 
-    final name = _nameController.text.trim();
+    final nome = _nameController.text.trim();
     final email = _emailController.text.trim();
-    final password = _passwordController.text;
+    final senha = _passwordController.text;
 
-    if (password != _confirmPasswordController.text) {
+    if (senha != _confirmPasswordController.text) {
       _showError('As senhas não conferem');
       return;
     }
@@ -137,14 +137,14 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
       final result = await apiService.registerWithInvite(
         widget.token,
         email,
-        password,
-        name,
+        senha,
+        nome,
       );
 
       if (!mounted) return;
 
       // Verifica o tipo de resultado
-      final resultType = result['type'] as String?;
+      final resultType = result['tipo'] as String?;
 
       if (resultType == 'auto_login') {
         // Cenário 1: Tem criança específica - login automático
@@ -168,7 +168,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
 
         setState(() {
           _outcome = 'created';
-          _outcomeMessage = result['message'] as String? ?? 'Conta criada!';
+          _outcomeMessage = result['mensagem'] as String? ?? 'Conta criada!';
         });
       } else if (resultType == 'pending') {
         // Cenário 3: convite vinculado a uma criança - pendente de aprovação
@@ -176,7 +176,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
 
         setState(() {
           _outcome = 'pending';
-          _outcomeMessage = result['message'] as String? ?? 'Cadastro realizado!';
+          _outcomeMessage = result['mensagem'] as String? ?? 'Cadastro realizado!';
         });
       } else {
         // Resposta inesperada: não deixa o botão travado
@@ -252,10 +252,10 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
   /// "2026-10-05" / "2026-10-05T00:00:00Z" -> "05/10/2026" (sem converter fuso, para
   /// não recuar um dia). Se não for uma data reconhecível, mostra como veio.
   String _formatEventDate(dynamic raw) {
-    final text = '${raw ?? ''}'.trim();
-    if (text.isEmpty) return '';
-    final parsed = DateTime.tryParse(text);
-    if (parsed == null) return text;
+    final texto = '${raw ?? ''}'.trim();
+    if (texto.isEmpty) return '';
+    final parsed = DateTime.tryParse(texto);
+    if (parsed == null) return texto;
     return DateFormat('dd/MM/yyyy').format(parsed);
   }
 
@@ -311,7 +311,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
     if (_outcome != null) return _buildSuccess();
 
     final event = _inviteData?['event'] as Map<String, dynamic>? ?? {};
-    final eventName = '${event['name'] ?? 'Evento'}';
+    final eventName = '${event['nome'] ?? 'Evento'}';
     final eventDate = _formatEventDate(event['date']);
     final linkedChild = _inviteData?['child'] as Map<String, dynamic>?;
 
@@ -332,7 +332,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
             AuthInfoCard(
               icon: Icons.celebration_rounded,
               title: eventName,
-              message: eventDate.isNotEmpty ? 'Data: $eventDate' : 'Convite para o evento',
+              mensagem: eventDate.isNotEmpty ? 'Data: $eventDate' : 'Convite para o evento',
               accent: PulynColors.accent,
             ),
             const SizedBox(height: 24),
@@ -391,15 +391,15 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
             if (_hasLinkedChild && linkedChild != null)
               AuthInfoCard(
                 icon: Icons.child_care_rounded,
-                title: '${linkedChild['name'] ?? 'Sem nome'}',
-                message: 'Criança já vinculada ao seu convite',
+                title: '${linkedChild['nome'] ?? 'Sem nome'}',
+                mensagem: 'Criança já vinculada ao seu convite',
                 accent: PulynColors.success,
               )
             else
               const AuthInfoCard(
                 icon: Icons.qr_code_scanner_rounded,
                 title: 'Seu filho é vinculado depois',
-                message: 'Depois de entrar, escaneie o QR Code que a recepção entregar para acompanhar seu filho.',
+                mensagem: 'Depois de entrar, escaneie o QR Code que a recepção entregar para acompanhar seu filho.',
               ),
             const SizedBox(height: 24),
 
@@ -520,7 +520,7 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
             children: [
               for (int i = 0; i < steps.length; i++) ...[
                 if (i > 0) const SizedBox(height: 14),
-                AuthStep(number: i + 1, text: steps[i]),
+                AuthStep(number: i + 1, texto: steps[i]),
               ],
             ],
           ),

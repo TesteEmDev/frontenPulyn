@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
 import '../../providers/index.dart';
+import '../../services/validation_service.dart';
 import '../../widgets/auth_widgets.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -19,6 +20,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
+  late ValidationService _validationService;
+
+  @override
+  void initState() {
+    super.initState();
+    _validationService = ValidationService(ref.read(apiServiceProvider));
+  }
 
   @override
   void dispose() {
@@ -29,13 +37,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     super.dispose();
   }
 
-  void _showError(String message) {
+  void _showError(String mensagem) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(mensagem),
         backgroundColor: PulynColors.danger,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _showSuccess(String mensagem) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensagem),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -46,39 +65,65 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return;
     }
 
-    // Dismiss keyboard
     FocusScope.of(context).unfocus();
 
-    final name = _nameController.text.trim();
+    final nome = _nameController.text.trim();
     final email = _emailController.text.trim();
-    final password = _passwordController.text;
+    final senha = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
 
-    if (password != _confirmPasswordController.text) {
-      _showError('As senhas não conferem');
+    // Validação de senhas correspondentes
+    if (senha != confirmPassword) {
+      _showError('❌ As senhas não conferem');
+      return;
+    }
+
+    // Validação de força de senha
+    final passwordValidation = _validationService.validatePassword(senha);
+    if (!passwordValidation.valid) {
+      _showError('❌ ${passwordValidation.mensagem}');
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      // ✅ Dispara register
-      await ref.read(authProvider.notifier).register(email, password, name);
+      // Verifica se o email já existe
+      final emailAvailable = await _validationService.isEmailAvailable(email);
+
+      if (!emailAvailable) {
+        _showError('❌ Este email já foi registrado. Use outro email ou faça login');
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      _showSuccess('✅ Email disponível!');
+
+      if (!mounted) return;
+
+      // Dispara register
+      await ref.read(authProvider.notifier).register(email, senha, nome);
 
       if (!mounted) return;
     } catch (e) {
       if (!mounted) return;
 
-      String errorMessage = 'Erro ao registrar';
+      String errorMessage = '❌ Erro ao registrar';
 
       final errorStr = e.toString().toLowerCase();
-      if (errorStr.contains('already exists') || errorStr.contains('email já') || errorStr.contains('409')) {
-        errorMessage = 'Este email já foi registrado';
-      } else if (errorStr.contains('invalid email')) {
-        errorMessage = 'Email inválido';
-      } else if (errorStr.contains('password')) {
-        errorMessage = 'Senha muito curta';
+      if (errorStr.contains('already exists') ||
+          errorStr.contains('email já') ||
+          errorStr.contains('409') ||
+          errorStr.contains('duplicate')) {
+        errorMessage = '❌ Este email já foi registrado';
+      } else if (errorStr.contains('invalid email') || errorStr.contains('email inválido')) {
+        errorMessage = '❌ Email inválido';
+      } else if (errorStr.contains('senha')) {
+        errorMessage = '❌ Senha não atende aos requisitos';
       } else if (errorStr.contains('network') || errorStr.contains('connection')) {
-        errorMessage = 'Erro de conexão';
+        errorMessage = '❌ Erro de conexão. Verifique sua internet';
+      } else if (errorStr.contains('nome')) {
+        errorMessage = '❌ Nome inválido. Use seu nome completo';
       }
 
       _showError(errorMessage);
@@ -90,40 +135,35 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (value == null || value.isEmpty) {
       return 'Email é obrigatório';
     }
-    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value)) {
-      return 'Email inválido';
-    }
-    return null;
+    final result = _validationService.validateEmail(value);
+    return result.valid ? null : result.mensagem;
   }
 
   String? _validatePassword(String? value) {
     if (value == null || value.isEmpty) {
       return 'Senha é obrigatória';
     }
-    if (value.length < 6) {
-      return 'Senha deve ter no mínimo 6 caracteres';
-    }
-    return null;
+    final result = _validationService.validatePassword(value);
+    return result.valid ? null : result.mensagem;
   }
 
   String? _validateConfirmPassword(String? value) {
     if (value == null || value.isEmpty) {
       return 'Confirme a senha';
     }
-    if (value != _passwordController.text) {
-      return 'As senhas não conferem';
-    }
-    return null;
+    final result = _validationService.validatePasswordMatch(
+      _passwordController.text,
+      value,
+    );
+    return result.valid ? null : result.mensagem;
   }
 
   String? _validateName(String? value) {
     if (value == null || value.isEmpty) {
       return 'Nome é obrigatório';
     }
-    if (value.length < 2) {
-      return 'Nome deve ter no mínimo 2 caracteres';
-    }
-    return null;
+    final result = _validationService.validateName(value);
+    return result.valid ? null : result.mensagem;
   }
 
   @override

@@ -177,8 +177,8 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
           >
             {/* Checkpoints em coordenadas de pixels */}
             {checkpoints.map((checkpoint) => {
-              const storedX = Number(checkpoint.map_x ?? checkpoint.mapX);
-              const storedY = Number(checkpoint.map_y ?? checkpoint.mapY);
+              const storedX = Number(checkpoint.mapaX ?? checkpoint.mapX);
+              const storedY = Number(checkpoint.mapaY ?? checkpoint.mapY);
               const x = Number.isFinite(storedX) && Number.isFinite(storedY) ? storedX : (MAP_WIDTH / 2);
               const y = Number.isFinite(storedX) && Number.isFinite(storedY) ? storedY : (MAP_HEIGHT / 2);
               

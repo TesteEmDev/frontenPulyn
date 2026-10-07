@@ -41,7 +41,7 @@ class _ManageLinkedChildrenScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ ${child.nickname} desvinculada com sucesso'),
+            content: Text('✅ ${child.apelido} desvinculada com sucesso'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -138,8 +138,8 @@ class _ManageLinkedChildrenScreenState
                             ),
                             child: Center(
                               child: Text(
-                                child.nickname.isNotEmpty
-                                    ? child.nickname[0].toUpperCase()
+                                child.apelido.isNotEmpty
+                                    ? child.apelido[0].toUpperCase()
                                     : '?',
                                 style: const TextStyle(
                                   color: Colors.white,
@@ -155,16 +155,16 @@ class _ManageLinkedChildrenScreenState
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  child.nickname.isNotEmpty
-                                      ? child.nickname
-                                      : child.name,
+                                  child.apelido.isNotEmpty
+                                      ? child.apelido
+                                      : child.nome,
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
                                 Text(
-                                  '${child.age} anos • ${child.teamName}',
+                                  '${child.idade} anos • ${child.teamName}',
                                   style: const TextStyle(
                                     fontSize: 12,
                                     color: PulynColors.textMuted,
@@ -228,7 +228,7 @@ class _ManageLinkedChildrenScreenState
                                 builder: (context) => AlertDialog(
                                   title: const Text('Desvincullar?'),
                                   content: Text(
-                                    'Deseja desvincullar ${child.nickname.isNotEmpty ? child.nickname : child.name}?',
+                                    'Deseja desvincullar ${child.apelido.isNotEmpty ? child.apelido : child.nome}?',
                                   ),
                                   actions: [
                                     TextButton(

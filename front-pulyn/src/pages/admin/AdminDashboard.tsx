@@ -101,11 +101,11 @@ export default function AdminDashboard() {
     if (selectedEventId || safeEvents.length === 0) return;
     const active = safeEvents.find((e) => e?.status === 'active' || e?.status === 'ongoing');
     if (active) {
-      setSelectedEventId(active.id);
+      setSelectedEventId(active.eventoId);
       return;
     }
-    const mostRecent = [...safeEvents].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
-    setSelectedEventId(mostRecent?.id || '');
+    const mostRecent = [...safeEvents].sort((a, b) => (b.data || '').localeCompare(a.data || ''))[0];
+    setSelectedEventId(mostRecent?.eventoId || '');
   }, [safeEvents, selectedEventId]);
 
   const isAllEvents = selectedEventId === ALL_EVENTS;
@@ -201,7 +201,7 @@ export default function AdminDashboard() {
   // Jogo ativo: consulta o estado do jogo do evento selecionado (em "todos", dos
   // eventos ativos agora) e repete a cada 5s para acompanhar início e fim do jogo.
   const gameTargetIds = isAllEvents
-    ? safeEvents.filter((e) => isActiveStatus(e?.status)).map((e) => e.id)
+    ? safeEvents.filter((e) => isActiveStatus(e?.status)).map((e) => e.eventoId)
     : (selectedEventId ? [selectedEventId] : []);
   const gameTargetsKey = gameTargetIds.join(',');
   useEffect(() => {
@@ -251,7 +251,7 @@ export default function AdminDashboard() {
 
   // Com o evento ativo, o fim da janela do gráfico é "agora": avança o relógio e
   // busca as pontuações novas a cada 30s para o gráfico acompanhar o evento.
-  const selectedStatus = safeEvents.find((e) => e.id === selectedEventId)?.status;
+  const selectedStatus = safeEvents.find((e) => e.eventoId === selectedEventId)?.status;
   useEffect(() => {
     if (!selectedEventId || (selectedStatus !== 'active' && selectedStatus !== 'ongoing')) return undefined;
     let disposed = false;
@@ -279,7 +279,7 @@ export default function AdminDashboard() {
       const status: Record<string, any> = {};
       for (const cp of territoryCheckpoints) {
         try {
-          const res = await fetch(`${API_URL}/checkpoints/${cp.id}/territory`);
+          const res = await fetch(`${API_URL}/pontoVerificacao/${cp.id}/territory`);
           const data = await res.json();
           status[cp.id] = data;
         } catch (err) {
@@ -297,13 +297,13 @@ export default function AdminDashboard() {
     setTerritories({});
   }, [territoryCheckpoints]);
 
-  const selectedEvent = safeEvents.find((e) => e.id === selectedEventId) || null;
+  const selectedEvent = safeEvents.find((e) => e.eventoId === selectedEventId) || null;
 
   const eventOptions = useMemo(() => ([
     { value: ALL_EVENTS, label: 'Todos os eventos' },
     ...[...safeEvents]
-      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-      .map((e) => ({ value: e.id, label: `${e.name || 'Evento'} — ${formatEventDate(e.date)}` })),
+      .sort((a, b) => (b.data || '').localeCompare(a.data || ''))
+      .map((e) => ({ value: e.eventoId, label: `${e.nome || 'Evento'} — ${formatEventDate(e.data)}` })),
   ]), [safeEvents]);
 
   const handleSelectEvent = useCallback((eventId: string) => {
@@ -325,7 +325,7 @@ export default function AdminDashboard() {
         .filter((row) => !isClosedStatus(row.eventoStatus))
         .reduce((sum, row) => sum + Number(row.online || 0), 0)
     : safeCheckpoints.filter(cp => cp?.status === 'online').length;
-  const totalScores = safeChildren.reduce((sum, c) => sum + (c?.scores ?? c?.score ?? 0), 0);
+  const totalScores = safeChildren.reduce((sum, c) => sum + (c?.pontos ?? c?.pontos ?? 0), 0);
 
   // Todos os jogos do evento selecionado (ou do buffet, em "todos os eventos"),
   // os com mais checkpoints primeiro.
@@ -355,11 +355,11 @@ export default function AdminDashboard() {
       .sort((a, b) => (b?.scores ?? b?.score ?? 0) - (a?.scores ?? a?.score ?? 0))
       .slice(0, 5)
       .map((child) => {
-        const teamId = child.teamId ?? child.team_id ?? child.time_id;
+        const teamId = child.teamId ?? child.team_id ?? child.timeId;
         const team = teamId ? teamById[String(teamId)] : null;
         return {
           ...child,
-          teamName: team?.name || child.time_name || null,
+          teamName: team?.name || child.time_nome || null,
           teamColor: team?.color || child.time_color || null,
         };
       })
@@ -375,7 +375,7 @@ export default function AdminDashboard() {
         Number(b?.scores ?? b?.score ?? 0) - Number(a?.scores ?? a?.score ?? 0)
         || String(a?.name || '').localeCompare(String(b?.name || ''), 'pt-BR'))
       .slice(0, 10)
-      .map((child) => ({ ...child, teamName: child.time_name || null, teamColor: child.time_color || null }));
+      .map((child) => ({ ...child, teamName: child.time_nome || null, teamColor: child.time_color || null }));
   }, [isAllEvents, safeChildren]);
   const rankingRows = isAllEvents ? globalRanking : liveRanking;
 
@@ -385,25 +385,25 @@ export default function AdminDashboard() {
     if (!isAllEvents) return [];
     const byEvent = new Map<string, { pontuacao: number; criancas: number }>();
     for (const child of safeChildren) {
-      if (!child?.evento_id) continue;
-      const current = byEvent.get(child.evento_id) ?? { pontuacao: 0, criancas: 0 };
+      if (!child?.eventoId) continue;
+      const current = byEvent.get(child.eventoId) ?? { pontuacao: 0, criancas: 0 };
       current.pontuacao += Number(child.scores ?? child.score ?? 0);
       current.criancas += 1;
-      byEvent.set(child.evento_id, current);
+      byEvent.set(child.eventoId, current);
     }
     const today = new Date();
     const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const sortKey = (e: any) => `${String(e.date || '').split('T')[0]} ${String(e.time || '').slice(0, 5)}`;
     return safeEvents
-      .filter((e) => isActiveStatus(e?.status) || isClosedStatus(e?.status) || String(e?.date || '').split('T')[0] <= todayKey)
+      .filter((e) => isActiveStatus(e?.status) || isClosedStatus(e?.status) || String(e?.data || '').split('T')[0] <= todayKey)
       .sort((a, b) => sortKey(b).localeCompare(sortKey(a)))
       .slice(0, 5)
       .reverse()
       .map((e) => ({
-        evento: shortName(e.name || 'Evento'),
-        nome: e.name || 'Evento',
-        pontuacao: byEvent.get(e.id)?.pontuacao ?? 0,
-        criancas: byEvent.get(e.id)?.criancas ?? 0,
+        evento: shortName(e.nome || 'Evento'),
+        nome: e.nome || 'Evento',
+        pontuacao: byEvent.get(e.eventoId)?.pontuacao ?? 0,
+        criancas: byEvent.get(e.eventoId)?.criancas ?? 0,
       }));
   }, [isAllEvents, safeChildren, safeEvents]);
 
@@ -423,8 +423,8 @@ export default function AdminDashboard() {
       .map((entry) => (entry?.created_at ? new Date(entry.created_at) : null))
       .filter((date): date is Date => date !== null && !Number.isNaN(date.getTime()));
     const window = getEventActiveWindow(selectedEvent, times, now);
-    const bucketMinutes = window ? getBucketMinutes(selectedEvent?.duration, window) : 0;
-    const duration = Number(selectedEvent?.duration);
+    const bucketMinutes = window ? getBucketMinutes(selectedEvent?.duracao, window) : 0;
+    const duration = Number(selectedEvent?.duracao);
     const plannedEnd = window?.ongoing && duration > 0
       ? new Date(window.start.getTime() + duration * 60000)
       : null;
@@ -455,7 +455,7 @@ export default function AdminDashboard() {
     gameValue = gameLabel(only.state);
     const startedAt = only.state?.startedAt ? new Date(only.state.startedAt) : null;
     gameHint = isAllEvents
-      ? (safeEvents.find((e) => e.id === only.id)?.name || 'em andamento')
+      ? (safeEvents.find((e) => e.eventoId === only.id)?.nome || 'em andamento')
       : (startedAt && !Number.isNaN(startedAt.getTime()) ? `em andamento desde ${formatClock(startedAt)}` : 'em andamento');
   } else if (runningGames.length > 1) {
     gameValue = `${runningGames.length} jogos ativos`;
@@ -671,8 +671,8 @@ export default function AdminDashboard() {
                     </div>
                   ) : selectedEvent ? (
                     <div className="space-y-2">
-                      <p className="font-display text-xl text-white">{selectedEvent.name}</p>
-                      <p className="text-sm text-gray-400">{formatEventDate(selectedEvent.date)}</p>
+                      <p className="font-display text-xl text-white">{selectedEvent.nome}</p>
+                      <p className="text-sm text-gray-400">{formatEventDate(selectedEvent.data)}</p>
                       <p className="text-sm text-gray-400">{selectedEvent.location || 'Local não definido'}</p>
                       <div className="flex items-center gap-2 mt-3">
                         <Badge variant={STATUS_LABELS[selectedEvent.status]?.variant || 'muted'}>

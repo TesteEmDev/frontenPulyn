@@ -21,6 +21,9 @@ import GeneralReport, { formatReportDate } from '../../components/reports/Genera
 import type { GeneralReportData } from '../../services/api';
 import { toCsv, downloadCsv } from '../../utils/csv';
 
+// Pulseira usada pela criança: a atual ou, depois que o evento termina e a pulseira é liberada, a última que ela usou.
+const braceletOf = (child: any): string => child.bracelet_code || child.last_bracelet_code || '';
+
 export default function AdminReports() {
   const { events = [], loadEvents } = usePulynStore();
 
@@ -62,11 +65,11 @@ export default function AdminReports() {
     if (selectedEventId || safeEvents.length === 0) return;
     const active = safeEvents.find((e) => e?.status === 'active' || e?.status === 'ongoing');
     if (active) {
-      setSelectedEventId(active.id);
+      setSelectedEventId(active.eventoId);
       return;
     }
-    const mostRecent = [...safeEvents].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
-    setSelectedEventId(mostRecent?.id || '');
+    const mostRecent = [...safeEvents].sort((a, b) => (b.data || '').localeCompare(a.data || ''))[0];
+    setSelectedEventId(mostRecent?.eventoId || '');
   }, [safeEvents, selectedEventId]);
 
   // Carregar os dados do evento selecionado direto da API — mesmo padrão do
@@ -138,8 +141,8 @@ export default function AdminReports() {
 
   const eventOptions = useMemo(() => (
     [...safeEvents]
-      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-      .map((e) => ({ value: e.id, label: `${e.name || 'Evento'} — ${e.date || 'sem data'}` }))
+      .sort((a, b) => (b.data || '').localeCompare(a.data || ''))
+      .map((e) => ({ value: e.eventoId, label: `${e.nome || 'Evento'} — ${e.data || 'sem data'}` }))
   ), [safeEvents]);
 
   const handleSelectEvent = useCallback((eventId: string) => {
@@ -157,7 +160,7 @@ export default function AdminReports() {
   const engagementByZoneData = useMemo(() => {
     const zoneCounts: Record<string, number> = {};
     safeCheckpoints.forEach(cp => {
-      const zone = cp.zone || 'Sem zona';
+      const zone = cp.zona || 'Sem zona';
       zoneCounts[zone] = (zoneCounts[zone] || 0) + 1;
     });
     return Object.entries(zoneCounts).map(([zone, valor]) => ({
@@ -168,15 +171,15 @@ export default function AdminReports() {
 
   const totalParticipants = safeChildren.length;
   const avgPoints = safeChildren.length > 0
-    ? Math.round(safeChildren.reduce((sum, c) => sum + (c.scores || 0), 0) / safeChildren.length)
+    ? Math.round(safeChildren.reduce((sum, c) => sum + (c.pontos || 0), 0) / safeChildren.length)
     : 0;
 
   // Checkpoints mais acessados
   const checkpointCounts = safeCheckpoints.map(cp => ({
-    id: cp.id,
-    name: cp.name,
-    zone: cp.zone,
-    count: safeScoreLog.filter(s => s.checkpoint === cp.id || s.checkpoint_id === cp.id).length,
+    id: cp.checkpointId,
+    name: cp.nome,
+    zone: cp.zona,
+    count: safeScoreLog.filter(s => s.checkpoint === cp.checkpointId || s.checkpointId === cp.checkpointId).length,
   }));
   const mostVisited = checkpointCounts.sort((a, b) => b.count - a.count)[0];
   const topCheckpoints = checkpointCounts.slice(0, 5);
@@ -184,7 +187,7 @@ export default function AdminReports() {
   // Jogos mais populares
   const gameCounts = safeGames.map(g => ({
     ...g,
-    count: safeScoreLog.filter(s => s.game === g.name || s.game_id === g.id).length,
+    count: safeScoreLog.filter(s => s.game === g.name || s.brincadeiraId === g.id).length,
   }));
   const mostPopular = gameCounts.sort((a, b) => b.count - a.count)[0];
 
@@ -211,9 +214,9 @@ export default function AdminReports() {
   };
 
   const handleExportCSV = () => {
-    const headers = ['Posição', 'Nome', 'Apelido', 'Idade', 'Pontuação'];
+    const headers = ['Posição', 'Nome', 'Apelido', 'Idade', 'Pulseira', 'Pontuação'];
     const rows = rankingData.map((child, i) =>
-      [i + 1, child.name, child.nickname || child.name, child.age, child.scores || 0].join(',')
+      [i + 1, child.name, child.nickname || child.name, child.age, braceletOf(child) || '', child.scores || 0].join(',')
     );
     const csv = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -420,6 +423,7 @@ export default function AdminReports() {
                         <th className="pb-3 text-sm font-body font-semibold text-gray-400">Nome</th>
                         <th className="pb-3 text-sm font-body font-semibold text-gray-400">Apelido</th>
                         <th className="pb-3 text-sm font-body font-semibold text-gray-400">Idade</th>
+                        <th className="pb-3 text-sm font-body font-semibold text-gray-400">Pulseira</th>
                         <th className="pb-3 text-sm font-body font-semibold text-gray-400">Pontuação</th>
                       </tr>
                     </thead>
@@ -443,13 +447,19 @@ export default function AdminReports() {
                             <p className="text-sm text-gray-300">{child.age}</p>
                           </td>
                           <td className="py-3 pr-4">
+                            <p className="text-sm text-gray-300 font-mono">{braceletOf(child) || '--'}</p>
+                            {!child.bracelet_code && child.last_bracelet_code && (
+                              <p className="text-[10px] text-gray-500">liberada</p>
+                            )}
+                          </td>
+                          <td className="py-3 pr-4">
                             <p className="text-sm font-bold text-primary">{child.scores || 0}</p>
                           </td>
                         </tr>
                       ))}
                       {rankingData.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="py-8 text-center text-gray-500">
+                          <td colSpan={6} className="py-8 text-center text-gray-500">
                             Nenhum participante ativo
                           </td>
                         </tr>

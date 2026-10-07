@@ -137,7 +137,7 @@ export default function MasterMonitoring() {
                       <StatusDot status="offline" size="sm" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-danger">{alert}</p>
-                        <p className="text-xs text-gray-500">{unit.name} - {unit.city}</p>
+                        <p className="text-xs text-gray-500">{unit.name} - {unit.cidade}</p>
                       </div>
                     </div>
                   ))

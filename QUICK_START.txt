@@ -1,0 +1,23 @@
+🚀 QUICK START - APÓS REINICIAR O PC
+
+1️⃣  INICIAR BACKEND:
+    cd "C:\Users\Walisson\Documents\Pullyn Web\backendPulyn"
+    npm run start:local
+
+2️⃣  VERIFICAR SE FUNCIONOU:
+    - Deve aparecer: ✅ API Pulyn iniciada
+    - Porta: 3001
+    - Banco: AdvPulynDev (localhost:5432)
+
+3️⃣  TESTAR ENDPOINT (opcional):
+    curl http://localhost:3001/api/auth/login -X POST \
+      -H "Content-Type: application/json" \
+      -d '{"email":"test@test.com","password":"123456"}'
+
+4️⃣  INICIAR FRONTEND (opcional):
+    cd "C:\Users\Walisson\Documents\Pullyn Web\pulyn_app"
+    flutter run
+
+✅ TUDO PRONTO! Sistema 100% funcional.
+
+Para mais detalhes, ler: RESUMO_STATUS_PROJETO.md

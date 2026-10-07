@@ -128,7 +128,7 @@ class ApiService {
   // ===== Auth Endpoints =====
 
   /// ✅ POST /auth/login - Com validação robusta
-  Future<LoginResponse> login(String email, String password) async {
+  Future<LoginResponse> login(String email, String senha) async {
     try {
       // ✅ Garante que _prefs está inicializado ANTES de fazer login
       if (!_initialized) {
@@ -137,7 +137,7 @@ class ApiService {
       
       final response = await _dio.post(
         '/auth/login',
-        data: {'email': email, 'password': password},
+        data: {'email': email, 'senha': senha},
       );
       
       final data = _validateResponseData(response.data);
@@ -157,9 +157,9 @@ class ApiService {
       final user = User(
         id: userData['id'] ?? '',
         email: userData['email'] ?? email,
-        name: userData['name'] ?? userData['family_name'] ?? 'User',
-        role: userData['role'] ?? 'family',
-        empresaId: userData['empresa_id'] ?? '',
+        nome: userData['nome'] ?? userData['nomeFamilia'] ?? 'User',
+        perfil: userData['perfil'] ?? 'family',
+        empresaId: userData['empresaId'] ?? '',
         profileImage: userData['profileImage'],
       );
       
@@ -174,14 +174,14 @@ class ApiService {
   /// ✅ POST /auth/register - Com validação robusta e logs detalhados
   Future<LoginResponse> register(
     String email,
-    String password,
-    String name, {
+    String senha,
+    String nome, {
     String? familyName,
   }) async {
     try {
       log.i('[API] 🔍 INICIANDO REGISTRO');
       log.i('[API] 📧 Email: $email');
-      log.i('[API] 👤 Nome: $name');
+      log.i('[API] 👤 Nome: $nome');
       
       // ✅ Garante que _prefs está inicializado ANTES de fazer register
       if (!_initialized) {
@@ -191,15 +191,15 @@ class ApiService {
       }
       
       log.i('[API] 🌐 Enviando POST para /auth/register');
-      log.i('[API] 📦 Payload: email=$email, name=$name, password=****');
+      log.i('[API] 📦 Payload: email=$email, nome=$nome, senha=****');
       
       final response = await _dio.post(
         '/auth/register',
         data: {
           'email': email,
-          'password': password,
-          'name': name,
-          'family_name': familyName ?? name,
+          'senha': senha,
+          'nome': nome,
+          'nomeFamilia': familyName ?? nome,
         },
       );
       
@@ -227,9 +227,9 @@ class ApiService {
       final user = User(
         id: userData['id'] ?? '',
         email: userData['email'] ?? email,
-        name: userData['name'] ?? userData['family_name'] ?? name,
-        role: userData['role'] ?? 'family',
-        empresaId: userData['empresa_id'] ?? userData['empresa_name'] ?? '',
+        nome: userData['nome'] ?? userData['nomeFamilia'] ?? nome,
+        perfil: userData['perfil'] ?? 'family',
+        empresaId: userData['empresaId'] ?? userData['empresa_name'] ?? '',
         profileImage: userData['profileImage'],
       );
       
@@ -343,8 +343,8 @@ class ApiService {
         if (child is! Map<String, dynamic>) return child;
         return {
           ...child,
-          'name': sanitizeString(child['name'] as String?) ?? '',
-          'nickname': sanitizeString(child['nickname'] as String?) ?? '',
+          'nome': sanitizeString(child['nome'] as String?) ?? '',
+          'apelido': sanitizeString(child['apelido'] as String?) ?? '',
           'teamName': sanitizeString(child['teamName'] as String?) ?? 'Sem time',
           'teamColor': sanitizeString(child['teamColor'] as String?) ?? '#cccccc',
           'profileImage': sanitizeString(child['profileImage'] as String?),
@@ -358,10 +358,10 @@ class ApiService {
     }
   }
 
-  /// ✅ GET /familias/children/:id/scores - Com validação
+  /// ✅ GET /familias/children/:id/pontos - Com validação
   Future<Map<String, dynamic>> getChildScores(String childId) async {
     try {
-      final response = await _dio.get('/familias/children/$childId/scores');
+      final response = await _dio.get('/familias/children/$childId/pontos');
       return _validateResponseData(response.data);
     } catch (e) {
       rethrow;
@@ -397,7 +397,7 @@ class ApiService {
     }
   }
 
-  /// ✅ GET /ranking/criancas/:evento_id - Com validação
+  /// ✅ GET /ranking/criancas/:eventoId - Com validação
   Future<List<Map<String, dynamic>>> getRankingChildren(String eventoId) async {
     try {
       final response = await _dio.get('/ranking/criancas/$eventoId');
@@ -408,7 +408,7 @@ class ApiService {
     }
   }
 
-  /// ✅ GET /ranking/times/:evento_id - Com validação
+  /// ✅ GET /ranking/times/:eventoId - Com validação
   Future<List<Map<String, dynamic>>> getRankingTeams(String eventoId) async {
     try {
       final response = await _dio.get('/ranking/times/$eventoId');
@@ -419,7 +419,7 @@ class ApiService {
     }
   }
 
-  /// ✅ GET /familias/children - Busca filhos da família com evento_id
+  /// ✅ GET /familias/children - Busca filhos da família com eventoId
   Future<Map<String, dynamic>?> getActiveEvent() async {
     try {
       final response = await _dio.get('/familias/children');
@@ -434,20 +434,20 @@ class ApiService {
         return null;
       }
       
-      // Extrai evento_id da primeira criança
+      // Extrai eventoId da primeira criança
       final firstChild = children.first;
       if (firstChild is! Map<String, dynamic>) return null;
       
-      final eventoId = firstChild['evento_id'] as String?;
+      final eventoId = firstChild['eventoId'] as String?;
       if (eventoId == null || eventoId.isEmpty) {
-        log.w('[API] ⚠️ Criança sem evento_id');
+        log.w('[API] ⚠️ Criança sem eventoId');
         return null;
       }
       
-      log.i('[API] ✅ evento_id extraído: $eventoId');
+      log.i('[API] ✅ eventoId extraído: $eventoId');
       return {
         'id': eventoId,
-        'name': 'Evento Ativo',
+        'nome': 'Evento Ativo',
         'status': 'active',
       };
     } catch (e) {
@@ -474,13 +474,13 @@ class ApiService {
     }
   }
 
-  /// ✅ GET /company-map/floor-plan - Planta baixa do buffet (imagem base64, vale para todos os eventos)
+  /// ✅ GET /company-map/floor-plano - Planta baixa do buffet (imagem base64, vale para todos os eventos)
   Future<String?> getFloorPlan() async {
     try {
-      final response = await _dio.get('/company-map/floor-plan');
+      final response = await _dio.get('/company-map/floor-plano');
       final data = _validateResponseData(response.data);
       
-      // Backend retorna { floorPlan: { dataUrl, name, type } }
+      // Backend retorna { floorPlan: { dataUrl, nome, tipo } }
       final floorPlan = data['floorPlan'] as Map<String, dynamic>?;
       if (floorPlan != null) {
         return floorPlan['dataUrl'] as String?;
@@ -488,16 +488,16 @@ class ApiService {
       
       return null;
     } catch (e) {
-      // Floor plan é opcional - silent fail
-      log.w('[API] ⚠️ Erro ao carregar floor plan: $e');
+      // Floor plano é opcional - silent fail
+      log.w('[API] ⚠️ Erro ao carregar floor plano: $e');
       return null;
     }
   }
 
-  /// ✅ GET /brincadeiras?evento_id={id} - Brincadeiras do evento
+  /// ✅ GET /brincadeiras?eventoId={id} - Brincadeiras do evento
   Future<List<Map<String, dynamic>>> getBrincadeiras(String eventoId) async {
     try {
-      final response = await _dio.get('/brincadeiras', queryParameters: {'evento_id': eventoId});
+      final response = await _dio.get('/brincadeiras', queryParameters: {'eventoId': eventoId});
       
       final data = _validateResponseList(response.data);
       return data.map((item) => item as Map<String, dynamic>).toList();
@@ -548,14 +548,14 @@ class ApiService {
       final data = _validateResponseList(response.data);
       final checkpoints = data.map((item) => item as Map<String, dynamic>).toList()
         // Filtrar checkpoints que não sejam da recepção (igual ao admin)
-        .where((cp) => (cp['checkpoint_purpose'] ?? 'game').toString().toLowerCase() != 'reception')
+        .where((cp) => (cp['proposito'] ?? 'game').toString().toLowerCase() != 'reception')
         .map((cp) {
           // Sanitizar strings de checkpoint para evitar UTF-16 error
           return {
             ...cp,
-            'name': _sanitizeString(cp['name'] as String?),
-            'zone': _sanitizeString(cp['zone'] as String?),
-            'location': _sanitizeString(cp['location'] as String?),
+            'nome': _sanitizeString(cp['nome'] as String?),
+            'zona': _sanitizeString(cp['zona'] as String?),
+            'localizacao': _sanitizeString(cp['localizacao'] as String?),
           };
         })
         .toList();
@@ -589,7 +589,7 @@ class ApiService {
   Future<Map<String, dynamic>> registerWithInvite(
     String token,
     String email,
-    String password,
+    String senha,
     String parentName, {
     List<Map<String, dynamic>>? children,
   }) async {
@@ -606,7 +606,7 @@ class ApiService {
       final requestBody = {
         'parentName': parentName,
         'email': email,
-        'password': password,
+        'senha': senha,
         'children': ?children,
       };
       
@@ -633,9 +633,9 @@ class ApiService {
         final user = User(
           id: userData['id'] ?? '',
           email: userData['email'] ?? email,
-          name: userData['name'] ?? userData['family_name'] ?? parentName,
-          role: userData['role'] ?? 'family',
-          empresaId: userData['empresa_id'] ?? '',
+          nome: userData['nome'] ?? userData['nomeFamilia'] ?? parentName,
+          perfil: userData['perfil'] ?? 'family',
+          empresaId: userData['empresaId'] ?? '',
           profileImage: userData['profileImage'],
         );
         
@@ -644,10 +644,10 @@ class ApiService {
         
         return {
           'success': true,
-          'type': 'auto_login',
+          'tipo': 'auto_login',
           'token': tokenJwt,
           'user': user,
-          'message': 'Registrado e autenticado!',
+          'mensagem': 'Registrado e autenticado!',
         };
       }
       
@@ -657,9 +657,9 @@ class ApiService {
         log.i('[API] ✅ Conta criada (sem crianças): vínculo depois, pelo QR Code');
         return {
           'success': true,
-          'type': 'created',
+          'tipo': 'created',
           'status': 'active',
-          'message': data['message'] ?? 'Conta criada!',
+          'mensagem': data['mensagem'] ?? 'Conta criada!',
         };
       }
 
@@ -667,13 +667,13 @@ class ApiService {
       // Usado quando é convite genérico para múltiplas crianças
       if (data['success'] == true && data['status'] == 'pending') {
         log.i('[API] ✅ Registro em pendência de aprovação');
-        log.i('[API] 📝 Mensagem: ${data['message']}');
+        log.i('[API] 📝 Mensagem: ${data['mensagem']}');
         
         return {
           'success': true,
-          'type': 'pending',
+          'tipo': 'pending',
           'status': 'pending',
-          'message': data['message'] ?? 'Cadastro realizado. Aguarde a aprovação da recepção.',
+          'mensagem': data['mensagem'] ?? 'Cadastro realizado. Aguarde a aprovação da recepção.',
           'childId': data['childId'],
           'childIds': data['childIds'],
           'childrenCount': data['childrenCount'],
@@ -731,18 +731,18 @@ class ApiService {
       if (data['success'] != true || data['linkedChild'] == null) {
         throw Exception('${data['error'] ?? 'Dados da criança ausentes na resposta'}');
       }
-      log.i('[API] Criança vinculada pela pulseira: ${data['linkedChild']['nickname'] ?? data['linkedChild']['name']}');
+      log.i('[API] Criança vinculada pela pulseira: ${data['linkedChild']['apelido'] ?? data['linkedChild']['nome']}');
       return data;
     } on DioException catch (e) {
       log.e('[API] Erro ao vincular pela pulseira: ${e.response?.statusCode} ${e.response?.data}');
-      var message = 'Erro ao vincular pela pulseira';
+      var mensagem = 'Erro ao vincular pela pulseira';
       final body = e.response?.data;
-      if (body is Map && body['error'] is String) message = body['error'] as String;
-      throw Exception(message);
+      if (body is Map && body['error'] is String) mensagem = body['error'] as String;
+      throw Exception(mensagem);
     }
   }
 
-  /// ✅ POST /family/qrcode/validate - Vincular criança com QR code
+  /// ✅ POST /family/qrcode/validate - Vincular criança com QR codigo
 Future<Map<String, dynamic>> linkChildWithQRCode(String qrCodeValue) async {
   try {
     log.i('[API] 📱 Vinculando criança com QR: $qrCodeValue');
@@ -786,7 +786,7 @@ Future<Map<String, dynamic>> linkChildWithQRCode(String qrCodeValue) async {
     }
     
     log.i('[API] ✅ Criança vinculada com sucesso!');
-    log.i('[API] 👶 Criança: ${linkedChild['nickname'] ?? linkedChild['name']} (ID: ${linkedChild['id']})');
+    log.i('[API] 👶 Criança: ${linkedChild['apelido'] ?? linkedChild['nome']} (ID: ${linkedChild['id']})');
     log.i('[API] 🎮 Evento: ${linkedChild['evento']}');
     
     return data;

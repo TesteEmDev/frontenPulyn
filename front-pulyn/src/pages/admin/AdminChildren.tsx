@@ -37,9 +37,9 @@ const formatEventDate = (value?: string | null) => {
 // Mesma normalização que o store aplica às crianças (times, pontos e pulseira)
 const normalizeChild = (child: any) => ({
   ...child,
-  teamId: child.teamId ?? child.team_id ?? child.time_id ?? null,
+  teamId: child.teamId ?? child.team_id ?? child.timeId ?? null,
   scores: Number(child.scores ?? child.score ?? 0),
-  bracelet: child.bracelet ?? child.bracelet_code ?? null,
+  bracelet: child.bracelet ?? child.codigoPulseira ?? null,
 });
 
 export default function AdminChildren() {
@@ -70,7 +70,7 @@ export default function AdminChildren() {
   // Escolha inicial do evento: a última usada nesta tela, senão o evento atual, senão todos.
   useEffect(() => {
     if (loadingEvents || selection !== null) return;
-    const known = (id: string | null | undefined) => !!id && safeEvents.some((e) => e.id === id);
+    const known = (id: string | null | undefined) => !!id && safeEvents.some((e) => e.eventoId === id);
     const stored = readStoredSelection();
     if (stored === ALL_EVENTS || known(stored)) setSelection(stored);
     else if (known(eventoAtualId)) setSelection(eventoAtualId);
@@ -113,10 +113,10 @@ export default function AdminChildren() {
   const eventOptions = useMemo(() => [
     { value: ALL_EVENTS, label: 'Todos os eventos' },
     ...[...safeEvents]
-      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
+      .sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')))
       .map((e) => ({
-        value: e.id,
-        label: `${e.name || 'Evento'}${formatEventDate(e.date) ? ` — ${formatEventDate(e.date)}` : ''}`,
+        value: e.eventoId,
+        label: `${e.nome || 'Evento'}${formatEventDate(e.data) ? ` — ${formatEventDate(e.data)}` : ''}`,
       })),
   ], [safeEvents]);
 
@@ -125,7 +125,7 @@ export default function AdminChildren() {
     const names = new Set<string>();
     let hasNoTeam = false;
     for (const child of children) {
-      if (child.time_name) names.add(child.time_name);
+      if (child.time_nome) names.add(child.time_nome);
       else hasNoTeam = true;
     }
     return [
@@ -141,7 +141,7 @@ export default function AdminChildren() {
       || child.name?.toLowerCase().includes(term)
       || child.nickname?.toLowerCase().includes(term);
     const matchesTeam = !filterTeam
-      || (filterTeam === NO_TEAM ? !child.time_name : child.time_name === filterTeam);
+      || (filterTeam === NO_TEAM ? !child.time_nome : child.time_nome === filterTeam);
     const matchesStatus = !filterStatus || child.status === filterStatus;
     return matchesSearch && matchesTeam && matchesStatus;
   });
@@ -152,7 +152,7 @@ export default function AdminChildren() {
   // O perfil da criança lê o evento "atual" do sistema; ao abrir uma criança de
   // outro evento, esse evento vira o atual para o perfil encontrá-la.
   const openChild = (child: any) => {
-    if (child.evento_id && child.evento_id !== eventoAtualId) setEventoAtualId(child.evento_id);
+    if (child.eventoId && child.eventoId !== eventoAtualId) setEventoAtualId(child.eventoId);
     navigate(`/admin/children/${child.id}`);
   };
 
@@ -256,7 +256,7 @@ export default function AdminChildren() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {!loadingChildren && filtered.map(child => {
-                    const braceletCode = child.bracelet_code || child.bracelet;
+                    const braceletCode = child.codigoPulseira || child.bracelet;
                     return (
                       <tr
                         key={child.id}
@@ -284,12 +284,12 @@ export default function AdminChildren() {
                           </td>
                         )}
                         <td className="py-3 pr-4">
-                          {child.time_name ? (
+                          {child.time_nome ? (
                             <span
                               className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-body font-semibold"
                               style={{ backgroundColor: (child.time_color || '#888888') + '20', color: child.time_color || '#9CA3AF' }}
                             >
-                              👥 {child.time_name}
+                              👥 {child.time_nome}
                             </span>
                           ) : (
                             <Badge variant="muted">Sem time</Badge>
