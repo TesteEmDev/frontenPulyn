@@ -26,7 +26,7 @@ export default function AdminSettings() {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const empresaId = useAuth(state => state.user?.empresa_id);
+  const empresaId = useAuth(state => state.user?.empresaId);
 
   // Só dá para salvar depois de carregar o cadastro: salvar com o formulário vazio
   // por falha de carregamento apagaria os dados reais.

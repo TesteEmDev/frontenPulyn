@@ -61,7 +61,7 @@ export default function AdminUsers() {
 
   // Carregar usuários
   const loadUsers = async () => {
-    if (!user?.empresa_id) {
+    if (!user?.empresaId) {
       setError('Empresa não identificada');
       setLoading(false);
       return;
@@ -70,7 +70,7 @@ export default function AdminUsers() {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.getUsers(user.empresa_id);
+      const data = await api.getUsers(user.empresaId);
       setUsers(data);
     } catch (err) {
       console.error('❌ Erro ao carregar usuários:', err);
@@ -103,7 +103,7 @@ export default function AdminUsers() {
   };
 
   const handleAddUser = async () => {
-    if (!newUser.username || !newUser.password || !user?.empresa_id) {
+    if (!newUser.username || !newUser.password || !user?.empresaId) {
       setModalError('Preencha o usuário, a senha e selecione um perfil.');
       return;
     }
@@ -131,7 +131,7 @@ export default function AdminUsers() {
         email: `${newUser.username}@${emailDomain}`,
         password: newUser.password,
         role: newUser.role,
-        empresa_id: user.empresa_id
+        empresa_id: user.empresaId
       });
 
       setUsers(prev => [...prev, createdUser]);

@@ -177,7 +177,7 @@ function App() {
     <BrowserRouter>
       <EventoProvider>
         <EventControlBridge
-          enabled={isAuthenticated && Boolean(user?.empresa_id)}
+          enabled={isAuthenticated && Boolean(user?.empresaId)}
           pollMs={user && ['kiosk', 'score_kiosk', 'display'].includes(user.role) ? 8000 : 0}
         />
         <DisplayRealtimeBridge enabled={isAuthenticated && user?.role === 'display'} />
