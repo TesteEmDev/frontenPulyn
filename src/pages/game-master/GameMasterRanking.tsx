@@ -53,7 +53,7 @@ export default function GameMasterRanking() {
       .filter(c => c.status === 'active' && Number(c.scores ?? c.score ?? 0) > 0)
       .sort((a, b) => Number(b.scores ?? b.score ?? 0) - Number(a.scores ?? a.score ?? 0))
       .map(c => {
-        const teamId = c.teamId ?? c.team_id ?? c.time_id ?? c.team;
+        const teamId = c.teamId ?? c.team_id ?? c.timeId ?? c.team;
         const team = teamId ? teams.find(t => t.id === teamId) : null;
         const score = Number(c.scores ?? c.score ?? 0);
         return {

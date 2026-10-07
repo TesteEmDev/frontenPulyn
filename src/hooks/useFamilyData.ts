@@ -3,21 +3,21 @@ import { api } from '../services/api';
 
 export interface FamilyChild {
   id: string;
-  evento_id: string;
+  eventoId: string;
   name: string;
   nickname?: string;
   age?: number;
   avatar?: string;
-  bracelet_code?: string | null;
+  codigoPulseira?: string | null;
   scores: number;
   status: string;
   evento_name?: string;
   evento_date?: string;
   evento_status?: string;
-  time_id?: string | null;
-  time_name?: string | null;
+  timeId?: string | null;
+  time_nome?: string | null;
   time_color?: string | null;
-  time_points?: number;
+  team_points?: number;
   achievements?: string[];
 }
 

@@ -42,7 +42,7 @@ export default function GameMasterGames() {
   }, [events.length, loadEventos]);
 
   useEffect(() => {
-    if (!eventoAtualId && events[0]?.id) setEventoAtual(events[0].id);
+    if (!eventoAtualId && events[0]?.eventoId) setEventoAtual(events[0].eventoId);
   }, [eventoAtualId, events, setEventoAtual]);
 
   const loadData = useCallback(async (eventId: string, keepSelection = false) => {
@@ -78,7 +78,7 @@ export default function GameMasterGames() {
   }, [eventoAtualId, loadData]);
 
   const selectedGame = games.find(game => game.id === selectedGameId) || null;
-  const selectedEvent = events.find(event => event.id === eventoAtualId);
+  const selectedEvent = events.find(event => event.eventoId === eventoAtualId);
   const supported = selectedGame && (selectedGame.type === 'treasure_hunt' || selectedGame.type === 'monster_hunt');
 
   return (
@@ -109,10 +109,10 @@ export default function GameMasterGames() {
             >
               <option value="">Selecione um evento</option>
               {events.map(event => (
-                <option key={event.id} value={event.id}>{event.name}</option>
+                <option key={event.eventoId} value={event.eventoId}>{event.nome}</option>
               ))}
             </select>
-            {selectedEvent && <p className="mt-2 text-xs text-gray-500">Jogos de: {selectedEvent.name}</p>}
+            {selectedEvent && <p className="mt-2 text-xs text-gray-500">Jogos de: {selectedEvent.nome}</p>}
           </Card>
 
           {error && (

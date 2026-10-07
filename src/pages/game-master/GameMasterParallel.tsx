@@ -111,7 +111,7 @@ export default function GameMasterParallel() {
   }, [events.length, loadEventos]);
 
   useEffect(() => {
-    if (!eventoAtualId && events[0]?.id) setEventoAtual(events[0].id);
+    if (!eventoAtualId && events[0]?.eventoId) setEventoAtual(events[0].eventoId);
   }, [eventoAtualId, events, setEventoAtual]);
 
   const loadOverview = useCallback(async (eventId: string, silent = false) => {
@@ -145,7 +145,7 @@ export default function GameMasterParallel() {
     return () => clearInterval(timer);
   }, [eventoAtualId, hasActive, loadOverview]);
 
-  const selectedEvent = events.find(event => event.id === eventoAtualId);
+  const selectedEvent = events.find(event => event.eventoId === eventoAtualId);
   const selectedCheckpoint = useMemo(
     () => checkpoints.find(checkpoint => String(checkpoint.id) === checkpointId),
     [checkpoints, checkpointId]
@@ -220,10 +220,10 @@ export default function GameMasterParallel() {
             >
               <option value="">Selecione um evento</option>
               {events.map(event => (
-                <option key={event.id} value={event.id}>{event.name}</option>
+                <option key={event.eventoId} value={event.eventoId}>{event.nome}</option>
               ))}
             </select>
-            {selectedEvent && <p className="mt-2 text-xs text-gray-500">A disputa vale para: {selectedEvent.name}</p>}
+            {selectedEvent && <p className="mt-2 text-xs text-gray-500">A disputa vale para: {selectedEvent.nome}</p>}
           </Card>
 
           {error && (

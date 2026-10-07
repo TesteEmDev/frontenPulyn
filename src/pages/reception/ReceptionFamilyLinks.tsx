@@ -15,24 +15,24 @@ import Avatar from '../../components/ui/Avatar';
 type LinkStatus = 'approved' | 'pending' | 'inactive' | 'rejected';
 
 interface FamilyLink {
-  link_id: string;
-  link_status: LinkStatus;
-  relationship: string;
-  requested_at: string;
-  approved_at: string | null;
-  login_id: string;
+  vinculoId: string;
+  statusVinculo: LinkStatus;
+  relacionamento: string;
+  solicitadoEm: string;
+  aprovadoEm: string | null;
+  loginId: string;
   email: string;
-  family_name: string | null;
-  crianca_id: string;
-  crianca_name: string;
-  nickname: string | null;
-  age: number | null;
+  nomeFamilia: string | null;
+  criancaId: string;
+  nomeCrianca: string;
+  apelido: string | null;
+  idade: number | null;
   avatar: string | null;
-  bracelet_code: string | null;
-  evento_id: string;
-  evento_name: string;
-  time_name: string | null;
-  time_color: string | null;
+  codigoPulseira: string | null;
+  eventoId: string;
+  nomeEvento: string;
+  nomeTime: string | null;
+  corTime: string | null;
 }
 
 interface ChildGroup {
@@ -135,33 +135,33 @@ export default function ReceptionFamilyLinks() {
     const query = normalize(search.trim());
     const byChild = new Map<string, ChildGroup>();
     for (const link of links) {
-      if (!matchesStatus(link.link_status, statusFilter)) continue;
+      if (!matchesStatus(link.statusVinculo, statusFilter)) continue;
       if (query) {
-        const haystack = normalize([link.crianca_name, link.nickname, link.bracelet_code, link.email, link.family_name].filter(Boolean).join(' '));
+        const haystack = normalize([link.nomeCrianca, link.apelido, link.codigoPulseira, link.email, link.nomeFamilia].filter(Boolean).join(' '));
         if (!haystack.includes(query)) continue;
       }
-      const group = byChild.get(link.crianca_id) || {
-        id: link.crianca_id,
-        name: link.crianca_name,
-        nickname: link.nickname || '',
-        age: link.age,
+      const group = byChild.get(link.criancaId) || {
+        id: link.criancaId,
+        name: link.nomeCrianca,
+        nickname: link.apelido || '',
+        age: link.idade,
         avatar: link.avatar,
-        braceletCode: link.bracelet_code,
-        eventName: link.evento_name,
-        teamName: link.time_name,
-        teamColor: link.time_color,
+        braceletCode: link.codigoPulseira,
+        eventName: link.nomeEvento,
+        teamName: link.nomeTime,
+        teamColor: link.corTime,
         links: [],
       };
       group.links.push(link);
-      byChild.set(link.crianca_id, group);
+      byChild.set(link.criancaId, group);
     }
     return [...byChild.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [links, search, statusFilter]);
 
   const totals = useMemo(() => ({
-    children: new Set(links.filter(l => l.link_status === 'approved').map(l => l.crianca_id)).size,
-    approved: links.filter(l => l.link_status === 'approved').length,
-    pending: links.filter(l => l.link_status === 'pending').length,
+    children: new Set(links.filter(l => l.statusVinculo === 'approved').map(l => l.criancaId)).size,
+    approved: links.filter(l => l.statusVinculo === 'approved').length,
+    pending: links.filter(l => l.statusVinculo === 'pending').length,
   }), [links]);
 
   const confirmUnlink = async () => {
@@ -169,8 +169,8 @@ export default function ReceptionFamilyLinks() {
     setUnlinking(true);
     setUnlinkError('');
     try {
-      await api.unlinkFamilyLink(toUnlink.link_id);
-      setNotice(`${toUnlink.family_name || toUnlink.email} foi desvinculado(a) de ${toUnlink.nickname || toUnlink.crianca_name}.`);
+      await api.unlinkFamilyLink(toUnlink.vinculoId);
+      setNotice(`${toUnlink.nomeFamilia || toUnlink.email} foi desvinculado(a) de ${toUnlink.apelido || toUnlink.nomeCrianca}.`);
       setToUnlink(null);
       await loadLinks(eventId);
     } catch (err) {
@@ -263,15 +263,15 @@ export default function ReceptionFamilyLinks() {
 
                   <ul className="divide-y divide-white/[0.06]">
                     {group.links.map(link => {
-                      const status = STATUS_LABEL[link.link_status];
-                      const canUnlink = link.link_status === 'approved' || link.link_status === 'pending';
+                      const status = STATUS_LABEL[link.statusVinculo];
+                      const canUnlink = link.statusVinculo === 'approved' || link.statusVinculo === 'pending';
                       return (
-                        <li key={link.link_id} className="flex flex-wrap items-center gap-3 py-3">
+                        <li key={link.vinculoId} className="flex flex-wrap items-center gap-3 py-3">
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-white">{link.family_name || link.email}</p>
+                            <p className="truncate text-sm font-semibold text-white">{link.nomeFamilia || link.email}</p>
                             <p className="truncate text-xs text-gray-500">
-                              {link.family_name ? `${link.email} · ` : ''}{link.relationship}
-                              {formatDate(link.approved_at || link.requested_at) ? ` · desde ${formatDate(link.approved_at || link.requested_at)}` : ''}
+                              {link.nomeFamilia ? `${link.email} · ` : ''}{link.relacionamento}
+                              {formatDate(link.aprovadoEm || link.solicitadoEm) ? ` · desde ${formatDate(link.aprovadoEm || link.solicitadoEm)}` : ''}
                             </p>
                           </div>
                           <Badge variant={status.variant}>{status.label}</Badge>
@@ -280,7 +280,7 @@ export default function ReceptionFamilyLinks() {
                               variant="ghost"
                               size="sm"
                               onClick={() => { setUnlinkError(''); setToUnlink(link); }}
-                              aria-label={`Desvincular ${link.family_name || link.email} de ${group.nickname || group.name}`}
+                              aria-label={`Desvincular ${link.nomeFamilia || link.email} de ${group.nickname || group.name}`}
                             >
                               <Unlink size={15} className="mr-1.5" />
                               Desvincular
@@ -301,8 +301,8 @@ export default function ReceptionFamilyLinks() {
         {toUnlink && (
           <div className="space-y-4">
             <p className="text-sm text-gray-300">
-              Desvincular <strong className="text-white">{toUnlink.family_name || toUnlink.email}</strong> de{' '}
-              <strong className="text-white">{toUnlink.nickname || toUnlink.crianca_name}</strong>?
+              Desvincular <strong className="text-white">{toUnlink.nomeFamilia || toUnlink.email}</strong> de{' '}
+              <strong className="text-white">{toUnlink.apelido || toUnlink.nomeCrianca}</strong>?
             </p>
             <p className="text-xs text-gray-500">
               O responsável deixa de ver a criança no app. O histórico fica guardado e, se for preciso, ele pode se vincular de novo lendo o QR code da criança.

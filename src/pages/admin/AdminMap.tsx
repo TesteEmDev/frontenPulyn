@@ -137,15 +137,15 @@ export default function AdminMap() {
       const centerY = MAP_HEIGHT / 2;
       
       checkpoints = checkpoints.map((checkpoint) => {
-        const x = Number(checkpoint.map_x ?? checkpoint.mapX);
-        const y = Number(checkpoint.map_y ?? checkpoint.mapY);
+        const x = Number(checkpoint.mapaX ?? checkpoint.mapX);
+        const y = Number(checkpoint.mapaY ?? checkpoint.mapY);
         
         // Validar apenas se é número válido
         if (!Number.isFinite(x) || !Number.isFinite(y)) {
           return {
             ...checkpoint,
-            map_x: centerX,
-            map_y: centerY,
+            mapaX: centerX,
+            mapaY: centerY,
           };
         }
         
@@ -174,8 +174,8 @@ export default function AdminMap() {
         setEvents(eventList);
         const activeEvent = eventList.find((event) => event.status === 'active' || event.status === 'ongoing');
         const eventToSelect = activeEvent || eventList[0] || null;
-        setSelectedEventId(eventToSelect?.id || null);
-        if (eventToSelect?.id) setEventoAtual(eventToSelect.id);
+        setSelectedEventId(eventToSelect?.eventoId || null);
+        if (eventToSelect?.eventoId) setEventoAtual(eventToSelect.eventoId);
       } catch (err: any) {
         if (!active) return;
         console.error('❌ Erro ao carregar eventos do mapa:', err);
@@ -515,8 +515,8 @@ export default function AdminMap() {
   };
 
   const fallbackPosition = useCallback((checkpoint: any, index: number): MapPosition => {
-    const storedX = Number(checkpoint.map_x ?? checkpoint.mapX);
-    const storedY = Number(checkpoint.map_y ?? checkpoint.mapY);
+    const storedX = Number(checkpoint.mapaX ?? checkpoint.mapX);
+    const storedY = Number(checkpoint.mapaY ?? checkpoint.mapY);
     if (Number.isFinite(storedX) && Number.isFinite(storedY)) {
       return {
         x: storedX,
@@ -537,7 +537,7 @@ export default function AdminMap() {
   const checkpointPositions = useMemo(() => {
     const positions: Record<string, MapPosition> = {};
     checkpoints.forEach((checkpoint, index) => {
-      positions[checkpoint.id] = fallbackPosition(checkpoint, index);
+      positions[checkpoint.checkpointId] = fallbackPosition(checkpoint, index);
     });
     return positions;
   }, [checkpoints, fallbackPosition]);
@@ -630,7 +630,7 @@ export default function AdminMap() {
 
     if (!checkpointId || !selectedEventId || !finalPosition) return;
 
-    const checkpoint = checkpoints.find((item) => item.id === checkpointId);
+    const checkpoint = checkpoints.find((item) => item.checkpointId === checkpointId);
     if (!checkpoint) return;
     if (startPosition && startPosition.x === finalPosition.x && startPosition.y === finalPosition.y) return;
 
@@ -642,7 +642,7 @@ export default function AdminMap() {
 
     // Atualizar o estado com a posição final
     setCheckpoints((current) => current.map((item) => item.id === checkpointId
-      ? { ...item, map_x: finalPosition.x, map_y: finalPosition.y }
+      ? { ...item, mapaX: finalPosition.x, mapaY: finalPosition.y }
       : item));
 
     setSavingCheckpointId(checkpointId);
@@ -701,11 +701,11 @@ export default function AdminMap() {
     }
   };
 
-  const selectedEvent = events.find((event) => event.id === selectedEventId);
-  const selectedCheckpoint = checkpoints.find((checkpoint) => checkpoint.id === selectedCheckpointId);
+  const selectedEvent = events.find((event) => event.eventoId === selectedEventId);
+  const selectedCheckpoint = checkpoints.find((checkpoint) => checkpoint.checkpointId === selectedCheckpointId);
   const checkpointsWithoutPosition = checkpoints.filter((checkpoint) => {
-    const x = Number(checkpoint.map_x ?? checkpoint.mapX);
-    const y = Number(checkpoint.map_y ?? checkpoint.mapY);
+    const x = Number(checkpoint.mapaX ?? checkpoint.mapX);
+    const y = Number(checkpoint.mapaY ?? checkpoint.mapY);
     return !Number.isFinite(x) || !Number.isFinite(y);
   });
 
@@ -739,8 +739,8 @@ export default function AdminMap() {
               >
                 <option value="">Selecione um evento</option>
                 {events.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.name} - {event.date ? new Date(event.date).toLocaleDateString('pt-BR') : 'sem data'}
+                  <option key={event.eventoId} value={event.eventoId}>
+                    {event.nome} - {event.data ? new Date(event.data).toLocaleDateString('pt-BR') : 'sem data'}
                   </option>
                 ))}
               </select>
@@ -751,7 +751,7 @@ export default function AdminMap() {
             </div>
             {selectedEvent && (
               <p className="mt-2 text-xs text-gray-500">
-                {selectedEvent.name} · {checkpoints.length} checkpoint(s) carregado(s)
+                {selectedEvent.nome} · {checkpoints.length} checkpoint(s) carregado(s)
               </p>
             )}
           </Card>
@@ -934,26 +934,26 @@ export default function AdminMap() {
                   )}
 
                   {checkpoints.map((checkpoint, index) => {
-                    const storedPosition = checkpointPositions[checkpoint.id] || fallbackPosition(checkpoint, index);
+                    const storedPosition = checkpointPositions[checkpoint.checkpointId] || fallbackPosition(checkpoint, index);
                     // Se está sendo arrastado, usar dragPositionRef (renderiza em tempo real), caso contrário usar a posição armazenada
-                    const position = (draggingCheckpointRef.current === checkpoint.id && dragPositionRef.current)
+                    const position = (draggingCheckpointRef.current === checkpoint.checkpointId && dragPositionRef.current)
                       ? dragPositionRef.current
                       : storedPosition;
-                    const isSelected = selectedCheckpointId === checkpoint.id;
+                    const isSelected = selectedCheckpointId === checkpoint.checkpointId;
                     const color = checkpoint.status === 'online' ? '#22C55E' : '#EF4444';
                     const circleRadius = isSelected ? 17 : 14;
                     return (
                       <g
-                        key={checkpoint.id}
+                        key={checkpoint.checkpointId}
                         transform={`translate(${position.x} ${position.y})`}
                         className="cursor-grab active:cursor-grabbing"
-                        onPointerDown={(event) => handlePointerDown(event, checkpoint.id)}
-                        onClick={() => setSelectedCheckpointId(checkpoint.id)}
+                        onPointerDown={(event) => handlePointerDown(event, checkpoint.checkpointId)}
+                        onClick={() => setSelectedCheckpointId(checkpoint.checkpointId)}
                       >
                         <circle r={circleRadius} fill={color} fillOpacity={0.18} stroke={isSelected ? '#FFFFFF' : color} strokeWidth={isSelected ? 3 : 2} />
                         <circle r="5" fill={color} />
-                        <text y="-22" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="600">{checkpoint.id}</text>
-                        <text y="30" textAnchor="middle" fill="#D1D5DB" fontSize="9">{checkpoint.name}</text>
+                        <text y="-22" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="600">{checkpoint.checkpointId}</text>
+                        <text y="30" textAnchor="middle" fill="#D1D5DB" fontSize="9">{checkpoint.nome}</text>
                       </g>
                     );
                   })}
@@ -1062,17 +1062,17 @@ export default function AdminMap() {
                 <div className="max-h-72 space-y-2 overflow-y-auto">
                   {checkpoints.map((checkpoint) => (
                     <button
-                      key={checkpoint.id}
+                      key={checkpoint.checkpointId}
                       type="button"
-                      onClick={() => setSelectedCheckpointId(checkpoint.id)}
-                      className={`flex w-full items-center gap-2 rounded-lg p-2 text-left transition-colors ${selectedCheckpointId === checkpoint.id ? 'bg-primary/15 ring-1 ring-primary/50' : 'hover:bg-surface/70'}`}
+                      onClick={() => setSelectedCheckpointId(checkpoint.checkpointId)}
+                      className={`flex w-full items-center gap-2 rounded-lg p-2 text-left transition-colors ${selectedCheckpointId === checkpoint.checkpointId ? 'bg-primary/15 ring-1 ring-primary/50' : 'hover:bg-surface/70'}`}
                     >
                       <StatusDot status={checkpoint.status === 'online' ? 'online' : 'offline'} />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-xs font-semibold text-white">{checkpoint.name}</span>
-                        <span className="block truncate text-[11px] text-gray-500">{checkpoint.id} · {checkpoint.zone || checkpoint.location || 'Sem zona'}</span>
+                        <span className="block truncate text-xs font-semibold text-white">{checkpoint.nome}</span>
+                        <span className="block truncate text-[11px] text-gray-500">{checkpoint.checkpointId} · {checkpoint.zona || checkpoint.localizacao || 'Sem zona'}</span>
                       </span>
-                      {savingCheckpointId === checkpoint.id ? <Loader2 size={14} className="animate-spin text-primary" /> : <MapPin size={14} className="text-gray-500" />}
+                      {savingCheckpointId === checkpoint.checkpointId ? <Loader2 size={14} className="animate-spin text-primary" /> : <MapPin size={14} className="text-gray-500" />}
                     </button>
                   ))}
                   {!loadingCheckpoints && checkpoints.length === 0 && <p className="text-xs text-gray-500">Nenhum checkpoint para exibir.</p>}
@@ -1083,7 +1083,7 @@ export default function AdminMap() {
                 <div className="mt-4 rounded-lg border border-primary/30 bg-primary/10 p-3">
                   <div className="flex items-center gap-2">
                     <Save size={15} className="text-primary" />
-                    {editingCheckpointName === selectedCheckpoint.id ? (
+                    {editingCheckpointName === selectedCheckpoint.checkpointId ? (
                       <div className="flex flex-1 gap-2">
                         <Input
                           value={newCheckpointName}
@@ -1093,11 +1093,11 @@ export default function AdminMap() {
                           autoFocus
                         />
                         <button
-                          onClick={() => saveCheckpointName(selectedCheckpoint.id, newCheckpointName)}
-                          disabled={savingCheckpointId === selectedCheckpoint.id}
+                          onClick={() => saveCheckpointName(selectedCheckpoint.checkpointId, newCheckpointName)}
+                          disabled={savingCheckpointId === selectedCheckpoint.checkpointId}
                           className="rounded px-2 py-1 bg-primary text-white hover:bg-primary/80 text-xs font-semibold disabled:opacity-50"
                         >
-                          {savingCheckpointId === selectedCheckpoint.id ? '...' : 'OK'}
+                          {savingCheckpointId === selectedCheckpoint.checkpointId ? '...' : 'OK'}
                         </button>
                         <button
                           onClick={() => setEditingCheckpointName(null)}
@@ -1108,11 +1108,11 @@ export default function AdminMap() {
                       </div>
                     ) : (
                       <>
-                        <p className="text-sm font-semibold text-white flex-1">{selectedCheckpoint.name}</p>
+                        <p className="text-sm font-semibold text-white flex-1">{selectedCheckpoint.nome}</p>
                         <button
                           onClick={() => {
-                            setEditingCheckpointName(selectedCheckpoint.id);
-                            setNewCheckpointName(selectedCheckpoint.name);
+                            setEditingCheckpointName(selectedCheckpoint.checkpointId);
+                            setNewCheckpointName(selectedCheckpoint.nome);
                           }}
                           className="rounded p-1 text-gray-400 hover:text-white"
                           title="Editar nome"
@@ -1122,8 +1122,8 @@ export default function AdminMap() {
                       </>
                     )}
                   </div>
-                  <p className="mt-1 text-xs text-gray-400">Posição: {Math.round(checkpointPositions[selectedCheckpoint.id]?.x || 0)} × {Math.round(checkpointPositions[selectedCheckpoint.id]?.y || 0)}</p>
-                  <p className="mt-1 text-xs text-gray-500">Status: {selectedCheckpoint.status === 'online' ? 'Online' : 'Offline'} · {selectedCheckpoint.points || 0} pontos</p>
+                  <p className="mt-1 text-xs text-gray-400">Posição: {Math.round(checkpointPositions[selectedCheckpoint.checkpointId]?.x || 0)} × {Math.round(checkpointPositions[selectedCheckpoint.checkpointId]?.y || 0)}</p>
+                  <p className="mt-1 text-xs text-gray-500">Status: {selectedCheckpoint.status === 'online' ? 'Online' : 'Offline'} · {selectedCheckpoint.pontos || 0} pontos</p>
                 </div>
               )}
             </Card>

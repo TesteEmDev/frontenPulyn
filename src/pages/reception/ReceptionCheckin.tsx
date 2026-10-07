@@ -78,7 +78,7 @@ export default function ReceptionCheckin() {
     api.getPulseiras()
       .then(pulseiras => {
         if (checkId !== braceletCheckIdRef.current) return;
-        const pulseira = pulseiras.find(item => normalizeUid(String(item.code || '')) === normalizedCode);
+        const pulseira = pulseiras.find(item => normalizeUid(String(item.codigo || '')) === normalizedCode);
         if (!pulseira) {
           setBraceletStatus('not-found');
           showToast('Pulseira nova detectada. Ela será cadastrada ao finalizar o participante.');
@@ -90,7 +90,7 @@ export default function ReceptionCheckin() {
           return;
         }
         setBraceletStatus('registered');
-        showToast(`Pulseira já vinculada para ${pulseira.crianca_name || 'uma criança'}.`, 'success');
+        showToast(`Pulseira já vinculada para ${pulseira.crianca_nome || 'uma criança'}.`, 'success');
       })
       .catch(error => {
         if (checkId !== braceletCheckIdRef.current) return;
@@ -127,20 +127,20 @@ export default function ReceptionCheckin() {
         const openEvents = availableEvents.filter(isOpenEvent);
         setEvents(openEvents);
         const controlledEvent = controlData?.event
-          ? availableEvents.find(event => String(event.id) === String(controlData.event.id))
+          ? availableEvents.find(event => String(event.eventoId) === String(controlData.event.id))
           : null;
         const activeEvent = availableEvents.find(event => ['active', 'ongoing'].includes(String(event.status || '').toLowerCase()));
         const storedEvent = eventoAtualId
-          ? availableEvents.find(event => String(event.id) === String(eventoAtualId) && isOpenEvent(event))
+          ? availableEvents.find(event => String(event.eventoId) === String(eventoAtualId) && isOpenEvent(event))
           : null;
         const eventToSelect = controlledEvent || activeEvent || storedEvent || (openEvents.length === 1 ? openEvents[0] : null);
 
-        setSelectedEventId(currentId => currentId && openEvents.some(event => String(event.id) === String(currentId))
+        setSelectedEventId(currentId => currentId && openEvents.some(event => String(event.eventoId) === String(currentId))
           ? currentId
-          : eventToSelect?.id || null);
+          : eventToSelect?.eventoId || null);
         if (eventToSelect) {
-          setEventoAtual(eventToSelect.id);
-          if (!controlledEvent) await api.setActiveEventControl(eventToSelect.id).catch(() => {});
+          setEventoAtual(eventToSelect.eventoId);
+          if (!controlledEvent) await api.setActiveEventControl(eventToSelect.eventoId).catch(() => {});
         }
       } catch (error) {
         console.error('Erro ao carregar eventos:', error);
@@ -191,7 +191,7 @@ export default function ReceptionCheckin() {
     try {
       const normalizedCode = normalizeUid(braceletCode);
       const pulseiras = await api.getPulseiras();
-      let pulseira = pulseiras.find(item => normalizeUid(String(item.code || '')) === normalizedCode);
+      let pulseira = pulseiras.find(item => normalizeUid(String(item.codigo || '')) === normalizedCode);
 
       if (!pulseira) {
         pulseira = await api.createPulseira(normalizedCode);
@@ -203,8 +203,8 @@ export default function ReceptionCheckin() {
       }
 
       await api.createCrianca(selectedEventId, {
-        name: form.name.trim(),
-        nickname: form.nickname.trim() || form.name.trim().split(/\s+/)[0],
+        nome: form.name.trim(),
+        apelido: form.nickname.trim() || form.name.trim().split(/\s+/)[0],
         age: Number.parseInt(form.age, 10) || 5,
         avatar: form.avatar,
         braceletCode: normalizedCode,
@@ -280,8 +280,8 @@ export default function ReceptionCheckin() {
               >
                 <option value="">Selecione um evento</option>
                 {events.map(event => (
-                  <option key={event.id} value={event.id}>
-                    {event.name} - {new Date(event.date).toLocaleDateString('pt-BR')}
+                  <option key={event.eventoId} value={event.eventoId}>
+                    {event.nome} - {new Date(event.data).toLocaleDateString('pt-BR')}
                   </option>
                 ))}
               </select>
