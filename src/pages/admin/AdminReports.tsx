@@ -65,11 +65,11 @@ export default function AdminReports() {
     if (selectedEventId || safeEvents.length === 0) return;
     const active = safeEvents.find((e) => e?.status === 'active' || e?.status === 'ongoing');
     if (active) {
-      setSelectedEventId(active.id);
+      setSelectedEventId(active.eventoId);
       return;
     }
-    const mostRecent = [...safeEvents].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
-    setSelectedEventId(mostRecent?.id || '');
+    const mostRecent = [...safeEvents].sort((a, b) => (b.data || '').localeCompare(a.data || ''))[0];
+    setSelectedEventId(mostRecent?.eventoId || '');
   }, [safeEvents, selectedEventId]);
 
   // Carregar os dados do evento selecionado direto da API — mesmo padrão do
@@ -141,8 +141,8 @@ export default function AdminReports() {
 
   const eventOptions = useMemo(() => (
     [...safeEvents]
-      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-      .map((e) => ({ value: e.id, label: `${e.name || 'Evento'} — ${e.date || 'sem data'}` }))
+      .sort((a, b) => (b.data || '').localeCompare(a.data || ''))
+      .map((e) => ({ value: e.eventoId, label: `${e.nome || 'Evento'} — ${e.data || 'sem data'}` }))
   ), [safeEvents]);
 
   const handleSelectEvent = useCallback((eventId: string) => {
@@ -160,7 +160,7 @@ export default function AdminReports() {
   const engagementByZoneData = useMemo(() => {
     const zoneCounts: Record<string, number> = {};
     safeCheckpoints.forEach(cp => {
-      const zone = cp.zone || 'Sem zona';
+      const zone = cp.zona || 'Sem zona';
       zoneCounts[zone] = (zoneCounts[zone] || 0) + 1;
     });
     return Object.entries(zoneCounts).map(([zone, valor]) => ({
@@ -171,15 +171,15 @@ export default function AdminReports() {
 
   const totalParticipants = safeChildren.length;
   const avgPoints = safeChildren.length > 0
-    ? Math.round(safeChildren.reduce((sum, c) => sum + (c.scores || 0), 0) / safeChildren.length)
+    ? Math.round(safeChildren.reduce((sum, c) => sum + (c.pontos || 0), 0) / safeChildren.length)
     : 0;
 
   // Checkpoints mais acessados
   const checkpointCounts = safeCheckpoints.map(cp => ({
-    id: cp.id,
-    name: cp.name,
-    zone: cp.zone,
-    count: safeScoreLog.filter(s => s.checkpoint === cp.id || s.checkpoint_id === cp.id).length,
+    id: cp.checkpointId,
+    name: cp.nome,
+    zone: cp.zona,
+    count: safeScoreLog.filter(s => s.checkpoint === cp.checkpointId || s.checkpointId === cp.checkpointId).length,
   }));
   const mostVisited = checkpointCounts.sort((a, b) => b.count - a.count)[0];
   const topCheckpoints = checkpointCounts.slice(0, 5);
@@ -187,7 +187,7 @@ export default function AdminReports() {
   // Jogos mais populares
   const gameCounts = safeGames.map(g => ({
     ...g,
-    count: safeScoreLog.filter(s => s.game === g.name || s.game_id === g.id).length,
+    count: safeScoreLog.filter(s => s.game === g.name || s.brincadeiraId === g.id).length,
   }));
   const mostPopular = gameCounts.sort((a, b) => b.count - a.count)[0];
 

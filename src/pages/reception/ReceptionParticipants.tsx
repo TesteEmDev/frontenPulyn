@@ -18,14 +18,14 @@ import StatusDot from '../../components/ui/StatusDot';
 type FilterTab = 'all' | 'with-bracelet' | 'without-bracelet' | 'by-team';
 
 interface Child {
-  id: string;
-  name: string;
-  nickname: string;
-  age: number;
-  bracelet_code?: string | null;
+  criancaId: string;
+  nome: string;
+  apelido: string;
+  idade: number;
+  codigoPulseira?: string | null;
   // Última pulseira que a criança usou (fica guardada depois que a pulseira é liberada).
-  last_bracelet_code?: string | null;
-  time_id?: string | null;
+  ultimaPulseira?: string | null;
+  timeId?: string | null;
   status?: 'active' | 'inactive' | 'pending';
   avatar?: string;
 }
@@ -98,17 +98,17 @@ export default function ReceptionParticipants() {
         ].includes(String(event.status || '').toLowerCase());
         const activeEvent = eventosData?.find(e => e.status === 'active' || e.status === 'ongoing');
         const storedEvent = eventoAtualId
-          ? eventosData?.find(e => e.id === eventoAtualId && isOpenEvent(e))
+          ? eventosData?.find(e => e.eventoId === eventoAtualId && isOpenEvent(e))
           : null;
         const openEvents = (eventosData || []).filter(isOpenEvent);
         const eventToSelect = activeEvent || storedEvent || (openEvents.length === 1 ? openEvents[0] : null);
 
         setSelectedEventId(currentId => {
-          if (currentId && eventosData?.some(event => event.id === currentId)) return currentId;
-          return eventToSelect?.id || null;
+          if (currentId && eventosData?.some(event => event.eventoId === currentId)) return currentId;
+          return eventToSelect?.eventoId || null;
         });
         if (eventToSelect) {
-          setEventoAtual(eventToSelect.id);
+          setEventoAtual(eventToSelect.eventoId);
         }
       } catch (err) {
         console.error('❌ Erro ao carregar eventos:', err);
@@ -135,7 +135,7 @@ export default function ReceptionParticipants() {
         ]);
         setChildren(criancasData || []);
         setTeamSelections(Object.fromEntries(
-          (criancasData || []).map((child: Child) => [child.id, child.time_id || ''])
+          (criancasData || []).map((child: Child) => [child.criancaId, child.timeId || ''])
         ));
         setTeamsData(timesData || []);
         if (timesData?.length > 0) {
@@ -169,23 +169,23 @@ export default function ReceptionParticipants() {
       const q = search.toLowerCase();
       result = result.filter(
         c =>
-          c.name.toLowerCase().includes(q) ||
-          c.nickname.toLowerCase().includes(q) ||
-          (c.bracelet_code && c.bracelet_code.toLowerCase().includes(q)) ||
-          (c.last_bracelet_code && c.last_bracelet_code.toLowerCase().includes(q))
+          c.nome.toLowerCase().includes(q) ||
+          c.apelido.toLowerCase().includes(q) ||
+          (c.codigoPulseira && c.codigoPulseira.toLowerCase().includes(q)) ||
+          (c.ultimaPulseira && c.ultimaPulseira.toLowerCase().includes(q))
       );
     }
 
     // Tab filter
     switch (activeTab) {
       case 'with-bracelet':
-        result = result.filter(c => c.bracelet_code !== null && c.bracelet_code !== undefined);
+        result = result.filter(c => c.codigoPulseira !== null && c.codigoPulseira !== undefined);
         break;
       case 'without-bracelet':
-        result = result.filter(c => !c.bracelet_code);
+        result = result.filter(c => !c.codigoPulseira);
         break;
       case 'by-team':
-        result = result.filter(c => c.time_id === selectedTeam);
+        result = result.filter(c => c.timeId === selectedTeam);
         break;
     }
 
@@ -198,18 +198,18 @@ export default function ReceptionParticipants() {
     
     // Se é editar nome, preencher os campos com os valores atuais
     if (action === 'edit-name') {
-      const child = children.find(c => c.id === childId);
+      const child = children.find(c => c.criancaId === childId);
       if (child) {
-        setEditingName(child.name);
-        setEditingNickname(child.nickname);
+        setEditingName(child.nome);
+        setEditingNickname(child.apelido);
       }
     }
 
     // Se é gerar QR Code, abrir o modal de QR Code e buscar o código
     if (action === 'generate-qrcode') {
-      const child = children.find(c => c.id === childId);
+      const child = children.find(c => c.criancaId === childId);
       if (child) {
-        setSelectedChildForQR({ id: childId, name: child.name });
+        setSelectedChildForQR({ id: childId, name: child.nome });
         setQrCodeModalOpen(true);
         loadQRCode(childId);
       }
@@ -266,7 +266,7 @@ export default function ReceptionParticipants() {
           return;
         }
 
-        const child = children.find(c => c.id === modalChild);
+        const child = children.find(c => c.criancaId === modalChild);
         if (!child || !selectedEventId) {
           alert('Erro ao atualizar criança');
           setSaving(false);
@@ -275,12 +275,12 @@ export default function ReceptionParticipants() {
 
         
         await api.updateCrianca(selectedEventId, modalChild, {
-          name: editingName.trim(),
-          nickname: editingNickname.trim() || editingName.trim(),
-          age: child.age,
+          nome: editingName.trim(),
+          apelido: editingNickname.trim() || editingName.trim(),
+          age: child.idade,
           avatar: child.avatar,
-          braceletCode: child.bracelet_code,
-          timeId: child.time_id
+          braceletCode: child.codigoPulseira,
+          timeId: child.timeId
         });} else if (modalAction === 'change') {
         // Trocar pulseira - LÓGICA ORIGINAL
         const inputValue = braceletInput;if (!inputValue || !inputValue.trim()) {
@@ -291,7 +291,7 @@ export default function ReceptionParticipants() {
         }
 
         const normalizedInput = inputValue.trim().toUpperCase();const pulseiras = await api.getPulseiras();let pulseira = pulseiras.find(p =>
-          p.code.trim().toUpperCase() === normalizedInput
+          p.codigo.trim().toUpperCase() === normalizedInput
         );
 
         if (!pulseira) {await api.createPulseira(normalizedInput);
@@ -303,7 +303,7 @@ export default function ReceptionParticipants() {
           return;
         }
 
-        const child = children.find(c => c.id === modalChild);
+        const child = children.find(c => c.criancaId === modalChild);
         if (!child) {
           console.error('❌ Criança não encontrada');
           alert('Criança não encontrada');
@@ -316,20 +316,20 @@ export default function ReceptionParticipants() {
           alert('Evento não selecionado');
           setSaving(false);
           return;
-        }if (child.bracelet_code && child.bracelet_code.trim().toUpperCase() !== normalizedInput) {await api.unassignBracelet(modalChild);
+        }if (child.codigoPulseira && child.codigoPulseira.trim().toUpperCase() !== normalizedInput) {await api.unassignBracelet(modalChild);
         }
 
         await api.updateCrianca(selectedEventId, modalChild, {
-          name: child.name,
-          nickname: child.nickname,
-          age: child.age,
+          nome: child.nome,
+          apelido: child.apelido,
+          age: child.idade,
           avatar: child.avatar,
           braceletCode: normalizedInput,
-          timeId: child.time_id
+          timeId: child.timeId
         });}
 
       // Recarregar dados
-      if (selectedEventId) {const criancasData = await api.getCriancas(selectedEventId);const updatedChild = criancasData?.find((c: Child) => c.id === modalChild);
+      if (selectedEventId) {const criancasData = await api.getCriancas(selectedEventId);const updatedChild = criancasData?.find((c: Child) => c.criancaId === modalChild);
         if (updatedChild) {}
         
         setChildren(criancasData || []);
@@ -359,27 +359,27 @@ export default function ReceptionParticipants() {
       return;
     }
 
-    const previousTimeId = teamSelections[child.id] || child.time_id || '';
-    setTeamSelections((current) => ({ ...current, [child.id]: timeId }));
-    setSavingTeamId(child.id);
+    const previousTimeId = teamSelections[child.criancaId] || child.timeId || '';
+    setTeamSelections((current) => ({ ...current, [child.criancaId]: timeId }));
+    setSavingTeamId(child.criancaId);
 
     try {
-      await api.updateCrianca(selectedEventId, child.id, {
-        name: child.name,
-        nickname: child.nickname,
-        age: child.age,
+      await api.updateCrianca(selectedEventId, child.criancaId, {
+        nome: child.nome,
+        apelido: child.apelido,
+        age: child.idade,
         avatar: child.avatar,
-        braceletCode: child.bracelet_code || null,
+        braceletCode: child.codigoPulseira || null,
         timeId: timeId || null,
       });
 
       const updatedChildren = await api.getCriancas(selectedEventId);
       setChildren(updatedChildren || []);
       setTeamSelections(Object.fromEntries(
-        (updatedChildren || []).map((item: Child) => [item.id, item.time_id || ''])
+        (updatedChildren || []).map((item: Child) => [item.criancaId, item.timeId || ''])
       ));
     } catch (error: any) {
-      setTeamSelections((current) => ({ ...current, [child.id]: previousTimeId }));
+      setTeamSelections((current) => ({ ...current, [child.criancaId]: previousTimeId }));
       console.error('❌ Erro ao atualizar time da criança:', error);
       alert(`Não foi possível atualizar o time: ${error.message || 'Tente novamente.'}`);
     } finally {
@@ -389,17 +389,17 @@ export default function ReceptionParticipants() {
 
   const getTeamName = useCallback(
     (child: Child) => {
-      // Primeiro tenta usar time_name que vem do backend
-      if ((child as any).time_name) {
+      // Primeiro tenta usar time_nome que vem do backend
+      if ((child as any).time_nome) {
         return {
-          id: child.time_id,
-          name: (child as any).time_name,
+          id: child.timeId,
+          name: (child as any).time_nome,
           color: (child as any).time_color || '#999999'
         };
       }
       // Fallback: busca na array de times
-      if (child.time_id) {
-        return teamsData.find(t => t.id === child.time_id);
+      if (child.timeId) {
+        return teamsData.find(t => t.id === child.timeId);
       }
       return null;
     },
@@ -408,7 +408,7 @@ export default function ReceptionParticipants() {
 
   const getChildName = useCallback(
     (childId: string) => {
-      return children.find(c => c.id === childId)?.name || '';
+      return children.find(c => c.criancaId === childId)?.nome || '';
     },
     [children]
   );
@@ -446,8 +446,8 @@ export default function ReceptionParticipants() {
                 >
                   <option value="">Selecione um evento</option>
                   {events.map(event => (
-                    <option key={event.id} value={event.id}>
-                      {event.name} - {new Date(event.date).toLocaleDateString('pt-BR')}
+                    <option key={event.eventoId} value={event.eventoId}>
+                      {event.nome} - {new Date(event.data).toLocaleDateString('pt-BR')}
                     </option>
                   ))}
                 </select>
@@ -535,27 +535,27 @@ export default function ReceptionParticipants() {
                     {filteredChildren.map(child => {
                       const team = getTeamName(child);
                       return (
-                        <tr key={child.id} className="hover:bg-dark-surface/50 transition-colors duration-150">
+                        <tr key={child.criancaId} className="hover:bg-dark-surface/50 transition-colors duration-150">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               <Avatar emoji={child.avatar || '👧'} size="sm" />
-                              <span className="font-body text-white text-sm">{child.name}</span>
+                              <span className="font-body text-white text-sm">{child.nome}</span>
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="font-body text-gray-300 text-sm">{child.nickname}</span>
+                            <span className="font-body text-gray-300 text-sm">{child.apelido}</span>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="font-body text-gray-300 text-sm">{child.age}</span>
+                            <span className="font-body text-gray-300 text-sm">{child.idade}</span>
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex min-w-[170px] flex-col gap-1.5">
                               <select
-                                value={teamSelections[child.id] ?? child.time_id ?? ''}
+                                value={teamSelections[child.criancaId] ?? child.timeId ?? ''}
                                 onChange={(event) => handleTeamChange(child, event.target.value)}
-                                disabled={savingTeamId === child.id || teamsData.length === 0}
+                                disabled={savingTeamId === child.criancaId || teamsData.length === 0}
                                 className="rounded-lg border border-dark-border bg-dark-surface px-2.5 py-1.5 text-xs text-white focus:border-primary focus:outline-none disabled:cursor-wait disabled:opacity-60"
-                                aria-label={`Selecionar time de ${child.name}`}
+                                aria-label={`Selecionar time de ${child.nome}`}
                               >
                                 <option value="">Sem time</option>
                                 {teamsData.map((teamOption) => (
@@ -575,11 +575,11 @@ export default function ReceptionParticipants() {
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            {child.bracelet_code ? (
-                              <Badge variant="success">{child.bracelet_code}</Badge>
-                            ) : child.last_bracelet_code ? (
+                            {child.codigoPulseira ? (
+                              <Badge variant="success">{child.codigoPulseira}</Badge>
+                            ) : child.ultimaPulseira ? (
                               <div className="flex flex-col items-start gap-0.5" title="Pulseira liberada: era a última que esta criança usou">
-                                <Badge variant="muted">{child.last_bracelet_code}</Badge>
+                                <Badge variant="muted">{child.ultimaPulseira}</Badge>
                                 <span className="text-[10px] text-gray-500">última pulseira</span>
                               </div>
                             ) : (
@@ -597,7 +597,7 @@ export default function ReceptionParticipants() {
                               <button
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-dark-surface transition-colors duration-200"
                                 title="Gerar QR Code"
-                                onClick={() => handleOpenModal(child.id, 'generate-qrcode')}
+                                onClick={() => handleOpenModal(child.criancaId, 'generate-qrcode')}
                               >
                                 <QrCode className="w-4 h-4" />
                               </button>
@@ -605,24 +605,24 @@ export default function ReceptionParticipants() {
                               <button
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-dark-surface transition-colors duration-200"
                                 title="Editar"
-                                onClick={() => handleOpenModal(child.id, 'edit-name')}
+                                onClick={() => handleOpenModal(child.criancaId, 'edit-name')}
                               >
                                 <Edit className="w-4 h-4" />
                               </button>
                               {/* Change bracelet */}
                               <button
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-secondary hover:bg-dark-surface transition-colors duration-200"
-                                title={child.bracelet_code ? 'Trocar pulseira' : 'Cadastrar pulseira'}
-                                onClick={() => handleOpenModal(child.id, 'change')}
+                                title={child.codigoPulseira ? 'Trocar pulseira' : 'Cadastrar pulseira'}
+                                onClick={() => handleOpenModal(child.criancaId, 'change')}
                               >
                                 <RotateCw className="w-4 h-4" />
                               </button>
                               {/* Unlink bracelet */}
-                              {child.bracelet_code && (
+                              {child.codigoPulseira && (
                                 <button
                                   className="p-1.5 rounded-lg text-gray-400 hover:text-danger hover:bg-dark-surface transition-colors duration-200"
                                   title="Desvincular pulseira"
-                                  onClick={() => handleOpenModal(child.id, 'unlink')}
+                                  onClick={() => handleOpenModal(child.criancaId, 'unlink')}
                                 >
                                   <Unlink className="w-4 h-4" />
                                 </button>
@@ -631,7 +631,7 @@ export default function ReceptionParticipants() {
                               <button
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-danger hover:bg-danger/10 transition-colors duration-200"
                                 title="Excluir participante"
-                                onClick={() => handleOpenModal(child.id, 'delete')}
+                                onClick={() => handleOpenModal(child.criancaId, 'delete')}
                               >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-9 0h10" />
@@ -674,7 +674,7 @@ export default function ReceptionParticipants() {
         }}
         title={
           modalAction === 'change'
-            ? `${children.find((child) => child.id === modalChild)?.bracelet_code ? 'Trocar' : 'Cadastrar'} pulseira de ${getChildName(modalChild || '')}`
+            ? `${children.find((child) => child.criancaId === modalChild)?.codigoPulseira ? 'Trocar' : 'Cadastrar'} pulseira de ${getChildName(modalChild || '')}`
             : modalAction === 'edit-name'
             ? `Editar ${getChildName(modalChild || '')}`
             : modalAction === 'delete'

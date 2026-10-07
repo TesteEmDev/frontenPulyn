@@ -17,7 +17,7 @@ type BraceletStatus = 'disponivel' | 'em uso' | 'perdida' | 'bloqueada';
 interface Bracelet {
   code: string;
   status: BraceletStatus;
-  crianca_id: string | null;
+  criancaId: string | null;
   crianca_name: string | null;
   childId?: string | null;
 }
@@ -89,11 +89,11 @@ export default function ReceptionBracelets() {
       setLoading(true);
       const data = await loadPulseiras();// Mapear para o formato esperado
       const mapped = Array.isArray(data) ? data.map(p => ({
-        code: p.code,
+        code: p.codigo,
         status: (p.status === 'em_uso' ? 'em uso' : p.status || 'disponivel') as BraceletStatus,
-        crianca_id: p.crianca_id || null,
-        crianca_name: p.crianca_name || null,
-        childId: p.crianca_id || null
+        criancaId: p.criancaId || null,
+        crianca_name: p.crianca_nome || null,
+        childId: p.criancaId || null
       })) : [];setBracelets(mapped);
     } catch (error) {
       console.error('❌ Erro ao carregar pulseiras:', error);

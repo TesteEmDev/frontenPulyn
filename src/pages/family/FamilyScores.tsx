@@ -59,7 +59,7 @@ export default function FamilyScores() {
   const sortedTeams = useMemo(() => {
     const teams = new Map<string, any>();
     children.forEach((child) => {
-      if (child.time_id) teams.set(child.time_id, { id: child.time_id, name: child.time_name || 'Time', color: child.time_color || '#1E9BD7', points: Number(child.time_points || 0), icon: '👥' });
+      if (child.timeId) teams.set(child.timeId, { id: child.timeId, name: child.time_nome || 'Time', color: child.time_color || '#1E9BD7', points: Number(child.team_points || 0), icon: '👥' });
     });
     return [...teams.values()].sort((a, b) => b.points - a.points);
   }, [children]);
@@ -109,7 +109,7 @@ export default function FamilyScores() {
         {viewMode === 'individual' && (
           <div className="space-y-3 mb-6">
             {sortedChildren.map((child, index) => {
-              const team = child.time_id ? { id: child.time_id, name: child.time_name, color: child.time_color || '#1E9BD7', icon: '👥' } : null;
+              const team = child.timeId ? { id: child.timeId, name: child.time_nome, color: child.time_color || '#1E9BD7', icon: '👥' } : null;
               const position = index + 1;
               const medalColor =
                 position === 1
@@ -191,7 +191,7 @@ export default function FamilyScores() {
                       {team.name}
                     </p>
                     <p className="text-xs text-gray-400">
-                      {children.filter((child) => child.time_id === team.id).length} criança{children.filter((child) => child.time_id === team.id).length !== 1 ? 's' : ''}
+                      {children.filter((child) => child.timeId === team.id).length} criança{children.filter((child) => child.timeId === team.id).length !== 1 ? 's' : ''}
                     </p>
                   </div>
                   <div className="text-right shrink-0">

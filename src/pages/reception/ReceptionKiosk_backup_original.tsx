@@ -84,8 +84,8 @@ export default function ReceptionKiosk() {
   const kioskStateRef = useRef<KioskState>('waiting');
 
   const selectedAvatar = AVATAR_OPTIONS.find(option => option.emoji === form.avatar) || AVATAR_OPTIONS[0];
-  const selectedEvent = events.find(event => String(event.id) === String(selectedEventId));
-  const selectedTeamData = teams.find(team => String(team.id) === String(selectedTeam));
+  const selectedEvent = events.find(event => String(event.eventoId) === String(selectedEventId));
+  const selectedTeamData = teams.find(team => String(team.timeId) === String(selectedTeam));
 
   useEffect(() => {
     kioskStateRef.current = state;
@@ -256,7 +256,7 @@ export default function ReceptionKiosk() {
       setSuccessData({
         name: form.nickname.trim() || form.name.trim(),
         avatar: form.avatar,
-        teamName: selectedTeamData?.name || 'Seu time',
+        teamName: selectedTeamData?.nome || 'Seu time',
       });
       kioskStateRef.current = 'success';
       setState('success');
@@ -267,7 +267,7 @@ export default function ReceptionKiosk() {
       setState('error');
       setMessage(getErrorMessage(error));
     }
-  }, [braceletCode, form, resetKiosk, selectedEventId, selectedTeam, selectedTeamData?.name, state]);
+  }, [braceletCode, form, resetKiosk, selectedEventId, selectedTeam, selectedTeamData?.nome, state]);
 
   useEffect(() => () => {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
@@ -341,7 +341,7 @@ export default function ReceptionKiosk() {
           <div className="flex min-w-0 items-center gap-2.5 text-xs text-gray-400">
             <span className={`h-2.5 w-2.5 shrink-0 rounded-full ring-4 ${selectedEventId ? 'bg-success ring-success/10 shadow-[0_0_12px_rgba(76,175,80,0.7)]' : 'bg-warning ring-warning/10'}`} />
             <span className="truncate">
-              {selectedEventId ? <>Evento da recepção: <strong className="font-semibold text-white">{selectedEvent?.name || 'carregando...'}</strong></> : 'Aguardando a recepção selecionar um evento'}
+              {selectedEventId ? <>Evento da recepção: <strong className="font-semibold text-white">{selectedEvent?.nome || 'carregando...'}</strong></> : 'Aguardando a recepção selecionar um evento'}
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-2.5 text-[11px] text-gray-500 sm:gap-3">
@@ -507,18 +507,18 @@ export default function ReceptionKiosk() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {teams.map(team => {
-                    const selected = selectedTeam === team.id;
+                    const selected = selectedTeam === team.timeId;
                     return (
                       <button
-                        key={team.id}
+                        key={team.timeId}
                         type="button"
                         disabled={!canInteract}
-                        onClick={() => setSelectedTeam(team.id)}
+                        onClick={() => setSelectedTeam(team.timeId)}
                         className={`rounded-2xl border px-3 py-3.5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/[0.04] ${selected ? 'ring-2 ring-white/60 shadow-lg' : 'border-white/10 hover:border-white/30'} disabled:cursor-not-allowed disabled:opacity-50`}
-                        style={{ borderColor: selected ? team.color : undefined, backgroundColor: selected ? `${team.color}22` : undefined }}
+                        style={{ borderColor: selected ? team.cor : undefined, backgroundColor: selected ? `${team.cor}22` : undefined }}
                       >
-                        <span className="block h-3 w-3 rounded-full" style={{ backgroundColor: team.color || '#8b5cf6' }} />
-                        <span className="mt-2 block truncate text-sm font-semibold text-white">{team.name}</span>
+                        <span className="block h-3 w-3 rounded-full" style={{ backgroundColor: team.cor || '#8b5cf6' }} />
+                        <span className="mt-2 block truncate text-sm font-semibold text-white">{team.nome}</span>
                       </button>
                     );
                   })}
@@ -533,7 +533,7 @@ export default function ReceptionKiosk() {
           </section>
         )}
         <footer className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] px-1 pt-3 text-[10px] text-gray-600 sm:text-xs">
-          <span className="truncate">{selectedEvent?.name || 'Nenhum evento selecionado'}</span>
+          <span className="truncate">{selectedEvent?.nome || 'Nenhum evento selecionado'}</span>
           <span className="hidden sm:inline">Autoatendimento conectado ao checkpoint de recepção</span>
         </footer>
       </div>

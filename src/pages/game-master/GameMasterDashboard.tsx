@@ -354,9 +354,9 @@ export default function GameMasterDashboard() {
 
         const requestedId = eventoAtualId ? String(eventoAtualId).trim().toLowerCase() : '';
         const selectedEvent = availableEvents.find(
-          event => String(event.id).trim().toLowerCase() === requestedId
+          event => String(event.eventoId).trim().toLowerCase() === requestedId
         ) || availableEvents[0];
-        const eventId = selectedEvent ? String(selectedEvent.id).trim() : '';
+        const eventId = selectedEvent ? String(selectedEvent.eventoId).trim() : '';
 
         setSelectedEventId(eventId);
         if (eventId && eventId !== eventoAtualId) {
@@ -383,7 +383,7 @@ export default function GameMasterDashboard() {
 
       try {
         // O endpoint já valida o evento e devolve somente jogos do escopo solicitado.
-        // Não filtrar novamente pelo evento_id evita descartar vínculos legados
+        // Não filtrar novamente pelo eventoId evita descartar vínculos legados
         // resolvidos pelo backend e diferenças de maiúsculas/minúsculas do PostgreSQL.
         const eventGames = await api.getBrincadeiras(selectedEventId);
         setGames(eventGames);
@@ -445,7 +445,7 @@ export default function GameMasterDashboard() {
     for (const cp of safeCheckpoints) {
       try {
         // Usar endpoint sem autenticação (público para Arduino)
-        const res = await fetch(`${API_URL}/checkpoints/${cp.id}/territory`);
+        const res = await fetch(`${API_URL}/pontoVerificacao/${cp.id}/territory`);
         
         if (!res.ok) {
           console.warn(`⚠️ Status ${res.status} para checkpoint ${cp.id}`);
@@ -805,8 +805,8 @@ export default function GameMasterDashboard() {
                 >
                   <option value="">Selecionar evento...</option>
                   {events.map(event => (
-                    <option key={event.id} value={event.id}>
-                      {event.name}
+                    <option key={event.eventoId} value={event.eventoId}>
+                      {event.nome}
                     </option>
                   ))}
                 </select>
@@ -1131,7 +1131,7 @@ export default function GameMasterDashboard() {
               <div className="space-y-3">
                 {topChildren.length > 0 ? (
                   topChildren.map((child, index) => {
-                    const team = getChildTeam(child.time_id || null);
+                    const team = getChildTeam(child.timeId || null);
                     return (
                       <div
                         key={child.id}
@@ -1307,7 +1307,7 @@ export default function GameMasterDashboard() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {safeTeams.length > 0 ? (
                   safeTeams.map(team => {
-                    const teamMembers = safeChildren.filter(c => c.time_id === team.id || c.teamId === team.id);
+                    const teamMembers = safeChildren.filter(c => c.timeId === team.id || c.teamId === team.id);
                     const teamScore = teamMembers.reduce((sum, c) => sum + (c.scores || 0), 0);
                     
                     return (

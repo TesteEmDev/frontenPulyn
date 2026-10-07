@@ -37,8 +37,8 @@ function normalizeZoneName(value?: string | null) {
 
 
 function getStoredMapPosition(checkpoint: Checkpoint) {
-  const x = Number(checkpoint.map_x ?? checkpoint.mapX);
-  const y = Number(checkpoint.map_y ?? checkpoint.mapY);
+  const x = Number(checkpoint.mapaX ?? checkpoint.mapX);
+  const y = Number(checkpoint.mapaY ?? checkpoint.mapY);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
 
   return { x, y };
@@ -195,7 +195,7 @@ export default function DisplayMap({
     if (!currentPartidaId) return [];
     
     return scoreLog.filter(entry => {
-      const entrySessionId = (entry as any).session_id || (entry as any).sessionId;
+      const entrySessionId = (entry as any).sessaoId || (entry as any).sessionId;
       if (!entrySessionId) return true;  // Compatibilidade com dados antigos
       return entrySessionId === currentPartidaId;
     });
@@ -228,7 +228,7 @@ export default function DisplayMap({
     // Criar map de childId -> teamId para buscar equipe rápido
     const childToTeam = new Map<string, Team>();
     for (const child of children) {
-      const teamId = child.teamId ?? child.team_id ?? child.time_id;
+      const teamId = child.teamId ?? child.team_id ?? child.timeId;
       if (teamId) {
         const team = teamById.get(String(teamId).toLowerCase());
         if (team) {
@@ -242,7 +242,7 @@ export default function DisplayMap({
       const readingsByTeam = new Map<string, { count: number; firstTimestamp: number; team: Team }>();
       
       for (const entry of scoreLogCurrentSession) {
-        const entryCheckpointId = entry.checkpointId ?? entry.checkpoint_id ?? entry.checkpoint;
+        const entryCheckpointId = entry.checkpointId ?? entry.checkpointId ?? entry.checkpoint;
         if (String(entryCheckpointId) !== String(checkpoint.id)) continue;
         
         const childId = entry.childId ?? entry.child_id;
@@ -301,12 +301,12 @@ export default function DisplayMap({
     // volta pra entrada. A posição do avatar é sobre a PRÓPRIA leitura do
     // participante (scoreLog), não sobre quem domina o checkpoint agora — os
     // scans de Zone Conquest INDIVIDUAL também gravam em `leituras` com o
-    // session_id da partida atual, então o mesmo caminho serve para os dois
+    // sessaoId da partida atual, então o mesmo caminho serve para os dois
     // modos (equipe e individual).
     const sorted = [...scoreLog].reverse();
 
     for (const entry of sorted) {
-      const checkpointId = entry.checkpointId ?? entry.checkpoint_id ?? entry.checkpoint;
+      const checkpointId = entry.checkpointId ?? entry.checkpointId ?? entry.checkpoint;
       const cp = checkpoints.find((c) => String(c.id) === String(checkpointId));
       const childId = entry.childId ?? entry.child_id;
       if (cp && childId) {
@@ -326,7 +326,7 @@ export default function DisplayMap({
     const zoneChildren: Record<string, { id: string; avatar: string; nickname: string }[]> = {};
     const checkpointChildren: Record<string, number> = {};
     const positions: { id: string; avatar: string; nickname: string; x: number; y: number }[] = [];
-    const activeChildren = children.filter((child) => child.status === 'active' && (child.teamId || child.team_id || child.time_id || child.team));
+    const activeChildren = children.filter((child) => child.status === 'active' && (child.teamId || child.team_id || child.timeId || child.team));
 
     for (const child of activeChildren) {
       const lastCheckpointId = childLastZone[child.id]?.checkpointId;

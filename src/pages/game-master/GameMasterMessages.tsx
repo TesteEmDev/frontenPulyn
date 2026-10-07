@@ -47,7 +47,7 @@ export default function GameMasterMessages() {
   }, [events.length, loadEventos]);
 
   useEffect(() => {
-    if (!eventoAtualId && events[0]?.id) setEventoAtual(events[0].id);
+    if (!eventoAtualId && events[0]?.eventoId) setEventoAtual(events[0].eventoId);
   }, [eventoAtualId, events, setEventoAtual]);
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export default function GameMasterMessages() {
   }, [eventoAtualId]);
 
   const safeDisplayMessages = Array.isArray(displayMessages) ? displayMessages : [];
-  const selectedEvent = events.find((event) => event.id === eventoAtualId);
+  const selectedEvent = events.find((event) => event.eventoId === eventoAtualId);
 
   useEffect(() => {
     if (!feedback) return;
@@ -77,7 +77,7 @@ export default function GameMasterMessages() {
     setSendingText(text);
     setFeedback(null);
     try {
-      const message = await api.createDisplayMessage(eventoAtualId, { text, type });
+      const message = await api.createDisplayMessage(eventoAtualId, { texto: text, type });
       // O telão pode já ter exibido a mensagem pelo WebSocket; evita duplicar no histórico.
       setDisplayMessages((previous) => [message, ...previous.filter((item) => item.id !== message.id)].slice(0, 50));
       setPreviewMessage(text);
@@ -131,10 +131,10 @@ export default function GameMasterMessages() {
             >
               <option value="">Selecione um evento</option>
               {events.map((event) => (
-                <option key={event.id} value={event.id}>{event.name}</option>
+                <option key={event.eventoId} value={event.eventoId}>{event.nome}</option>
               ))}
             </select>
-            {selectedEvent && <p className="mt-2 text-xs text-gray-500">Mensagens vinculadas a: {selectedEvent.name}</p>}
+            {selectedEvent && <p className="mt-2 text-xs text-gray-500">Mensagens vinculadas a: {selectedEvent.nome}</p>}
           </Card>
 
           {/* Preset Messages Grid */}
