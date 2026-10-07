@@ -26,7 +26,7 @@ export default function AdminSettings() {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const empresaId = useAuth(state => state.user?.empresa_id);
+  const empresaId = useAuth(state => state.user?.empresaId);
 
   // Só dá para salvar depois de carregar o cadastro: salvar com o formulário vazio
   // por falha de carregamento apagaria os dados reais.
@@ -54,7 +54,7 @@ export default function AdminSettings() {
   });
 
   const [backupSettings, setBackupSettings] = useState({
-    backup_frequency: 'daily',
+    backupFrequency: 'daily',
   });
 
   // Preenche o formulário com o que está salvo no servidor (campos vazios ficam vazios).
@@ -65,7 +65,7 @@ export default function AdminSettings() {
       unit_phone: maskPhone(profile.phone || ''),
       unit_email: profile.email || '',
     });
-    setBackupSettings({ backup_frequency: profile.backupFrequency || 'daily' });
+    setBackupSettings({ backupFrequency: profile.backupFrequency || 'daily' });
     setCnpj(profile.cnpj || '');
     setNameError('');
     setEmailError('');
@@ -179,7 +179,7 @@ export default function AdminSettings() {
         email: unitSettings.unit_email.trim(),
         phone: unitSettings.unit_phone.trim(),
         address: unitSettings.unit_address.trim(),
-        backupFrequency: backupSettings.backup_frequency,
+        backupFrequency: backupSettings.backupFrequency,
         cnpj: onlyDigits(cnpj),
       });
       // Mostra o que ficou realmente salvo (o servidor pode ter normalizado algum valor).
@@ -360,8 +360,8 @@ export default function AdminSettings() {
                     { value: 'weekly', label: 'Semanal' },
                     { value: 'manual', label: 'Apenas manual' },
                   ]}
-                  value={backupSettings.backup_frequency}
-                  onChange={e => setBackupSettings(prev => ({ ...prev, backup_frequency: e.target.value }))}
+                  value={backupSettings.backupFrequency}
+                  onChange={e => setBackupSettings(prev => ({ ...prev, backupFrequency: e.target.value }))}
                 />
                 <div className="flex items-center justify-between p-3 rounded-lg bg-surface/50">
                   <div>

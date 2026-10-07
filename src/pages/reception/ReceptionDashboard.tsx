@@ -110,7 +110,7 @@ export default function ReceptionDashboard() {
 
   // Calcular estatísticas
   const totalChildren = children.length;
-  const withBracelet = children.filter(c => c.bracelet_code || c.bracelet).length;
+  const withBracelet = children.filter(c => c.codigoPulseira || c.bracelet).length;
   const withoutBracelet = totalChildren - withBracelet;
   
   // Pulseiras disponíveis = pulseiras com status 'disponivel' na tabela bracelets
@@ -201,19 +201,19 @@ export default function ReceptionDashboard() {
               {recentChildren.length > 0 ? (
                 <div className="divide-y divide-dark-border">
                   {recentChildren.map(child => {
-                    // Prioriza dados do backend (time_name, time_color)
+                    // Prioriza dados do backend (time_nome, time_color)
                     let team = null;
-                    if ((child as any).time_name) {
+                    if ((child as any).time_nome) {
                       team = {
                         id: child.team_id || (child as any).teamId,
-                        name: (child as any).time_name,
+                        name: (child as any).time_nome,
                         color: (child as any).time_color || '#999999'
                       };
                     } else {
                       // Fallback: busca na array de times
                       team = teams.find(t => t.id === (child.teamId || child.team_id));
                     }
-                    const braceletCode = child.bracelet_code || child.bracelet;
+                    const braceletCode = child.codigoPulseira || child.bracelet;
                     return (
                       <div key={child.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
                         <Avatar emoji={child.avatar || '👤'} size="sm" />

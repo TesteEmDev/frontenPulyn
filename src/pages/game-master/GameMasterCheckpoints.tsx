@@ -20,14 +20,14 @@ const sidebarItems = [
 ];
 
 interface Checkpoint {
-  id: string;
-  name: string;
-  location: string;
-  points: number;
+  checkpointId: string;
+  nome: string;
+  localizacao: string;
+  pontos: number;
   status: 'active' | 'inactive' | 'offline' | 'configured';
-  event_id?: string;
-  territorio_locked_until?: string | null;
-  territorio_cooldown_until?: string | null;
+  eventoId?: string;
+  territorioTravadoAte?: string | null;
+  territorioCooldownAte?: string | null;
 }
 
 export default function GameMasterCheckpoints() {
@@ -65,11 +65,11 @@ export default function GameMasterCheckpoints() {
         // Auto-selecionar evento ativo
         const activeEvent = eventosData?.find(e => e.status === 'active' || e.status === 'ongoing');
         if (activeEvent) {
-          setSelectedEventId(activeEvent.id);
-          setEventoAtual(activeEvent.id);
+          setSelectedEventId(activeEvent.eventoId);
+          setEventoAtual(activeEvent.eventoId);
         } else if (eventosData && eventosData.length > 0) {
-          setSelectedEventId(eventosData[0].id);
-          setEventoAtual(eventosData[0].id);
+          setSelectedEventId(eventosData[0].eventoId);
+          setEventoAtual(eventosData[0].eventoId);
         }
       } catch (err) {
         console.error('❌ Erro ao carregar eventos:', err);
@@ -115,12 +115,12 @@ export default function GameMasterCheckpoints() {
   const handleEditCheckpoint = (checkpoint: Checkpoint) => {
     setModalMode('edit');
     setFormData({
-      name: checkpoint.name,
-      location: checkpoint.location,
-      points: checkpoint.points,
+      name: checkpoint.nome,
+      location: checkpoint.localizacao,
+      points: checkpoint.pontos,
       status: checkpoint.status,
     });
-    setEditingCheckpointId(checkpoint.id);
+    setEditingCheckpointId(checkpoint.checkpointId);
     setShowNewCheckpointModal(true);
   };
 
@@ -159,7 +159,7 @@ export default function GameMasterCheckpoints() {
       try {
         // Implementar rota DELETE quando estiver disponível
         alert('✅ Checkpoint deletado! (Implementação em progresso)');
-        setCheckpoints(checkpoints.filter(cp => cp.id !== checkpointId));
+        setCheckpoints(checkpoints.filter(cp => cp.checkpointId !== checkpointId));
       } catch (err) {
         console.error('❌ Erro ao deletar:', err);
       }
@@ -234,8 +234,8 @@ export default function GameMasterCheckpoints() {
                 >
                   <option value="">Selecione um evento</option>
                   {events.map(event => (
-                    <option key={event.id} value={event.id}>
-                      {event.name} - {new Date(event.date).toLocaleDateString('pt-BR')}
+                    <option key={event.eventoId} value={event.eventoId}>
+                      {event.nome} - {new Date(event.data).toLocaleDateString('pt-BR')}
                     </option>
                   ))}
                 </select>
@@ -262,15 +262,15 @@ export default function GameMasterCheckpoints() {
               {checkpoints.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {checkpoints.map(checkpoint => (
-                    <Card key={checkpoint.id} className="relative">
+                    <Card key={checkpoint.checkpointId} className="relative">
                       <div className="space-y-3">
                         {/* Header */}
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <h3 className="font-display text-lg text-white">{checkpoint.name}</h3>
+                            <h3 className="font-display text-lg text-white">{checkpoint.nome}</h3>
                             <p className="text-sm text-gray-400 font-body">
                               <MapPin className="inline w-3 h-3 mr-1" />
-                              {checkpoint.location}
+                              {checkpoint.localizacao}
                             </p>
                           </div>
                           <Badge variant={getStatusColor(checkpoint.status)}>
@@ -281,14 +281,14 @@ export default function GameMasterCheckpoints() {
                         {/* Pontos */}
                         <div className="flex items-center gap-2 py-2 px-3 bg-dark-surface rounded-lg">
                           <span className="text-sm text-gray-400">Pontos:</span>
-                          <span className="text-lg font-display text-primary font-bold">{checkpoint.points}</span>
+                          <span className="text-lg font-display text-primary font-bold">{checkpoint.pontos}</span>
                         </div>
 
                         {/* Territory Status */}
-                        {checkpoint.territorio_locked_until && (
+                        {checkpoint.territorioTravadoAte && (
                           <div className="text-xs text-warning bg-warning/10 p-2 rounded">
                             <Radio className="inline w-3 h-3 mr-1" />
-                            Território bloqueado até {new Date(checkpoint.territorio_locked_until).toLocaleTimeString('pt-BR')}
+                            Território bloqueado até {new Date(checkpoint.territorioTravadoAte).toLocaleTimeString('pt-BR')}
                           </div>
                         )}
 
@@ -307,7 +307,7 @@ export default function GameMasterCheckpoints() {
                             variant="ghost"
                             size="sm"
                             className="flex-1 text-danger hover:text-danger"
-                            onClick={() => handleDeleteCheckpoint(checkpoint.id)}
+                            onClick={() => handleDeleteCheckpoint(checkpoint.checkpointId)}
                           >
                             <Trash2 className="w-3 h-3 mr-1" />
                             Deletar

@@ -83,7 +83,7 @@ export default function ReceptionKioskOtimizado() {
 
   // Cache para evitar renders desnecessários
   const selectedAvatar = AVATAR_OPTIONS.find(option => option.emoji === form.avatar) || AVATAR_OPTIONS[0];
-  const selectedEvent = events.find(event => String(event.id) === String(selectedEventId));
+  const selectedEvent = events.find(event => String(event.eventoId) === String(selectedEventId));
   
   // DEBOUNCE para evitar renders rápidos
   const debouncedFormName = useDebounce(form.name, 100);
@@ -399,7 +399,7 @@ export default function ReceptionKioskOtimizado() {
                 <>
                   Evento da recepção:{' '}
                   <strong className="font-semibold text-white">
-                    {selectedEvent?.name || 'carregando...'}
+                    {selectedEvent?.nome || 'carregando...'}
                   </strong>
                 </>
               ) : (

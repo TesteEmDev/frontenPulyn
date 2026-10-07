@@ -37,7 +37,7 @@ let loadingFor: string | null = null;
 // Nome do buffet para o cabeçalho: o "Nome da unidade" das Configurações; se ainda não
 // carregou (ou falhou), o nome da empresa no token; por último, o título genérico.
 export function useBuffetName(enabled = true): string {
-  const empresaId = useAuth(state => state.user?.empresa_id) || null;
+  const empresaId = useAuth(state => state.user?.empresaId) || null;
   const accountName = useAuth(state => state.user?.name) || '';
   const cached = useBuffetNameStore(state => (state.empresaId === empresaId ? state.name : ''));
 

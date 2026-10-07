@@ -110,7 +110,7 @@ export default function DisplayMain() {
   const recentActivities = useMemo(() => scoreLog
     .map((entry: any) => ({
       id: entry.id,
-      childName: entry.childName || entry.child_name || 'Participante',
+      childName: entry.childName || entry.crianca_nome || 'Participante',
       checkpoint: entry.checkpoint || entry.checkpoint_name || 'Checkpoint',
       points: Number(entry.points || 0),
       timestamp: entry.timestamp || entry.created_at,
@@ -359,7 +359,7 @@ export default function DisplayMain() {
   // 🆕 Sincronizar Zone Conquest status do hook com estado local
   useEffect(() => {
     if (isIndividualMode && zoneConquestGameStatus) {
-      // Cada vez que uma nova partida é detectada (partida_id mudou), reseta tudo
+      // Cada vez que uma nova partida é detectada (partidaId mudou), reseta tudo
       setZoneConquestStatus(zoneConquestGameStatus);
     } else if (!isIndividualMode) {
       // Se não está em modo individual, limpar estado
@@ -372,7 +372,7 @@ export default function DisplayMain() {
     selectedEventId || null,
     (event) => {
       // Processar eventos do WebSocket
-      if (event.type === 'GAME_SELECTED' && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
+      if (event.type === 'GAME_SELECTED' && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
         // NÃO setar selectedGameType aqui - apenas quando GAME_STARTED
         // setSelectedGameType(event.payload?.gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
@@ -380,7 +380,7 @@ export default function DisplayMain() {
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
-      } else if (event.type === 'DISPLAY_MESSAGE' && sameEventId(event.payload?.evento_id ?? event.payload?.eventoId, selectedEventId)) {
+      } else if (event.type === 'DISPLAY_MESSAGE' && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
         setDisplayMessages((previous) => [event.payload, ...previous].slice(0, 50));
         setMessageArrivedAt(Date.now());
       } else if (['MONSTER_PROGRESS', 'MONSTER_SPECIAL_ATTACK', 'MONSTER_TEAM_DEFEATED', 'MONSTER_DEFEATED'].includes(event.type) && sameEventId(event.payload?.eventoId, selectedEventId)) {
@@ -480,7 +480,7 @@ export default function DisplayMain() {
           setMonsterStatus(null);
           setZoneConquestStatus(null);
         }
-      } else if (event.type === 'GAME_STOPPED' && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
+      } else if (event.type === 'GAME_STOPPED' && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
         setGameActive(false);
         refreshGuideGames();
         setSelectedGameType(null);
@@ -545,7 +545,7 @@ export default function DisplayMain() {
         if (loadScoreLog) {
           loadScoreLog().catch(err => console.error('Erro ao recarregar scoreLog:', err));
         }
-      } else if ((event.type === 'TREASURE_PROGRESS' || event.type === 'TREASURE_ROUND_COMPLETED') && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
+      } else if ((event.type === 'TREASURE_PROGRESS' || event.type === 'TREASURE_ROUND_COMPLETED') && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
         const payload = event.payload || {};
         setMonsterStatus(null);
         setLastTreasureEvent({
@@ -918,7 +918,7 @@ export default function DisplayMain() {
                           <div className="space-y-2">
                             {topTeams.length > 0 ? (
                               topTeams.map((team) => {
-                                const teamMembers = children.filter(c => c.time_id === team.id || c.teamId === team.id);
+                                const teamMembers = children.filter(c => c.timeId === team.id || c.teamId === team.id);
                                 const teamTotalPoints = teamMembers.reduce((sum, c) => sum + (c.scores || 0), 0);
                                 return (
                                   <div key={team.id} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.025] p-2.5">
@@ -1029,7 +1029,7 @@ export default function DisplayMain() {
         </div>
         <div className="flex min-w-0 items-center gap-2.5">
           <p className="truncate text-[clamp(0.9rem,2.3vh,1.5rem)] font-semibold text-gray-200">
-            {events.find(e => e.id === selectedEventId)?.name || 'Evento selecionado'}
+            {events.find(e => e.eventoId === selectedEventId)?.nome || 'Evento selecionado'}
           </p>
           <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-secondary-400/20 bg-secondary-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-secondary-300 md:inline-flex">
             <span className="h-1.5 w-1.5 rounded-full bg-secondary-400" /> Recepção no controle

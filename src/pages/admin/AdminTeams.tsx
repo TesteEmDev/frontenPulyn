@@ -16,17 +16,17 @@ import AllEventsTeams, { type EventTeam } from '../../components/team/AllEventsT
 import { normalizeHex, readableTextOn } from '../../utils/color';
 
 interface Team {
-  id: string;
-  name: string;
-  color: string;
-  evento_id?: string;
+  timeId: string;
+  nome: string;
+  cor: string;
+  eventoId?: string;
   created_at?: string;
 }
 
 interface Event {
-  id: string;
-  name: string;
-  date: string;
+  eventoId: string;
+  nome: string;
+  data: string;
 }
 
 const DEFAULT_TEAM_COLOR = '#1E9BD7';
@@ -59,7 +59,7 @@ export default function AdminTeams() {
 
   // Carregar eventos e times
   const loadData = async () => {
-    if (!user?.empresa_id) {
+    if (!user?.empresaId) {
       setError('Empresa não identificada');
       setLoading(false);
       return;
@@ -74,7 +74,7 @@ export default function AdminTeams() {
 
       // Carregar times do primeiro evento por padrão
       if (eventosData && eventosData.length > 0) {
-        const firstEventId = eventosData[0].id;
+        const firstEventId = eventosData[0].eventoId;
         // Atualizar selectedEventId dispara o useEffect que carrega times
         setSelectedEventId(firstEventId);
       }
@@ -161,14 +161,14 @@ export default function AdminTeams() {
 
     try {
       if (editingId) {
-        await api.updateTime(editingId, { name, color });
-        setVisibleTeams(prev => prev.map(t => (t.id === editingId ? { ...t, name, color } : t)));
+        await api.updateTime(editingId, { nome: name, color });
+        setVisibleTeams(prev => prev.map(t => (t.timeId === editingId ? { ...t, name, color } : t)));
         setNotice(`Time "${name}" atualizado.`);
       } else {
         const createdTeam = await api.createTime({
-          name,
+          nome: name,
           color,
-          evento_id: asDefault ? undefined : selectedEventId,
+          eventoId: asDefault ? undefined : selectedEventId,
         });
         if (asDefault) setDefaultTeams(prev => [...prev, createdTeam]);
         else setTeamsList(prev => [...prev, createdTeam]);
@@ -192,7 +192,7 @@ export default function AdminTeams() {
 
     try {
       await api.deleteTime(id);
-      setVisibleTeams(prev => prev.filter(t => t.id !== id));
+      setVisibleTeams(prev => prev.filter(t => t.timeId !== id));
     } catch (err) {
       console.error('❌ Erro ao remover time:', err);
       setError('Erro ao remover time');
@@ -200,8 +200,8 @@ export default function AdminTeams() {
   };
 
   const handleEditTeam = (team: Team) => {
-    setNewTeam({ name: team.name, color: team.color, scope: isDefaultScope ? 'default' : 'event' });
-    setEditingId(team.id);
+    setNewTeam({ name: team.nome, color: team.cor, scope: isDefaultScope ? 'default' : 'event' });
+    setEditingId(team.timeId);
     setModalError(null);
     setNotice(null);
     setShowAddModal(true);
@@ -224,7 +224,7 @@ export default function AdminTeams() {
   const isDefaultScope = scope === 'default';
   const visibleTeams = isDefaultScope ? defaultTeams : teamsList;
   const setVisibleTeams = isDefaultScope ? setDefaultTeams : setTeamsList;
-  const selectedEventName = events.find(event => event.id === selectedEventId)?.name || 'o evento selecionado';
+  const selectedEventName = events.find(event => event.eventoId === selectedEventId)?.nome || 'o evento selecionado';
 
   const handleApplyDefaults = async () => {
     if (!selectedEventId) return;
@@ -337,8 +337,8 @@ export default function AdminTeams() {
               >
                 <option value="">Selecionar evento...</option>
                 {events.map(event => (
-                  <option key={event.id} value={event.id}>
-                    {event.name}
+                  <option key={event.eventoId} value={event.eventoId}>
+                    {event.nome}
                   </option>
                 ))}
               </select>
@@ -373,18 +373,18 @@ export default function AdminTeams() {
                         </tr>
                       ) : (
                         visibleTeams.map(team => (
-                          <tr key={team.id} className="hover:bg-surface/50 transition-colors">
+                          <tr key={team.timeId} className="hover:bg-surface/50 transition-colors">
                             <td className="py-3 pr-4">
                               <div className="flex items-center gap-3">
                                 <div
                                   className="w-6 h-6 rounded-full border-2 border-gray-400"
-                                  style={{ backgroundColor: team.color }}
+                                  style={{ backgroundColor: team.cor }}
                                 />
-                                <span className="text-xs text-gray-400 font-mono">{team.color}</span>
+                                <span className="text-xs text-gray-400 font-mono">{team.cor}</span>
                               </div>
                             </td>
                             <td className="py-3 pr-4">
-                              <p className="text-sm font-semibold text-white">{team.name}</p>
+                              <p className="text-sm font-semibold text-white">{team.nome}</p>
                             </td>
                             <td className="py-3">
                               <div className="flex items-center gap-1">
@@ -398,7 +398,7 @@ export default function AdminTeams() {
                                 <button
                                   className="p-1.5 rounded-lg text-gray-400 hover:text-danger hover:bg-surface transition-colors"
                                   title="Remover"
-                                  onClick={() => handleDeleteTeam(team.id)}
+                                  onClick={() => handleDeleteTeam(team.timeId)}
                                 >
                                   <Trash2 size={16} />
                                 </button>

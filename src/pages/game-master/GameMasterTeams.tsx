@@ -42,7 +42,7 @@ export default function GameMasterTeams() {
         
         // Se não houver evento selecionado, selecionar o primeiro
         if (!eventoAtualId && eventosData && eventosData.length > 0) {
-          const firstEventId = eventosData[0].id;
+          const firstEventId = eventosData[0].eventoId;
           setSelectedEventId(firstEventId);
           setEventoAtual(firstEventId);
         } else if (eventoAtualId) {
@@ -88,7 +88,7 @@ export default function GameMasterTeams() {
 
   // Função para obter os membros do time
   const getTeamMembers = (teamId: string) => {
-    return children.filter(child => child.time_id === teamId);
+    return children.filter(child => child.timeId === teamId);
   };
 
   // Função para calcular a pontuação total do time
@@ -127,9 +127,9 @@ export default function GameMasterTeams() {
     try {
       // Criar time diretamente com a API
       await api.createTime({
-        name: newTeam.name,
+        nome: newTeam.name,
         color: newTeam.color,
-        evento_id: selectedEventId,
+        eventoId: selectedEventId,
       });
       
       // Recarregar times
@@ -144,7 +144,7 @@ export default function GameMasterTeams() {
 
   const safeTeams = teams || [];
   const teamIds = new Set(safeTeams.map(team => team.id));
-  const unassignedCount = children.filter(child => !child.time_id || !teamIds.has(child.time_id)).length;
+  const unassignedCount = children.filter(child => !child.timeId || !teamIds.has(child.timeId)).length;
   const sortedTeams = [...safeTeams].sort((a, b) => getTeamScore(b.id) - getTeamScore(a.id));
 
   if (loading) {
@@ -217,8 +217,8 @@ export default function GameMasterTeams() {
               >
                 <option value="">Selecionar evento...</option>
                 {events.map(event => (
-                  <option key={event.id} value={event.id}>
-                    {event.name}
+                  <option key={event.eventoId} value={event.eventoId}>
+                    {event.nome}
                   </option>
                 ))}
               </select>

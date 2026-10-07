@@ -76,13 +76,13 @@ function DisplayRealtimeBridge({ enabled }: { enabled: boolean }) {
 
   const handleEvent = useCallback(async (event: GameEvent) => {
     const payload = event.payload || {};
-    const eventPayloadId = payload.eventoId ?? payload.evento_id;
+    const eventPayloadId = payload.eventoId ?? payload.eventoId;
     if (!eventId || String(eventPayloadId || '').trim().toLowerCase() !== String(eventId).trim().toLowerCase()) return;
 
     if (event.type === 'TERRITORY_CONQUERED') {
       applyTerritoryConquest(
-        String(payload.checkpointId || payload.checkpoint_id || ''),
-        payload.timeId ?? payload.time_id ?? null,
+        String(payload.checkpointId || payload.checkpointId || ''),
+        payload.timeId ?? payload.timeId ?? null,
         payload.teamColor ?? payload.team_color ?? null,
       );
     }
@@ -174,7 +174,7 @@ function App() {
   return (
     <BrowserRouter>
       <EventoProvider>
-        <EventControlBridge enabled={isAuthenticated && Boolean(user?.empresa_id)} />
+        <EventControlBridge enabled={isAuthenticated && Boolean(user?.empresaId)} />
         <DisplayRealtimeBridge enabled={isAuthenticated && user?.role === 'display'} />
         <Toaster
           position="top-right"
