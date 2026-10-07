@@ -59,7 +59,7 @@ export default function AdminTeams() {
 
   // Carregar eventos e times
   const loadData = async () => {
-    if (!user?.empresa_id) {
+    if (!user?.empresaId) {
       setError('Empresa não identificada');
       setLoading(false);
       return;
