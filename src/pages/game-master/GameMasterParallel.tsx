@@ -265,7 +265,7 @@ export default function GameMasterParallel() {
             <Card>
               <h3 className="font-display text-lg text-white">Nova brincadeira: ache o objeto</h3>
               <p className="mt-1 text-sm text-gray-400">
-                Precisa de uma brincadeira principal em andamento. Ao iniciar, a roleta sorteia o objeto que as crianças devem achar e levar ao checkpoint escolhido.
+                Pode começar a qualquer momento, com ou sem brincadeira principal em andamento. Ao iniciar, a roleta sorteia o objeto que as crianças devem achar e levar ao checkpoint escolhido.
               </p>
 
               <label className="mb-2 mt-5 block text-sm font-semibold text-gray-300" htmlFor="parallel-checkpoint">Checkpoint onde levar o objeto</label>
