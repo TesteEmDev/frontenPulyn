@@ -117,14 +117,14 @@ export default function AdminEventNew() {
     setSaving(true);
     try {
       const payload = {
-        name: formData.name,
+        nome: formData.name,
         description: formData.description,
         date: formData.date,
         time: formData.time,
         duration: parseInt(formData.duration),
         enableDisplay: formData.enableDisplay,
         enableLocation: formData.enableLocation,
-        responsibleName: formData.responsibleName.trim(),
+        responsibleNome: formData.responsibleName.trim(),
         autoStart: formData.autoStart,
         autoEnd: formData.autoEnd,
         // Jogos do evento (vínculo gravado no banco)

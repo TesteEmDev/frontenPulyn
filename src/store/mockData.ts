@@ -35,6 +35,7 @@ export interface Team {
 
 export interface Checkpoint {
   id: string;
+  eventoId?: string;
   name: string;
   type: string;
   ip: string;
@@ -350,7 +351,7 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
       if (!eventId) return;
 
       // 🆕 Passar sessionId para filtrar apenas dados da sessão atual
-      const history = await api.getScoreHistory(eventId, 100, currentPartidaId);
+      const history = await api.getScoreHistory(eventId, 100, currentPartidaId ?? undefined);
       if (get().eventoAtualId !== eventId) return;
 
       const normalizedHistory = (Array.isArray(history) ? history : []).map((entry: any) => ({

@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { Save, Wifi, WifiOff, CheckCircle, XCircle } from 'lucide-react';
 // No topo do arquivo AdminCheckpointConfig.tsx
 import { usePulynStore } from '../../store/mockData'; // Note: são 2 níveis: ../../store/mockData
-import { API_URL } from '../../services/api';
+import { api } from '../../services/api';
 
 export default function AdminCheckpointConfig() {
   const { id } = useParams<{ id: string }>();
@@ -29,9 +29,9 @@ export default function AdminCheckpointConfig() {
   useEffect(() => {
     const checkServer = async () => {
       try {
-        const res = await fetch(`${API_URL}/pontoVerificacao`);
-        if (res.ok) setServerStatus('online');
-        else setServerStatus('offline');
+        // Rota autenticada leve do backend: responde 200 quando o servidor e o login estão ok.
+        await api.getCheckpointsSummary();
+        setServerStatus('online');
       } catch {
         setServerStatus('offline');
       }
@@ -46,13 +46,8 @@ export default function AdminCheckpointConfig() {
     setSaveStatus('idle');
     
     try {
-      const res = await fetch(`${API_URL}/pontoVerificacao/${id}/config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      
-      if (!res.ok) throw new Error();
+      if (!checkpoint?.eventoId) throw new Error('Checkpoint sem evento');
+      await api.saveCheckpointConfig(id!, { nome: formData.name, tipo: formData.type, ip: formData.ip, zone: formData.zone }, checkpoint.eventoId);
       
       // Atualiza no store local
       updateCheckpoint(id!, {

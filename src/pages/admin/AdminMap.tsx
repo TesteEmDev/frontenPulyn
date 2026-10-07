@@ -301,7 +301,7 @@ export default function AdminMap() {
     try {
       setSavingCheckpointId(checkpointId);
       console.log(`💾 Salvando nome do checkpoint ${checkpointId} para: ${newName.trim()}`);
-      const result = await api.saveCheckpointConfig(checkpointId, { name: newName.trim() }, selectedEventId);
+      const result = await api.saveCheckpointConfig(checkpointId, { nome: newName.trim() }, selectedEventId);
       console.log('✅ Resposta do servidor:', result);
       
       // Recarregar checkpoints para refletir a mudança
@@ -671,7 +671,7 @@ export default function AdminMap() {
       const dataUrl = await optimizeFloorPlan(file);
       await api.saveFloorPlan({
         dataUrl,
-        name: file.name,
+        nome: file.name,
         type: dataUrl.slice(5, dataUrl.indexOf(';')) || 'image/jpeg',
       });
       setFloorPlanUrl(dataUrl);

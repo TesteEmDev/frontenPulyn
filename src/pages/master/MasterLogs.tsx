@@ -87,7 +87,7 @@ export default function MasterLogs() {
         setLogEntries((Array.isArray(logs) ? logs : []).map((log: any) => ({
           ...log,
           timestamp: log.timestamp || log.created_at || '—',
-          client: log.client || log.empresa_nome || log.cliente_nome || '—',
+          client: log.cliente || log.client || '—',
           type: log.type || log.tipo || 'info',
           message: log.message || 'Log registrado',
           details: log.details || '',

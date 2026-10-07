@@ -66,7 +66,7 @@ export default function GameMasterCheckpoints() {
         setEvents(eventosData || []);
         
         // Auto-selecionar evento ativo
-        const activeEvent = eventosData?.find(e => e.status === 'active' || e.status === 'ongoing');
+        const activeEvent = eventosData?.find((e: any) => e.status === 'active' || e.status === 'ongoing');
         if (activeEvent) {
           setSelectedEventId(activeEvent.eventoId);
           setEventoAtual(activeEvent.eventoId);
@@ -142,7 +142,7 @@ export default function GameMasterCheckpoints() {
         alert('✅ Checkpoint criado! (Implementação em progresso)');
       } else if (modalMode === 'edit' && editingCheckpointId) {
         // Editar checkpoint existente
-        await api.saveCheckpointConfig(editingCheckpointId, formData, selectedEventId);
+        await api.saveCheckpointConfig(editingCheckpointId, { nome: formData.name, location: formData.location, points: formData.points, status: formData.status }, selectedEventId);
         alert('✅ Checkpoint atualizado com sucesso!');
       }
 

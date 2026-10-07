@@ -61,6 +61,9 @@ import FamilyNotifications from './pages/family/FamilyNotifications';
 import FamilyInviteRegister from './pages/family/FamilyInviteRegister';
 import ReceptionFamilyLinks from './pages/reception/ReceptionFamilyLinks';
 
+// Perfis que podem consultar /event-control/active (o da família, por exemplo, não pode).
+const EVENT_CONTROL_ROLES = ['admin', 'reception', 'game_master', 'display', 'master', 'kiosk', 'score_kiosk'];
+
 function EventControlBridge({ enabled, pollMs = 0 }: { enabled: boolean; pollMs?: number }) {
   const setEventoAtual = usePulynStore(state => state.setEventoAtual);
   useEventControl((eventId) => setEventoAtual(eventId), enabled, pollMs);
@@ -177,7 +180,7 @@ function App() {
     <BrowserRouter>
       <EventoProvider>
         <EventControlBridge
-          enabled={isAuthenticated && Boolean(user?.empresaId)}
+          enabled={isAuthenticated && Boolean(user?.empresaId) && EVENT_CONTROL_ROLES.includes(user?.role ?? '')}
           pollMs={user && ['kiosk', 'score_kiosk', 'display'].includes(user.role) ? 8000 : 0}
         />
         <DisplayRealtimeBridge enabled={isAuthenticated && user?.role === 'display'} />
