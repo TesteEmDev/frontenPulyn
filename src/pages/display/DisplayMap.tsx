@@ -216,6 +216,9 @@ export default function DisplayMap({
             id: zcCheckpoint.participantId,
             name: zcCheckpoint.participantName || 'Unknown',
             color: zcCheckpoint.participantColor || '#999999',
+            points: 0,
+            members: [],
+            icon: '',
           };
           owners.set(String(zcCheckpoint.id), participantTeam);
         } else {

@@ -55,7 +55,7 @@ export default function AdminCheckpoints() {
         setEvents(eventosData || []);
         
         // Auto-selecionar evento ativo
-        const activeEvent = eventosData?.find(e => e.status === 'active' || e.status === 'ongoing');
+        const activeEvent = eventosData?.find((e: any) => e.status === 'active' || e.status === 'ongoing');
         if (activeEvent) {
           setSelectedEventId(activeEvent.eventoId);
         } else if (eventosData && eventosData.length > 0) {
@@ -167,8 +167,8 @@ export default function AdminCheckpoints() {
     try {
       const config = {
         id: formData.id,
-        name: formData.name,
-        type: formData.type,
+        nome: formData.name,
+        tipo: formData.type,
         ip: formData.ip,
         zone: formData.zone,
         points: formData.points,
@@ -181,7 +181,7 @@ export default function AdminCheckpoints() {
         // Atualizar checkpoint existente
         await api.saveCheckpointConfig(formData.id, config, targetEventId);
         setCheckpointsList(prev => 
-          prev.map(cp => cp.id === formData.id ? { ...cp, ...config } : cp)
+          prev.map(cp => cp.id === formData.id ? { ...cp, name: formData.name, type: formData.type, ip: formData.ip, zone: formData.zone, points: formData.points } : cp)
         );
       } else {
         // Criar novo checkpoint

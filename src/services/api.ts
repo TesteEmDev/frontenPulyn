@@ -86,6 +86,18 @@ function getAuthHeaders() {
   }
 }
 
+// Mensagens do telão: a API devolve "texto"; as telas leem "text".
+export function mensagemParaTela(mensagem: any) {
+  if (!mensagem || typeof mensagem !== 'object') return mensagem;
+  return { ...mensagem, text: mensagem.text ?? mensagem.texto };
+}
+
+// A API de suporte devolve "cliente" e "atribuidoPara"; as telas do master usam client / assignee.
+function ticketParaTela(ticket: any) {
+  if (!ticket || typeof ticket !== 'object') return ticket;
+  return { ...ticket, client: ticket.client ?? ticket.cliente, assignee: ticket.assignee ?? ticket.atribuidoPara };
+}
+
 async function analyticsRequest(path: string) {
   const res = await fetch(`${API_URL}${path}`, { headers: getAuthHeaders() });
   const data = await res.json().catch(() => null);
@@ -381,7 +393,8 @@ export const api = {
         headers: getAuthHeaders(),
       });
       if (!res.ok) return [];
-      return res.json();
+      const eventos = await res.json();
+      return Array.isArray(eventos) ? eventos.map((evento: any) => ({ ...evento, client: evento.client ?? evento.cliente })) : eventos;
     } catch (err) {
       console.error('Erro ao buscar eventos ativos:', err);
       return [];
@@ -412,7 +425,7 @@ export const api = {
   },
 
   async getClientGrowth() {
-    return analyticsRequest('/analytics/client-growth');
+    return analyticsRequest('/analytics/cliente-growth');
   },
 
   async getEventsPerMonth() {
@@ -420,7 +433,7 @@ export const api = {
   },
 
   async getCheckpointsOverTime() {
-    return analyticsRequest('/analytics/checkpoints-over-time');
+    return analyticsRequest('/analytics/pontoVerificacao-over-time');
   },
 
   async getRevenueByPlan() {
@@ -464,13 +477,6 @@ export const api = {
     return res.json();
   },
 
-  async getLogsByClient(client: string) {
-    const res = await fetch(`${API_URL}/logs/client/${client}`, {
-      headers: getAuthHeaders(),
-    });
-    return res.json();
-  },
-
   // ==================== MONITORAMENTO ====================
   async getMonitoringUnits() {
     const res = await fetch(`${API_URL}/monitoring/units`, { headers: getAuthHeaders() });
@@ -494,17 +500,24 @@ export const api = {
   async getTickets(limit = 100) {
     const res = await fetch(`${API_URL}/support?limit=${limit}`, { headers: getAuthHeaders() });
     if (!res.ok) throw new Error(`Erro ao carregar tickets (${res.status})`);
-    return res.json();
+    const tickets = await res.json();
+    return Array.isArray(tickets) ? tickets.map(ticketParaTela) : tickets;
   },
 
   async createTicket(data: any) {
     const res = await fetch(`${API_URL}/support`, {
       method: 'POST',
       headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        cliente: data.client,
+        subject: data.subject,
+        priority: data.priority,
+        description: data.description,
+        atribuidoPara: data.assignee,
+      }),
     });
     if (!res.ok) throw new Error(`Erro ao criar ticket (${res.status})`);
-    return res.json();
+    return ticketParaTela(await res.json());
   },
 
   async updateTicketStatus(id: string, status: string) {
@@ -514,7 +527,7 @@ export const api = {
       body: JSON.stringify({ status }),
     });
     if (!res.ok) throw new Error(`Erro ao atualizar ticket (${res.status})`);
-    return res.json();
+    return ticketParaTela(await res.json());
   },
 
   async getTicketStats() {
@@ -596,7 +609,8 @@ export const api = {
       headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error(`Erro ao carregar mensagens (${res.status})`);
-    return res.json();
+    const mensagens = await res.json();
+    return Array.isArray(mensagens) ? mensagens.map(mensagemParaTela) : mensagens;
   },
 
   async createDisplayMessage(eventoId: string, data: { texto: string; type: 'preset' | 'custom' }) {
@@ -606,7 +620,7 @@ export const api = {
       body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error(`Erro ao enviar mensagem (${res.status})`);
-    return res.json();
+    return mensagemParaTela(await res.json());
   },
 
   // ==================== EVENTOS ====================
@@ -765,7 +779,7 @@ export const api = {
     return data.floorPlan || null;
   },
 
-  async saveFloorPlan(data: { dataUrl: string; name: string; type: string }) {
+  async saveFloorPlan(data: { dataUrl: string; nome: string; type: string }) {
     const res = await fetch(`${API_URL}/company-map/floor-plan`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -1156,7 +1170,7 @@ export const api = {
   },
 
   async getCriancaByBracelet(code: string) {
-    const res = await fetch(`${API_URL}/criancas/by-bracelet/${encodeURIComponent(code)}`, {
+    const res = await fetch(`${API_URL}/criancas/crianca/by-bracelet/${encodeURIComponent(code)}`, {
       headers: getAuthHeaders(),
     });
     return res.json();

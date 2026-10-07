@@ -245,8 +245,8 @@ export default function ReceptionKiosk() {
     setMessage('Criando personagem...');
     try {
       await api.createKioskParticipant(selectedEventId, {
-        name: form.name.trim(),
-        nickname: form.nickname.trim() || form.name.trim().split(' ')[0],
+        nome: form.name.trim(),
+        apelido: form.nickname.trim() || form.name.trim().split(' ')[0],
         age: parseInt(form.age, 10) || 5,
         avatar: form.avatar,
         braceletCode,

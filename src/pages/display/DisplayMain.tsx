@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { mensagemParaTela } from '../../services/api';
 import { Trophy, Medal, Star, Zap, Clock, MapPin, Users, ArrowLeft } from 'lucide-react';
 import { useGameWebSocket } from '../../hooks/useGameWebSocket';
 import { useZoneConquestGame, type ZoneConquestStatus } from '../../hooks/useZoneConquestGame';
@@ -394,7 +395,7 @@ export default function DisplayMain() {
           });
         }
       } else if (event.type === 'DISPLAY_MESSAGE' && sameEventId(event.payload?.eventoId, selectedEventId)) {
-        setDisplayMessages((previous) => [event.payload, ...previous].slice(0, 50));
+        setDisplayMessages((previous) => [mensagemParaTela(event.payload), ...previous].slice(0, 50));
         setMessageArrivedAt(Date.now());
       } else if (['MONSTER_PROGRESS', 'MONSTER_SPECIAL_ATTACK', 'MONSTER_TEAM_DEFEATED', 'MONSTER_DEFEATED'].includes(event.type) && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const payload = event.payload || {};
