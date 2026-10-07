@@ -3,6 +3,7 @@ import { Play, Pause, Square, RotateCcw, Gamepad2, Trophy, MapPin, MessageSquare
 import { usePulynStore } from '../../store/mockData';
 import { useGameWebSocket, GameEvent } from '../../hooks/useGameWebSocket';
 import Sidebar from '../../components/layout/Sidebar';
+import { PARALLEL_NAV_ITEM, GAMES_NAV_ITEM } from '../../components/layout/gameMasterNav';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -12,11 +13,14 @@ import StatusDot from '../../components/ui/StatusDot';
 import Timer from '../../components/ui/Timer';
 import ScoreCounter from '../../components/ui/ScoreCounter';
 import { api, API_URL } from '../../services/api';
+import LiveGameCheckpoints from '../../components/game-master/LiveGameCheckpoints';
 
 const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
   { icon: <Users size={20} />, label: 'Times', path: '/game-master/teams' },
   { icon: <MessageSquare size={20} />, label: 'Mensagens', path: '/game-master/messages' },
+  PARALLEL_NAV_ITEM,
+  GAMES_NAV_ITEM,
 ];
 
 interface TerritoryStatus {
@@ -222,6 +226,11 @@ export default function GameMasterDashboard() {
         at: receivedAt,
       });
       loadMonsterStatus();
+    } else if (event.type === 'GAME_CHECKPOINTS_UPDATED') {
+      // Os checkpoints do jogo foram trocados (aqui ou em outra tela): recarrega alvo/especial e a lista do jogo.
+      loadTreasureStatus();
+      loadMonsterStatus();
+      if (selectedEventId) api.getBrincadeiras(selectedEventId).then(setGames).catch(() => undefined);
     } else if (event.type === 'TERRITORY_CONQUERED') {
       setLastGameEvent({
         label: 'Conquista registrada',
@@ -345,9 +354,9 @@ export default function GameMasterDashboard() {
 
         const requestedId = eventoAtualId ? String(eventoAtualId).trim().toLowerCase() : '';
         const selectedEvent = availableEvents.find(
-          event => String(event.id).trim().toLowerCase() === requestedId
+          event => String(event.eventoId).trim().toLowerCase() === requestedId
         ) || availableEvents[0];
-        const eventId = selectedEvent ? String(selectedEvent.id).trim() : '';
+        const eventId = selectedEvent ? String(selectedEvent.eventoId).trim() : '';
 
         setSelectedEventId(eventId);
         if (eventId && eventId !== eventoAtualId) {
@@ -374,7 +383,7 @@ export default function GameMasterDashboard() {
 
       try {
         // O endpoint já valida o evento e devolve somente jogos do escopo solicitado.
-        // Não filtrar novamente pelo evento_id evita descartar vínculos legados
+        // Não filtrar novamente pelo eventoId evita descartar vínculos legados
         // resolvidos pelo backend e diferenças de maiúsculas/minúsculas do PostgreSQL.
         const eventGames = await api.getBrincadeiras(selectedEventId);
         setGames(eventGames);
@@ -436,7 +445,7 @@ export default function GameMasterDashboard() {
     for (const cp of safeCheckpoints) {
       try {
         // Usar endpoint sem autenticação (público para Arduino)
-        const res = await fetch(`${API_URL}/checkpoints/${cp.id}/territory`);
+        const res = await fetch(`${API_URL}/pontoVerificacao/${cp.id}/territory`);
         
         if (!res.ok) {
           console.warn(`⚠️ Status ${res.status} para checkpoint ${cp.id}`);
@@ -796,8 +805,8 @@ export default function GameMasterDashboard() {
                 >
                   <option value="">Selecionar evento...</option>
                   {events.map(event => (
-                    <option key={event.id} value={event.id}>
-                      {event.name}
+                    <option key={event.eventoId} value={event.eventoId}>
+                      {event.nome}
                     </option>
                   ))}
                 </select>
@@ -840,6 +849,15 @@ export default function GameMasterDashboard() {
               </div>
             </div>
           </Card>
+
+          {activeGame && (
+            <LiveGameCheckpoints
+              game={games.find(game => String(game.id) === String(activeGame.id)) || activeGame}
+              eventCheckpoints={safeCheckpoints}
+              running={gameRunning}
+              onSaved={async () => { if (selectedEventId) setGames(await api.getBrincadeiras(selectedEventId)); }}
+            />
+          )}
 
           {/* Active Game Card */}
           <Card variant="glow" className="mb-6">
@@ -1113,7 +1131,7 @@ export default function GameMasterDashboard() {
               <div className="space-y-3">
                 {topChildren.length > 0 ? (
                   topChildren.map((child, index) => {
-                    const team = getChildTeam(child.time_id || null);
+                    const team = getChildTeam(child.timeId || null);
                     return (
                       <div
                         key={child.id}
@@ -1289,7 +1307,7 @@ export default function GameMasterDashboard() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {safeTeams.length > 0 ? (
                   safeTeams.map(team => {
-                    const teamMembers = safeChildren.filter(c => c.time_id === team.id || c.teamId === team.id);
+                    const teamMembers = safeChildren.filter(c => c.timeId === team.id || c.teamId === team.id);
                     const teamScore = teamMembers.reduce((sum, c) => sum + (c.scores || 0), 0);
                     
                     return (

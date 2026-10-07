@@ -57,7 +57,7 @@ export default function AdminCheckpoints() {
         // Auto-selecionar evento ativo
         const activeEvent = eventosData?.find(e => e.status === 'active' || e.status === 'ongoing');
         if (activeEvent) {
-          setSelectedEventId(activeEvent.id);
+          setSelectedEventId(activeEvent.eventoId);
         } else if (eventosData && eventosData.length > 0) {
           // Sem evento ativo, mostra os checkpoints de todos os eventos: o primeiro da
           // lista costuma ser o evento mais novo, que ainda pode não ter nenhum.
@@ -88,11 +88,11 @@ export default function AdminCheckpoints() {
         if (selectedEventId === ALL_EVENTS) {
           // Cada checkpoint leva o evento a que pertence (para a coluna Evento e para editar/excluir)
           const lists = await Promise.all(events.map((event) =>
-            api.getCheckpoints(event.id)
+            api.getCheckpoints(event.eventoId)
               .then((list: any[]) => (list || []).map((cp) => ({
                 ...cp,
-                evento_id: cp.evento_id ?? event.id,
-                evento_name: event.name || `Evento ${event.id}`,
+                eventoId: cp.eventoId ?? event.eventoId,
+                evento_name: event.nome || `Evento ${event.eventoId}`,
               })))
               .catch(() => [])
           ));
@@ -127,7 +127,7 @@ export default function AdminCheckpoints() {
         type: checkpoint.type || 'NFC',
         ip: checkpoint.ip || '',
         zone: checkpoint.zone || '',
-        ledColor: checkpoint.led || checkpoint.led_color || '#00FF00',
+        ledColor: checkpoint.led || checkpoint.corLed || '#00FF00',
         points: checkpoint.points || 10,
       });
     } else {
@@ -156,7 +156,7 @@ export default function AdminCheckpoints() {
       return;
     }
     // Editando, vale o evento do próprio checkpoint (em "todos os eventos" não há um evento selecionado).
-    const targetEventId = editingCheckpoint?.evento_id || selectedEventId;
+    const targetEventId = editingCheckpoint?.eventoId || selectedEventId;
     if (!targetEventId || targetEventId === ALL_EVENTS) {
       alert('Selecione um evento primeiro');
       return;
@@ -194,7 +194,7 @@ export default function AdminCheckpoints() {
           zone: formData.zone,
           points: formData.points,
           status: 'configured',
-          evento_id: targetEventId,
+          eventoId: targetEventId,
         }]);
       }
       
@@ -212,7 +212,7 @@ export default function AdminCheckpoints() {
 
   const handleDelete = async (checkpoint: any) => {
     const id = checkpoint.id;
-    const eventId = checkpoint.evento_id || selectedEventId;
+    const eventId = checkpoint.eventoId || selectedEventId;
     if (!eventId || eventId === ALL_EVENTS) {
       alert('Selecione um evento primeiro');
       return;
@@ -282,8 +282,8 @@ export default function AdminCheckpoints() {
                   <>
                     <option value={ALL_EVENTS} style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>Todos os eventos</option>
                     {events.map(event => (
-                      <option key={event.id} value={event.id} style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>
-                        {event.name || `Evento ${event.id}`}
+                      <option key={event.eventoId} value={event.eventoId} style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>
+                        {event.nome || `Evento ${event.eventoId}`}
                       </option>
                     ))}
                   </>
@@ -322,7 +322,7 @@ export default function AdminCheckpoints() {
                 <tbody className="divide-y divide-border">
                   {checkpointsList.length > 0 ? (
                     checkpointsList.map(cp => (
-                      <tr key={`${cp.evento_id || ''}-${cp.id}`} className="hover:bg-surface/50 transition-colors">
+                      <tr key={`${cp.eventoId || ''}-${cp.id}`} className="hover:bg-surface/50 transition-colors">
                         <td className="py-3 pr-4">
                           <p className="text-sm font-mono text-gray-300">{cp.id}</p>
                         </td>

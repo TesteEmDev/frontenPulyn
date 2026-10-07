@@ -43,7 +43,7 @@ export default function AdminGameForm() {
       const game = brincadeiras.find(g => g.id === id);
       if (game) {
         setExistingGame(game);
-        setSelectedEventoId(game.evento_id || '');
+        setSelectedEventoId(game.eventoId || '');
         setFormData({
           name: game.name || '',
           description: game.description || '',
@@ -98,9 +98,9 @@ export default function AdminGameForm() {
               console.log('✅ Checkpoints encontrados:', apiCheckpoints.length);
               setCheckpointConfigs(
                 apiCheckpoints.map((cp: any) => ({
-                  id: cp.id,
+                  id: cp.checkpointId,
                   enabled: false,
-                  points: cp.points || 10,
+                  points: cp.pontos || 10,
                   cooldown: formData.type === 'monster_hunt' ? 15 : 30,
                   special: false,
                 }))
@@ -235,7 +235,7 @@ export default function AdminGameForm() {
         rules: formData.rules,
         type: formData.type,
         duration: parseInt(formData.duration),
-        evento_id: selectedEventoId,
+        eventoId: selectedEventoId,
         checkpoints: selectedCheckpoints.map(cp => ({
           id: cp.id,
           points: cp.points,
@@ -283,7 +283,7 @@ export default function AdminGameForm() {
                   options={
                     loadingEventos
                       ? [{ value: '', label: 'Carregando eventos...' }]
-                      : events.map(e => ({ value: e.id, label: e.name }))
+                      : events.map(e => ({ value: e.eventoId, label: e.nome }))
                   }
                   value={selectedEventoId}
                   onChange={e => setSelectedEventoId(e.target.value)}

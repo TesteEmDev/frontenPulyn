@@ -56,23 +56,23 @@ export default function AdminEventNew() {
         // Edição: carrega o evento existente no formulário
         if (editingId) {
           const evento = await api.getEvento(editingId);
-          if (!evento || evento.error || !evento.id) {
+          if (!evento || evento.error || !evento.eventoId) {
             alert('Evento não encontrado.');
             navigate('/admin/events');
             return;
           }
           setFormData(prev => ({
             ...prev,
-            name: evento.name || '',
-            description: evento.description || '',
-            date: String(evento.date || '').split('T')[0],
-            time: String(evento.time || '').slice(0, 5),
-            duration: String(evento.duration || 120),
-            enableDisplay: Boolean(evento.enable_display),
-            enableLocation: Boolean(evento.enable_location),
-            responsibleName: evento.responsible_name || '',
-            autoStart: Boolean(evento.auto_start),
-            autoEnd: Boolean(evento.auto_end),
+            name: evento.nome || '',
+            description: evento.descricao || '',
+            date: String(evento.data || '').split('T')[0],
+            time: String(evento.hora || '').slice(0, 5),
+            duration: String(evento.duracao || 120),
+            enableDisplay: Boolean(evento.exibirDisplay),
+            enableLocation: Boolean(evento.exibirLocalizacao),
+            responsibleName: evento.nomeResponsavel || '',
+            autoStart: Boolean(evento.autoInicio),
+            autoEnd: Boolean(evento.autoFim),
           }));
 
           // Jogos que já fazem parte do evento vêm marcados

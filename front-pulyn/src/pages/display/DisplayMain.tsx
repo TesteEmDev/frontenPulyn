@@ -12,6 +12,7 @@ import GameGuide, { type GuideGame } from '../../components/display/GameGuide';
 import FitToBox from '../../components/display/FitToBox';
 import { useTypewriterCycle } from '../../hooks/useTypewriterCycle';
 import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from '../../components/display/TreasureArena';
+import RouletteOverlay, { type RouletteData } from '../../components/game-master/RouletteOverlay';
 
 interface MonsterDisplayMonster {
   teamId: string;
@@ -58,6 +59,8 @@ export default function DisplayMain() {
   const [displayMessages, setDisplayMessages] = useState<any[]>([]);
   // Quando a última mensagem do recreacionista CHEGOU a este telão (o relógio do servidor pode destoar do da TV)
   const [messageArrivedAt, setMessageArrivedAt] = useState(0);
+  // Roleta da brincadeira paralela ("Ache o objeto"): gira no telão quando o recreacionista inicia.
+  const [parallelRoulette, setParallelRoulette] = useState<RouletteData | null>(null);
   const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
   const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
   const [treasureStatus, setTreasureStatus] = useState<TreasureArenaStatus | null>(null);
@@ -110,7 +113,7 @@ export default function DisplayMain() {
   const recentActivities = useMemo(() => scoreLog
     .map((entry: any) => ({
       id: entry.id,
-      childName: entry.childName || entry.child_name || 'Participante',
+      childName: entry.childName || entry.crianca_nome || 'Participante',
       checkpoint: entry.checkpoint || entry.checkpoint_name || 'Checkpoint',
       points: Number(entry.points || 0),
       timestamp: entry.timestamp || entry.created_at,
@@ -359,7 +362,7 @@ export default function DisplayMain() {
   // 🆕 Sincronizar Zone Conquest status do hook com estado local
   useEffect(() => {
     if (isIndividualMode && zoneConquestGameStatus) {
-      // Cada vez que uma nova partida é detectada (partida_id mudou), reseta tudo
+      // Cada vez que uma nova partida é detectada (partidaId mudou), reseta tudo
       setZoneConquestStatus(zoneConquestGameStatus);
     } else if (!isIndividualMode) {
       // Se não está em modo individual, limpar estado
@@ -372,7 +375,7 @@ export default function DisplayMain() {
     selectedEventId || null,
     (event) => {
       // Processar eventos do WebSocket
-      if (event.type === 'GAME_SELECTED' && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
+      if (event.type === 'GAME_SELECTED' && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
         // NÃO setar selectedGameType aqui - apenas quando GAME_STARTED
         // setSelectedGameType(event.payload?.gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
@@ -380,7 +383,17 @@ export default function DisplayMain() {
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
-      } else if (event.type === 'DISPLAY_MESSAGE' && sameEventId(event.payload?.evento_id ?? event.payload?.eventoId, selectedEventId)) {
+      } else if (event.type === 'PARALLEL_GAME_STARTED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        const roulette = event.payload?.roulette;
+        if (roulette?.segments?.length) {
+          setParallelRoulette({
+            segments: roulette.segments,
+            winnerIndex: Number(roulette.winnerIndex) || 0,
+            objectName: String(event.payload?.objectName || ''),
+            checkpointName: event.payload?.checkpointName ? String(event.payload.checkpointName) : undefined,
+          });
+        }
+      } else if (event.type === 'DISPLAY_MESSAGE' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         setDisplayMessages((previous) => [event.payload, ...previous].slice(0, 50));
         setMessageArrivedAt(Date.now());
       } else if (['MONSTER_PROGRESS', 'MONSTER_SPECIAL_ATTACK', 'MONSTER_TEAM_DEFEATED', 'MONSTER_DEFEATED'].includes(event.type) && sameEventId(event.payload?.eventoId, selectedEventId)) {
@@ -401,6 +414,10 @@ export default function DisplayMain() {
           monsters: monsters?.length ? monsters : prev?.monsters,
           progress: monsters?.length ? monsters : prev?.progress,
         }));
+        refreshMonsterStatus();
+      } else if (event.type === 'GAME_CHECKPOINTS_UPDATED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        // A lista de checkpoints do jogo mudou: busca de novo o alvo do Tesouro / o especial do Monstro.
+        refreshTreasureStatus();
         refreshMonsterStatus();
       } else if (event.type === 'GAME_STARTED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const treasure = event.payload?.treasure;
@@ -480,7 +497,7 @@ export default function DisplayMain() {
           setMonsterStatus(null);
           setZoneConquestStatus(null);
         }
-      } else if (event.type === 'GAME_STOPPED' && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
+      } else if (event.type === 'GAME_STOPPED' && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
         setGameActive(false);
         refreshGuideGames();
         setSelectedGameType(null);
@@ -545,7 +562,7 @@ export default function DisplayMain() {
         if (loadScoreLog) {
           loadScoreLog().catch(err => console.error('Erro ao recarregar scoreLog:', err));
         }
-      } else if ((event.type === 'TREASURE_PROGRESS' || event.type === 'TREASURE_ROUND_COMPLETED') && sameEventId(event.payload?.eventoId ?? event.payload?.evento_id, selectedEventId)) {
+      } else if ((event.type === 'TREASURE_PROGRESS' || event.type === 'TREASURE_ROUND_COMPLETED') && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
         const payload = event.payload || {};
         setMonsterStatus(null);
         setLastTreasureEvent({
@@ -808,6 +825,9 @@ export default function DisplayMain() {
 
   const conquestOverlay = (
     <>
+      {parallelRoulette && (
+        <RouletteOverlay data={parallelRoulette} onClose={() => setParallelRoulette(null)} autoCloseSeconds={14} />
+      )}
       {/* Notificação Animada de Conquista */}
       {showNotification && notificationData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm pointer-events-none">
@@ -918,7 +938,7 @@ export default function DisplayMain() {
                           <div className="space-y-2">
                             {topTeams.length > 0 ? (
                               topTeams.map((team) => {
-                                const teamMembers = children.filter(c => c.time_id === team.id || c.teamId === team.id);
+                                const teamMembers = children.filter(c => c.timeId === team.id || c.teamId === team.id);
                                 const teamTotalPoints = teamMembers.reduce((sum, c) => sum + (c.scores || 0), 0);
                                 return (
                                   <div key={team.id} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.025] p-2.5">
@@ -1029,7 +1049,7 @@ export default function DisplayMain() {
         </div>
         <div className="flex min-w-0 items-center gap-2.5">
           <p className="truncate text-[clamp(0.9rem,2.3vh,1.5rem)] font-semibold text-gray-200">
-            {events.find(e => e.id === selectedEventId)?.name || 'Evento selecionado'}
+            {events.find(e => e.eventoId === selectedEventId)?.nome || 'Evento selecionado'}
           </p>
           <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-secondary-400/20 bg-secondary-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-secondary-300 md:inline-flex">
             <span className="h-1.5 w-1.5 rounded-full bg-secondary-400" /> Recepção no controle

@@ -29,7 +29,7 @@ export default function AdminCheckpointConfig() {
   useEffect(() => {
     const checkServer = async () => {
       try {
-        const res = await fetch(`${API_URL}/checkpoints`);
+        const res = await fetch(`${API_URL}/pontoVerificacao`);
         if (res.ok) setServerStatus('online');
         else setServerStatus('offline');
       } catch {
@@ -46,7 +46,7 @@ export default function AdminCheckpointConfig() {
     setSaveStatus('idle');
     
     try {
-      const res = await fetch(`${API_URL}/checkpoints/${id}/config`, {
+      const res = await fetch(`${API_URL}/pontoVerificacao/${id}/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

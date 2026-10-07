@@ -49,7 +49,7 @@ export default function AdminChildProfile() {
   const child = safeChildren.find(c => c.id === id);
   const team = child ? safeTeams.find(t => t.id === (child.teamId || child.team_id)) : null;
   const childScores = safeScoreLog.filter(s => s.childId === id || s.child_id === id);
-  const braceletCode = child?.bracelet_code || child?.bracelet;
+  const braceletCode = child?.codigoPulseira || child?.bracelet;
 
   if (loading) {
     return (
@@ -238,11 +238,11 @@ export default function AdminChildProfile() {
             <div className="space-y-3">
               {safeEvents.length > 0 ? (
                 safeEvents.map(event => (
-                  <div key={event.id} className="flex items-center gap-3 p-3 rounded-lg bg-surface/50">
+                  <div key={event.eventoId} className="flex items-center gap-3 p-3 rounded-lg bg-surface/50">
                     <Calendar size={16} className="text-gray-500" />
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-white">{event.name}</p>
-                      <p className="text-xs text-gray-500">{event.date}</p>
+                      <p className="text-sm font-semibold text-white">{event.nome}</p>
+                      <p className="text-xs text-gray-500">{event.data}</p>
                     </div>
                     <Badge
                       variant={event.status === 'active' ? 'success' : event.status === 'scheduled' ? 'primary' : 'muted'}

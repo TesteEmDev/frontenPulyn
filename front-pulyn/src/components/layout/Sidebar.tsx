@@ -32,7 +32,7 @@ export default function Sidebar({
   // No admin, o nome exibido é o "Nome da unidade" do cadastro do buffet.
   const unitName = useBuffetName(user?.role === 'admin');
   const displayName = user?.role === 'admin' && unitName !== DEFAULT_BUFFET_TITLE ? unitName : user?.name || '';
-  const logoUrl = useBuffetNameStore(state => (user?.role === 'admin' && state.empresaId === user.empresa_id ? state.logoUrl : ''));
+  const logoUrl = useBuffetNameStore(state => (user?.role === 'admin' && state.empresaId === user.empresaId ? state.logoUrl : ''));
 
   const handleLogout = () => {
     logout();

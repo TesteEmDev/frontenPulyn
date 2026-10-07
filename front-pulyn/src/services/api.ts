@@ -39,7 +39,10 @@ function normalizeApiUrl(value: string | undefined | null) {
   if (!rawValue) return null;
 
   try {
-    const parsed = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(rawValue) ? rawValue : `https://${rawValue}`);
+    // Caminho que começa com "/" (ex.: VITE_API_URL=/api) vale para o mesmo endereço da página:
+    // o IIS serve o site e repassa /api ao backend, então funciona por IP ou por nome.
+    const comOrigem = rawValue.startsWith('/') ? `${window.location.origin}${rawValue}` : rawValue;
+    const parsed = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(comOrigem) ? comOrigem : `https://${comOrigem}`);
     if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname || hasRepeatedHost(parsed.hostname)) {
       return null;
     }
@@ -111,7 +114,7 @@ export interface GeneralReportData {
   }>;
   byMonth: Array<{ month: string; events: number; participants: number }>;
   topParticipants: Array<{
-    id: string; name: string; nickname: string; age: number | null; scores: number;
+    id: string; name: string; nickname: string; age: number | null; scores: number; braceletCode: string;
     eventName: string; teamName: string; teamColor: string;
   }>;
   topTeams: Array<{ id: string; name: string; color: string; points: number; eventName: string }>;
@@ -140,7 +143,7 @@ export const api = {
     const res = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, senha: password }),
     });
     return res.json();
   },
@@ -184,7 +187,7 @@ export const api = {
   },
 
   async getPendingFamilyLinks(eventoId?: string) {
-    const query = eventoId ? `?evento_id=${encodeURIComponent(eventoId)}` : '';
+    const query = eventoId ? `?eventoId=${encodeURIComponent(eventoId)}` : '';
     const res = await fetch(`${API_URL}/familias/pending${query}`, { headers: getAuthHeaders() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erro ao carregar aprovações familiares (${res.status})`);
@@ -192,10 +195,26 @@ export const api = {
   },
 
   async getApprovedFamilyLinks(eventoId?: string) {
-    const query = eventoId ? `?evento_id=${encodeURIComponent(eventoId)}` : '';
+    const query = eventoId ? `?eventoId=${encodeURIComponent(eventoId)}` : '';
     const res = await fetch(`${API_URL}/familias/approved${query}`, { headers: getAuthHeaders() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erro ao carregar famílias aprovadas (${res.status})`);
+    return data;
+  },
+
+  // Todas as vinculações (aprovadas, pendentes, desvinculadas e rejeitadas), com criança e responsável.
+  async getFamilyLinks(eventoId?: string) {
+    const query = eventoId ? `?eventoId=${encodeURIComponent(eventoId)}` : '';
+    const res = await fetch(`${API_URL}/familias/links${query}`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar vinculações (${res.status})`);
+    return data;
+  },
+
+  async unlinkFamilyLink(linkId: string) {
+    const res = await fetch(`${API_URL}/familias/links/${linkId}/unlink`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro ao desvincular');
     return data;
   },
 
@@ -420,10 +439,10 @@ export const api = {
   },
 
   async getScoreHistory(eventoId: string, limit = 100, sessionId?: string) {
-    let url = `${API_URL}/leituras/eventos/${encodeURIComponent(eventoId)}/historico?limit=${limit}`;
+    let url = `${API_URL}/leituras/evento/${encodeURIComponent(eventoId)}/historico?limit=${limit}`;
 
     // 🆕 Adicionar sessionId como query param se fornecido — o backend filtra
-    // leituras.session_id por esse valor (routes/leituras.js), não por
+    // leituras.sessaoId por esse valor (routes/leituras.js), não por
     // brincadeira_id, então esse é o único parâmetro que ele reconhece.
     if (sessionId) {
       url += `&sessionId=${encodeURIComponent(sessionId)}`;
@@ -507,17 +526,84 @@ export const api = {
     return res.json();
   },
 
+  // Troca só os checkpoints de um jogo (vale também com a partida em andamento).
+  async updateGameCheckpoints(gameId: string, data: { checkpoints: string[]; specialCheckpointId?: string }) {
+    const res = await fetch(`${API_URL}/brincadeiras/${encodeURIComponent(gameId)}/checkpoints`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar os checkpoints (${res.status})`);
+    return body;
+  },
+
+  // ==================== BRINCADEIRA PARALELA (recreacionista) ====================
+  async getParallelGame(eventoId: string) {
+    const res = await fetch(`${API_URL}/parallel-games/eventos/${encodeURIComponent(eventoId)}`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar a brincadeira paralela (${res.status})`);
+    return data;
+  },
+
+  async startParallelGame(eventoId: string, checkpointId: string) {
+    const res = await fetch(`${API_URL}/parallel-games/eventos/${encodeURIComponent(eventoId)}/start`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ checkpointId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao iniciar a brincadeira paralela (${res.status})`);
+    return data;
+  },
+
+  // Lista de objetos da brincadeira "Ache o objeto" (por empresa).
+  async getParallelObjects(): Promise<Array<{ id: string; name: string }>> {
+    const res = await fetch(`${API_URL}/parallel-games/objects`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao carregar os objetos (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async addParallelObject(name: string): Promise<{ id: string; name: string }> {
+    const res = await fetch(`${API_URL}/parallel-games/objects`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ name }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao adicionar o objeto (${res.status})`);
+    return data as { id: string; name: string };
+  },
+
+  async renameParallelObject(id: string, name: string): Promise<{ id: string; name: string }> {
+    const res = await fetch(`${API_URL}/parallel-games/objects/${encodeURIComponent(id)}`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ name }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao renomear o objeto (${res.status})`);
+    return data as { id: string; name: string };
+  },
+
+  async deleteParallelObject(id: string) {
+    const res = await fetch(`${API_URL}/parallel-games/objects/${encodeURIComponent(id)}`, { method: 'DELETE', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao remover o objeto (${res.status})`);
+    return data;
+  },
+
+  async stopParallelGame(eventoId: string) {
+    const res = await fetch(`${API_URL}/parallel-games/eventos/${encodeURIComponent(eventoId)}/stop`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao encerrar a brincadeira paralela (${res.status})`);
+    return data;
+  },
+
   // ==================== MENSAGENS DO DISPLAY ====================
   async getDisplayMessages(eventoId: string, limit = 50) {
-    const res = await fetch(`${API_URL}/messages/eventos/${eventoId}?limit=${limit}`, {
+    const res = await fetch(`${API_URL}/messages/evento/${eventoId}?limit=${limit}`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error(`Erro ao carregar mensagens (${res.status})`);
     return res.json();
   },
 
-  async createDisplayMessage(eventoId: string, data: { text: string; type: 'preset' | 'custom' }) {
-    const res = await fetch(`${API_URL}/messages/eventos/${eventoId}`, {
+  async createDisplayMessage(eventoId: string, data: { texto: string; type: 'preset' | 'custom' }) {
+    const res = await fetch(`${API_URL}/messages/evento/${eventoId}`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -779,7 +865,7 @@ export const api = {
 
   // ==================== BRINCADEIRAS / JOGOS ====================
   async getBrincadeiras(eventoId?: string) {
-    const query = eventoId ? `?evento_id=${encodeURIComponent(eventoId)}` : '';
+    const query = eventoId ? `?eventoId=${encodeURIComponent(eventoId)}` : '';
     const res = await fetch(`${API_URL}/brincadeiras${query}`, {
       headers: getAuthHeaders(),
     });
@@ -836,7 +922,7 @@ export const api = {
 
   // ==================== CAÇA AO TESOURO ====================
   async getTreasureEventStatus(eventoId: string) {
-    const res = await fetch(`${API_URL}/treasure/eventos/${eventoId}/status`, {
+    const res = await fetch(`${API_URL}/treasure/evento/${eventoId}/status`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -846,7 +932,7 @@ export const api = {
   },
 
   async getMonsterEventStatus(eventoId: string) {
-    const res = await fetch(`${API_URL}/monster/eventos/${eventoId}/status`, {
+    const res = await fetch(`${API_URL}/monster/evento/${eventoId}/status`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -924,7 +1010,7 @@ export const api = {
   async getTimes(eventoId?: string) {
     try {
       const url = eventoId 
-        ? `${API_URL}/times/eventos/${eventoId}/times`
+        ? `${API_URL}/times/evento/${eventoId}/time`
         : `${API_URL}/times`;
       
       const res = await fetch(url, {
@@ -964,7 +1050,7 @@ export const api = {
 
   async createTime(eventoIdOrData: string | any, maybeData?: any) {
     const data = maybeData
-      ? { ...maybeData, evento_id: eventoIdOrData }
+      ? { ...maybeData, eventoId: eventoIdOrData }
       : eventoIdOrData;
     const res = await fetch(`${API_URL}/times`, {
       method: 'POST',
@@ -984,7 +1070,7 @@ export const api = {
   },
 
   async applyDefaultTimes(eventoId: string) {
-    const res = await fetch(`${API_URL}/times/eventos/${encodeURIComponent(eventoId)}/aplicar-padrao`, {
+    const res = await fetch(`${API_URL}/times/evento/${encodeURIComponent(eventoId)}/aplicar-padrao`, {
       method: 'POST',
       headers: getAuthHeaders(),
     });
@@ -995,7 +1081,7 @@ export const api = {
 
   // Sorteia as crianças do evento entre os times. 'unassigned' = só quem está sem time.
   async distributeChildrenRandomly(eventoId: string, mode: 'unassigned' | 'all') {
-    const res = await fetch(`${API_URL}/times/eventos/${encodeURIComponent(eventoId)}/distribuir-aleatorio`, {
+    const res = await fetch(`${API_URL}/times/evento/${encodeURIComponent(eventoId)}/distribuir-aleatorio`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ mode }),
@@ -1038,7 +1124,7 @@ export const api = {
 
   async getCriancas(eventoId: string) {
     try {
-      const res = await fetch(`${API_URL}/criancas/eventos/${eventoId}/criancas`, {
+      const res = await fetch(`${API_URL}/criancas/evento/${eventoId}/crianca`, {
         headers: getAuthHeaders()
       });
       if (!res.ok) {
@@ -1054,7 +1140,7 @@ export const api = {
 
   async createCrianca(eventoId: string, data: any) {
     try {
-      const res = await fetch(`${API_URL}/criancas/eventos/${eventoId}/criancas`, {
+      const res = await fetch(`${API_URL}/criancas/evento/${eventoId}/crianca`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(data),
@@ -1081,7 +1167,7 @@ export const api = {
 
   async updateCrianca(eventoId: string, criancaId: string, data: any) {
     try {
-      const res = await fetch(`${API_URL}/criancas/eventos/${eventoId}/criancas/${criancaId}`, {
+      const res = await fetch(`${API_URL}/criancas/evento/${eventoId}/crianca/${criancaId}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(data),
@@ -1101,7 +1187,7 @@ export const api = {
 
   async deleteCrianca(eventoId: string, criancaId: string) {
     try {
-      const res = await fetch(`${API_URL}/criancas/eventos/${eventoId}/criancas/${criancaId}`, {
+      const res = await fetch(`${API_URL}/criancas/evento/${eventoId}/crianca/${criancaId}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -1161,7 +1247,7 @@ export const api = {
     const res = await fetch(`${API_URL}/pulseiras`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ codigo: code }),
     });
     
     if (!res.ok) {
@@ -1195,7 +1281,7 @@ export const api = {
   // ==================== CHECKPOINTS ====================
   // Contagem de checkpoints por evento (cadastrados e online) de todos os eventos do buffet
   async getCheckpointsSummary() {
-    const res = await fetch(`${API_URL}/checkpoints/resumo`, { headers: getAuthHeaders() });
+    const res = await fetch(`${API_URL}/pontoVerificacao/resumo`, { headers: getAuthHeaders() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erro ao carregar resumo de checkpoints (${res.status})`);
     return Array.isArray(data) ? data : [];
@@ -1203,13 +1289,13 @@ export const api = {
 
   async getCheckpoints(eventoId: string) {
     try {
-      const res = await fetch(`${API_URL}/checkpoints/evento/${eventoId}`, {
+      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}`, {
         headers: getAuthHeaders()
       });
       if (!res.ok) return [];
       const data = await res.json();
       return Array.isArray(data)
-        ? data.filter(checkpoint => String(checkpoint?.checkpoint_purpose || 'game').toLowerCase() !== 'reception')
+        ? data.filter(checkpoint => String(checkpoint?.proposito || 'game').toLowerCase() !== 'reception')
         : [];
     } catch (err) {
       console.error('Erro ao carregar checkpoints:', err);
@@ -1221,8 +1307,8 @@ export const api = {
     try {
       // Se eventoId for fornecido, usar rota com contexto de evento
       const url = eventoId 
-        ? `${API_URL}/checkpoints/evento/${eventoId}/config/${checkpointId}`
-        : `${API_URL}/checkpoints/${checkpointId}/config`;
+        ? `${API_URL}/pontoVerificacao/evento/${eventoId}/config/${checkpointId}`
+        : `${API_URL}/pontoVerificacao/${checkpointId}/config`;
       
       const res = await fetch(url, {
         method: 'POST',
@@ -1243,7 +1329,7 @@ export const api = {
   },
 
   async getCheckpointConfig(checkpointId: string) {
-    const res = await fetch(`${API_URL}/checkpoints/${checkpointId}/config`, {
+    const res = await fetch(`${API_URL}/pontoVerificacao/${checkpointId}/config`, {
       headers: getAuthHeaders(),
     });
     return res.json();
@@ -1251,7 +1337,7 @@ export const api = {
 
   async createCheckpoint(eventoId: string, data: any) {
     try {
-      const res = await fetch(`${API_URL}/checkpoints/evento/${eventoId}`, {
+      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(data),
@@ -1271,7 +1357,7 @@ export const api = {
 
   async deleteCheckpoint(eventoId: string, checkpointId: string) {
     try {
-      const res = await fetch(`${API_URL}/checkpoints/evento/${eventoId}/${checkpointId}`, {
+      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}/${checkpointId}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -1300,14 +1386,14 @@ export const api = {
 
   // ==================== RANKING ====================
   async getRankingCriancas(eventoId: string) {
-    const res = await fetch(`${API_URL}/ranking/eventos/${eventoId}/ranking/criancas`, {
+    const res = await fetch(`${API_URL}/ranking/evento/${eventoId}/ranking/crianca`, {
       headers: getAuthHeaders(),
     });
     return res.json();
   },
 
   async getRankingTimes(eventoId: string) {
-    const res = await fetch(`${API_URL}/ranking/eventos/${eventoId}/ranking/times`, {
+    const res = await fetch(`${API_URL}/ranking/evento/${eventoId}/ranking/time`, {
       headers: getAuthHeaders(),
     });
     return res.json();
@@ -1370,24 +1456,24 @@ export const api = {
   // ==================== SETTINGS ====================
   // Retorna as configurações do buffet como objeto { chave: valor }.
   async getSettings(): Promise<Record<string, string>> {
-    const res = await fetch(`${API_URL}/settings`, {
+    const res = await fetch(`${API_URL}/configuracoes`, {
       headers: getAuthHeaders(),
     });
     const body = await res.json().catch(() => ([]));
     if (!res.ok) throw new Error((body as any).error || `Erro ao carregar configurações (${res.status})`);
-    const rows: Array<{ setting_key: string; setting_value: string | null }> = Array.isArray(body) ? body : [];
-    return Object.fromEntries(rows.map(row => [row.setting_key, row.setting_value ?? '']));
+    const rows: Array<{ chave: string; valor: string | null }> = Array.isArray(body) ? body : [];
+    return Object.fromEntries(rows.map(row => [row.chave, row.valor ?? '']));
   },
 
   async getSetting(key: string) {
-    const res = await fetch(`${API_URL}/settings/${key}`, {
+    const res = await fetch(`${API_URL}/configuracoes/${key}`, {
       headers: getAuthHeaders(),
     });
     return res.json();
   },
 
   async updateSetting(key: string, value: string) {
-    const res = await fetch(`${API_URL}/settings/${key}`, {
+    const res = await fetch(`${API_URL}/configuracoes/${key}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify({ value }),
@@ -1398,7 +1484,7 @@ export const api = {
   },
 
   async updateSettings(settings: Record<string, string>) {
-    const res = await fetch(`${API_URL}/settings`, {
+    const res = await fetch(`${API_URL}/configuracoes`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(settings),
@@ -1411,7 +1497,7 @@ export const api = {
   // ==================== USUÁRIOS (LOGINS) ====================
   async getUsers(empresaId: string) {
     try {
-      const res = await fetch(`${API_URL}/logins/empresa/${empresaId}`, {
+      const res = await fetch(`${API_URL}/acessos/empresa/${empresaId}`, {
         headers: getAuthHeaders()
       });
       
@@ -1431,7 +1517,7 @@ export const api = {
 
   async createUser(userData: any) {
     try {
-      const res = await fetch(`${API_URL}/logins`, {
+      const res = await fetch(`${API_URL}/acessos`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(userData),
@@ -1451,7 +1537,7 @@ export const api = {
 
   async deleteUser(userId: string) {
     try {
-      const res = await fetch(`${API_URL}/logins/${userId}`, {
+      const res = await fetch(`${API_URL}/acessos/${userId}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -1583,7 +1669,7 @@ export const api = {
   async getCheckpointStates(eventoId: string, partidaId: string) {
     try {
       const res = await fetch(
-        `${API_URL}/zone-conquest/checkpoint-states/${encodeURIComponent(eventoId)}/${encodeURIComponent(partidaId)}`,
+        `${API_URL}/zone-conquest/checkpoint-estados/${encodeURIComponent(eventoId)}/${encodeURIComponent(partidaId)}`,
         {
           headers: getAuthHeaders(),
         }
@@ -1605,7 +1691,7 @@ export const api = {
   async getCheckpointState(eventoId: string, checkpointId: string, partidaId: string) {
     try {
       const res = await fetch(
-        `${API_URL}/zone-conquest/checkpoint-state/${encodeURIComponent(eventoId)}/${encodeURIComponent(checkpointId)}/${encodeURIComponent(partidaId)}`,
+        `${API_URL}/zone-conquest/checkpoint-estado/${encodeURIComponent(eventoId)}/${encodeURIComponent(checkpointId)}/${encodeURIComponent(partidaId)}`,
         {
           headers: getAuthHeaders(),
         }
@@ -1627,7 +1713,7 @@ export const api = {
   async updateCheckpointState(stateId: string, updates: any) {
     try {
       const res = await fetch(
-        `${API_URL}/zone-conquest/checkpoint-state/${encodeURIComponent(stateId)}`,
+        `${API_URL}/zone-conquest/checkpoint-estado/${encodeURIComponent(stateId)}`,
         {
           method: 'PUT',
           headers: getAuthHeaders(),
@@ -1651,7 +1737,7 @@ export const api = {
   async getZoneStates(eventoId: string, partidaId: string) {
     try {
       const res = await fetch(
-        `${API_URL}/zone-conquest/zone-states/${encodeURIComponent(eventoId)}/${encodeURIComponent(partidaId)}`,
+        `${API_URL}/zone-conquest/zone-estados/${encodeURIComponent(eventoId)}/${encodeURIComponent(partidaId)}`,
         {
           headers: getAuthHeaders(),
         }
@@ -1673,7 +1759,7 @@ export const api = {
   async getZoneState(eventoId: string, zoneId: string, partidaId: string) {
     try {
       const res = await fetch(
-        `${API_URL}/zone-conquest/zone-state/${encodeURIComponent(eventoId)}/${encodeURIComponent(zoneId)}/${encodeURIComponent(partidaId)}`,
+        `${API_URL}/zone-conquest/zone-estado/${encodeURIComponent(eventoId)}/${encodeURIComponent(zoneId)}/${encodeURIComponent(partidaId)}`,
         {
           headers: getAuthHeaders(),
         }
@@ -1695,7 +1781,7 @@ export const api = {
   async updateZoneState(stateId: string, updates: any) {
     try {
       const res = await fetch(
-        `${API_URL}/zone-conquest/zone-state/${encodeURIComponent(stateId)}`,
+        `${API_URL}/zone-conquest/zone-estado/${encodeURIComponent(stateId)}`,
         {
           method: 'PUT',
           headers: getAuthHeaders(),
@@ -1780,3 +1866,61 @@ export const api = {
     }
   },
 };
+
+// ==================== NOMES DOS CAMPOS DA API ====================
+// A API devolve as linhas do banco com os nomes novos (eventoId, timeId, criancaId, nome, cor,
+// pontos...). Telas ainda escritas com os nomes antigos (id, name, color, points...) continuam
+// funcionando porque cada linha ganha também esses apelidos de LEITURA, apontando para o valor
+// novo. Os nomes novos são a fonte da verdade: ao migrar uma tela, passe a ler os novos e o
+// apelido correspondente deixa de ser usado. Um apelido nunca sobrescreve um campo existente.
+type TipoLinha = 'evento' | 'time' | 'crianca' | 'checkpoint' | 'brincadeira' | 'pulseira' | 'login' | 'vinculo';
+
+const APELIDOS_DE_LEITURA: Record<TipoLinha, Record<string, string>> = {
+  evento: { id: 'eventoId', name: 'nome', description: 'descricao', date: 'data', time: 'hora', duration: 'duracao' },
+  time: { id: 'timeId', name: 'nome', color: 'cor', points: 'pontos', score: 'pontos' },
+  crianca: { id: 'criancaId', name: 'nome', nickname: 'apelido', age: 'idade', scores: 'pontos', score: 'pontos', points: 'pontos' },
+  checkpoint: { id: 'checkpointId', name: 'nome', type: 'tipo', zone: 'zona', location: 'localizacao', points: 'pontos' },
+  brincadeira: { id: 'brincadeiraId', name: 'nome', description: 'descricao', rules: 'regras', type: 'tipo', duration: 'duracao' },
+  pulseira: { code: 'codigo' },
+  login: { id: 'loginId', role: 'perfil' },
+  vinculo: {
+    link_id: 'vinculoId', link_status: 'statusVinculo', relationship: 'relacionamento', requested_at: 'solicitadoEm',
+    approved_at: 'aprovadoEm', rejected_at: 'rejeitadoEm', crianca_id: 'criancaId', crianca_name: 'nomeCrianca',
+    nickname: 'apelido', age: 'idade', bracelet_code: 'codigoPulseira', evento_name: 'nomeEvento',
+    evento_date: 'dataEvento', time_name: 'nomeTime', time_color: 'corTime',
+  },
+};
+
+function comApelidos(linha: any, tipo: TipoLinha): any {
+  if (!linha || typeof linha !== 'object' || Array.isArray(linha)) return linha;
+  const copia = { ...linha };
+  for (const [apelido, campo] of Object.entries(APELIDOS_DE_LEITURA[tipo])) {
+    if (!(apelido in copia) && campo in copia) copia[apelido] = copia[campo];
+  }
+  return copia;
+}
+
+function listaComApelidos(dados: any, tipo: TipoLinha): any {
+  return Array.isArray(dados) ? dados.map((linha) => comApelidos(linha, tipo)) : comApelidos(dados, tipo);
+}
+
+const METODOS_QUE_DEVOLVEM_LINHAS: Record<string, TipoLinha> = {
+  getEventos: 'evento',
+  getEvento: 'evento',
+  getBrincadeiras: 'brincadeira',
+  getTimes: 'time',
+  getRankingTimes: 'time',
+  getAllCriancas: 'crianca',
+  getCriancas: 'crianca',
+  getRankingCriancas: 'crianca',
+  getPulseiras: 'pulseira',
+  getCheckpoints: 'checkpoint',
+  getUsers: 'login',
+  getFamilyLinks: 'vinculo',
+};
+
+for (const [metodo, tipo] of Object.entries(METODOS_QUE_DEVOLVEM_LINHAS)) {
+  const original = (api as any)[metodo];
+  if (typeof original !== 'function') continue;
+  (api as any)[metodo] = async (...args: unknown[]) => listaComApelidos(await original.apply(api, args), tipo);
+}

@@ -12,16 +12,15 @@ export interface Child {
   parentId?: string;
   teamId?: string | null;
   team_id?: string | null;
-  time_id?: string | null;
+  timeId?: string | null;
   team?: string | null;
   scores: number;
   score?: number;
   status: 'active' | 'inactive' | 'pending';
   achievements: string[];
-  bracelet_code?: string;
+  codigoPulseira?: string;
   bracelet?: string | null;
-  evento_id?: string;
-  event_id?: string;
+  eventoId?: string;
 }
 
 export interface Team {
@@ -41,15 +40,15 @@ export interface Checkpoint {
   ip: string;
   zone: string;
   location?: string | null;
-  map_x?: number | null;
-  map_y?: number | null;
+  mapaX?: number | null;
+  mapaY?: number | null;
   mapX?: number | null;
   mapY?: number | null;
-  territory_owner_time_id?: string | null;
+  territorioDonoTimeId?: string | null;
   territory_owner_color?: string | null;
-  territory_locked_until?: string | null;
-  territory_cooldown_until?: string | null;
-  last_conquered_at?: string | null;
+  territorioTravadoAte?: string | null;
+  territorioCooldownAte?: string | null;
+  ultimoConquistadoEm?: string | null;
   led: string;
   status: 'online' | 'offline' | 'configured';
   points: number;
@@ -64,7 +63,7 @@ export interface Game {
   duration: number;
   checkpoints: string[];
   status: 'active' | 'paused' | 'finished' | 'inactive';
-  evento_id?: string;
+  eventoId?: string;
 }
 
 export interface ReadingLog {
@@ -83,11 +82,10 @@ export interface ScoreLog {
   child_id?: string;
   childName: string;
   checkpointId: string;
-  checkpoint_id?: string;
   checkpoint: string;
   checkpoint_name?: string;
   game?: string;
-  game_id?: string;
+  brincadeiraId?: string;
   points: number;
   timestamp: string;
   created_at?: string;
@@ -95,19 +93,19 @@ export interface ScoreLog {
 }
 
 export interface Event {
-  id: string;
-  name: string;
-  date: string;
-  time?: string;
+  eventoId: string;
+  nome: string;
+  data: string;
+  hora?: string;
   location: string;
-  duration?: number;
+  duracao?: number;
   childrenCount?: number;
   status: 'active' | 'scheduled' | 'finished' | 'upcoming' | 'ongoing' | 'completed';
-  responsible_name?: string | null;
-  started_at?: string | null;
-  ended_at?: string | null;
-  auto_start?: number | null;
-  auto_end?: number | null;
+  nomeResponsavel?: string | null;
+  iniciadoEm?: string | null;
+  finalizadoEm?: string | null;
+  autoInicio?: number | null;
+  autoFim?: number | null;
 }
 
 export interface DisplayMessage {
@@ -254,9 +252,13 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
       
       const normalizedTeams = (Array.isArray(teams) ? teams : []).map((team: any) => ({
         ...team,
-        points: Number(team.points ?? team.score ?? 0),
-        score: Number(team.score ?? team.points ?? 0),
-        members: Array.isArray(team.members) ? team.members : state.children.filter((child) => (child.teamId ?? child.team_id ?? child.time_id) === team.id).map((child) => child.id),
+        // A API devolve a linha do banco (timeId, nome, cor, pontos); o resto do app usa id/name/color.
+        id: team.id ?? team.timeId,
+        name: team.name ?? team.nome,
+        color: team.color ?? team.cor,
+        points: Number(team.pontos ?? team.points ?? team.score ?? 0),
+        score: Number(team.pontos ?? team.score ?? team.points ?? 0),
+        members: Array.isArray(team.members) ? team.members : state.children.filter((child) => (child.teamId ?? child.team_id ?? child.timeId) === team.id).map((child) => child.id),
         icon: team.icon || '🏆',
       }));
       set({ teams: normalizedTeams });
@@ -276,13 +278,18 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
       if (get().eventoAtualId !== eventId) return;
       const normalizedChildren = (Array.isArray(children) ? children : []).map((child: any) => ({
         ...child,
-        teamId: child.teamId ?? child.team_id ?? child.time_id ?? null,
-        team_id: child.team_id ?? child.teamId ?? child.time_id ?? null,
-        time_id: child.time_id ?? child.team_id ?? child.teamId ?? null,
-        team: child.team ?? child.team_id ?? child.teamId ?? child.time_id ?? null,
-        scores: Number(child.scores ?? child.score ?? 0),
-        score: Number(child.score ?? child.scores ?? 0),
-        bracelet: child.bracelet ?? child.bracelet_code ?? null,
+        // Linha do banco (criancaId, nome, apelido, idade) -> modelo usado pelas telas.
+        id: child.id ?? child.criancaId,
+        name: child.name ?? child.nome,
+        nickname: child.nickname ?? child.apelido,
+        age: child.age ?? child.idade,
+        teamId: child.teamId ?? child.team_id ?? child.timeId ?? null,
+        team_id: child.team_id ?? child.teamId ?? child.timeId ?? null,
+        timeId: child.timeId ?? child.team_id ?? child.teamId ?? null,
+        team: child.team ?? child.team_id ?? child.teamId ?? child.timeId ?? null,
+        scores: Number(child.pontos ?? child.pontos ?? 0),
+        score: Number(child.pontos ?? child.pontos ?? 0),
+        bracelet: child.bracelet ?? child.codigoPulseira ?? null,
         achievements: child.achievements || [],
       }));
       set((state) => ({
@@ -308,8 +315,13 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
       if (get().eventoAtualId !== eventId) return;
       const normalizedCheckpoints = (Array.isArray(checkpoints) ? checkpoints : []).map((checkpoint: any) => ({
         ...checkpoint,
-        points: Number(checkpoint.points ?? 0),
-        zone: checkpoint.zone || checkpoint.location || 'Sem zona',
+        // Linha do banco (checkpointId, nome, tipo, localizacao) -> modelo usado pelas telas.
+        id: checkpoint.id ?? checkpoint.checkpointId,
+        name: checkpoint.name ?? checkpoint.nome,
+        type: checkpoint.type ?? checkpoint.tipo,
+        location: checkpoint.location ?? checkpoint.localizacao,
+        points: Number(checkpoint.pontos ?? 0),
+        zone: checkpoint.zona || checkpoint.localizacao || 'Sem zona',
         status: checkpoint.status || 'offline',
       }));
       set({ checkpoints: normalizedCheckpoints });
@@ -344,11 +356,11 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
       const normalizedHistory = (Array.isArray(history) ? history : []).map((entry: any) => ({
         ...entry,
         childId: entry.childId ?? entry.child_id,
-        childName: entry.childName ?? entry.child_name ?? entry.child_nickname ?? 'Participante',
-        checkpointId: entry.checkpointId ?? entry.checkpoint_id,
-        checkpoint: entry.checkpoint ?? entry.checkpoint_name ?? 'Checkpoint',
-        points: Number(entry.points ?? 0),
-        timestamp: entry.timestamp ?? entry.created_at,
+        childName: entry.childName ?? entry.child_nome ?? entry.child_apelido ?? 'Participante',
+        checkpointId: entry.checkpointId,
+        checkpoint: entry.checkpoint ?? entry.checkpoint_nome ?? 'Checkpoint',
+        points: Number(entry.pontos ?? entry.points ?? 0),
+        timestamp: entry.timestamp ?? entry.criadoEm,
         teamColor: entry.teamColor ?? entry.team_color ?? '#FFFF00',
       }));
       set({ scoreLog: normalizedHistory });
@@ -393,6 +405,11 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
     const brincadeiras = await get().loadBrincadeiras();
     const games = (Array.isArray(brincadeiras) ? brincadeiras : []).map((game: any) => ({
       ...game,
+      // Linha do banco (brincadeiraId, nome, tipo, regras) -> modelo usado pelas telas.
+      id: game.id ?? game.brincadeiraId,
+      name: game.name ?? game.nome,
+      type: game.type ?? game.tipo,
+      rules: game.rules ?? game.regras,
       description: game.description || game.descricao || '',
       duration: Number(game.duration ?? game.duracao ?? 0),
       checkpoints: Array.isArray(game.checkpoints) ? game.checkpoints : [],
@@ -515,12 +532,12 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
     const state = get();
     if (!state.eventoAtualId) return;
     await api.updateCrianca(state.eventoAtualId, id, {
-      name: data.name,
-      nickname: data.nickname,
+      nome: data.name,
+      apelido: data.nickname,
       age: data.age,
       avatar: data.avatar,
-      braceletCode: data.bracelet_code ?? data.bracelet,
-      timeId: data.teamId ?? data.team_id ?? data.time_id,
+      braceletCode: data.codigoPulseira ?? data.bracelet,
+      timeId: data.teamId ?? data.team_id ?? data.timeId,
     });
     await Promise.all([get().loadChildren(), get().loadTeams()]);
   },
@@ -546,7 +563,7 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
     checkpoints: state.checkpoints.map((checkpoint) => String(checkpoint.id) === String(checkpointId)
       ? {
           ...checkpoint,
-          territory_owner_time_id: teamId ?? checkpoint.territory_owner_time_id,
+          territorioDonoTimeId: teamId ?? checkpoint.territorioDonoTimeId,
           territory_owner_color: teamColor || checkpoint.territory_owner_color,
         }
       : checkpoint),
@@ -654,10 +671,10 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
   addEvent: (event) => set((state) => ({ events: [...state.events, event] })),
   
   updateEvent: (id, data) => set((state) => ({
-    events: state.events.map((event) => event.id === id ? { ...event, ...data } : event)
+    events: state.events.map((event) => event.eventoId === id ? { ...event, ...data } : event)
   })),
   
-  deleteEvent: (id) => set((state) => ({ events: state.events.filter((e) => e.id !== id) })),
+  deleteEvent: (id) => set((state) => ({ events: state.events.filter((e) => e.eventoId !== id) })),
 
   // ==================== GAME CONTROL ====================
   
