@@ -106,6 +106,15 @@ async function analyticsRequest(path: string) {
 }
 
 // Relatório geral (todos os eventos do buffet), devolvido por GET /reports/overview.
+// Uma zona do evento com o que os checkpoints dela realmente registraram.
+export interface ZoneEngagement {
+  zona: string;
+  checkpoints: number;
+  leituras: number;
+  participantes: number;
+  pontos: number;
+}
+
 export interface GeneralReportData {
   totals: {
     events: number;
@@ -1436,6 +1445,14 @@ export const api = {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Erro ao carregar o relatório geral (${res.status})`);
     return body as GeneralReportData;
+  },
+
+  // Engajamento por zona de um evento, calculado das leituras reais dos checkpoints.
+  async getZoneEngagement(eventoId: string): Promise<ZoneEngagement[]> {
+    const res = await fetch(`${API_URL}/reports/evento/${encodeURIComponent(eventoId)}/zonas`, { headers: getAuthHeaders() });
+    const body = await res.json().catch(() => ([]));
+    if (!res.ok) throw new Error((body as any)?.error || `Erro ao carregar o engajamento por zona (${res.status})`);
+    return Array.isArray(body) ? body : [];
   },
 
   // Logo/foto da unidade (guardada em `clientes`, como data URL).

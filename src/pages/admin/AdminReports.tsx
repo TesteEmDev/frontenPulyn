@@ -18,11 +18,26 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Select from '../../components/ui/Select';
 import GeneralReport, { formatReportDate } from '../../components/reports/GeneralReport';
-import type { GeneralReportData } from '../../services/api';
+import type { GeneralReportData, ZoneEngagement } from '../../services/api';
 import { toCsv, downloadCsv } from '../../utils/csv';
 
 // Pulseira usada pela criança: a atual ou, depois que o evento termina e a pulseira é liberada, a última que ela usou.
 const braceletOf = (child: any): string => child.bracelet_code || child.last_bracelet_code || '';
+
+// Detalhe da zona ao passar o mouse no gráfico de engajamento.
+function ZoneTooltip({ active, payload }: { active?: boolean; payload?: any[] }) {
+  const zone = active && payload?.length ? payload[0].payload : null;
+  if (!zone) return null;
+  return (
+    <div className="rounded-lg border border-gray-700 bg-[#1E1B2E] px-3 py-2 text-xs text-gray-300">
+      <p className="mb-1 font-semibold text-white">{zone.zone}</p>
+      <p>{zone.leituras} leituras</p>
+      <p>{zone.participantes} participantes</p>
+      <p>{zone.pontos} pontos</p>
+      <p>{zone.checkpoints} {zone.checkpoints === 1 ? 'checkpoint' : 'checkpoints'}</p>
+    </div>
+  );
+}
 
 export default function AdminReports() {
   const { events = [], loadEvents } = usePulynStore();
@@ -41,6 +56,7 @@ export default function AdminReports() {
   const [teams, setTeams] = useState<any[]>([]);
   const [games, setGames] = useState<any[]>([]);
   const [scoreLog, setScoreLog] = useState<any[]>([]);
+  const [zoneEngagement, setZoneEngagement] = useState<ZoneEngagement[]>([]);
 
   // Carregar a lista de eventos da empresa (só para popular o dropdown)
   useEffect(() => {
@@ -82,10 +98,21 @@ export default function AdminReports() {
       setTeams([]);
       setGames([]);
       setScoreLog([]);
+      setZoneEngagement([]);
       return;
     }
 
     let disposed = false;
+
+    // As leituras dos checkpoints chegam o tempo todo: o engajamento por zona é recalculado a cada 30 s.
+    const refreshZoneEngagement = () => {
+      api.getZoneEngagement(selectedEventId)
+        .then(data => { if (!disposed) setZoneEngagement(data); })
+        .catch(error => console.error('Erro ao carregar o engajamento por zona:', error));
+    };
+    refreshZoneEngagement();
+    const zoneTimer = window.setInterval(refreshZoneEngagement, 30000);
+
     const loadEventData = async () => {
       setLoadingEventData(true);
       try {
@@ -109,7 +136,7 @@ export default function AdminReports() {
       }
     };
     loadEventData();
-    return () => { disposed = true; };
+    return () => { disposed = true; window.clearInterval(zoneTimer); };
   }, [selectedEventId]);
 
   // O relatório geral é buscado ao abrir a aba (e a cada volta a ela, para vir sempre atualizado).
@@ -157,17 +184,17 @@ export default function AdminReports() {
   ), [safeTeams]);
 
   // Engajamento por zona, dentro do evento selecionado
-  const engagementByZoneData = useMemo(() => {
-    const zoneCounts: Record<string, number> = {};
-    safeCheckpoints.forEach(cp => {
-      const zone = cp.zona || 'Sem zona';
-      zoneCounts[zone] = (zoneCounts[zone] || 0) + 1;
-    });
-    return Object.entries(zoneCounts).map(([zone, valor]) => ({
-      zone,
-      valor: Math.min(valor * 20, 100), // Normalizar para escala 0-100
-    }));
-  }, [safeCheckpoints]);
+  // Vem das leituras reais dos checkpoints (tabela leitura), agrupadas pela zona de cada checkpoint.
+  const engagementByZoneData = useMemo(() => (
+    zoneEngagement.map(item => ({
+      zone: item.zona,
+      leituras: item.leituras,
+      participantes: item.participantes,
+      pontos: item.pontos,
+      checkpoints: item.checkpoints,
+    }))
+  ), [zoneEngagement]);
+  const hasZoneReadings = engagementByZoneData.some(item => item.leituras > 0);
 
   const totalParticipants = safeChildren.length;
   const avgPoints = safeChildren.length > 0
@@ -359,25 +386,44 @@ export default function AdminReports() {
                 </Card>
 
                 <Card>
-                  <h3 className="font-display text-lg text-white mb-4">Engajamento por Zona</h3>
-                  <ResponsiveContainer width="100%" height={280}>
-                    <RadarChart data={engagementByZoneData}>
-                      <PolarGrid stroke="#374151" />
-                      <PolarAngleAxis dataKey="zone" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                      <PolarRadiusAxis tick={{ fill: '#9CA3AF', fontSize: 10 }} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: '#1E1B2E', border: '1px solid #374151', borderRadius: 8 }}
-                        labelStyle={{ color: '#fff' }}
-                      />
-                      <Radar
-                        name="Engajamento"
-                        dataKey="valor"
-                        stroke="#29B6F6"
-                        fill="#29B6F6"
-                        fillOpacity={0.3}
-                      />
-                    </RadarChart>
-                  </ResponsiveContainer>
+                  <h3 className="font-display text-lg text-white">Engajamento por Zona</h3>
+                  <p className="text-xs text-gray-500 mb-4">Leituras registradas pelos checkpoints de cada zona</p>
+                  {engagementByZoneData.length === 0 ? (
+                    <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
+                      Este evento ainda não tem checkpoints de jogo cadastrados.
+                    </div>
+                  ) : !hasZoneReadings ? (
+                    <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
+                      Nenhuma leitura registrada neste evento ainda.
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={280}>
+                      {engagementByZoneData.length >= 3 ? (
+                        <RadarChart data={engagementByZoneData}>
+                          <PolarGrid stroke="#374151" />
+                          <PolarAngleAxis dataKey="zone" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
+                          <PolarRadiusAxis allowDecimals={false} tick={{ fill: '#9CA3AF', fontSize: 10 }} />
+                          <Tooltip content={<ZoneTooltip />} />
+                          <Radar
+                            name="Leituras"
+                            dataKey="leituras"
+                            stroke="#29B6F6"
+                            fill="#29B6F6"
+                            fillOpacity={0.3}
+                          />
+                        </RadarChart>
+                      ) : (
+                        // Com 1 ou 2 zonas o radar vira uma reta; barras leem melhor.
+                        <BarChart data={engagementByZoneData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                          <XAxis dataKey="zone" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                          <YAxis allowDecimals={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                          <Tooltip content={<ZoneTooltip />} />
+                          <Bar dataKey="leituras" fill="#29B6F6" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      )}
+                    </ResponsiveContainer>
+                  )}
                 </Card>
               </div>
 
