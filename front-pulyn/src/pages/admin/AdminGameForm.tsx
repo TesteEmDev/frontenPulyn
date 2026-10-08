@@ -230,10 +230,10 @@ export default function AdminGameForm() {
     setSaving(true);
     try {
       const gameData = {
-        name: formData.name,
+        nome: formData.name,
         description: formData.description,
         rules: formData.rules,
-        type: formData.type,
+        tipo: formData.type,
         duration: parseInt(formData.duration),
         eventoId: selectedEventoId,
         checkpoints: selectedCheckpoints.map(cp => ({

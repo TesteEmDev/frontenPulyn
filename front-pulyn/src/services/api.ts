@@ -775,7 +775,7 @@ export const api = {
     return data.floorPlan || null;
   },
 
-  async saveFloorPlan(data: { dataUrl: string; name: string; type: string }) {
+  async saveFloorPlan(data: { dataUrl: string; nome: string; type: string }) {
     const res = await fetch(`${API_URL}/company-map/floor-plan`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -1310,6 +1310,21 @@ export const api = {
     }
   },
 
+  // Checkpoints de RECEPÇÃO do evento (leitor do balcão). Ficam fora de getCheckpoints, que lista só os de jogo.
+  async getReceptionCheckpoints(eventoId: string) {
+    try {
+      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}?proposito=reception`, {
+        headers: getAuthHeaders()
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch (err) {
+      console.error('Erro ao carregar checkpoints de recepção:', err);
+      return [];
+    }
+  },
+
   async saveCheckpointConfig(checkpointId: string, config: any, eventoId?: string) {
     try {
       // Se eventoId for fornecido, usar rota com contexto de evento
@@ -1362,9 +1377,10 @@ export const api = {
     }
   },
 
-  async deleteCheckpoint(eventoId: string, checkpointId: string) {
+  async deleteCheckpoint(eventoId: string, checkpointId: string, proposito?: 'reception') {
     try {
-      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}/${checkpointId}`, {
+      const sufixo = proposito === 'reception' ? '?proposito=reception' : '';
+      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}/${checkpointId}${sufixo}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });

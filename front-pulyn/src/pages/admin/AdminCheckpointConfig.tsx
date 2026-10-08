@@ -4,11 +4,11 @@ import { useParams } from 'react-router-dom';
 import { Save, Wifi, WifiOff, CheckCircle, XCircle } from 'lucide-react';
 // No topo do arquivo AdminCheckpointConfig.tsx
 import { usePulynStore } from '../../store/mockData'; // Note: são 2 níveis: ../../store/mockData
-import { API_URL } from '../../services/api';
+import { API_URL, api } from '../../services/api';
 
 export default function AdminCheckpointConfig() {
   const { id } = useParams<{ id: string }>();
-  const { checkpoints, updateCheckpoint } = usePulynStore();
+  const { checkpoints, updateCheckpoint, eventoAtualId } = usePulynStore();
   const checkpoint = checkpoints.find(cp => cp.id === id);
   
   const [formData, setFormData] = useState({
@@ -46,13 +46,14 @@ export default function AdminCheckpointConfig() {
     setSaveStatus('idle');
     
     try {
-      const res = await fetch(`${API_URL}/pontoVerificacao/${id}/config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      
-      if (!res.ok) throw new Error();
+      // A rota de salvar exige o evento (o backend confere empresa e evento) e usa "tipo" no lugar de "type".
+      if (!eventoAtualId) throw new Error('Selecione um evento antes de salvar.');
+      await api.saveCheckpointConfig(id!, {
+        name: formData.name,
+        tipo: formData.type,
+        ip: formData.ip,
+        zone: formData.zone,
+      }, eventoAtualId);
       
       // Atualiza no store local
       updateCheckpoint(id!, {
