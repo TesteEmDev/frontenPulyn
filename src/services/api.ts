@@ -106,6 +106,18 @@ async function analyticsRequest(path: string) {
 }
 
 // Relatório geral (todos os eventos do buffet), devolvido por GET /reports/overview.
+// Cadastro permanente da criança e os pontos dela em cada evento em que participou.
+export interface PerfilCrianca {
+  perfilCriancaId: string;
+  nome: string;
+  apelido: string | null;
+  idade: number | null;
+  avatar: string | null;
+  ultimoEventoId: string | null;
+  pontosTotais: number;
+  eventos: { criancaId: string; eventoId: string; eventoNome: string; eventoData: string; pontos: number }[];
+}
+
 // Uma zona do evento com o que os checkpoints dela realmente registraram.
 export interface ZoneEngagement {
   zona: string;
@@ -757,6 +769,24 @@ export const api = {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erro ao verificar pulseira (${res.status})`);
     return data;
+  },
+
+  // Cadastro permanente da criança: pontos totais (todos os eventos) e pontos por evento.
+  async getPerfilCrianca(perfilCriancaId: string): Promise<PerfilCrianca> {
+    const res = await fetch(`${API_URL}/criancas/perfil/${encodeURIComponent(perfilCriancaId)}`, { headers: getAuthHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((body as any)?.error || `Erro ao carregar o cadastro da criança (${res.status})`);
+    return body as PerfilCrianca;
+  },
+
+  // Procura cadastros de crianças que já participaram de outros eventos da empresa.
+  async searchKioskProfiles(eventId: string, busca: string) {
+    const res = await fetch(`${API_URL}/kiosk/profiles?eventId=${encodeURIComponent(eventId)}&busca=${encodeURIComponent(busca)}`, {
+      headers: getAuthHeaders(),
+    });
+    const response = await res.json().catch(() => ([]));
+    if (!res.ok) throw new Error((response as any)?.error || `Erro ao buscar cadastro (${res.status})`);
+    return response;
   },
 
   async createKioskParticipant(eventId: string, data: any) {
