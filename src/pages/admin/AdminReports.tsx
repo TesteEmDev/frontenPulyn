@@ -57,6 +57,7 @@ export default function AdminReports() {
   const [games, setGames] = useState<any[]>([]);
   const [scoreLog, setScoreLog] = useState<any[]>([]);
   const [zoneEngagement, setZoneEngagement] = useState<ZoneEngagement[]>([]);
+  const [zoneError, setZoneError] = useState('');
 
   // Carregar a lista de eventos da empresa (só para popular o dropdown)
   useEffect(() => {
@@ -99,6 +100,7 @@ export default function AdminReports() {
       setGames([]);
       setScoreLog([]);
       setZoneEngagement([]);
+      setZoneError('');
       return;
     }
 
@@ -107,8 +109,11 @@ export default function AdminReports() {
     // As leituras dos checkpoints chegam o tempo todo: o engajamento por zona é recalculado a cada 30 s.
     const refreshZoneEngagement = () => {
       api.getZoneEngagement(selectedEventId)
-        .then(data => { if (!disposed) setZoneEngagement(data); })
-        .catch(error => console.error('Erro ao carregar o engajamento por zona:', error));
+        .then(data => { if (!disposed) { setZoneEngagement(data); setZoneError(''); } })
+        .catch(error => {
+          console.error('Erro ao carregar o engajamento por zona:', error);
+          if (!disposed) setZoneError(error instanceof Error ? error.message : 'Não foi possível carregar o engajamento por zona.');
+        });
     };
     refreshZoneEngagement();
     const zoneTimer = window.setInterval(refreshZoneEngagement, 30000);
@@ -388,7 +393,11 @@ export default function AdminReports() {
                 <Card>
                   <h3 className="font-display text-lg text-white">Engajamento por Zona</h3>
                   <p className="text-xs text-gray-500 mb-4">Leituras registradas pelos checkpoints de cada zona</p>
-                  {engagementByZoneData.length === 0 ? (
+                  {zoneError && engagementByZoneData.length === 0 ? (
+                    <div className="flex h-[280px] items-center justify-center px-4 text-center text-sm text-red-400">
+                      {zoneError}
+                    </div>
+                  ) : engagementByZoneData.length === 0 ? (
                     <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
                       Este evento ainda não tem checkpoints de jogo cadastrados.
                     </div>
