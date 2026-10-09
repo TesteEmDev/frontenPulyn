@@ -21,6 +21,10 @@ const AVATAR_OPTIONS = ADVENTURER_AVATARS.map(option => ({
   color: 'bg-primary/20',
 }));
 
+// Cadastros antigos podem ter um avatar que não existe mais; o Kiosk usa o padrão nesses casos.
+const profileAvatar = (avatar: string) =>
+  AVATAR_OPTIONS.some(option => option.emoji === avatar) ? avatar : DEFAULT_AVATAR_ID;
+
 const normalizeUid = (value: string) =>
   value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
 
@@ -62,6 +66,35 @@ const BraceletReaderIllustration = memo(({ active = false }: { active?: boolean 
 });
 BraceletReaderIllustration.displayName = 'BraceletReaderIllustration';
 
+// Teclado numérico da idade (o teclado de letras do Kiosk não tem dígitos).
+const KioskNumberPad = memo(({ onKeyPress, disabled }: { onKeyPress: (key: string) => void; disabled: boolean }) => (
+  <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/[0.06] bg-black/15 p-2 sm:p-3">
+    {['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0'].map(key => (
+      <button
+        key={key}
+        type="button"
+        disabled={disabled}
+        onClick={() => onKeyPress(key)}
+        aria-label={key === '⌫' ? 'Apagar' : key}
+        className={`h-12 rounded-xl border border-fuchsia-200/20 bg-gradient-to-b from-purple-400/25 to-purple-600/20 text-xl font-bold text-white shadow-[0_3px_0_rgba(91,33,182,0.65)] transition-all hover:border-fuchsia-200/50 active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:opacity-40 ${key === '⌫' ? 'border-rose-200/25 from-rose-400/25 to-rose-600/20' : ''}`}
+      >
+        {key}
+      </button>
+    ))}
+  </div>
+));
+KioskNumberPad.displayName = 'KioskNumberPad';
+
+type KioskMode = 'choose' | 'new' | 'existing';
+type KioskField = 'name' | 'nickname' | 'age';
+interface KioskProfile {
+  perfilCriancaId: string;
+  nomeExibicao: string;
+  apelido: string;
+  idade: number | null;
+  avatar: string;
+}
+
 type KioskState = 'waiting' | 'reading' | 'ready' | 'saving' | 'success' | 'error';
 
 export default function ReceptionKioskOtimizado() {
@@ -76,7 +109,13 @@ export default function ReceptionKioskOtimizado() {
   const [message, setMessage] = useState('Encoste a pulseira no leitor abaixo da tela para começar');
   const [braceletCode, setBraceletCode] = useState('');
   const [form, setForm] = useState({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID });
-  const [successData, setSuccessData] = useState<{ name: string; avatar: string } | null>(null);
+  const [successData, setSuccessData] = useState<{ name: string; avatar: string; returning: boolean } | null>(null);
+  const [mode, setMode] = useState<KioskMode>('choose');
+  const [focusField, setFocusField] = useState<KioskField>('name');
+  const [profileSearch, setProfileSearch] = useState('');
+  const [profileResults, setProfileResults] = useState<KioskProfile[]>([]);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState<KioskProfile | null>(null);
   const lastReadRef = useRef<{ code: string; at: number } | null>(null);
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const kioskStateRef = useRef<KioskState>('waiting');
@@ -87,6 +126,10 @@ export default function ReceptionKioskOtimizado() {
   
   // DEBOUNCE para evitar renders rápidos
   const debouncedFormName = useDebounce(form.name, 100);
+  const debouncedProfileSearch = useDebounce(profileSearch, 300);
+
+  const ageNumber = parseInt(form.age, 10);
+  const newFormValid = form.name.trim().length >= 2 && ageNumber >= 1 && ageNumber <= 18;
 
   useEffect(() => {
     kioskStateRef.current = state;
@@ -131,6 +174,11 @@ export default function ReceptionKioskOtimizado() {
     kioskStateRef.current = 'waiting';
     setBraceletCode('');
     setForm({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID });
+    setMode('choose');
+    setFocusField('name');
+    setProfileSearch('');
+    setProfileResults([]);
+    setSelectedProfile(null);
     setSuccessData(null);
     setState('waiting');
     setMessage('Encoste a pulseira no leitor abaixo da tela para começar');
@@ -161,6 +209,7 @@ export default function ReceptionKioskOtimizado() {
     kioskStateRef.current = 'reading';
 
     setBraceletCode(normalizedCode);
+    setMode('choose');
     setState('reading');
     setMessage('Pulseira reconhecida! Crie seu personagem.');
 
@@ -265,40 +314,53 @@ export default function ReceptionKioskOtimizado() {
   const handleSubmit = useCallback(async () => {
     if (!selectedEventId) return setMessage('Selecione um evento.');
     if (!braceletCode) return setMessage('Aproxime uma pulseira primeiro.');
-    if (!form.name.trim()) return setMessage('Digite o nome da criança.');
+    const returning = mode === 'existing';
+    if (returning && !selectedProfile) return setMessage('Escolha o seu cadastro na lista.');
+    if (!returning && !newFormValid) return setMessage('Preencha o nome completo e a idade da criança.');
     if (state === 'saving') return;
 
     kioskStateRef.current = 'saving';
     setState('saving');
-    setMessage('Criando personagem...');
+    setMessage(returning ? 'Entrando no evento...' : 'Criando personagem...');
     
     try {
-      await api.createKioskParticipant(selectedEventId, {
-        nome: form.name.trim(),
-        apelido: form.nickname.trim() || form.name.trim().split(' ')[0],
-        age: parseInt(form.age, 10) || 5,
-        avatar: form.avatar,
-        braceletCode,
-      });
+      const nickname = form.nickname.trim() || form.name.trim().split(' ')[0];
+      const avatar = returning ? profileAvatar(selectedProfile!.avatar) : form.avatar;
+      await api.createKioskParticipant(selectedEventId, returning
+        ? {
+            // Quem já tem cadastro só entra no evento: nome, idade e apelido vêm do cadastro permanente.
+            perfilCriancaId: selectedProfile!.perfilCriancaId,
+            apelido: selectedProfile!.apelido,
+            avatar,
+            braceletCode,
+          }
+        : {
+            nome: form.name.trim(),
+            apelido: nickname,
+            idade: ageNumber,
+            avatar,
+            braceletCode,
+          });
 
       // Atualizar cache
       braceletCache.current.set(braceletCode, false);
       
       setSuccessData({
-        name: form.nickname.trim() || form.name.trim(),
-        avatar: form.avatar,
+        name: returning ? (selectedProfile!.apelido || selectedProfile!.nomeExibicao) : nickname,
+        avatar,
+        returning,
       });
       
       kioskStateRef.current = 'success';
       setState('success');
-      setMessage('Personagem criado!');
+      setMessage(returning ? 'Cadastro encontrado!' : 'Personagem criado!');
       successTimerRef.current = setTimeout(resetKiosk, 4000); // Reduzido de 5000
     } catch (error) {
       kioskStateRef.current = 'error';
       setState('error');
       setMessage(getErrorMessage(error));
     }
-  }, [braceletCode, form, resetKiosk, selectedEventId, state]);
+  }, [braceletCode, form, mode, newFormValid, ageNumber, resetKiosk, selectedEventId, selectedProfile, state]);
 
   useEffect(() => () => {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
@@ -311,18 +373,67 @@ export default function ReceptionKioskOtimizado() {
     setForm(prev => ({ ...prev, avatar }));
   }, []);
 
+  // Digita no campo escolhido (nome completo ou apelido).
   const handleVirtualKey = useCallback((key: string) => {
     if (!canInteract || state === 'saving') return;
+    const field = focusField === 'nickname' ? 'nickname' : 'name';
+    const limit = field === 'name' ? 40 : 18;
 
     setForm(prev => {
-      if (key === '⌫') return { ...prev, name: prev.name.slice(0, -1) };
-      if (key === 'ESPAÇO') {
-        return prev.name.length < 18 ? { ...prev, name: `${prev.name} ` } : prev;
-      }
-      if (prev.name.length >= 18) return prev;
-      return { ...prev, name: `${prev.name}${key}` };
+      const current = prev[field];
+      if (key === '⌫') return { ...prev, [field]: current.slice(0, -1) };
+      if (current.length >= limit) return prev;
+      if (key === 'ESPAÇO') return current && !current.endsWith(' ') ? { ...prev, [field]: `${current} ` } : prev;
+      return { ...prev, [field]: `${current}${key}` };
+    });
+  }, [canInteract, focusField, state]);
+
+  const handleNumberKey = useCallback((key: string) => {
+    if (!canInteract || state === 'saving') return;
+    setForm(prev => {
+      if (key === '⌫') return { ...prev, age: prev.age.slice(0, -1) };
+      let next = prev.age.length >= 2 ? key : `${prev.age}${key}`;
+      if (Number(next) > 18) next = key; // passou de 18: recomeça pelo dígito digitado
+      if (next === '0') return prev;
+      return { ...prev, age: next };
     });
   }, [canInteract, state]);
+
+  const handleSearchKey = useCallback((key: string) => {
+    if (!canInteract || state === 'saving') return;
+    setSelectedProfile(null);
+    setProfileSearch(prev => {
+      if (key === '⌫') return prev.slice(0, -1);
+      if (prev.length >= 24) return prev;
+      if (key === 'ESPAÇO') return prev && !prev.endsWith(' ') ? `${prev} ` : prev;
+      return `${prev}${key}`;
+    });
+  }, [canInteract, state]);
+
+  const goBackToChoice = useCallback(() => {
+    setMode('choose');
+    setSelectedProfile(null);
+    setProfileSearch('');
+    setProfileResults([]);
+  }, []);
+
+  // Busca de cadastros já existentes (criança que já participou de outro evento).
+  useEffect(() => {
+    if (mode !== 'existing' || !selectedEventId) return;
+    const term = debouncedProfileSearch.trim();
+    if (term.length < 2) {
+      setProfileResults([]);
+      setProfileLoading(false);
+      return;
+    }
+    let active = true;
+    setProfileLoading(true);
+    api.searchKioskProfiles(selectedEventId, term)
+      .then(result => { if (active) setProfileResults(Array.isArray(result) ? result : []); })
+      .catch(() => { if (active) setProfileResults([]); })
+      .finally(() => { if (active) setProfileLoading(false); });
+    return () => { active = false; };
+  }, [debouncedProfileSearch, mode, selectedEventId]);
 
   // LOADING STATE
   if (loading) {
@@ -459,7 +570,7 @@ export default function ReceptionKioskOtimizado() {
                         <Avatar emoji={successData.avatar} size="lg" bgColor="bg-success/20" />
                       </div>
                       <p className="text-sm font-semibold uppercase tracking-[0.25em] text-success">
-                        Personagem criado
+                        {successData.returning ? 'Bem-vindo de volta' : 'Personagem criado'}
                       </p>
                       <h2 className="mt-2 font-display text-5xl font-bold text-white">
                         {successData.name}
@@ -540,69 +651,41 @@ export default function ReceptionKioskOtimizado() {
               </div>
             </div>
 
-            {/* REGISTRATION FORM - APENAS QUANDO VISÍVEL */}
+            {/* CADASTRO - APENAS QUANDO VISÍVEL */}
             {registrationVisible && (
               <div className="animate-in motion-reduce:animate-none relative z-10 grid min-h-[calc(100vh-13rem)] gap-3 overflow-hidden rounded-[2rem] border border-fuchsia-300/20 bg-[#0c1328] p-3 shadow-xl sm:p-5 lg:min-h-0 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:grid-cols-[minmax(260px,0.72fr)_minmax(420px,1.28fr)] lg:p-3">
-                {/* AVATAR SELECTOR */}
-                <section className="flex flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-4 shadow-lg backdrop-blur sm:p-5 lg:p-3">
-                  <div className="mb-4 flex items-center justify-between gap-3 border-b border-cyan-300/10 pb-3">
+                {mode === 'choose' && (
+                  <section className="flex flex-col items-center justify-center gap-6 rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-6 text-center shadow-lg sm:p-10 lg:col-span-2">
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">
-                        Etapa 1 • Aparência
+                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-cyan-300">
+                        Pulseira reconhecida
                       </p>
-                      <h3 className="mt-1 font-display text-2xl font-bold text-white">
-                        Escolha seu personagem
+                      <h3 className="mt-2 font-display text-3xl font-bold text-white sm:text-4xl">
+                        Você já tem cadastro aqui?
                       </h3>
                     </div>
-                    <span className="hidden rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-cyan-200 sm:inline-flex">
-                      Avatar
-                    </span>
-                  </div>
-                  <AvatarSelector
-                    value={form.avatar}
-                    onChange={handleAvatarChange}
-                    disabled={!canInteract}
-                    compact
-                  />
-                </section>
-
-                {/* NAME INPUT + KEYBOARD */}
-                <section className="flex flex-col rounded-[1.75rem] border border-fuchsia-300/25 bg-[#1b0f38] p-4 shadow-lg backdrop-blur sm:p-5 lg:p-3">
-                  <div className="mb-4 flex items-center gap-3 rounded-3xl border border-fuchsia-300/20 bg-gradient-to-r from-fuchsia-300/10 to-transparent p-3">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-4 border-fuchsia-300/50 bg-fuchsia-300/10 p-1.5 shadow-md">
-                      <Avatar emoji={selectedAvatar.emoji} size="md" bgColor={selectedAvatar.color} />
+                    <div className="grid w-full max-w-3xl gap-4 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => setMode('new')}
+                        disabled={!canInteract}
+                        className="flex flex-col items-center gap-2 rounded-3xl border-2 border-fuchsia-300/40 bg-fuchsia-300/10 px-6 py-8 transition hover:border-fuchsia-200 hover:bg-fuchsia-300/20 active:scale-[0.99] disabled:opacity-50"
+                      >
+                        <span className="text-5xl" aria-hidden="true">🎮</span>
+                        <span className="font-display text-2xl font-bold text-white">Sou novo!</span>
+                        <span className="text-sm text-gray-300">Criar meu personagem</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMode('existing')}
+                        disabled={!canInteract}
+                        className="flex flex-col items-center gap-2 rounded-3xl border-2 border-cyan-300/40 bg-cyan-300/10 px-6 py-8 transition hover:border-cyan-200 hover:bg-cyan-300/20 active:scale-[0.99] disabled:opacity-50"
+                      >
+                        <span className="text-5xl" aria-hidden="true">🔎</span>
+                        <span className="font-display text-2xl font-bold text-white">Já tenho cadastro</span>
+                        <span className="text-sm text-gray-300">Encontrar meu personagem</span>
+                      </button>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">
-                        Etapa 2 • Identidade
-                      </p>
-                      <h3 className="mt-1 font-display text-xl font-bold leading-tight text-white sm:text-2xl">
-                        Como você se chama?
-                      </h3>
-                    </div>
-                    <span className="shrink-0 text-xl sm:text-2xl">✍️</span>
-                  </div>
-
-                  <div className="mb-4 flex min-h-[58px] items-center justify-center rounded-2xl border-2 border-fuchsia-300/55 bg-[#120a27] px-4 text-center font-display text-xl uppercase tracking-wider text-white">
-                    {debouncedFormName || (
-                      <span className="text-sm font-normal tracking-normal text-gray-500">
-                        Toque nas letras para digitar
-                      </span>
-                    )}
-                  </div>
-
-                  {/* KEYBOARD OTIMIZADO */}
-                  <VirtualKeyboardOtimizado
-                    onKeyPress={handleVirtualKey}
-                    disabled={!canInteract || state === 'saving'}
-                    compact={true}
-                  />
-                </section>
-
-                {/* ACTIONS */}
-                <section className="rounded-[1.75rem] border border-white/[0.1] bg-dark-card/90 p-4 shadow-lg backdrop-blur sm:p-5 lg:col-span-2">
-                  {/* SUBMIT BUTTON */}
-                  <div className="flex items-center justify-between gap-3">
                     <button
                       type="button"
                       onClick={resetKiosk}
@@ -610,16 +693,268 @@ export default function ReceptionKioskOtimizado() {
                     >
                       Cancelar
                     </button>
-                    <button
-                      type="button"
-                      onClick={handleSubmit}
-                      disabled={!canInteract || state === 'saving' || !form.name.trim()}
-                      className="rounded-xl border border-success/40 bg-success/10 px-5 py-2.5 text-sm font-semibold text-success transition hover:bg-success/20 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {state === 'saving' ? 'Criando...' : 'Criar personagem'}
-                    </button>
-                  </div>
-                </section>
+                  </section>
+                )}
+
+                {mode === 'new' && (
+                  <>
+                    {/* AVATAR */}
+                    <section className="flex flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-4 shadow-lg backdrop-blur sm:p-5 lg:p-3">
+                      <div className="mb-4 flex items-center justify-between gap-3 border-b border-cyan-300/10 pb-3">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">
+                            Etapa 1 • Aparência
+                          </p>
+                          <h3 className="mt-1 font-display text-2xl font-bold text-white">
+                            Escolha seu personagem
+                          </h3>
+                        </div>
+                        <span className="hidden rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-cyan-200 sm:inline-flex">
+                          Avatar
+                        </span>
+                      </div>
+                      <AvatarSelector
+                        value={form.avatar}
+                        onChange={handleAvatarChange}
+                        disabled={!canInteract}
+                        compact
+                      />
+                    </section>
+
+                    {/* IDENTIDADE: NOME COMPLETO, APELIDO E IDADE */}
+                    <section className="flex flex-col rounded-[1.75rem] border border-fuchsia-300/25 bg-[#1b0f38] p-4 shadow-lg backdrop-blur sm:p-5 lg:p-3">
+                      <div className="mb-3 flex items-center gap-3 rounded-3xl border border-fuchsia-300/20 bg-gradient-to-r from-fuchsia-300/10 to-transparent p-3">
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-4 border-fuchsia-300/50 bg-fuchsia-300/10 p-1.5 shadow-md">
+                          <Avatar emoji={selectedAvatar.emoji} size="md" bgColor={selectedAvatar.color} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">
+                            Etapa 2 • Identidade
+                          </p>
+                          <h3 className="mt-1 font-display text-xl font-bold leading-tight text-white sm:text-2xl">
+                            Quem é você?
+                          </h3>
+                        </div>
+                        <span className="shrink-0 text-xl sm:text-2xl" aria-hidden="true">✍️</span>
+                      </div>
+
+                      <div className="mb-3 grid gap-2 sm:grid-cols-[1.6fr_1fr_0.6fr]">
+                        {([
+                          { field: 'name', label: 'Nome completo', value: debouncedFormName, placeholder: 'Toque e digite' },
+                          { field: 'nickname', label: 'Apelido', value: form.nickname, placeholder: 'Como te chamam?' },
+                          { field: 'age', label: 'Idade', value: form.age ? `${form.age} ${form.age === '1' ? 'ano' : 'anos'}` : '', placeholder: 'Anos' },
+                        ] as const).map(item => (
+                          <button
+                            key={item.field}
+                            type="button"
+                            onClick={() => setFocusField(item.field)}
+                            disabled={!canInteract || state === 'saving'}
+                            aria-pressed={focusField === item.field}
+                            className={`min-w-0 rounded-2xl border-2 px-3 py-2 text-left transition ${
+                              focusField === item.field
+                                ? 'border-fuchsia-300 bg-[#120a27] shadow-[0_0_0_3px_rgba(240,171,252,0.15)]'
+                                : 'border-white/10 bg-[#120a27]/60 hover:border-fuchsia-300/40'
+                            }`}
+                          >
+                            <span className="block text-[10px] font-bold uppercase tracking-[0.25em] text-fuchsia-300">
+                              {item.label}
+                            </span>
+                            <span className="block min-h-[28px] truncate font-display text-lg uppercase tracking-wider text-white sm:text-xl">
+                              {item.value || (
+                                <span className="text-sm font-normal normal-case tracking-normal text-gray-500">
+                                  {item.placeholder}
+                                </span>
+                              )}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {focusField === 'age' ? (
+                        <KioskNumberPad onKeyPress={handleNumberKey} disabled={!canInteract || state === 'saving'} />
+                      ) : (
+                        <VirtualKeyboardOtimizado
+                          onKeyPress={handleVirtualKey}
+                          disabled={!canInteract || state === 'saving'}
+                          compact={true}
+                        />
+                      )}
+                    </section>
+
+                    <section className="rounded-[1.75rem] border border-white/[0.1] bg-dark-card/90 p-4 shadow-lg backdrop-blur sm:p-5 lg:col-span-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={goBackToChoice}
+                            className="rounded-xl border border-white/10 px-4 py-2.5 text-sm text-gray-300 transition hover:bg-white/10 hover:text-white"
+                          >
+                            ‹ Voltar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={resetKiosk}
+                            className="rounded-xl border border-white/10 px-4 py-2.5 text-sm text-gray-400 transition hover:bg-white/10 hover:text-white"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {focusField !== 'age' && (
+                            <button
+                              type="button"
+                              onClick={() => setFocusField(focusField === 'name' ? 'nickname' : 'age')}
+                              disabled={!canInteract || state === 'saving'}
+                              className="rounded-xl border border-fuchsia-300/40 bg-fuchsia-300/10 px-4 py-2.5 text-sm font-semibold text-fuchsia-200 transition hover:bg-fuchsia-300/20 disabled:opacity-50"
+                            >
+                              Próximo ›
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={handleSubmit}
+                            disabled={!canInteract || state === 'saving' || !newFormValid}
+                            className="rounded-xl border border-success/40 bg-success/10 px-5 py-2.5 text-sm font-semibold text-success transition hover:bg-success/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {state === 'saving' ? 'Criando...' : 'Criar personagem'}
+                          </button>
+                        </div>
+                      </div>
+                      {!newFormValid && form.name.trim() && (
+                        <p className="mt-2 text-right text-xs text-gray-500">
+                          Falta {!form.age ? 'a idade (de 1 a 18 anos)' : 'completar o nome'} para criar o personagem.
+                        </p>
+                      )}
+                    </section>
+                  </>
+                )}
+
+                {mode === 'existing' && (
+                  <>
+                    {/* BUSCA */}
+                    <section className="flex flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-4 shadow-lg backdrop-blur sm:p-5 lg:p-3">
+                      <div className="mb-3 border-b border-cyan-300/10 pb-3">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">
+                          Já tenho cadastro
+                        </p>
+                        <h3 className="mt-1 font-display text-2xl font-bold text-white">
+                          Digite seu apelido ou nome
+                        </h3>
+                      </div>
+                      <div className="mb-3 flex min-h-[58px] items-center justify-center rounded-2xl border-2 border-cyan-300/50 bg-[#050d1c] px-4 text-center font-display text-xl uppercase tracking-wider text-white">
+                        {profileSearch || (
+                          <span className="text-sm font-normal normal-case tracking-normal text-gray-500">
+                            Toque nas letras para procurar
+                          </span>
+                        )}
+                      </div>
+                      <VirtualKeyboardOtimizado
+                        onKeyPress={handleSearchKey}
+                        disabled={!canInteract || state === 'saving'}
+                        compact={true}
+                      />
+                    </section>
+
+                    {/* RESULTADO */}
+                    <section className="flex flex-col rounded-[1.75rem] border border-fuchsia-300/25 bg-[#1b0f38] p-4 shadow-lg backdrop-blur sm:p-5 lg:p-3">
+                      {selectedProfile ? (
+                        <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+                          <div className="rounded-full border-4 border-fuchsia-300/50 bg-fuchsia-300/10 p-4 shadow-md">
+                            <Avatar emoji={profileAvatar(selectedProfile.avatar)} size="lg" bgColor="bg-primary/20" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-[0.3em] text-fuchsia-300">É você?</p>
+                            <h3 className="mt-1 font-display text-4xl font-bold text-white">
+                              {selectedProfile.apelido || selectedProfile.nomeExibicao}
+                            </h3>
+                            <p className="mt-1 text-gray-300">
+                              {selectedProfile.nomeExibicao}
+                              {selectedProfile.idade ? ` • ${selectedProfile.idade} anos` : ''}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedProfile(null)}
+                            disabled={state === 'saving'}
+                            className="rounded-xl border border-white/10 px-4 py-2.5 text-sm text-gray-300 transition hover:bg-white/10 hover:text-white"
+                          >
+                            Não sou eu
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">
+                            Cadastros encontrados
+                          </p>
+                          {profileResults.length > 0 ? (
+                            <ul className="grid gap-2">
+                              {profileResults.map(profile => (
+                                <li key={profile.perfilCriancaId}>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedProfile(profile)}
+                                    disabled={!canInteract}
+                                    className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-[#120a27]/70 p-2.5 text-left transition hover:border-fuchsia-300/50 hover:bg-fuchsia-300/10 active:scale-[0.99]"
+                                  >
+                                    <div className="shrink-0 rounded-xl border-2 border-fuchsia-300/40 bg-fuchsia-300/10 p-1">
+                                      <Avatar emoji={profileAvatar(profile.avatar)} size="md" bgColor="bg-primary/20" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate font-display text-xl font-bold uppercase text-white">
+                                        {profile.apelido || profile.nomeExibicao}
+                                      </p>
+                                      <p className="truncate text-sm text-gray-400">
+                                        {profile.nomeExibicao}{profile.idade ? ` • ${profile.idade} anos` : ''}
+                                      </p>
+                                    </div>
+                                    <span className="text-xl text-fuchsia-300" aria-hidden="true">›</span>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-gray-400">
+                              {profileSearch.trim().length < 2
+                                ? 'Digite pelo menos 2 letras do seu apelido ou nome.'
+                                : profileLoading
+                                ? 'Procurando...'
+                                : 'Não encontramos esse cadastro. Confira as letras ou volte e escolha "Sou novo!".'}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </section>
+
+                    <section className="rounded-[1.75rem] border border-white/[0.1] bg-dark-card/90 p-4 shadow-lg backdrop-blur sm:p-5 lg:col-span-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={goBackToChoice}
+                            className="rounded-xl border border-white/10 px-4 py-2.5 text-sm text-gray-300 transition hover:bg-white/10 hover:text-white"
+                          >
+                            ‹ Voltar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={resetKiosk}
+                            className="rounded-xl border border-white/10 px-4 py-2.5 text-sm text-gray-400 transition hover:bg-white/10 hover:text-white"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleSubmit}
+                          disabled={!canInteract || state === 'saving' || !selectedProfile}
+                          className="rounded-xl border border-success/40 bg-success/10 px-5 py-2.5 text-sm font-semibold text-success transition hover:bg-success/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {state === 'saving' ? 'Entrando...' : 'Entrar no evento'}
+                        </button>
+                      </div>
+                    </section>
+                  </>
+                )}
               </div>
             )}
           </section>

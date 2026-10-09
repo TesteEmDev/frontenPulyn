@@ -4,6 +4,8 @@ import {
   Calendar, Users, MapPin, Shield, Clock, Award
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
+import { api } from '../../services/api';
+import type { PerfilCrianca } from '../../services/api';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import TopBar from '../../components/layout/TopBar';
 import Card from '../../components/ui/Card';
@@ -26,6 +28,7 @@ export default function AdminChildProfile() {
   } = usePulynStore();
   
   const [loading, setLoading] = useState(true);
+  const [perfil, setPerfil] = useState<PerfilCrianca | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -50,6 +53,20 @@ export default function AdminChildProfile() {
   const team = child ? safeTeams.find(t => t.id === (child.teamId || child.team_id)) : null;
   const childScores = safeScoreLog.filter(s => s.childId === id || s.child_id === id);
   const braceletCode = child?.codigoPulseira || child?.bracelet;
+  const perfilCriancaId: string | undefined = child?.perfilCriancaId;
+
+  // Cadastro permanente: pontos totais de todos os eventos e pontos por evento.
+  useEffect(() => {
+    if (!perfilCriancaId) {
+      setPerfil(null);
+      return;
+    }
+    let disposed = false;
+    api.getPerfilCrianca(perfilCriancaId)
+      .then(data => { if (!disposed) setPerfil(data); })
+      .catch(error => console.error('Erro ao carregar o cadastro da criança:', error));
+    return () => { disposed = true; };
+  }, [perfilCriancaId]);
 
   if (loading) {
     return (
@@ -111,11 +128,42 @@ export default function AdminChildProfile() {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-xs text-gray-500">Pontuação total</p>
+                <p className="text-xs text-gray-500">Pontuação neste evento</p>
                 <p className="font-display text-3xl font-bold text-primary">{child.scores || 0}</p>
+                {perfil && (
+                  <p className="mt-1 text-xs text-gray-400">
+                    {perfil.pontosTotais} pontos no total · {perfil.eventos.length} {perfil.eventos.length === 1 ? 'evento' : 'eventos'}
+                  </p>
+                )}
               </div>
             </div>
           </Card>
+
+          {perfil && perfil.eventos.length > 0 && (
+            <Card>
+              <div className="flex items-center gap-2 mb-4">
+                <Calendar size={20} className="text-primary" />
+                <h3 className="font-display text-lg text-white">Participações em eventos</h3>
+                <span className="ml-auto text-sm text-gray-400">Total: <strong className="text-primary">{perfil.pontosTotais}</strong> pontos</span>
+              </div>
+              <ul className="divide-y divide-white/5">
+                {perfil.eventos.map(item => {
+                  const [ano, mes, dia] = String(item.eventoData || '').slice(0, 10).split('-');
+                  return (
+                    <li key={item.criancaId} className="flex items-center justify-between gap-3 py-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-white">{item.eventoNome}</p>
+                        <p className="text-xs text-gray-500">{ano && mes && dia ? `${dia}/${mes}/${ano}` : 'Sem data'}</p>
+                      </div>
+                      <Badge variant={item.eventoId === perfil.ultimoEventoId ? 'success' : 'default'}>
+                        {item.pontos} pts{item.eventoId === perfil.ultimoEventoId ? ' · último evento' : ''}
+                      </Badge>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Família - Dados mockados (serão integrados depois) */}
