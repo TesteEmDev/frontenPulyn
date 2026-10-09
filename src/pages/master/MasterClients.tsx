@@ -23,6 +23,8 @@ import {
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
+import { PLANOS_SELECIONAVEIS } from '../../utils/planos';
+import type { PlanoId } from '../../utils/planos';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -47,7 +49,7 @@ interface Client {
   name: string;
   city: string;
   state: string;
-  plan: 'starter' | 'professional' | 'enterprise';
+  plan: PlanoId;
   status: 'active' | 'blocked' | 'trial';
   eventsDone: number;
   lastAccess: string;
@@ -310,9 +312,7 @@ export default function MasterClients() {
                 <Select
                   options={[
                     { value: 'all', label: 'Todos os planos' },
-                    { value: 'starter', label: 'Starter' },
-                    { value: 'professional', label: 'Professional' },
-                    { value: 'enterprise', label: 'Enterprise' },
+                    ...PLANOS_SELECIONAVEIS,
                   ]}
                   value={filterPlan}
                   onChange={e => setFilterPlan(e.target.value)}
@@ -388,9 +388,9 @@ export default function MasterClients() {
                               onChange={(e) => handleUpdatePlan(client.id, e.target.value)}
                               className="bg-transparent border-none text-sm focus:outline-none cursor-pointer"
                             >
-                              <option value="starter" className="bg-card">Starter</option>
-                              <option value="professional" className="bg-card">Professional</option>
-                              <option value="enterprise" className="bg-card">Enterprise</option>
+                              {PLANOS_SELECIONAVEIS.map(item => (
+                                <option key={item.value} value={item.value} className="bg-card">{item.label}</option>
+                              ))}
                             </select>
                           </td>
                           <td className="py-3 px-4">
@@ -503,11 +503,7 @@ export default function MasterClients() {
               />
               <Select
                 label="Plano"
-                options={[
-                  { value: 'starter', label: 'Starter' },
-                  { value: 'professional', label: 'Professional' },
-                  { value: 'enterprise', label: 'Enterprise' },
-                ]}
+                options={PLANOS_SELECIONAVEIS}
                 value={newPlan}
                 onChange={e => setNewPlan(e.target.value)}
               />
