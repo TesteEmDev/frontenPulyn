@@ -6,8 +6,8 @@ const MOTIVOS: Record<string, string> = {
   explodiu: 'A bomba explodiu!',
   desarmada: 'A bomba foi desarmada!',
   tempo: 'O tempo do round acabou',
-  eliminacao_tr: 'Equipe TR eliminada',
-  eliminacao_ct: 'Equipe CT eliminada',
+  eliminacao_tr: 'Rebeldes eliminados',
+  eliminacao_ct: 'Agentes eliminados',
   jogo_parado: 'Jogo parado',
 };
 
@@ -16,7 +16,7 @@ function LadoSelo({ lado }: { lado: 'TR' | 'CT' | null }) {
   const tr = lado === 'TR';
   return (
     <span className={`rounded-full px-4 py-1 text-sm font-bold uppercase tracking-[0.2em] ${tr ? 'bg-danger/20 text-red-200' : 'bg-primary/20 text-sky-200'}`}>
-      {tr ? 'Terroristas' : 'Contra-terroristas'}
+      {tr ? 'Rebeldes' : 'Agentes'}
     </span>
   );
 }
@@ -53,7 +53,7 @@ export default function BombaPlacar({ eventoId }: { eventoId: string }) {
   const situacao = campeao ? `${campeao.nome} venceu a partida!`
     : plantada ? 'BOMBA PLANTADA!'
     : emAndamento ? 'Round em andamento'
-    : resultado ? `${MOTIVOS[resultado.motivo] || 'Round encerrado'}`
+    : resultado ? `${resultado.vencedorLado === 'tr' ? 'Rebeldes venceram' : 'Agentes venceram'} · ${MOTIVOS[resultado.motivo] || 'round encerrado'}`
     : 'Aguardando o início do round';
 
   return (
