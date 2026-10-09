@@ -16,6 +16,9 @@ const typeBadge: Record<string, { variant: 'primary' | 'secondary' | 'accent'; l
   team: { variant: 'primary', label: 'Equipe' },
   individual: { variant: 'secondary', label: 'Individual' },
   cooperative: { variant: 'accent', label: 'Cooperativo' },
+  treasure_hunt: { variant: 'secondary', label: 'Caça ao Tesouro' },
+  monster_hunt: { variant: 'primary', label: 'Caça ao Monstro' },
+  bomb_defusal: { variant: 'accent', label: 'Conquistar e Destruir' },
 };
 
 export default function AdminGames() {
