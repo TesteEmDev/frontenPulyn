@@ -116,10 +116,14 @@ export interface BombaConfig {
   vitoriasParaVencer: number; roundsPorLado: number; duracaoRoundSeg: number;
   plantarMs: number; desarmarMs: number; bombaSeg: number;
 }
+// Local da bomba (checkpoint marcado no jogo): o primeiro é o A, o segundo o B...
+export interface BombaLocal { checkpointId: string; letra: string; nome: string; online: boolean }
+
 export interface BombaRound {
   roundId: string; numero: number; status: 'aguardando' | 'em_andamento' | 'bomba_plantada' | 'finalizado';
   timeTr: BombaTime | null; timeCt: BombaTime | null;
   portadorCriancaId: string | null; portadorNumero: number | null; localCheckpointId: string | null;
+  local: BombaLocal | null;
   restanteRoundMs: number | null; restanteBombaMs: number | null;
   vencedorTimeId: string | null; motivo: string | null;
 }
@@ -131,7 +135,8 @@ export interface BombaEstado {
     timeTrInicialId: string | null; vencedorTimeId: string | null; config: BombaConfig;
   } | null;
   round: BombaRound | null;
-  ultimoResultado: { numero: number; vencedorTimeId: string; vencedorLado: 'tr' | 'ct'; motivo: string; finalizadoEm: string } | null;
+  ultimoResultado: { numero: number; vencedorTimeId: string; vencedorLado: 'tr' | 'ct'; motivo: string; finalizadoEm: string; local: BombaLocal | null } | null;
+  locais: BombaLocal[];
   jogadores: BombaJogador[];
   emAndamento: { checkpointId: string; tipo: 'plantar' | 'desarmar'; criancaId: string; progressoMs: number; totalMs: number }[];
 }
@@ -1007,13 +1012,23 @@ export const api = {
     return Array.isArray(data) ? data : [];
   },
 
+  // Tipos de jogo que o plano da empresa permite criar (a lista vem do servidor, que também confere ao salvar).
+  async getTiposDeJogo(): Promise<{ value: string; label: string }[]> {
+    const res = await fetch(`${API_URL}/brincadeiras/tipos`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ([]));
+    if (!res.ok) throw new Error((data as any)?.error || `Erro ao carregar os tipos de jogo (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
   async createBrincadeira(data: any) {
     const res = await fetch(`${API_URL}/brincadeiras`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((body as any)?.error || `Erro ao criar o jogo (${res.status})`);
+    return body;
   },
 
   async updateBrincadeira(id: string, data: any) {
@@ -1022,7 +1037,9 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((body as any)?.error || `Erro ao salvar o jogo (${res.status})`);
+    return body;
   },
 
   // Ativa ou desativa um jogo (só o status)

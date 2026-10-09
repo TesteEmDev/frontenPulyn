@@ -115,7 +115,7 @@ export default function BombaPainel({ eventoId }: { eventoId: string }) {
           </div>
           {round && emPartida && (
             <Badge variant={plantada ? 'danger' : emAndamento ? 'success' : 'muted'}>
-              {plantada ? 'Bomba plantada' : emAndamento ? 'Round em andamento' : 'Aguardando round'}
+              {plantada ? `Bomba plantada${round?.local ? ` no Local ${round.local.letra}` : ''}` : emAndamento ? 'Round em andamento' : 'Aguardando round'}
             </Badge>
           )}
         </div>
@@ -179,8 +179,20 @@ export default function BombaPainel({ eventoId }: { eventoId: string }) {
 
         {resultado && emPartida && round?.status === 'aguardando' && (
           <p className="rounded-lg bg-surface/50 p-3 text-sm text-gray-300">
-            Round {resultado.numero}: {resultado.vencedorLado === 'tr' ? 'os Rebeldes venceram' : 'os Agentes venceram'} — {MOTIVOS[resultado.motivo] || resultado.motivo}.
+            Round {resultado.numero}: {resultado.vencedorLado === 'tr' ? 'os Rebeldes venceram' : 'os Agentes venceram'} — {MOTIVOS[resultado.motivo] || resultado.motivo}{resultado.local && ['explodiu', 'desarmada'].includes(resultado.motivo) ? ` (Local ${resultado.local.letra} · ${resultado.local.nome})` : ''}.
           </p>
+        )}
+
+        {/* Locais da bomba */}
+        {emPartida && (estado.locais || []).length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs uppercase tracking-wide text-gray-500">Locais da bomba</span>
+            {(estado.locais || []).map(local => (
+              <Badge key={local.checkpointId} variant={plantada && round?.local?.checkpointId === local.checkpointId ? 'danger' : local.online ? 'success' : 'muted'}>
+                Local {local.letra} · {local.nome}{local.online ? '' : ' (offline)'}
+              </Badge>
+            ))}
+          </div>
         )}
 
         {/* Controles */}
