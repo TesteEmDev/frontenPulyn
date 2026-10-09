@@ -445,7 +445,7 @@ export default function AdminGameForm() {
                 <>
                   <p className="text-sm text-gray-400 mb-4">
                     {formData.type === 'bomb_defusal'
-                      ? 'Selecione os 2 checkpoints-bomba (locais A e B). Os tempos e as regras da partida ficam na tela PulynBall.'
+                      ? 'Selecione os 2 checkpoints-bomba. O primeiro marcado (na ordem da lista) é o local A e o segundo é o B; só eles valem como bomba neste jogo. Os tempos e as regras da partida ficam na tela PulynBall.'
                       : 'Selecione os checkpoints e configure pontos e cooldown para cada um.'}
                   </p>
                   <div className="space-y-3">
@@ -470,7 +470,14 @@ export default function AdminGameForm() {
                               {cp.enabled && <Check size={14} className="text-white" />}
                             </button>
                             <div className="flex-1">
-                              <p className="text-sm font-semibold text-white">{checkpoint?.name || cp.id}</p>
+                              <p className="text-sm font-semibold text-white">
+                                {checkpoint?.name || cp.id}
+                                {formData.type === 'bomb_defusal' && cp.enabled && (
+                                  <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs font-bold text-accent">
+                                    Local {String.fromCharCode(65 + checkpointConfigs.filter(item => item.enabled).findIndex(item => item.id === cp.id))}
+                                  </span>
+                                )}
+                              </p>
                               <p className="text-xs text-gray-500">{checkpoint?.zone} &middot; {checkpoint?.type}</p>
                             </div>
                           </div>

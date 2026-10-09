@@ -116,10 +116,14 @@ export interface BombaConfig {
   vitoriasParaVencer: number; roundsPorLado: number; duracaoRoundSeg: number;
   plantarMs: number; desarmarMs: number; bombaSeg: number;
 }
+// Local da bomba (checkpoint marcado no jogo): o primeiro é o A, o segundo o B...
+export interface BombaLocal { checkpointId: string; letra: string; nome: string; online: boolean }
+
 export interface BombaRound {
   roundId: string; numero: number; status: 'aguardando' | 'em_andamento' | 'bomba_plantada' | 'finalizado';
   timeTr: BombaTime | null; timeCt: BombaTime | null;
   portadorCriancaId: string | null; portadorNumero: number | null; localCheckpointId: string | null;
+  local: BombaLocal | null;
   restanteRoundMs: number | null; restanteBombaMs: number | null;
   vencedorTimeId: string | null; motivo: string | null;
 }
@@ -131,7 +135,8 @@ export interface BombaEstado {
     timeTrInicialId: string | null; vencedorTimeId: string | null; config: BombaConfig;
   } | null;
   round: BombaRound | null;
-  ultimoResultado: { numero: number; vencedorTimeId: string; vencedorLado: 'tr' | 'ct'; motivo: string; finalizadoEm: string } | null;
+  ultimoResultado: { numero: number; vencedorTimeId: string; vencedorLado: 'tr' | 'ct'; motivo: string; finalizadoEm: string; local: BombaLocal | null } | null;
+  locais: BombaLocal[];
   jogadores: BombaJogador[];
   emAndamento: { checkpointId: string; tipo: 'plantar' | 'desarmar'; criancaId: string; progressoMs: number; totalMs: number }[];
 }

@@ -51,9 +51,9 @@ export default function BombaPlacar({ eventoId }: { eventoId: string }) {
   };
 
   const situacao = campeao ? `${campeao.nome} venceu a partida!`
-    : plantada ? 'BOMBA PLANTADA!'
+    : plantada ? `BOMBA PLANTADA${round?.local ? ` NO LOCAL ${round.local.letra}` : ''}!`
     : emAndamento ? 'Round em andamento'
-    : resultado ? `${resultado.vencedorLado === 'tr' ? 'Rebeldes venceram' : 'Agentes venceram'} · ${MOTIVOS[resultado.motivo] || 'round encerrado'}`
+    : resultado ? `${resultado.vencedorLado === 'tr' ? 'Rebeldes venceram' : 'Agentes venceram'} · ${MOTIVOS[resultado.motivo] || 'round encerrado'}${resultado.local && ['explodiu', 'desarmada'].includes(resultado.motivo) ? ` · Local ${resultado.local.letra}` : ''}`
     : 'Aguardando o início do round';
 
   return (
@@ -88,6 +88,10 @@ export default function BombaPlacar({ eventoId }: { eventoId: string }) {
       <div className={`mt-5 rounded-2xl px-6 py-4 text-center font-display text-4xl font-bold ${plantada ? 'bg-danger/20 text-red-200' : campeao ? 'bg-success/15 text-success' : 'bg-white/5 text-white'} ${urgente ? 'animate-pulse' : ''}`}>
         {situacao}
       </div>
+
+      {plantada && round?.local && (
+        <p className="mt-2 text-center text-xl font-semibold text-red-200">Local {round.local.letra} · {round.local.nome}</p>
+      )}
 
       {emLeitura && (
         <div className="mt-4">
