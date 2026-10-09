@@ -6,6 +6,7 @@ import {
 import { usePulynStore } from '../../store/mockData';
 import { useEvento } from '../../contexts/EventoContext';
 import { api } from '../../services/api';
+import { useAuth } from '../../hooks/useAuth';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import TopBar from '../../components/layout/TopBar';
 import Card from '../../components/ui/Card';
@@ -31,6 +32,7 @@ export default function AdminGameForm() {
   const { id } = useParams<{ id: string }>();
   const { brincadeiras, checkpoints, loadCheckpoints, events, loadEventos } = usePulynStore();
   const { eventoAtualId, setEventoAtualId } = useEvento();
+  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [loadingCheckpoints, setLoadingCheckpoints] = useState(true);
   const [loadingEventos, setLoadingEventos] = useState(true);
@@ -326,6 +328,10 @@ export default function AdminGameForm() {
                       { value: 'cooperative', label: 'Cooperativo' },
                       { value: 'treasure_hunt', label: 'Caça ao Tesouro' },
                       { value: 'monster_hunt', label: 'Caça ao Monstro' },
+                      // Jogos do PulynBall: só para o plano PulynBall (o backend também confere)
+                      ...(user?.plan === 'pulynball' || user?.role === 'master' || formData.type === 'bomb_defusal'
+                        ? [{ value: 'bomb_defusal', label: 'Conquistar e Destruir (PulynBall)' }]
+                        : []),
                     ]}
                     value={formData.type}
                     onChange={e => updateField('type', e.target.value)}

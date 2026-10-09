@@ -106,6 +106,47 @@ async function analyticsRequest(path: string) {
 }
 
 // Relatório geral (todos os eventos do buffet), devolvido por GET /reports/overview.
+// ---- Conquistar e Destruir (PulynBall) ----
+export interface BombaTime { timeId: string; nome?: string; cor?: string; vitorias?: number }
+export interface BombaJogador {
+  criancaId: string; nome: string; apelido?: string | null; avatar?: string | null;
+  timeId: string; numeroJogador: number | null;
+}
+export interface BombaConfig {
+  vitoriasParaVencer: number; roundsPorLado: number; duracaoRoundSeg: number;
+  plantarMs: number; desarmarMs: number; bombaSeg: number;
+}
+export interface BombaRound {
+  roundId: string; numero: number; status: 'aguardando' | 'em_andamento' | 'bomba_plantada' | 'finalizado';
+  timeTr: BombaTime | null; timeCt: BombaTime | null;
+  portadorCriancaId: string | null; portadorNumero: number | null; localCheckpointId: string | null;
+  restanteRoundMs: number | null; restanteBombaMs: number | null;
+  vencedorTimeId: string | null; motivo: string | null;
+}
+export interface BombaEstado {
+  agora: string;
+  ativa: boolean;
+  partida: {
+    partidaId: string; status: string; timeA: BombaTime; timeB: BombaTime;
+    timeTrInicialId: string | null; vencedorTimeId: string | null; config: BombaConfig;
+  } | null;
+  round: BombaRound | null;
+  ultimoResultado: { numero: number; vencedorTimeId: string; vencedorLado: 'tr' | 'ct'; motivo: string; finalizadoEm: string } | null;
+  jogadores: BombaJogador[];
+  emAndamento: { checkpointId: string; tipo: 'plantar' | 'desarmar'; criancaId: string; progressoMs: number; totalMs: number }[];
+}
+
+async function bombaRequest(path: string, method = 'GET', body?: unknown): Promise<BombaEstado> {
+  const res = await fetch(`${API_URL}/bomba${path}`, {
+    method,
+    headers: getAuthHeaders(),
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as any)?.error || `Erro na partida (${res.status})`);
+  return data as BombaEstado;
+}
+
 // Cadastro permanente da criança e os pontos dela em cada evento em que participou.
 export interface PerfilCrianca {
   perfilCriancaId: string;
@@ -769,6 +810,20 @@ export const api = {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erro ao verificar pulseira (${res.status})`);
     return data;
+  },
+
+  // Conquistar e Destruir: estado da partida e controles do recreacionista.
+  getBombaEstado(eventoId: string) { return bombaRequest(`/evento/${encodeURIComponent(eventoId)}`); },
+  numerarBomba(eventoId: string) { return bombaRequest(`/evento/${encodeURIComponent(eventoId)}/numerar`, 'POST'); },
+  definirNumeroBomba(eventoId: string, criancaId: string, numero: number | null) {
+    return bombaRequest(`/evento/${encodeURIComponent(eventoId)}/jogador/${encodeURIComponent(criancaId)}`, 'PUT', { numero });
+  },
+  configurarBomba(eventoId: string, dados: { timeAId?: string; timeBId?: string; timeTrInicialId?: string; config?: Partial<BombaConfig> }) {
+    return bombaRequest(`/evento/${encodeURIComponent(eventoId)}/partida/configurar`, 'POST', dados);
+  },
+  iniciarRoundBomba(eventoId: string) { return bombaRequest(`/evento/${encodeURIComponent(eventoId)}/round/iniciar`, 'POST'); },
+  encerrarRoundBomba(eventoId: string, vencedor: 'tr' | 'ct') {
+    return bombaRequest(`/evento/${encodeURIComponent(eventoId)}/round/encerrar`, 'POST', { vencedor });
   },
 
   // Cadastro permanente da criança: pontos totais (todos os eventos) e pontos por evento.
