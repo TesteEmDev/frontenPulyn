@@ -20,6 +20,7 @@ const sidebarItems = [
 const TYPE_LABEL: Record<string, string> = {
   treasure_hunt: 'Caça ao Tesouro',
   monster_hunt: 'Caça ao Monstro',
+  bomb_defusal: 'Conquistar e Destruir',
   team: 'Zona (equipe)',
   individual: 'Zona (individual)',
   cooperative: 'Cooperativo',

@@ -60,7 +60,7 @@ export interface Game {
   id: string;
   name: string;
   description: string;
-  type: 'team' | 'individual' | 'cooperative' | 'treasure_hunt' | 'monster_hunt';
+  type: 'team' | 'individual' | 'cooperative' | 'treasure_hunt' | 'monster_hunt' | 'bomb_defusal';
   duration: number;
   checkpoints: string[];
   status: 'active' | 'paused' | 'finished' | 'inactive';

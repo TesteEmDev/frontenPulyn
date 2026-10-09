@@ -6,6 +6,7 @@ import { useZoneConquestGame, type ZoneConquestStatus } from '../../hooks/useZon
 import { ZoneConquestIndividualRanking } from '../../components/display/ZoneConquestIndividualRanking';
 import { usePulynStore } from '../../store/mockData';
 import Card from '../../components/ui/Card';
+import BombaPlacar from '../../components/display/BombaPlacar';
 import Badge from '../../components/ui/Badge';
 import Monster3D from '../../components/display/Monster3D';
 import DisplayMap from './DisplayMap';
@@ -710,9 +711,10 @@ export default function DisplayMain() {
   const treasureStageVisible = selectedGameType === 'treasure_hunt' && treasureStatus?.gameType === 'treasure_hunt'
     && Boolean(treasureStatus.active || treasureStatus.completed);
   const mapStageVisible = Boolean(shouldShowMap) && !monsterStatus?.active && !treasureStatus?.active;
-  const hasStage = monsterStageVisible || treasureStageVisible || mapStageVisible;
+  const bombaStageVisible = selectedGameType === 'bomb_defusal';
+  const hasStage = monsterStageVisible || treasureStageVisible || mapStageVisible || bombaStageVisible;
   // Só o mapa: ele preenche o palco (as arenas é que são reduzidas para caber)
-  const mapOnly = mapStageVisible && !monsterStageVisible && !treasureStageVisible;
+  const mapOnly = mapStageVisible && !monsterStageVisible && !treasureStageVisible && !bombaStageVisible;
 
   const rankingRowText = 'text-[clamp(0.9rem,2vh,1.4rem)]';
   const rankingSubText = 'text-[clamp(0.65rem,1.4vh,0.85rem)]';
@@ -750,6 +752,7 @@ export default function DisplayMain() {
             ) : (
             <FitToBox align="center" minScale={0.3} maxScale={gameOnlyView ? 1.6 : 1}>
               <>
+          {bombaStageVisible && <BombaPlacar eventoId={selectedEventId} />}
           {selectedGameType === 'monster_hunt' && monsterStatus?.gameType === 'monster_hunt' && (
             <div className="mx-auto max-w-6xl rounded-3xl border-2 border-danger/70 bg-gradient-to-br from-red-950/80 via-dark-surface/90 to-purple-950/70 p-5 shadow-2xl shadow-danger/20 sm:p-6" aria-live="polite">
               <div className="mb-5 flex flex-wrap items-center justify-between gap-3">

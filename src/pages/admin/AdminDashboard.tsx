@@ -44,6 +44,7 @@ const formatEventDate = (value?: string | null) => {
 const GAME_TYPE_LABELS: Record<string, string> = {
   treasure_hunt: 'Caça ao Tesouro',
   monster_hunt: 'Caça ao Monstro',
+  bomb_defusal: 'Conquistar e Destruir',
   zone_conquest: 'Zona',
 };
 const gameLabel = (state: any) => state?.gameName || GAME_TYPE_LABELS[state?.gameType] || 'Jogo em andamento';

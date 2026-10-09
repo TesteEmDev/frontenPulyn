@@ -6,6 +6,7 @@ import Sidebar from '../../components/layout/Sidebar';
 import { PARALLEL_NAV_ITEM, GAMES_NAV_ITEM } from '../../components/layout/gameMasterNav';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
+import BombaPainel from '../../components/game-master/BombaPainel';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Avatar from '../../components/ui/Avatar';
@@ -993,6 +994,11 @@ export default function GameMasterDashboard() {
                 )}
               </div>
             </Card>
+          )}
+
+          {/* Conquistar e Destruir (PulynBall) */}
+          {activeGame?.type === 'bomb_defusal' && eventoAtualId && (
+            <BombaPainel eventoId={eventoAtualId} />
           )}
 
           {/* Status do Caça ao Monstro */}
