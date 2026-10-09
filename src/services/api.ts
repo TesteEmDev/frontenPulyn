@@ -1007,6 +1007,14 @@ export const api = {
     return Array.isArray(data) ? data : [];
   },
 
+  // Tipos de jogo que o plano da empresa permite criar (a lista vem do servidor, que também confere ao salvar).
+  async getTiposDeJogo(): Promise<{ value: string; label: string }[]> {
+    const res = await fetch(`${API_URL}/brincadeiras/tipos`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ([]));
+    if (!res.ok) throw new Error((data as any)?.error || `Erro ao carregar os tipos de jogo (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
   async createBrincadeira(data: any) {
     const res = await fetch(`${API_URL}/brincadeiras`, {
       method: 'POST',

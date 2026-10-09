@@ -6,7 +6,6 @@ import {
 import { usePulynStore } from '../../store/mockData';
 import { useEvento } from '../../contexts/EventoContext';
 import { api } from '../../services/api';
-import { useAuth } from '../../hooks/useAuth';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import TopBar from '../../components/layout/TopBar';
 import Card from '../../components/ui/Card';
@@ -27,14 +26,25 @@ interface AutoMessage {
   message: string;
 }
 
+// Nome dos tipos que um jogo antigo pode ter (o plano atual pode não criá-los mais).
+const TIPOS_ANTIGOS: Record<string, string> = {
+  team: 'Equipe',
+  individual: 'Individual',
+  cooperative: 'Cooperativo',
+  treasure_hunt: 'Caça ao Tesouro',
+  monster_hunt: 'Caça ao Monstro',
+  bomb_defusal: 'Conquistar e Destruir (PulynBall)',
+};
+
 export default function AdminGameForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { brincadeiras, checkpoints, loadCheckpoints, events, loadEventos } = usePulynStore();
   const { eventoAtualId, setEventoAtualId } = useEvento();
-  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  // Tipos que o plano permite criar (vem do servidor); null enquanto carrega.
+  const [tiposPermitidos, setTiposPermitidos] = useState<{ value: string; label: string }[] | null>(null);
   const [loadingCheckpoints, setLoadingCheckpoints] = useState(true);
   const [loadingEventos, setLoadingEventos] = useState(true);
   const [selectedEventoId, setSelectedEventoId] = useState<string>(eventoAtualId || '');
@@ -197,6 +207,30 @@ export default function AdminGameForm() {
     { trigger: 'on_end', message: 'O jogo terminou. Confira o ranking!' },
   ]);
 
+  // Carrega só os tipos que o plano permite criar.
+  useEffect(() => {
+    api.getTiposDeJogo()
+      .then(setTiposPermitidos)
+      .catch(() => setTiposPermitidos([]));
+  }, []);
+
+  // Jogo novo: começa no primeiro tipo permitido (para o plano PulynBall o padrão "Equipe" não existe).
+  useEffect(() => {
+    if (id || !tiposPermitidos || tiposPermitidos.length === 0) return;
+    setFormData(prev => (tiposPermitidos.some(tipo => tipo.value === prev.type)
+      ? prev
+      : { ...prev, type: tiposPermitidos[0].value }));
+  }, [id, tiposPermitidos]);
+
+  // Editando um jogo antigo de um tipo que o plano não cria mais, o tipo dele continua aparecendo.
+  const opcoesDeTipo = (() => {
+    const lista = tiposPermitidos || [];
+    if (existingGame?.type && !lista.some(tipo => tipo.value === existingGame.type)) {
+      return [...lista, { value: existingGame.type, label: TIPOS_ANTIGOS[existingGame.type] || existingGame.type }];
+    }
+    return lista;
+  })();
+
   const updateField = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -348,17 +382,7 @@ export default function AdminGameForm() {
                 <div className="grid grid-cols-2 gap-4">
                   <Select
                     label="Tipo"
-                    options={[
-                      { value: 'team', label: 'Equipe' },
-                      { value: 'individual', label: 'Individual' },
-                      { value: 'cooperative', label: 'Cooperativo' },
-                      { value: 'treasure_hunt', label: 'Caça ao Tesouro' },
-                      { value: 'monster_hunt', label: 'Caça ao Monstro' },
-                      // Jogos do PulynBall: só para o plano PulynBall (o backend também confere)
-                      ...(user?.plan === 'pulynball' || user?.role === 'master' || formData.type === 'bomb_defusal'
-                        ? [{ value: 'bomb_defusal', label: 'Conquistar e Destruir (PulynBall)' }]
-                        : []),
-                    ]}
+                    options={opcoesDeTipo}
                     value={formData.type}
                     onChange={e => updateField('type', e.target.value)}
                   />
