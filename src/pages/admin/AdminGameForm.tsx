@@ -34,6 +34,7 @@ export default function AdminGameForm() {
   const { eventoAtualId, setEventoAtualId } = useEvento();
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [loadingCheckpoints, setLoadingCheckpoints] = useState(true);
   const [loadingEventos, setLoadingEventos] = useState(true);
   const [selectedEventoId, setSelectedEventoId] = useState<string>(eventoAtualId || '');
@@ -91,6 +92,24 @@ export default function AdminGameForm() {
           setEventoAtualId(selectedEventoId);
           // Tentar carregar do store primeiro
           await loadCheckpoints();
+
+          // Jogo novo: a lista de checkpoints SEMPRE acompanha o evento escolhido. Antes ela era montada só na
+          // primeira carga; ao trocar o evento ficavam os checkpoints do evento anterior e o servidor recusava o
+          // jogo ("checkpoints devem pertencer ao evento"), o que a tela escondia.
+          if (!id) {
+            const doEvento = await api.getCheckpoints(selectedEventoId);
+            const lista = (Array.isArray(doEvento) ? doEvento : [])
+              .filter((cp: any) => String(cp.proposito || 'game').toLowerCase() !== 'reception');
+            setCheckpointConfigs(anteriores => lista.map((cp: any) => ({
+              id: cp.checkpointId ?? cp.id,
+              // o que já estava marcado continua marcado se o checkpoint também existe neste evento
+              enabled: Boolean(anteriores.find(item => item.id === (cp.checkpointId ?? cp.id))?.enabled),
+              points: cp.pontos || 10,
+              cooldown: 30,
+              special: false,
+            })));
+            setCheckpointsInitialized(true);
+          }
           
           // Se o store voltou vazio, tentar buscar da API diretamente
           if (checkpoints.length === 0) {
@@ -222,6 +241,11 @@ export default function AdminGameForm() {
       return;
     }
 
+    if (formData.type === 'bomb_defusal' && selectedCheckpoints.length < 2) {
+      setSaveError('O Conquistar e Destruir precisa de 2 checkpoints: os locais A e B da bomba.');
+      return;
+    }
+
     if (formData.type === 'monster_hunt' && selectedCheckpoints.some((cp) =>
       !Number.isInteger(cp.cooldown) || cp.cooldown < 1 || cp.cooldown > 120
     )) {
@@ -230,6 +254,7 @@ export default function AdminGameForm() {
     }
 
     setSaving(true);
+    setSaveError('');
     try {
       const gameData = {
         nome: formData.name,
@@ -257,7 +282,8 @@ export default function AdminGameForm() {
       navigate('/admin/games');
     } catch (error) {
       console.error('❌ Erro ao salvar jogo:', error);
-      alert('Erro ao salvar jogo. Tente novamente.');
+      // Mostra o motivo que o servidor deu (plano, tipo inválido, checkpoint...) em vez de voltar à lista como se tivesse salvado.
+      setSaveError(error instanceof Error && error.message ? error.message : 'Erro ao salvar o jogo. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -373,7 +399,11 @@ export default function AdminGameForm() {
                 <p className="text-sm text-gray-400">Nenhum checkpoint disponível. Crie um checkpoint antes de criar um jogo.</p>
               ) : (
                 <>
-                  <p className="text-sm text-gray-400 mb-4">Selecione os checkpoints e configure pontos e cooldown para cada um.</p>
+                  <p className="text-sm text-gray-400 mb-4">
+                    {formData.type === 'bomb_defusal'
+                      ? 'Selecione os 2 checkpoints-bomba (locais A e B). Os tempos e as regras da partida ficam na tela PulynBall.'
+                      : 'Selecione os checkpoints e configure pontos e cooldown para cada um.'}
+                  </p>
                   <div className="space-y-3">
                     {checkpointConfigs.map(cp => {
                       const checkpoint = checkpoints.find(c => c.id === cp.id);
@@ -400,7 +430,7 @@ export default function AdminGameForm() {
                               <p className="text-xs text-gray-500">{checkpoint?.zone} &middot; {checkpoint?.type}</p>
                             </div>
                           </div>
-                          {cp.enabled && (
+                          {cp.enabled && formData.type !== 'bomb_defusal' && (
                             <div className="grid grid-cols-2 gap-3 ml-8 mt-2">
                               <div className="col-span-2 flex items-center gap-2 text-xs text-gray-300">
                                 <input
@@ -480,6 +510,11 @@ export default function AdminGameForm() {
             </Card>
 
             {/* Save */}
+            {saveError && (
+              <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                {saveError}
+              </p>
+            )}
             <div className="flex justify-end pt-2">
               <Button variant="primary" onClick={handleSave} disabled={saving}>
                 <Save size={16} className="mr-1.5" />

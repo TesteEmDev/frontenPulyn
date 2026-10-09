@@ -1013,7 +1013,9 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((body as any)?.error || `Erro ao criar o jogo (${res.status})`);
+    return body;
   },
 
   async updateBrincadeira(id: string, data: any) {
@@ -1022,7 +1024,9 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((body as any)?.error || `Erro ao salvar o jogo (${res.status})`);
+    return body;
   },
 
   // Ativa ou desativa um jogo (só o status)
