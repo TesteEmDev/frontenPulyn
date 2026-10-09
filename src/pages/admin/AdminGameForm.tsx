@@ -207,6 +207,22 @@ export default function AdminGameForm() {
     { trigger: 'on_end', message: 'O jogo terminou. Confira o ranking!' },
   ]);
 
+  // O evento mostrado no campo precisa ser o evento guardado. O <select> mostra a primeira opção quando o valor
+  // está vazio, então a tela parecia ter um evento escolhido e o salvar dizia "Selecione um evento".
+  // Jogo novo: usa o evento em uso (o da recepção) ou, na falta dele, o primeiro da lista. Também acerta
+  // diferenças de maiúsculas/minúsculas entre o id guardado e o da lista.
+  useEffect(() => {
+    if (id || loadingEventos || events.length === 0) return;
+    const doEvento = (valor: string) => events.find(e => String(e.eventoId).toLowerCase() === String(valor || '').toLowerCase());
+    const atual = doEvento(selectedEventoId);
+    if (atual) {
+      if (atual.eventoId !== selectedEventoId) setSelectedEventoId(atual.eventoId);
+      return;
+    }
+    const preferido = doEvento(eventoAtualId || '') || events[0];
+    if (preferido) setSelectedEventoId(preferido.eventoId);
+  }, [id, loadingEventos, events, selectedEventoId, eventoAtualId]);
+
   // Carrega só os tipos que o plano permite criar.
   useEffect(() => {
     api.getTiposDeJogo()
@@ -345,7 +361,11 @@ export default function AdminGameForm() {
                   options={
                     loadingEventos
                       ? [{ value: '', label: 'Carregando eventos...' }]
-                      : events.map(e => ({ value: e.eventoId, label: e.nome }))
+                      : [
+                          // Sem evento escolhido, o campo mostra isso (e não a primeira opção da lista).
+                          ...(selectedEventoId ? [] : [{ value: '', label: 'Selecione um evento' }]),
+                          ...events.map(e => ({ value: e.eventoId, label: e.nome })),
+                        ]
                   }
                   value={selectedEventoId}
                   onChange={e => setSelectedEventoId(e.target.value)}
