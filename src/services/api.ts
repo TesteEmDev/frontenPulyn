@@ -136,6 +136,12 @@ export interface BombaEstado {
   emAndamento: { checkpointId: string; tipo: 'plantar' | 'desarmar'; criancaId: string; progressoMs: number; totalMs: number }[];
 }
 
+// Jogo PulynBall com as regras que o cliente editou (tela /admin/pulynball).
+export interface BombaJogo {
+  brincadeiraId: string; eventoId: string; nome: string; descricao: string; regras: string; status: string;
+  config: BombaConfig;
+}
+
 async function bombaRequest(path: string, method = 'GET', body?: unknown): Promise<BombaEstado> {
   const res = await fetch(`${API_URL}/bomba${path}`, {
     method,
@@ -810,6 +816,26 @@ export const api = {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erro ao verificar pulseira (${res.status})`);
     return data;
+  },
+
+  // Tela PulynBall (admin): jogos do evento com as regras editáveis.
+  async getBombaJogos(eventoId: string): Promise<{
+    jogos: BombaJogo[]; padroes: BombaConfig; limites: Record<keyof BombaConfig, [number, number]>;
+  }> {
+    const res = await fetch(`${API_URL}/bomba/jogos?eventoId=${encodeURIComponent(eventoId)}`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any)?.error || `Erro ao carregar os jogos (${res.status})`);
+    return data as any;
+  },
+  async salvarBombaJogo(brincadeiraId: string, dados: { nome: string; descricao: string; regras: string; config: BombaConfig }): Promise<BombaJogo> {
+    const res = await fetch(`${API_URL}/bomba/jogos/${encodeURIComponent(brincadeiraId)}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(dados),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any)?.error || `Erro ao salvar o jogo (${res.status})`);
+    return data as BombaJogo;
   },
 
   // Conquistar e Destruir: estado da partida e controles do recreacionista.

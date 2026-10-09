@@ -35,6 +35,7 @@ import AdminEventNew from './pages/admin/AdminEventNew';
 import AdminChildren from './pages/admin/AdminChildren';
 import AdminChildProfile from './pages/admin/AdminChildProfile';
 import AdminGames from './pages/admin/AdminGames';
+import AdminPulynBall from './pages/admin/AdminPulynBall';
 import AdminGameForm from './pages/admin/AdminGameForm';
 import AdminCheckpoints from './pages/admin/AdminCheckpoints';
 import AdminCheckpointConfig from './pages/admin/AdminCheckpointConfig';
@@ -237,6 +238,7 @@ function App() {
           <Route path="/admin/events/:id/edit" element={<ProtectedRoute allowedRoles={['admin']}><AdminEventNew /></ProtectedRoute>} />
           <Route path="/admin/children" element={<ProtectedRoute allowedRoles={['admin']}><AdminChildren /></ProtectedRoute>} />
           <Route path="/admin/children/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminChildProfile /></ProtectedRoute>} />
+          <Route path="/admin/pulynball" element={<ProtectedRoute allowedRoles={['admin']}><AdminPulynBall /></ProtectedRoute>} />
           <Route path="/admin/games" element={<ProtectedRoute allowedRoles={['admin']}><AdminGames /></ProtectedRoute>} />
           <Route path="/admin/games/new" element={<ProtectedRoute allowedRoles={['admin']}><AdminGameForm /></ProtectedRoute>} />
           <Route path="/admin/games/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminGameForm /></ProtectedRoute>} />
