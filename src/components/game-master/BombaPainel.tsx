@@ -12,8 +12,8 @@ const MOTIVOS: Record<string, string> = {
   explodiu: 'a bomba explodiu',
   desarmada: 'a bomba foi desarmada',
   tempo: 'o tempo do round acabou',
-  eliminacao_tr: 'a equipe TR foi eliminada',
-  eliminacao_ct: 'a equipe CT foi eliminada',
+  eliminacao_tr: 'a equipe dos Rebeldes foi eliminada',
+  eliminacao_ct: 'a equipe dos Agentes foi eliminada',
   jogo_parado: 'o jogo foi parado',
 };
 
@@ -34,7 +34,7 @@ export default function BombaPainel({ eventoId }: { eventoId: string }) {
   const round = estado?.round || null;
   const primeiroRoundAguardando = Boolean(partida && estado?.ativa && round?.numero === 1 && round.status === 'aguardando');
 
-  // Equipes do evento para o recreacionista escolher quem joga e quem começa como TR.
+  // Equipes do evento para o recreacionista escolher quem joga e quem começa como Rebeldes.
   useEffect(() => {
     api.getTimes(eventoId).then((lista: any[]) => {
       setTimesDoEvento((Array.isArray(lista) ? lista : []).map(time => ({
@@ -123,7 +123,7 @@ export default function BombaPainel({ eventoId }: { eventoId: string }) {
         {/* Placar */}
         <div className="grid grid-cols-2 gap-3">
           {[partida.timeA, partida.timeB].map(time => {
-            const lado = round && round.timeTr?.timeId === time.timeId ? 'TR' : round && round.timeCt?.timeId === time.timeId ? 'CT' : null;
+            const lado = round && round.timeTr?.timeId === time.timeId ? 'REBELDES' : round && round.timeCt?.timeId === time.timeId ? 'AGENTES' : null;
             return (
               <div key={time.timeId} className="rounded-lg bg-surface/50 p-3" style={{ border: `1px solid ${time.cor || '#1E9BD7'}66` }}>
                 <div className="flex items-center justify-between gap-2">
@@ -132,7 +132,7 @@ export default function BombaPainel({ eventoId }: { eventoId: string }) {
                     <span className="truncate">{nomeDoTime(time)}</span>
                   </span>
                   {emPartida && lado && (
-                    <Badge variant={lado === 'TR' ? 'danger' : 'primary'}>{lado === 'TR' ? 'TR · planta' : 'CT · desarma'}</Badge>
+                    <Badge variant={lado === 'REBELDES' ? 'danger' : 'primary'}>{lado === 'REBELDES' ? 'Rebeldes · plantam' : 'Agentes · desarmam'}</Badge>
                   )}
                 </div>
                 <p className="mt-1 font-display text-4xl font-bold text-white">
@@ -179,7 +179,7 @@ export default function BombaPainel({ eventoId }: { eventoId: string }) {
 
         {resultado && emPartida && round?.status === 'aguardando' && (
           <p className="rounded-lg bg-surface/50 p-3 text-sm text-gray-300">
-            Round {resultado.numero}: a equipe {resultado.vencedorLado === 'tr' ? 'TR' : 'CT'} venceu — {MOTIVOS[resultado.motivo] || resultado.motivo}.
+            Round {resultado.numero}: {resultado.vencedorLado === 'tr' ? 'os Rebeldes venceram' : 'os Agentes venceram'} — {MOTIVOS[resultado.motivo] || resultado.motivo}.
           </p>
         )}
 
@@ -194,11 +194,11 @@ export default function BombaPainel({ eventoId }: { eventoId: string }) {
             {(emAndamento || plantada) && (
               <>
                 <Button variant="danger" size="sm" disabled={ocupado} onClick={() => {
-                  if (window.confirm('Encerrar o round dando a vitória à equipe TR?')) executar(() => api.encerrarRoundBomba(eventoId, 'tr'));
-                }}>TR venceu</Button>
+                  if (window.confirm('Encerrar o round dando a vitória aos Rebeldes?')) executar(() => api.encerrarRoundBomba(eventoId, 'tr'));
+                }}>Rebeldes venceram</Button>
                 <Button variant="primary" size="sm" disabled={ocupado} onClick={() => {
-                  if (window.confirm('Encerrar o round dando a vitória à equipe CT?')) executar(() => api.encerrarRoundBomba(eventoId, 'ct'));
-                }}>CT venceu</Button>
+                  if (window.confirm('Encerrar o round dando a vitória aos Agentes?')) executar(() => api.encerrarRoundBomba(eventoId, 'ct'));
+                }}>Agentes venceram</Button>
                 <span className="text-xs text-gray-500">Use quando uma equipe inteira for eliminada.</span>
               </>
             )}
@@ -218,7 +218,7 @@ export default function BombaPainel({ eventoId }: { eventoId: string }) {
                 {timesParaEscolher.filter(t => t.timeId !== timeAId).map(t => <option key={t.timeId} value={t.timeId}>{t.nome}</option>)}
               </select>
             </label>
-            <label className="text-sm text-gray-300">Quem começa como TR
+            <label className="text-sm text-gray-300">Quem começa como Rebeldes
               <select value={timeTrId} onChange={e => setTimeTrId(e.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-dark px-3 py-2 text-white">
                 {[timeAId, timeBId].map(id => <option key={id} value={id}>{timesParaEscolher.find(t => t.timeId === id)?.nome || id}</option>)}
               </select>
@@ -237,7 +237,7 @@ export default function BombaPainel({ eventoId }: { eventoId: string }) {
             <p className="text-sm font-semibold text-white">Jogadores e números</p>
             <Button size="sm" variant="ghost" disabled={ocupado || !emPartida} onClick={() => executar(() => api.numerarBomba(eventoId), 'Jogadores sem número foram numerados.')}>Numerar quem falta</Button>
           </div>
-          <p className="mb-2 text-xs text-gray-500">A cada round, o portador da bomba é sorteado entre os números da equipe TR.</p>
+          <p className="mb-2 text-xs text-gray-500">A cada round, o portador da bomba é sorteado entre os números da equipe dos Rebeldes.</p>
           <div className="grid gap-3 md:grid-cols-2">
             {[partida.timeA, partida.timeB].map(time => (
               <div key={time.timeId}>
