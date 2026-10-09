@@ -96,16 +96,16 @@ export default function BombaMapa({ eventoId, floorPlan }: { eventoId: string; f
           return (
             <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
               {explodindo && (
-                <circle r={26} fill="none" stroke="#EF4444" strokeWidth={2.5}>
-                  <animate attributeName="r" values="20;38;20" dur="1s" repeatCount="indefinite" />
+                <circle r={17} fill="none" stroke="#EF4444" strokeWidth={2.5}>
+                  <animate attributeName="r" values="13;26;13" dur="1s" repeatCount="indefinite" />
                   <animate attributeName="stroke-opacity" values="0.9;0;0.9" dur="1s" repeatCount="indefinite" />
                 </circle>
               )}
-              <circle r={20} fill={cor} fillOpacity={explodindo ? 0.35 : 0.2} stroke={cor} strokeWidth={3} />
-              <text y={1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize={22} fontWeight={800}>
+              <circle r={13} fill={cor} fillOpacity={explodindo ? 0.35 : 0.2} stroke={cor} strokeWidth={2.5} />
+              <text y={1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize={15} fontWeight={800}>
                 {local.letra}
               </text>
-              <text y={36} textAnchor="middle" fill="#E5E7EB" fontSize={11} fontWeight={600}>
+              <text y={25} textAnchor="middle" fill="#E5E7EB" fontSize={9} fontWeight={600}>
                 {local.nome}
               </text>
             </g>
