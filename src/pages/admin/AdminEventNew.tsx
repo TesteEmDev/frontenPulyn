@@ -21,11 +21,13 @@ const TIPO_DO_JOGO: Record<string, string> = {
   treasure_hunt: 'Caça ao Tesouro',
   monster_hunt: 'Caça ao Monstro',
   bomb_defusal: 'Conquistar e Destruir',
+  zone_domination: 'Zona (domínio total)',
+  hostage_rescue: 'Resgate do Refém',
 };
 const tipoDoJogo = (tipo?: string) => TIPO_DO_JOGO[String(tipo || '')] || 'Jogo';
 
 // Plano PulynBall: só os jogos de paintball.
-const JOGO_PULYNBALL = 'bomb_defusal';
+const JOGOS_PULYNBALL = ['bomb_defusal', 'zone_domination', 'hostage_rescue'];
 
 const steps = [
   { number: 1, label: 'Informações' },
@@ -68,7 +70,7 @@ export default function AdminEventNew() {
         const brincadeirasData = await api.getBrincadeiras();
         const todosOsJogos = Array.isArray(brincadeirasData) ? brincadeirasData : [];
         // Quem tem o plano PulynBall só enxerga (e só pode escolher) os jogos de paintball.
-        const jogosDoPlano = soPulynBall ? todosOsJogos.filter((game: any) => game.type === JOGO_PULYNBALL) : todosOsJogos;
+        const jogosDoPlano = soPulynBall ? todosOsJogos.filter((game: any) => JOGOS_PULYNBALL.includes(game.type)) : todosOsJogos;
         setBrincadeiras(jogosDoPlano);
 
         // Edição: carrega o evento existente no formulário
@@ -96,7 +98,7 @@ export default function AdminEventNew() {
           // Jogos que já fazem parte do evento vêm marcados
           try {
             const eventGames = await api.getBrincadeiras(editingId);
-            const doEvento = soPulynBall ? eventGames.filter((game: any) => game.type === JOGO_PULYNBALL) : eventGames;
+            const doEvento = soPulynBall ? eventGames.filter((game: any) => JOGOS_PULYNBALL.includes(game.type)) : eventGames;
             setFormData(prev => ({ ...prev, selectedGames: doEvento.map((game: any) => String(game.id)) }));
           } catch (gamesError) {
             console.error('Erro ao carregar os jogos do evento:', gamesError);

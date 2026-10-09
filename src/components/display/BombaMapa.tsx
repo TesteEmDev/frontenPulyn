@@ -3,9 +3,7 @@
 import type { BombaLocal, BombaTime } from '../../services/api';
 import { usePulynStore } from '../../store/mockData';
 import { formatarTempo, useBombaEstado } from '../../hooks/useBombaEstado';
-
-const MAP_WIDTH = 450;
-const MAP_HEIGHT = 320;
+import { MAP_HEIGHT, MAP_WIDTH, posicaoNoMapa } from './posicaoNoMapa';
 
 const MOTIVOS: Record<string, string> = {
   explodiu: 'A bomba explodiu!',
@@ -15,19 +13,6 @@ const MOTIVOS: Record<string, string> = {
   eliminacao_ct: 'Agentes eliminados',
   jogo_parado: 'Jogo parado',
 };
-
-// Posição salva no mapa; sem ela, distribui os checkpoints numa grade para nenhum ficar escondido.
-function posicaoNoMapa(checkpoint: { mapaX?: number | null; mapaY?: number | null; mapX?: number | null; mapY?: number | null }, indice: number, total: number) {
-  const x = Number(checkpoint.mapaX ?? checkpoint.mapX);
-  const y = Number(checkpoint.mapaY ?? checkpoint.mapY);
-  if (Number.isFinite(x) && Number.isFinite(y)) return { x, y };
-  const colunas = Math.max(1, Math.ceil(Math.sqrt(total)));
-  const linhas = Math.ceil(total / colunas);
-  return {
-    x: MAP_WIDTH * ((indice % colunas) + 1) / (colunas + 1),
-    y: MAP_HEIGHT * (Math.floor(indice / colunas) + 1) / (linhas + 1),
-  };
-}
 
 export default function BombaMapa({ eventoId, floorPlan }: { eventoId: string; floorPlan?: string | null }) {
   const { estado, erro, restante } = useBombaEstado(eventoId);

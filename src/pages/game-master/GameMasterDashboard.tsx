@@ -7,6 +7,7 @@ import { PARALLEL_NAV_ITEM, GAMES_NAV_ITEM } from '../../components/layout/gameM
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import BombaPainel from '../../components/game-master/BombaPainel';
+import RefemPainel from '../../components/game-master/RefemPainel';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Avatar from '../../components/ui/Avatar';
@@ -999,6 +1000,11 @@ export default function GameMasterDashboard() {
           {/* Conquistar e Destruir (PulynBall) */}
           {activeGame?.type === 'bomb_defusal' && eventoAtualId && (
             <BombaPainel eventoId={eventoAtualId} />
+          )}
+
+          {/* Resgate do Refém (PulynBall) */}
+          {activeGame?.type === 'hostage_rescue' && eventoAtualId && (
+            <RefemPainel eventoId={eventoAtualId} />
           )}
 
           {/* Status do Caça ao Monstro */}

@@ -7,6 +7,8 @@ import { ZoneConquestIndividualRanking } from '../../components/display/ZoneConq
 import { usePulynStore } from '../../store/mockData';
 import Card from '../../components/ui/Card';
 import BombaMapa from '../../components/display/BombaMapa';
+import RefemMapa from '../../components/display/RefemMapa';
+import ZonaDominioPlacar from '../../components/display/ZonaDominioPlacar';
 import Badge from '../../components/ui/Badge';
 import Monster3D from '../../components/display/Monster3D';
 import DisplayMap from './DisplayMap';
@@ -160,6 +162,7 @@ export default function DisplayMain() {
     // Carregar planta para AMBOS os modos (zona e tesouro)
     const shouldLoadFloorPlan = selectedGameType === 'treasure_hunt' 
       || selectedGameType === 'bomb_defusal'
+      || selectedGameType === 'hostage_rescue'
       || selectedGameType === 'zone' 
       || selectedGameType === 'zone_conquest' 
       || selectedGameType === 'territory' 
@@ -713,9 +716,10 @@ export default function DisplayMain() {
     && Boolean(treasureStatus.active || treasureStatus.completed);
   const mapStageVisible = Boolean(shouldShowMap) && !monsterStatus?.active && !treasureStatus?.active;
   const bombaStageVisible = selectedGameType === 'bomb_defusal';
-  const hasStage = monsterStageVisible || treasureStageVisible || mapStageVisible || bombaStageVisible;
+  const refemStageVisible = selectedGameType === 'hostage_rescue';
+  const hasStage = monsterStageVisible || treasureStageVisible || mapStageVisible || bombaStageVisible || refemStageVisible;
   // Só o mapa: ele preenche o palco (as arenas é que são reduzidas para caber)
-  const mapOnly = mapStageVisible && !monsterStageVisible && !treasureStageVisible && !bombaStageVisible;
+  const mapOnly = mapStageVisible && !monsterStageVisible && !treasureStageVisible && !bombaStageVisible && !refemStageVisible;
   // Conquistar e Destruir: a planta ocupa o palco e o placar fica no canto superior esquerdo
   const bombaMapaOnly = bombaStageVisible && !monsterStageVisible && !treasureStageVisible;
 
@@ -739,8 +743,12 @@ export default function DisplayMain() {
           <div className="h-full">
             <BombaMapa eventoId={selectedEventId} floorPlan={floorPlan} />
           </div>
+            ) : refemStageVisible ? (
+          <div className="h-full">
+            <RefemMapa eventoId={selectedEventId} floorPlan={floorPlan} />
+          </div>
             ) : mapOnly ? (
-          <div className="h-full" aria-live="polite">
+          <div className="relative h-full" aria-live="polite">
             <DisplayMap
               embedded
               fill
@@ -755,6 +763,7 @@ export default function DisplayMain() {
               zoneConquestZones={zoneConquestStatus?.zones || null}
               zoneConquestCheckpoints={zoneConquestStatus?.checkpoints || null}
             />
+            {isZoneGame && <ZonaDominioPlacar eventoId={selectedEventId} />}
           </div>
             ) : (
             <FitToBox align="center" minScale={0.3} maxScale={gameOnlyView ? 1.6 : 1}>
