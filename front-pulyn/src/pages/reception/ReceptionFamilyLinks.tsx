@@ -50,16 +50,15 @@ interface ChildGroup {
 
 const STATUS_LABEL: Record<LinkStatus, { label: string; variant: 'success' | 'warning' | 'muted' | 'danger' }> = {
   approved: { label: 'Vinculado', variant: 'success' },
-  pending: { label: 'Aguardando aprovação', variant: 'warning' },
+  pending: { label: 'Pendente (antigo)', variant: 'warning' },
   inactive: { label: 'Desvinculado', variant: 'muted' },
   rejected: { label: 'Rejeitado', variant: 'danger' },
 };
 
-// Filtros da tela: "Ativos" é o que importa no dia a dia (vinculados + aguardando aprovação).
+// Filtros da tela: "Ativos" é o que importa no dia a dia (vinculados).
 const STATUS_FILTERS = [
-  { value: 'active', label: 'Ativos (vinculados e pendentes)' },
+  { value: 'active', label: 'Ativos' },
   { value: 'approved', label: 'Somente vinculados' },
-  { value: 'pending', label: 'Aguardando aprovação' },
   { value: 'inactive', label: 'Desvinculados' },
   { value: 'rejected', label: 'Rejeitados' },
   { value: 'all', label: 'Todos' },
@@ -161,7 +160,6 @@ export default function ReceptionFamilyLinks() {
   const totals = useMemo(() => ({
     children: new Set(links.filter(l => l.link_status === 'approved').map(l => l.crianca_id)).size,
     approved: links.filter(l => l.link_status === 'approved').length,
-    pending: links.filter(l => l.link_status === 'pending').length,
   }), [links]);
 
   const confirmUnlink = async () => {
@@ -223,7 +221,7 @@ export default function ReceptionFamilyLinks() {
             </div>
             <p className="mt-3 text-xs text-gray-500">
               {totals.children} criança{totals.children !== 1 ? 's' : ''} com responsável · {totals.approved} vínculo{totals.approved !== 1 ? 's' : ''}
-              {totals.pending > 0 ? ` · ${totals.pending} aguardando aprovação (aprove na tela Famílias)` : ''}
+              
             </p>
           </Card>
 

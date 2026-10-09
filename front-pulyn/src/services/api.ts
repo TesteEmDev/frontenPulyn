@@ -193,14 +193,6 @@ export const api = {
     return response;
   },
 
-  async getPendingFamilyLinks(eventoId?: string) {
-    const query = eventoId ? `?eventoId=${encodeURIComponent(eventoId)}` : '';
-    const res = await fetch(`${API_URL}/familias/pending${query}`, { headers: getAuthHeaders() });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `Erro ao carregar aprovações familiares (${res.status})`);
-    return data;
-  },
-
   async getApprovedFamilyLinks(eventoId?: string) {
     const query = eventoId ? `?eventoId=${encodeURIComponent(eventoId)}` : '';
     const res = await fetch(`${API_URL}/familias/approved${query}`, { headers: getAuthHeaders() });
@@ -222,20 +214,6 @@ export const api = {
     const res = await fetch(`${API_URL}/familias/links/${linkId}/unlink`, { method: 'POST', headers: getAuthHeaders() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Erro ao desvincular');
-    return data;
-  },
-
-  async approveFamilyLink(linkId: string) {
-    const res = await fetch(`${API_URL}/familias/links/${linkId}/approve`, { method: 'POST', headers: getAuthHeaders() });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Erro ao aprovar família');
-    return data;
-  },
-
-  async rejectFamilyLink(linkId: string) {
-    const res = await fetch(`${API_URL}/familias/links/${linkId}/reject`, { method: 'POST', headers: getAuthHeaders() });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Erro ao rejeitar família');
     return data;
   },
 

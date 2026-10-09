@@ -588,7 +588,7 @@ export default function ReceptionParticipants() {
                           </td>
                           <td className="px-4 py-3">
                             <Badge variant={child.status === 'active' ? 'success' : child.status === 'pending' ? 'warning' : 'danger'}>
-                              {child.status === 'active' ? 'Ativo' : child.status === 'pending' ? 'Aguardando aprovação' : 'Inativo'}
+                              {child.status === 'active' ? 'Ativo' : child.status === 'pending' ? 'Pendente' : 'Inativo'}
                             </Badge>
                           </td>
                           <td className="px-4 py-3">
