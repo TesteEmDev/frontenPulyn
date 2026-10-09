@@ -13,6 +13,20 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import TimeInput from '../../components/ui/TimeInput';
 
+// Nome do tipo de jogo na lista (antes tudo que não era equipe/individual aparecia como "Cooperativo").
+const TIPO_DO_JOGO: Record<string, string> = {
+  team: 'Zona (equipe)',
+  individual: 'Zona (individual)',
+  cooperative: 'Cooperativo',
+  treasure_hunt: 'Caça ao Tesouro',
+  monster_hunt: 'Caça ao Monstro',
+  bomb_defusal: 'Conquistar e Destruir',
+};
+const tipoDoJogo = (tipo?: string) => TIPO_DO_JOGO[String(tipo || '')] || 'Jogo';
+
+// Plano PulynBall: só os jogos de paintball.
+const JOGO_PULYNBALL = 'bomb_defusal';
+
 const steps = [
   { number: 1, label: 'Informações' },
   { number: 2, label: 'Jogos e Config' },
@@ -24,6 +38,7 @@ export default function AdminEventNew() {
   const { id: editingId } = useParams<{ id: string }>();
   const isEditing = Boolean(editingId);
   const auth = useAuth();
+  const soPulynBall = auth.user?.plan === 'pulynball';
   const [brincadeiras, setBrincadeiras] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -51,7 +66,10 @@ export default function AdminEventNew() {
       try {
         // Buscar brincadeiras da API
         const brincadeirasData = await api.getBrincadeiras();
-        setBrincadeiras(brincadeirasData);
+        const todosOsJogos = Array.isArray(brincadeirasData) ? brincadeirasData : [];
+        // Quem tem o plano PulynBall só enxerga (e só pode escolher) os jogos de paintball.
+        const jogosDoPlano = soPulynBall ? todosOsJogos.filter((game: any) => game.type === JOGO_PULYNBALL) : todosOsJogos;
+        setBrincadeiras(jogosDoPlano);
 
         // Edição: carrega o evento existente no formulário
         if (editingId) {
@@ -78,7 +96,8 @@ export default function AdminEventNew() {
           // Jogos que já fazem parte do evento vêm marcados
           try {
             const eventGames = await api.getBrincadeiras(editingId);
-            setFormData(prev => ({ ...prev, selectedGames: eventGames.map((game: any) => String(game.id)) }));
+            const doEvento = soPulynBall ? eventGames.filter((game: any) => game.type === JOGO_PULYNBALL) : eventGames;
+            setFormData(prev => ({ ...prev, selectedGames: doEvento.map((game: any) => String(game.id)) }));
           } catch (gamesError) {
             console.error('Erro ao carregar os jogos do evento:', gamesError);
             setGamesLoaded(false);
@@ -306,7 +325,20 @@ export default function AdminEventNew() {
               <Card>
                 <h2 className="font-display text-lg text-white mb-4">Jogos e Configuração</h2>
                 <div className="space-y-4">
-                  <p className="text-sm text-gray-400">Selecione os jogos para este evento:</p>
+                  <p className="text-sm text-gray-400">
+                    {soPulynBall ? 'Selecione os jogos de paintball (PulynBall) para este evento:' : 'Selecione os jogos para este evento:'}
+                  </p>
+                  {soPulynBall && (
+                    <p className="text-xs text-gray-500">Seu plano PulynBall usa apenas os jogos de paintball. As regras de cada jogo ficam na tela PulynBall do menu.</p>
+                  )}
+                  {(brincadeiras || []).length === 0 && (
+                    <div className="rounded-lg border border-border bg-surface/40 p-4 text-center">
+                      <p className="text-sm text-gray-300">
+                        {soPulynBall ? 'Você ainda não tem jogos do PulynBall cadastrados.' : 'Você ainda não tem jogos cadastrados.'}
+                      </p>
+                      <Button variant="accent" size="sm" className="mt-3" onClick={() => navigate('/admin/games/new')}>Criar jogo</Button>
+                    </div>
+                  )}
                   {!gamesLoaded && (
                     <p className="text-xs text-warning" role="alert">
                       Não foi possível carregar os jogos atuais deste evento. Eles serão mantidos como estão ao salvar.
@@ -335,7 +367,7 @@ export default function AdminEventNew() {
                           <div className="flex-1">
                             <p className="text-sm font-semibold text-white">{game.name}</p>
                             <p className="text-xs text-gray-500">
-                              {game.type === 'team' ? 'Equipe' : game.type === 'individual' ? 'Individual' : 'Cooperativo'} &middot; {game.duration}min
+                              {tipoDoJogo(game.type)} &middot; {game.duration}min
                             </p>
                           </div>
                           <Badge variant={game.status === 'active' ? 'success' : 'muted'}>
@@ -419,6 +451,7 @@ export default function AdminEventNew() {
                   )}
                   <div>
                     <p className="text-xs text-gray-500 mb-2">Jogos selecionados</p>
+                    {formData.selectedGames.length === 0 && <p className="text-sm text-gray-500">Nenhum jogo selecionado.</p>}
                     <div className="flex flex-wrap gap-2">
                       {formData.selectedGames.map(gId => {
                         const game = (brincadeiras || []).find((g: any) => g.id === gId);
