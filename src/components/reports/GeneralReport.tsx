@@ -176,6 +176,7 @@ export default function GeneralReport({ data, onOpenEvent }: GeneralReportProps)
                     <span className="block truncate text-sm font-semibold text-white">{child.nickname || child.name}</span>
                     <span className="block truncate text-xs text-gray-500">
                       {child.eventName}{child.teamName ? ` · ${child.teamName}` : ''}
+                      {child.braceletCode ? ` · Pulseira ${child.braceletCode}` : ''}
                     </span>
                   </span>
                   <span className="font-mono text-sm font-bold text-primary">{child.scores}</span>

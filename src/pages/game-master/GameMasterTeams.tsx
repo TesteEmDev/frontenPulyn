@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { Users, Plus, Edit2, Trash2, Save, X, Gamepad2, MessageSquare, Shuffle } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import Sidebar from '../../components/layout/Sidebar';
+import { PARALLEL_NAV_ITEM, GAMES_NAV_ITEM } from '../../components/layout/gameMasterNav';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -17,6 +18,8 @@ const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
   { icon: <Users size={20} />, label: 'Times', path: '/game-master/teams' },
   { icon: <MessageSquare size={20} />, label: 'Mensagens', path: '/game-master/messages' },
+  PARALLEL_NAV_ITEM,
+  GAMES_NAV_ITEM,
 ];
 
 export default function GameMasterTeams() {
@@ -42,7 +45,7 @@ export default function GameMasterTeams() {
         
         // Se não houver evento selecionado, selecionar o primeiro
         if (!eventoAtualId && eventosData && eventosData.length > 0) {
-          const firstEventId = eventosData[0].id;
+          const firstEventId = eventosData[0].eventoId;
           setSelectedEventId(firstEventId);
           setEventoAtual(firstEventId);
         } else if (eventoAtualId) {
@@ -88,7 +91,7 @@ export default function GameMasterTeams() {
 
   // Função para obter os membros do time
   const getTeamMembers = (teamId: string) => {
-    return children.filter(child => child.time_id === teamId);
+    return children.filter(child => child.timeId === teamId);
   };
 
   // Função para calcular a pontuação total do time
@@ -127,9 +130,9 @@ export default function GameMasterTeams() {
     try {
       // Criar time diretamente com a API
       await api.createTime({
-        name: newTeam.name,
+        nome: newTeam.name,
         color: newTeam.color,
-        evento_id: selectedEventId,
+        eventoId: selectedEventId,
       });
       
       // Recarregar times
@@ -144,7 +147,7 @@ export default function GameMasterTeams() {
 
   const safeTeams = teams || [];
   const teamIds = new Set(safeTeams.map(team => team.id));
-  const unassignedCount = children.filter(child => !child.time_id || !teamIds.has(child.time_id)).length;
+  const unassignedCount = children.filter(child => !child.timeId || !teamIds.has(child.timeId)).length;
   const sortedTeams = [...safeTeams].sort((a, b) => getTeamScore(b.id) - getTeamScore(a.id));
 
   if (loading) {
@@ -217,8 +220,8 @@ export default function GameMasterTeams() {
               >
                 <option value="">Selecionar evento...</option>
                 {events.map(event => (
-                  <option key={event.id} value={event.id}>
-                    {event.name}
+                  <option key={event.eventoId} value={event.eventoId}>
+                    {event.nome}
                   </option>
                 ))}
               </select>

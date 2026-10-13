@@ -26,12 +26,32 @@ interface AutoMessage {
   message: string;
 }
 
+// Nome dos tipos que um jogo antigo pode ter (o plano atual pode não criá-los mais).
+const TIPOS_ANTIGOS: Record<string, string> = {
+  team: 'Equipe',
+  individual: 'Individual',
+  cooperative: 'Cooperativo',
+  treasure_hunt: 'Caça ao Tesouro',
+  monster_hunt: 'Caça ao Monstro',
+  bomb_defusal: 'Conquistar e Destruir (PulynBall)',
+  zone_domination: 'Zona - Domínio total (PulynBall)',
+  hostage_rescue: 'Resgate do Refém (PulynBall)',
+};
+
+// Ordem do Resgate do Refém: pelo id do checkpoint (10, 11, 12...), igual ao servidor.
+const porIdNatural = (a: string, b: string) => String(a).localeCompare(String(b), 'pt-BR', { numeric: true, sensitivity: 'base' });
+
 export default function AdminGameForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { brincadeiras, checkpoints, loadCheckpoints, events, loadEventos } = usePulynStore();
+  // ID que o recreacionista deu ao checkpoint (a chave interna pode ter o código do buffet na frente).
+  const codigoDe = (checkpointId: string) => String((checkpoints.find(c => c.id === checkpointId) as any)?.codigo ?? checkpointId);
   const { eventoAtualId, setEventoAtualId } = useEvento();
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  // Tipos que o plano permite criar (vem do servidor); null enquanto carrega.
+  const [tiposPermitidos, setTiposPermitidos] = useState<{ value: string; label: string }[] | null>(null);
   const [loadingCheckpoints, setLoadingCheckpoints] = useState(true);
   const [loadingEventos, setLoadingEventos] = useState(true);
   const [selectedEventoId, setSelectedEventoId] = useState<string>(eventoAtualId || '');
@@ -43,7 +63,7 @@ export default function AdminGameForm() {
       const game = brincadeiras.find(g => g.id === id);
       if (game) {
         setExistingGame(game);
-        setSelectedEventoId(game.evento_id || '');
+        setSelectedEventoId(game.eventoId || '');
         setFormData({
           name: game.name || '',
           description: game.description || '',
@@ -89,6 +109,24 @@ export default function AdminGameForm() {
           setEventoAtualId(selectedEventoId);
           // Tentar carregar do store primeiro
           await loadCheckpoints();
+
+          // Jogo novo: a lista de checkpoints SEMPRE acompanha o evento escolhido. Antes ela era montada só na
+          // primeira carga; ao trocar o evento ficavam os checkpoints do evento anterior e o servidor recusava o
+          // jogo ("checkpoints devem pertencer ao evento"), o que a tela escondia.
+          if (!id) {
+            const doEvento = await api.getCheckpoints(selectedEventoId);
+            const lista = (Array.isArray(doEvento) ? doEvento : [])
+              .filter((cp: any) => String(cp.proposito || 'game').toLowerCase() !== 'reception');
+            setCheckpointConfigs(anteriores => lista.map((cp: any) => ({
+              id: cp.checkpointId ?? cp.id,
+              // o que já estava marcado continua marcado se o checkpoint também existe neste evento
+              enabled: Boolean(anteriores.find(item => item.id === (cp.checkpointId ?? cp.id))?.enabled),
+              points: cp.pontos || 10,
+              cooldown: 30,
+              special: false,
+            })));
+            setCheckpointsInitialized(true);
+          }
           
           // Se o store voltou vazio, tentar buscar da API diretamente
           if (checkpoints.length === 0) {
@@ -98,9 +136,9 @@ export default function AdminGameForm() {
               console.log('✅ Checkpoints encontrados:', apiCheckpoints.length);
               setCheckpointConfigs(
                 apiCheckpoints.map((cp: any) => ({
-                  id: cp.id,
+                  id: cp.checkpointId,
                   enabled: false,
-                  points: cp.points || 10,
+                  points: cp.pontos || 10,
                   cooldown: formData.type === 'monster_hunt' ? 15 : 30,
                   special: false,
                 }))
@@ -176,6 +214,46 @@ export default function AdminGameForm() {
     { trigger: 'on_end', message: 'O jogo terminou. Confira o ranking!' },
   ]);
 
+  // O evento mostrado no campo precisa ser o evento guardado. O <select> mostra a primeira opção quando o valor
+  // está vazio, então a tela parecia ter um evento escolhido e o salvar dizia "Selecione um evento".
+  // Jogo novo: usa o evento em uso (o da recepção) ou, na falta dele, o primeiro da lista. Também acerta
+  // diferenças de maiúsculas/minúsculas entre o id guardado e o da lista.
+  useEffect(() => {
+    if (id || loadingEventos || events.length === 0) return;
+    const doEvento = (valor: string) => events.find(e => String(e.eventoId).toLowerCase() === String(valor || '').toLowerCase());
+    const atual = doEvento(selectedEventoId);
+    if (atual) {
+      if (atual.eventoId !== selectedEventoId) setSelectedEventoId(atual.eventoId);
+      return;
+    }
+    const preferido = doEvento(eventoAtualId || '') || events[0];
+    if (preferido) setSelectedEventoId(preferido.eventoId);
+  }, [id, loadingEventos, events, selectedEventoId, eventoAtualId]);
+
+  // Carrega só os tipos que o plano permite criar.
+  useEffect(() => {
+    api.getTiposDeJogo()
+      .then(setTiposPermitidos)
+      .catch(() => setTiposPermitidos([]));
+  }, []);
+
+  // Jogo novo: começa no primeiro tipo permitido (para o plano PulynBall o padrão "Equipe" não existe).
+  useEffect(() => {
+    if (id || !tiposPermitidos || tiposPermitidos.length === 0) return;
+    setFormData(prev => (tiposPermitidos.some(tipo => tipo.value === prev.type)
+      ? prev
+      : { ...prev, type: tiposPermitidos[0].value }));
+  }, [id, tiposPermitidos]);
+
+  // Editando um jogo antigo de um tipo que o plano não cria mais, o tipo dele continua aparecendo.
+  const opcoesDeTipo = (() => {
+    const lista = tiposPermitidos || [];
+    if (existingGame?.type && !lista.some(tipo => tipo.value === existingGame.type)) {
+      return [...lista, { value: existingGame.type, label: TIPOS_ANTIGOS[existingGame.type] || existingGame.type }];
+    }
+    return lista;
+  })();
+
   const updateField = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -220,6 +298,16 @@ export default function AdminGameForm() {
       return;
     }
 
+    if (formData.type === 'bomb_defusal' && selectedCheckpoints.length < 2) {
+      setSaveError('O Conquistar e Destruir precisa de 2 checkpoints: os locais A e B da bomba.');
+      return;
+    }
+
+    if (formData.type === 'hostage_rescue' && selectedCheckpoints.length < 2) {
+      setSaveError('O Resgate do Refém precisa de pelo menos 2 checkpoints: o início e o fim da sequência.');
+      return;
+    }
+
     if (formData.type === 'monster_hunt' && selectedCheckpoints.some((cp) =>
       !Number.isInteger(cp.cooldown) || cp.cooldown < 1 || cp.cooldown > 120
     )) {
@@ -228,14 +316,15 @@ export default function AdminGameForm() {
     }
 
     setSaving(true);
+    setSaveError('');
     try {
       const gameData = {
-        name: formData.name,
+        nome: formData.name,
         description: formData.description,
         rules: formData.rules,
-        type: formData.type,
+        tipo: formData.type,
         duration: parseInt(formData.duration),
-        evento_id: selectedEventoId,
+        eventoId: selectedEventoId,
         checkpoints: selectedCheckpoints.map(cp => ({
           id: cp.id,
           points: cp.points,
@@ -255,7 +344,8 @@ export default function AdminGameForm() {
       navigate('/admin/games');
     } catch (error) {
       console.error('❌ Erro ao salvar jogo:', error);
-      alert('Erro ao salvar jogo. Tente novamente.');
+      // Mostra o motivo que o servidor deu (plano, tipo inválido, checkpoint...) em vez de voltar à lista como se tivesse salvado.
+      setSaveError(error instanceof Error && error.message ? error.message : 'Erro ao salvar o jogo. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -283,7 +373,11 @@ export default function AdminGameForm() {
                   options={
                     loadingEventos
                       ? [{ value: '', label: 'Carregando eventos...' }]
-                      : events.map(e => ({ value: e.id, label: e.name }))
+                      : [
+                          // Sem evento escolhido, o campo mostra isso (e não a primeira opção da lista).
+                          ...(selectedEventoId ? [] : [{ value: '', label: 'Selecione um evento' }]),
+                          ...events.map(e => ({ value: e.eventoId, label: e.nome })),
+                        ]
                   }
                   value={selectedEventoId}
                   onChange={e => setSelectedEventoId(e.target.value)}
@@ -320,13 +414,7 @@ export default function AdminGameForm() {
                 <div className="grid grid-cols-2 gap-4">
                   <Select
                     label="Tipo"
-                    options={[
-                      { value: 'team', label: 'Equipe' },
-                      { value: 'individual', label: 'Individual' },
-                      { value: 'cooperative', label: 'Cooperativo' },
-                      { value: 'treasure_hunt', label: 'Caça ao Tesouro' },
-                      { value: 'monster_hunt', label: 'Caça ao Monstro' },
-                    ]}
+                    options={opcoesDeTipo}
                     value={formData.type}
                     onChange={e => updateField('type', e.target.value)}
                   />
@@ -367,7 +455,15 @@ export default function AdminGameForm() {
                 <p className="text-sm text-gray-400">Nenhum checkpoint disponível. Crie um checkpoint antes de criar um jogo.</p>
               ) : (
                 <>
-                  <p className="text-sm text-gray-400 mb-4">Selecione os checkpoints e configure pontos e cooldown para cada um.</p>
+                  <p className="text-sm text-gray-400 mb-4">
+                    {formData.type === 'bomb_defusal'
+                      ? 'Selecione os 2 checkpoints-bomba. O primeiro marcado (na ordem da lista) é o local A e o segundo é o B; só eles valem como bomba neste jogo. Os tempos e as regras da partida ficam na tela PulynBall.'
+                      : formData.type === 'hostage_rescue'
+                        ? 'Selecione os checkpoints da sequência do resgate. O refém percorre todos na ordem do id (por exemplo 10, 11, 12...) e o último é o destino. Os tempos e as regras da partida ficam na tela PulynBall.'
+                        : formData.type === 'zone_domination'
+                          ? 'A equipe que dominar todas as zonas do mapa vence. Selecione os checkpoints do jogo; as zonas e as posições dos checkpoints vêm do mapa do espaço.'
+                          : 'Selecione os checkpoints e configure pontos e cooldown para cada um.'}
+                  </p>
                   <div className="space-y-3">
                     {checkpointConfigs.map(cp => {
                       const checkpoint = checkpoints.find(c => c.id === cp.id);
@@ -390,11 +486,23 @@ export default function AdminGameForm() {
                               {cp.enabled && <Check size={14} className="text-white" />}
                             </button>
                             <div className="flex-1">
-                              <p className="text-sm font-semibold text-white">{checkpoint?.name || cp.id}</p>
+                              <p className="text-sm font-semibold text-white">
+                                {checkpoint?.name || cp.id}
+                                {formData.type === 'hostage_rescue' && cp.enabled && (
+                                  <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs font-bold text-accent">
+                                    Passo {checkpointConfigs.filter(item => item.enabled).map(item => item.id).sort((a, b) => porIdNatural(codigoDe(a), codigoDe(b))).indexOf(cp.id) + 1}
+                                  </span>
+                                )}
+                                {formData.type === 'bomb_defusal' && cp.enabled && (
+                                  <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs font-bold text-accent">
+                                    Local {String.fromCharCode(65 + checkpointConfigs.filter(item => item.enabled).findIndex(item => item.id === cp.id))}
+                                  </span>
+                                )}
+                              </p>
                               <p className="text-xs text-gray-500">{checkpoint?.zone} &middot; {checkpoint?.type}</p>
                             </div>
                           </div>
-                          {cp.enabled && (
+                          {cp.enabled && formData.type !== 'bomb_defusal' && formData.type !== 'hostage_rescue' && (
                             <div className="grid grid-cols-2 gap-3 ml-8 mt-2">
                               <div className="col-span-2 flex items-center gap-2 text-xs text-gray-300">
                                 <input
@@ -474,6 +582,11 @@ export default function AdminGameForm() {
             </Card>
 
             {/* Save */}
+            {saveError && (
+              <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                {saveError}
+              </p>
+            )}
             <div className="flex justify-end pt-2">
               <Button variant="primary" onClick={handleSave} disabled={saving}>
                 <Save size={16} className="mr-1.5" />

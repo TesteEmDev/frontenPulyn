@@ -25,6 +25,8 @@ import GameMasterDashboard from './pages/game-master/GameMasterDashboard';
 import GameMasterTeams from './pages/game-master/GameMasterTeams';
 import GameMasterCheckpoints from './pages/game-master/GameMasterCheckpoints';
 import GameMasterMessages from './pages/game-master/GameMasterMessages';
+import GameMasterParallel from './pages/game-master/GameMasterParallel';
+import GameMasterGames from './pages/game-master/GameMasterGames';
 import GameMasterRanking from './pages/game-master/GameMasterRanking';
 import GameMasterZoneSetup from './pages/game-master/GameMasterZoneSetup';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -33,6 +35,7 @@ import AdminEventNew from './pages/admin/AdminEventNew';
 import AdminChildren from './pages/admin/AdminChildren';
 import AdminChildProfile from './pages/admin/AdminChildProfile';
 import AdminGames from './pages/admin/AdminGames';
+import AdminPulynBall from './pages/admin/AdminPulynBall';
 import AdminGameForm from './pages/admin/AdminGameForm';
 import AdminCheckpoints from './pages/admin/AdminCheckpoints';
 import AdminCheckpointConfig from './pages/admin/AdminCheckpointConfig';
@@ -57,11 +60,14 @@ import FamilyQuiz from './pages/family/FamilyQuiz';
 import FamilyProfile from './pages/family/FamilyProfile';
 import FamilyNotifications from './pages/family/FamilyNotifications';
 import FamilyInviteRegister from './pages/family/FamilyInviteRegister';
-import FamilyLinkManagement from './pages/master/FamilyLinkManagement';
+import ReceptionFamilyLinks from './pages/reception/ReceptionFamilyLinks';
 
-function EventControlBridge({ enabled }: { enabled: boolean }) {
+// Perfis que podem consultar /event-control/active (o da família, por exemplo, não pode).
+const EVENT_CONTROL_ROLES = ['admin', 'reception', 'game_master', 'display', 'master', 'kiosk', 'score_kiosk'];
+
+function EventControlBridge({ enabled, pollMs = 0 }: { enabled: boolean; pollMs?: number }) {
   const setEventoAtual = usePulynStore(state => state.setEventoAtual);
-  useEventControl((eventId) => setEventoAtual(eventId), enabled);
+  useEventControl((eventId) => setEventoAtual(eventId), enabled, pollMs);
   return null;
 }
 
@@ -76,13 +82,13 @@ function DisplayRealtimeBridge({ enabled }: { enabled: boolean }) {
 
   const handleEvent = useCallback(async (event: GameEvent) => {
     const payload = event.payload || {};
-    const eventPayloadId = payload.eventoId ?? payload.evento_id;
+    const eventPayloadId = payload.eventoId ?? payload.eventoId;
     if (!eventId || String(eventPayloadId || '').trim().toLowerCase() !== String(eventId).trim().toLowerCase()) return;
 
     if (event.type === 'TERRITORY_CONQUERED') {
       applyTerritoryConquest(
-        String(payload.checkpointId || payload.checkpoint_id || ''),
-        payload.timeId ?? payload.time_id ?? null,
+        String(payload.checkpointId || payload.checkpointId || ''),
+        payload.timeId ?? payload.timeId ?? null,
         payload.teamColor ?? payload.team_color ?? null,
       );
     }
@@ -174,7 +180,10 @@ function App() {
   return (
     <BrowserRouter>
       <EventoProvider>
-        <EventControlBridge enabled={isAuthenticated && Boolean(user?.empresa_id)} />
+        <EventControlBridge
+          enabled={isAuthenticated && Boolean(user?.empresaId) && EVENT_CONTROL_ROLES.includes(user?.role ?? '')}
+          pollMs={user && ['kiosk', 'score_kiosk', 'display'].includes(user.role) ? 8000 : 0}
+        />
         <DisplayRealtimeBridge enabled={isAuthenticated && user?.role === 'display'} />
         <Toaster
           position="top-right"
@@ -207,7 +216,7 @@ function App() {
           <Route path="/reception/participants" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionParticipants /></ProtectedRoute>} />
           <Route path="/reception/bracelets" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionBracelets /></ProtectedRoute>} />
           <Route path="/reception/families" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionFamilies /></ProtectedRoute>} />
-          <Route path="/reception/family-links" element={<ProtectedRoute allowedRoles={['reception']}><FamilyLinkManagement /></ProtectedRoute>} />
+          <Route path="/reception/family-links" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionFamilyLinks /></ProtectedRoute>} />
 
           {/* Recreacionista */}
           <Route path="/game-master" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterDashboard /></ProtectedRoute>} />
@@ -217,6 +226,8 @@ function App() {
   <Route path="/game-master/dashboard" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterDashboard /></ProtectedRoute>} />
   <Route path="/game-master/control" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterDashboard /></ProtectedRoute>} />
           <Route path="/game-master/messages" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterMessages /></ProtectedRoute>} />
+          <Route path="/game-master/parallel" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterParallel /></ProtectedRoute>} />
+          <Route path="/game-master/games" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterGames /></ProtectedRoute>} />
           <Route path="/game-master/ranking" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterRanking /></ProtectedRoute>} />
           <Route path="/game-master/zone-setup" element={<ProtectedRoute allowedRoles={['game_master']}><GameMasterZoneSetup /></ProtectedRoute>} />
 
@@ -227,6 +238,7 @@ function App() {
           <Route path="/admin/events/:id/edit" element={<ProtectedRoute allowedRoles={['admin']}><AdminEventNew /></ProtectedRoute>} />
           <Route path="/admin/children" element={<ProtectedRoute allowedRoles={['admin']}><AdminChildren /></ProtectedRoute>} />
           <Route path="/admin/children/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminChildProfile /></ProtectedRoute>} />
+          <Route path="/admin/pulynball" element={<ProtectedRoute allowedRoles={['admin']}><AdminPulynBall /></ProtectedRoute>} />
           <Route path="/admin/games" element={<ProtectedRoute allowedRoles={['admin']}><AdminGames /></ProtectedRoute>} />
           <Route path="/admin/games/new" element={<ProtectedRoute allowedRoles={['admin']}><AdminGameForm /></ProtectedRoute>} />
           <Route path="/admin/games/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminGameForm /></ProtectedRoute>} />

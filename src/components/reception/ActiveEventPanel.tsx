@@ -8,9 +8,9 @@ import Button from '../ui/Button';
 import Select from '../ui/Select';
 
 interface PanelEvent {
-  id: string;
-  name: string;
-  date?: string;
+  eventoId: string;
+  nome: string;
+  data?: string;
   status?: string;
 }
 
@@ -43,12 +43,12 @@ export default function ActiveEventPanel({ onChange }: { onChange?: (eventId: st
 
   const openEvents = events
     .filter(isOpenEvent)
-    .sort((a, b) => Number(isRunning(b)) - Number(isRunning(a)) || String(a.date || '').localeCompare(String(b.date || '')));
+    .sort((a, b) => Number(isRunning(b)) - Number(isRunning(a)) || String(a.data || '').localeCompare(String(b.data || '')));
 
   // Evento sugerido quando nada está no telão: o que está em andamento, ou o único aberto
   const suggestionFor = (list: PanelEvent[]) => {
     const open = list.filter(isOpenEvent);
-    return open.find(isRunning)?.id || (open.length === 1 ? open[0].id : '');
+    return open.find(isRunning)?.eventoId || (open.length === 1 ? open[0].eventoId : '');
   };
 
   const load = useCallback(async () => {
@@ -59,7 +59,7 @@ export default function ActiveEventPanel({ onChange }: { onChange?: (eventId: st
       ]);
       const list: PanelEvent[] = Array.isArray(eventsData) ? eventsData : [];
       setEvents(list);
-      const active = control?.event ? { ...(list.find((event) => String(event.id) === String(control.event.id)) || {}), ...control.event } : null;
+      const active = control?.event ? { ...(list.find((event) => String(event.eventoId) === String(control.event.id)) || {}), ...control.event } : null;
       setCurrent(active);
       setDraft(active?.id || suggestionFor(list));
       setError(null);
@@ -77,14 +77,14 @@ export default function ActiveEventPanel({ onChange }: { onChange?: (eventId: st
   // Outro terminal mudou o evento (o aviso chega pelo canal em tempo real e atualiza o evento da loja)
   useEffect(() => {
     if (loading) return;
-    if ((eventoAtualId || null) !== (current?.id || null)) load();
+    if ((eventoAtualId || null) !== (current?.eventoId || null)) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventoAtualId]);
 
   // Quem usa o painel fica sabendo do evento que está no telão
   useEffect(() => {
-    if (!loading) onChangeRef.current?.(current?.id || null);
-  }, [current?.id, loading]);
+    if (!loading) onChangeRef.current?.(current?.eventoId || null);
+  }, [current?.eventoId, loading]);
 
   const publish = async (eventId: string | null) => {
     setSaving(true);
@@ -92,7 +92,7 @@ export default function ActiveEventPanel({ onChange }: { onChange?: (eventId: st
     setNotice(null);
     try {
       const result = await api.setActiveEventControl(eventId);
-      const chosen = result?.event ? { ...(events.find((event) => String(event.id) === String(result.event.id)) || {}), ...result.event } : null;
+      const chosen = result?.event ? { ...(events.find((event) => String(event.eventoId) === String(result.event.id)) || {}), ...result.event } : null;
       setCurrent(chosen);
       setEventoAtual(chosen?.id || null);
       setDraft(chosen?.id || suggestionFor(events));
@@ -104,7 +104,7 @@ export default function ActiveEventPanel({ onChange }: { onChange?: (eventId: st
     }
   };
 
-  const unchanged = Boolean(draft) && draft === current?.id;
+  const unchanged = Boolean(draft) && draft === current?.eventoId;
 
   return (
     <Card variant={current ? 'glow' : 'default'}>
@@ -132,8 +132,8 @@ export default function ActiveEventPanel({ onChange }: { onChange?: (eventId: st
           <div className={`rounded-lg border px-4 py-3 text-sm ${current ? 'border-success/30 bg-success/10' : 'border-warning/30 bg-warning/10'}`} aria-live="polite">
             {current ? (
               <p className="text-gray-200">
-                No telão agora: <span className="font-semibold text-white">{current.name}</span>
-                {current.date ? <span className="text-gray-400"> · {formatDay(current.date)}</span> : null}
+                No telão agora: <span className="font-semibold text-white">{current.nome}</span>
+                {current.data ? <span className="text-gray-400"> · {formatDay(current.data)}</span> : null}
                 {current.status ? <span className="text-gray-400"> · {statusLabel(current)}</span> : null}
               </p>
             ) : (
@@ -153,8 +153,8 @@ export default function ActiveEventPanel({ onChange }: { onChange?: (eventId: st
                   options={[
                     { value: '', label: 'Selecione um evento' },
                     ...openEvents.map((event) => ({
-                      value: String(event.id),
-                      label: `${event.name} · ${formatDay(event.date)} · ${statusLabel(event)}`,
+                      value: String(event.eventoId),
+                      label: `${event.nome} · ${formatDay(event.data)} · ${statusLabel(event)}`,
                     })),
                   ]}
                 />

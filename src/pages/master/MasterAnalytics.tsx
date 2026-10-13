@@ -34,6 +34,7 @@ import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
+import { COR_BARRA_POR_PLANO } from '../../utils/planos';
 import Button from '../../components/ui/Button';
 import { api } from '../../services/api';
 
@@ -92,11 +93,7 @@ const SECTION_LABELS: Record<SectionKey, string> = {
   revenue: 'receita por plano',
 };
 
-const planColors: Record<string, string> = {
-  enterprise: 'bg-primary',
-  professional: 'bg-secondary',
-  starter: 'bg-gray-500',
-};
+const planColors = COR_BARRA_POR_PLANO;
 
 const money = (value: number) => `R$ ${value.toLocaleString('pt-BR')}`;
 

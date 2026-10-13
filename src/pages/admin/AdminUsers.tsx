@@ -18,11 +18,11 @@ import Modal from '../../components/ui/Modal';
 type UserRole = 'admin' | 'reception' | 'game_master' | 'display' | 'family' | 'kiosk' | 'score_kiosk';
 
 interface User {
-  id: string;
+  loginId: string;
   email: string;
-  role: UserRole;
+  perfil: UserRole;
   status: 'active' | 'inactive';
-  created_at: string;
+  criadoEm: string;
 }
 
 const roleConfig: Record<UserRole, { label: string; description: string; variant: 'primary' | 'secondary' | 'accent' | 'success' | 'warning' | 'danger' | 'muted' }> = {
@@ -61,7 +61,7 @@ export default function AdminUsers() {
 
   // Carregar usuários
   const loadUsers = async () => {
-    if (!user?.empresa_id) {
+    if (!user?.empresaId) {
       setError('Empresa não identificada');
       setLoading(false);
       return;
@@ -70,7 +70,7 @@ export default function AdminUsers() {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.getUsers(user.empresa_id);
+      const data = await api.getUsers(user.empresaId);
       setUsers(data);
     } catch (err) {
       console.error('❌ Erro ao carregar usuários:', err);
@@ -103,7 +103,7 @@ export default function AdminUsers() {
   };
 
   const handleAddUser = async () => {
-    if (!newUser.username || !newUser.password || !user?.empresa_id) {
+    if (!newUser.username || !newUser.password || !user?.empresaId) {
       setModalError('Preencha o usuário, a senha e selecione um perfil.');
       return;
     }
@@ -129,9 +129,9 @@ export default function AdminUsers() {
     try {
       const createdUser = await api.createUser({
         email: `${newUser.username}@${emailDomain}`,
-        password: newUser.password,
+        senha: newUser.password,
         role: newUser.role,
-        empresa_id: user.empresa_id
+        empresaId: user.empresaId
       });
 
       setUsers(prev => [...prev, createdUser]);
@@ -150,7 +150,7 @@ export default function AdminUsers() {
 
     try {
       await api.deleteUser(id);
-      setUsers(prev => prev.filter(u => u.id !== id));
+      setUsers(prev => prev.filter(u => u.loginId !== id));
     } catch (err) {
       console.error('❌ Erro ao remover usuário:', err);
       setError('Erro ao remover usuário');
@@ -210,9 +210,9 @@ export default function AdminUsers() {
                         </tr>
                       ) : (
                         users.map(userData => {
-                          const config = roleConfig[userData.role];
+                          const config = roleConfig[userData.perfil];
                           return (
-                            <tr key={userData.id} className="hover:bg-surface/50 transition-colors">
+                            <tr key={userData.loginId} className="hover:bg-surface/50 transition-colors">
                               <td className="py-3 pr-4">
                                 <p className="text-sm font-semibold text-white">{userData.email}</p>
                               </td>
@@ -232,7 +232,7 @@ export default function AdminUsers() {
                               </td>
                               <td className="py-3 pr-4">
                                 <p className="text-sm text-gray-300">
-                                  {new Date(userData.created_at).toLocaleDateString('pt-BR')}
+                                  {new Date(userData.criadoEm).toLocaleDateString('pt-BR')}
                                 </p>
                               </td>
                               <td className="py-3">
@@ -247,7 +247,7 @@ export default function AdminUsers() {
                                   <button
                                     className="p-1.5 rounded-lg text-gray-400 hover:text-danger hover:bg-surface transition-colors"
                                     title="Remover"
-                                    onClick={() => handleDeleteUser(userData.id)}
+                                    onClick={() => handleDeleteUser(userData.loginId)}
                                   >
                                     <X size={16} />
                                   </button>

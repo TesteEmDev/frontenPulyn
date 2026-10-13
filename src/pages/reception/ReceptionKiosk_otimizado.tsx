@@ -9,7 +9,6 @@ import { api } from '../../services/api';
 import Avatar from '../../components/ui/Avatar';
 import AvatarSelector from '../../components/ui/AvatarSelector';
 import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
-import Button from '../../components/ui/Button';
 import StatusDot from '../../components/ui/StatusDot';
 import VirtualKeyboardOtimizado from '../../components/ui/VirtualKeyboardOtimizado';
 import { useDebounce, useMemoizedCallback } from '../../hooks/useDebounce';
@@ -85,8 +84,8 @@ export default function ReceptionKioskOtimizado() {
 
   // Cache para evitar renders desnecessários
   const selectedAvatar = AVATAR_OPTIONS.find(option => option.emoji === form.avatar) || AVATAR_OPTIONS[0];
-  const selectedEvent = events.find(event => String(event.id) === String(selectedEventId));
-  const selectedTeamData = teams.find(team => String(team.id) === String(selectedTeam));
+  const selectedEvent = events.find(event => String(event.eventoId) === String(selectedEventId));
+  const selectedTeamData = teams.find(team => String(team.timeId) === String(selectedTeam));
   
   // DEBOUNCE para evitar renders rápidos
   const debouncedFormName = useDebounce(form.name, 100);
@@ -302,8 +301,8 @@ export default function ReceptionKioskOtimizado() {
     
     try {
       await api.createKioskParticipant(selectedEventId, {
-        name: form.name.trim(),
-        nickname: form.nickname.trim() || form.name.trim().split(' ')[0],
+        nome: form.name.trim(),
+        apelido: form.nickname.trim() || form.name.trim().split(' ')[0],
         age: parseInt(form.age, 10) || 5,
         avatar: form.avatar,
         braceletCode,
@@ -316,7 +315,7 @@ export default function ReceptionKioskOtimizado() {
       setSuccessData({
         name: form.nickname.trim() || form.name.trim(),
         avatar: form.avatar,
-        teamName: selectedTeamData?.name || 'Seu time',
+        teamName: selectedTeamData?.nome || 'Seu time',
       });
       
       kioskStateRef.current = 'success';
@@ -328,7 +327,7 @@ export default function ReceptionKioskOtimizado() {
       setState('error');
       setMessage(getErrorMessage(error));
     }
-  }, [braceletCode, form, resetKiosk, selectedEventId, selectedTeam, selectedTeamData?.name, state]);
+  }, [braceletCode, form, resetKiosk, selectedEventId, selectedTeam, selectedTeamData?.nome, state]);
 
   useEffect(() => () => {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
@@ -423,7 +422,7 @@ export default function ReceptionKioskOtimizado() {
                 <>
                   Evento da recepção:{' '}
                   <strong className="font-semibold text-white">
-                    {selectedEvent?.name || 'carregando...'}
+                    {selectedEvent?.nome || 'carregando...'}
                   </strong>
                 </>
               ) : (
@@ -637,29 +636,29 @@ export default function ReceptionKioskOtimizado() {
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     {teams.map(team => {
-                      const selected = selectedTeam === team.id;
+                      const selected = selectedTeam === team.timeId;
                       return (
                         <button
-                          key={team.id}
+                          key={team.timeId}
                           type="button"
                           disabled={!canInteract}
-                          onClick={() => setSelectedTeam(team.id)}
+                          onClick={() => setSelectedTeam(team.timeId)}
                           className={`rounded-2xl border px-3 py-3.5 text-left shadow-sm transition-all duration-150 hover:-translate-y-0.5 ${
                             selected
                               ? 'ring-2 ring-white/60 shadow-md'
                               : 'border-white/10 hover:border-white/30'
                           } disabled:cursor-not-allowed disabled:opacity-50`}
                           style={{
-                            borderColor: selected ? team.color : undefined,
-                            backgroundColor: selected ? `${team.color}22` : undefined,
+                            borderColor: selected ? team.cor : undefined,
+                            backgroundColor: selected ? `${team.cor}22` : undefined,
                           }}
                         >
                           <span
                             className="block h-3 w-3 rounded-full"
-                            style={{ backgroundColor: team.color || '#8b5cf6' }}
+                            style={{ backgroundColor: team.cor || '#8b5cf6' }}
                           />
                           <span className="mt-2 block truncate text-sm font-semibold text-white">
-                            {team.name}
+                            {team.nome}
                           </span>
                         </button>
                       );

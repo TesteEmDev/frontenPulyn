@@ -24,6 +24,9 @@ export default function AdminCheckpoints() {
   const [events, setEvents] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [checkpointsList, setCheckpointsList] = useState<any[]>([]);
+  const [codigoBuffet, setCodigoBuffet] = useState<string | null>(null);
+
+  useEffect(() => { api.getCodigoBuffet().then(setCodigoBuffet); }, []);
   const [loading, setLoading] = useState(true);
 
   // Verificar permissão: apenas admin pode acessar
@@ -55,9 +58,9 @@ export default function AdminCheckpoints() {
         setEvents(eventosData || []);
         
         // Auto-selecionar evento ativo
-        const activeEvent = eventosData?.find(e => e.status === 'active' || e.status === 'ongoing');
+        const activeEvent = eventosData?.find((e: any) => e.status === 'active' || e.status === 'ongoing');
         if (activeEvent) {
-          setSelectedEventId(activeEvent.id);
+          setSelectedEventId(activeEvent.eventoId);
         } else if (eventosData && eventosData.length > 0) {
           // Sem evento ativo, mostra os checkpoints de todos os eventos: o primeiro da
           // lista costuma ser o evento mais novo, que ainda pode não ter nenhum.
@@ -88,11 +91,11 @@ export default function AdminCheckpoints() {
         if (selectedEventId === ALL_EVENTS) {
           // Cada checkpoint leva o evento a que pertence (para a coluna Evento e para editar/excluir)
           const lists = await Promise.all(events.map((event) =>
-            api.getCheckpoints(event.id)
+            api.getCheckpoints(event.eventoId)
               .then((list: any[]) => (list || []).map((cp) => ({
                 ...cp,
-                evento_id: cp.evento_id ?? event.id,
-                evento_name: event.name || `Evento ${event.id}`,
+                eventoId: cp.eventoId ?? event.eventoId,
+                evento_name: event.nome || `Evento ${event.eventoId}`,
               })))
               .catch(() => [])
           ));
@@ -122,12 +125,12 @@ export default function AdminCheckpoints() {
     if (checkpoint) {
       setEditingCheckpoint(checkpoint);
       setFormData({
-        id: checkpoint.id,
+        id: checkpoint.codigo ?? checkpoint.id,
         name: checkpoint.name || '',
         type: checkpoint.type || 'NFC',
         ip: checkpoint.ip || '',
         zone: checkpoint.zone || '',
-        ledColor: checkpoint.led || checkpoint.led_color || '#00FF00',
+        ledColor: checkpoint.led || checkpoint.corLed || '#00FF00',
         points: checkpoint.points || 10,
       });
     } else {
@@ -156,7 +159,7 @@ export default function AdminCheckpoints() {
       return;
     }
     // Editando, vale o evento do próprio checkpoint (em "todos os eventos" não há um evento selecionado).
-    const targetEventId = editingCheckpoint?.evento_id || selectedEventId;
+    const targetEventId = editingCheckpoint?.eventoId || selectedEventId;
     if (!targetEventId || targetEventId === ALL_EVENTS) {
       alert('Selecione um evento primeiro');
       return;
@@ -165,10 +168,11 @@ export default function AdminCheckpoints() {
     setSaving(true);
     
     try {
+      let avisoPrefixo = '';
       const config = {
         id: formData.id,
-        name: formData.name,
-        type: formData.type,
+        nome: formData.name,
+        tipo: formData.type,
         ip: formData.ip,
         zone: formData.zone,
         points: formData.points,
@@ -179,28 +183,35 @@ export default function AdminCheckpoints() {
       
       if (editingCheckpoint) {
         // Atualizar checkpoint existente
-        await api.saveCheckpointConfig(formData.id, config, targetEventId);
+        await api.saveCheckpointConfig(editingCheckpoint.id, config, targetEventId);
         setCheckpointsList(prev => 
-          prev.map(cp => cp.id === formData.id ? { ...cp, ...config } : cp)
+          prev.map(cp => cp.id === editingCheckpoint.id ? { ...cp, name: formData.name, type: formData.type, ip: formData.ip, zone: formData.zone, points: formData.points } : cp)
         );
       } else {
         // Criar novo checkpoint
-        await api.createCheckpoint(targetEventId, config);
+        const criado = await api.createCheckpoint(targetEventId, config);
+        if (criado?.empresaCodigo) setCodigoBuffet(criado.empresaCodigo);
+        avisoPrefixo = criado?.prefixado
+          ? `\n\nAtenção: o ID ${criado.codigo} também é usado em outro buffet. Se o ESP32 for gravado só com o número, ele vai falar com o checkpoint do outro buffet. Opções: grave no ESP32 o ID ${criado.id} (na página /config, no campo ID); ou peça ao suporte para passar o ID simples ${criado.codigo} para este checkpoint.`
+          : '';
         setCheckpointsList(prev => [...prev, {
-          id: formData.id,
+          id: criado?.id ?? formData.id,
+          codigo: criado?.codigo ?? formData.id,
+          empresaCodigo: criado?.empresaCodigo,
+          prefixado: Boolean(criado?.prefixado),
           name: formData.name,
           type: formData.type,
           ip: formData.ip,
           zone: formData.zone,
           points: formData.points,
           status: 'configured',
-          evento_id: targetEventId,
+          eventoId: targetEventId,
         }]);
       }
       
       // Fechar modal e mostrar sucesso
       setModalOpen(false);
-      alert(`Checkpoint ${formData.id} ${editingCheckpoint ? 'atualizado' : 'criado'} com sucesso!`);
+      alert(`Checkpoint ${formData.id} ${editingCheckpoint ? 'atualizado' : 'criado'} com sucesso!${avisoPrefixo}`);
       
     } catch (error: any) {
       console.error('❌ Erro ao salvar checkpoint:', error);
@@ -212,7 +223,7 @@ export default function AdminCheckpoints() {
 
   const handleDelete = async (checkpoint: any) => {
     const id = checkpoint.id;
-    const eventId = checkpoint.evento_id || selectedEventId;
+    const eventId = checkpoint.eventoId || selectedEventId;
     if (!eventId || eventId === ALL_EVENTS) {
       alert('Selecione um evento primeiro');
       return;
@@ -282,8 +293,8 @@ export default function AdminCheckpoints() {
                   <>
                     <option value={ALL_EVENTS} style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>Todos os eventos</option>
                     {events.map(event => (
-                      <option key={event.id} value={event.id} style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>
-                        {event.name || `Evento ${event.id}`}
+                      <option key={event.eventoId} value={event.eventoId} style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>
+                        {event.nome || `Evento ${event.eventoId}`}
                       </option>
                     ))}
                   </>
@@ -293,6 +304,11 @@ export default function AdminCheckpoints() {
               </select>
               {isAllEvents && (
                 <span className="text-xs text-gray-500">Para cadastrar um checkpoint, escolha um evento.</span>
+              )}
+              {codigoBuffet && (
+                <span className="text-xs text-gray-400" title="Só preencha no ESP32 se o ID do checkpoint também for usado por outro buffet">
+                  Código do buffet: <span className="font-mono text-gray-200">{codigoBuffet}</span>
+                </span>
               )}
               {selectedEventId && checkpointsList.length > 0 && (
                 <span className="text-xs text-gray-400 ml-auto">
@@ -322,9 +338,14 @@ export default function AdminCheckpoints() {
                 <tbody className="divide-y divide-border">
                   {checkpointsList.length > 0 ? (
                     checkpointsList.map(cp => (
-                      <tr key={`${cp.evento_id || ''}-${cp.id}`} className="hover:bg-surface/50 transition-colors">
+                      <tr key={`${cp.eventoId || ''}-${cp.id}`} className="hover:bg-surface/50 transition-colors">
                         <td className="py-3 pr-4">
-                          <p className="text-sm font-mono text-gray-300">{cp.id}</p>
+                          <p className="text-sm font-mono text-gray-300">{cp.codigo ?? cp.id}</p>
+                          {cp.prefixado && (
+                            <p className="text-xs text-warning" title="O mesmo ID também é usado em outro buffet: um ESP32 gravado só com o número fala com o outro. Preencha o código do buffet no ESP32 ou peça ao suporte para passar o ID simples para este checkpoint.">
+                              ID repetido em outro buffet · grave no ESP32: <span className="font-mono font-semibold">{cp.id}</span>
+                            </p>
+                          )}
                         </td>
                         <td className="py-3 pr-4">
                           <p className="text-sm font-semibold text-white">{cp.name}</p>
@@ -403,7 +424,7 @@ export default function AdminCheckpoints() {
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingCheckpoint ? `Editar Checkpoint: ${editingCheckpoint.id}` : 'Cadastrar Novo Checkpoint'}
+        title={editingCheckpoint ? `Editar Checkpoint: ${editingCheckpoint.codigo ?? editingCheckpoint.id}` : 'Cadastrar Novo Checkpoint'}
         size="lg"
       >
         <div className="space-y-4">

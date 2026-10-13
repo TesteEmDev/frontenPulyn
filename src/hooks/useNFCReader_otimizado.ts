@@ -113,7 +113,7 @@ export function useNFCOtimizado(
       const token = (expectedSource === 'reception' || expectedSource === 'score-kiosk')
         ? localStorage.getItem('authToken')
         : null;
-      const eventQuery = new URLSearchParams({ evento_id: eventoId });
+      const eventQuery = new URLSearchParams({ eventoId: eventoId });
       const wsUrl = `${serverUrl}?${eventQuery.toString()}`;
       const ws = createAuthenticatedWebSocket(wsUrl, token);
       socketRef.current = ws;

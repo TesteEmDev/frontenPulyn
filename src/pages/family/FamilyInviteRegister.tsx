@@ -85,9 +85,9 @@ export default function FamilyInviteRegister() {
     setSaving(true);
     try {
       await api.registerFamily(token, {
-        parentName: form.parentName,
+        parentNome: form.parentName,
         email: form.email,
-        password: form.password,
+        senha: form.password,
         children: invite?.child ? undefined : children.map((child) => ({
           name: child.name.trim(),
           nickname: child.nickname.trim(),

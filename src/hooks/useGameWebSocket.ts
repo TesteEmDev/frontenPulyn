@@ -47,7 +47,7 @@ export function useGameWebSocket(
     try {
       setConnectionStatus(reconnectAttemptsRef.current > 0 ? 'reconnecting' : 'connecting');
       const serverUrl = getServerUrl();
-      const query = new URLSearchParams({ evento_id: eventoId });
+      const query = new URLSearchParams({ eventoId: eventoId });
       const wsUrl = `${serverUrl}?${query.toString()}`;
       const token = localStorage.getItem('authToken');
       const ws = createAuthenticatedWebSocket(wsUrl, token);
@@ -62,7 +62,7 @@ export function useGameWebSocket(
         // Enviar heartbeat
         ws.send(JSON.stringify({
           type: 'HEARTBEAT',
-          payload: { evento_id: eventoId, timestamp: new Date().toISOString() }
+          payload: { eventoId: eventoId, timestamp: new Date().toISOString() }
         }));
       };
 

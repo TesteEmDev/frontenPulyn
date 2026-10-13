@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  FileText, RefreshCw, Settings
+  FileText, RefreshCw, Settings, Crosshair
 } from 'lucide-react';
 import Sidebar from './Sidebar';
+import { useAuth } from '../../hooks/useAuth';
 
 // Menu do painel administrativo do buffet. Era duplicado literalmente em
 // cada página de /admin (14 arquivos); qualquer mudança de rota ou label
@@ -23,6 +24,9 @@ export const ADMIN_NAV_ITEMS = [
   { icon: <Settings size={20} />, label: 'Configurações', path: '/admin/settings' },
 ];
 
+// Clientes do plano PulynBall têm uma tela própria para as regras dos jogos de paintball.
+const PULYNBALL_NAV_ITEM = { icon: <Crosshair size={20} />, label: 'PulynBall', path: '/admin/pulynball' };
+
 interface AdminSidebarProps {
   // Só precisa ser passado quando a rota da página não bate com o pathname
   // atual (ex.: uma tela de edição em "/admin/games/:id" que deve destacar
@@ -33,10 +37,14 @@ interface AdminSidebarProps {
 export default function AdminSidebar({ activePath }: AdminSidebarProps) {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const { user } = useAuth();
+  const items = user?.plan === 'pulynball'
+    ? [ADMIN_NAV_ITEMS[0], PULYNBALL_NAV_ITEM, ...ADMIN_NAV_ITEMS.slice(1)]
+    : ADMIN_NAV_ITEMS;
 
   return (
     <Sidebar
-      items={ADMIN_NAV_ITEMS}
+      items={items}
       activePath={activePath ?? location.pathname}
       collapsed={collapsed}
       onToggleCollapse={() => setCollapsed((prev) => !prev)}

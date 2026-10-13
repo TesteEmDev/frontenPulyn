@@ -80,7 +80,7 @@ export function useZoneConquestGame(eventoId: string | null) {
 
       if (data?.gameRunning && data?.mode === 'individual') {
         // ✅ Detectar se é uma nova partida
-        const currentPartidaId = data.partida_id;
+        const currentPartidaId = data.partidaId;
         if (lastPartidaIdRef.current && lastPartidaIdRef.current !== currentPartidaId) {
           // Nova partida iniciada - resetar status imediatamente
           lastPartidaIdRef.current = currentPartidaId;

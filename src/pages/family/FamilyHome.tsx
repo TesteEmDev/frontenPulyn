@@ -116,7 +116,7 @@ export default function FamilyHome() {
         </h2>
         <div className="space-y-3 mb-6">
           {loading ? <Card><p className="text-gray-400">Carregando crianças vinculadas...</p></Card> : error ? <Card><p className="text-danger-500">{error}</p></Card> : familyChildren.length === 0 ? <Card><p className="text-gray-400">Nenhuma criança aprovada ainda.</p></Card> : familyChildren.slice(0, 5).map((child) => {
-            const team = child.time_id ? { id: child.time_id, name: child.time_name, color: child.time_color || '#1E9BD7', icon: '👥' } : null;
+            const team = child.timeId ? { id: child.timeId, name: child.time_nome, color: child.time_color || '#1E9BD7', icon: '👥' } : null;
             return (
               <Card key={child.id} className="flex items-center gap-3">
                 <Avatar emoji={child.avatar || '👤'} bgColor={team ? `${team.color}30` : 'bg-primary/30'} size="md" />

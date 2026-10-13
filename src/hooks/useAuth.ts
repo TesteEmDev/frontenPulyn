@@ -3,7 +3,7 @@ import { api } from '../services/api';
 
 export interface User {
   id: string;
-  empresa_id?: string;
+  empresaId?: string;
   name: string;
   email: string;
   role: string;
@@ -52,8 +52,8 @@ export const useAuth = create<AuthStore>((set) => {
     const decoded = decodeToken(savedToken);
     if (decoded && decoded.email && (!decoded.exp || decoded.exp * 1000 > Date.now())) {
       initialUser = {
-        id: decoded.id || decoded.empresa_id,
-        empresa_id: decoded.empresa_id,
+        id: decoded.id || decoded.empresaId,
+        empresaId: decoded.empresaId,
         name: decoded.empresa_nome || decoded.email,
         email: decoded.email,
         role: decoded.role || 'admin',

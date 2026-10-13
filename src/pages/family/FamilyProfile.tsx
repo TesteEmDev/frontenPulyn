@@ -27,8 +27,8 @@ export default function FamilyProfile() {
   const familyChildren = children.filter((c) => c.status === 'active');
 
   const editingChild = children.find((c) => c.id === editChildModal);
-  const editingTeam = editingChild?.time_id
-    ? { id: editingChild.time_id, name: editingChild.time_name, color: editingChild.time_color || '#1E9BD7', icon: '👥' }
+  const editingTeam = editingChild?.timeId
+    ? { id: editingChild.timeId, name: editingChild.time_nome, color: editingChild.time_color || '#1E9BD7', icon: '👥' }
     : null;
 
 
@@ -73,7 +73,7 @@ export default function FamilyProfile() {
         </h3>
         <div className="space-y-2 mb-6">
           {familyChildren.map((child) => {
-            const team = child.time_id ? { id: child.time_id, name: child.time_name, color: child.time_color || '#1E9BD7', icon: '👥' } : null;
+            const team = child.timeId ? { id: child.timeId, name: child.time_nome, color: child.time_color || '#1E9BD7', icon: '👥' } : null;
             return (
               <Card
                 key={child.id}
@@ -155,7 +155,7 @@ export default function FamilyProfile() {
             <div className="flex items-center justify-between py-2 border-b border-border">
               <span className="text-sm text-gray-400">Pulseira</span>
               <span className="text-sm text-white font-mono">
-                {editingChild.bracelet_code || 'Nenhuma'}
+                {editingChild.codigoPulseira || 'Nenhuma'}
               </span>
             </div>
             <div className="flex items-center justify-between py-2 border-b border-border">

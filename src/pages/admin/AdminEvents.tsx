@@ -69,18 +69,18 @@ const todayISO = () => {
 // Linha pequena embaixo do status explicando o que vai acontecer com o evento.
 function describeLifecycle(event: any, status: LifecycleStatus): string | null {
   if (status === 'scheduled') {
-    const day = (event.date || '').split('T')[0];
-    const time = String(event.time || '').slice(0, 5);
+    const day = (event.data || '').split('T')[0];
+    const time = String(event.hora || '').slice(0, 5);
     const start = day && time ? new Date(`${day}T${time}:00`) : null;
     const validStart = start && !Number.isNaN(start.getTime()) ? start : null;
 
     // Janela inteira já passou sem o evento começar: ele não inicia sozinho.
-    const minutes = Number(event.duration);
+    const minutes = Number(event.duracao);
     if (validStart && minutes > 0 && Date.now() >= validStart.getTime() + minutes * 60000) {
       return 'Horário já passou. Reagende ou inicie manualmente';
     }
 
-    if (!event.auto_start) return 'Início manual';
+    if (!event.autoInicio) return 'Início manual';
     if (!validStart) return 'Inicia sozinho no horário';
     return isSameDay(validStart, new Date())
       ? `Inicia sozinho hoje às ${time}`
@@ -88,9 +88,9 @@ function describeLifecycle(event: any, status: LifecycleStatus): string | null {
   }
 
   if (status === 'active') {
-    if (!event.auto_end) return 'Encerramento manual';
-    const started = event.started_at ? new Date(event.started_at) : null;
-    const minutes = Number(event.duration);
+    if (!event.autoFim) return 'Encerramento manual';
+    const started = event.iniciadoEm ? new Date(event.iniciadoEm) : null;
+    const minutes = Number(event.duracao);
     if (!started || Number.isNaN(started.getTime()) || !(minutes > 0)) return 'Encerra sozinho após a duração';
     const end = new Date(started.getTime() + minutes * 60000);
     return isSameDay(end, new Date())
@@ -98,8 +98,8 @@ function describeLifecycle(event: any, status: LifecycleStatus): string | null {
       : `Encerra sozinho em ${formatDayMonth(end)} às ${formatClock(end)}`;
   }
 
-  if (event.ended_at) {
-    const ended = new Date(event.ended_at);
+  if (event.finalizadoEm) {
+    const ended = new Date(event.finalizadoEm);
     if (!Number.isNaN(ended.getTime())) return `Encerrado em ${formatDayMonth(ended)} às ${formatClock(ended)}`;
   }
   return null;
@@ -191,14 +191,14 @@ export default function AdminEvents() {
     e.stopPropagation();
     setMenu(null);
     setRescheduleMode(mode);
-    const day = String(eventItem.date || '').split('T')[0];
+    const day = String(eventItem.data || '').split('T')[0];
     setRescheduling(eventItem);
     setRescheduleError('');
     setRescheduleForm({
       // Evento que já passou começa sem data, para escolher a nova
       date: day && day >= todayISO() ? day : '',
-      time: String(eventItem.time || '').slice(0, 5),
-      duration: eventItem.duration ? String(eventItem.duration) : '',
+      time: String(eventItem.hora || '').slice(0, 5),
+      duration: eventItem.duracao ? String(eventItem.duracao) : '',
     });
   };
 
@@ -229,8 +229,8 @@ export default function AdminEvents() {
     setRescheduleSaving(true);
     setRescheduleError('');
     try {
-      if (rescheduleMode === 'reopen') await api.reopenEvento(rescheduling.id, { date, time, duration: minutes });
-      else await api.rescheduleEvento(rescheduling.id, { date, time, duration: minutes });
+      if (rescheduleMode === 'reopen') await api.reopenEvento(rescheduling.eventoId, { date, time, duration: minutes });
+      else await api.rescheduleEvento(rescheduling.eventoId, { date, time, duration: minutes });
       await loadEventos();
       toast.success(rescheduleMode === 'reopen' ? 'Evento reaberto' : 'Evento reagendado');
       setRescheduling(null);
@@ -258,10 +258,10 @@ export default function AdminEvents() {
       : `Encerrar o evento "${eventItem.name}"?\n\nO jogo em andamento será parado e a recepção deixará de cadastrar participantes nele. Essa ação não pode ser desfeita.`;
     if (!confirm(question)) return;
 
-    setBusyId(eventItem.id);
+    setBusyId(eventItem.eventoId);
     try {
-      if (action === 'start') await api.startEvento(eventItem.id);
-      else await api.finishEvento(eventItem.id);
+      if (action === 'start') await api.startEvento(eventItem.eventoId);
+      else await api.finishEvento(eventItem.eventoId);
       await loadEventos();
       toast.success(action === 'start' ? 'Evento iniciado' : 'Evento encerrado');
     } catch (error) {
@@ -342,30 +342,30 @@ export default function AdminEvents() {
                   {filteredEvents.map(event => {
                     const status = toLifecycle(event.status);
                     const note = describeLifecycle(event, status);
-                    const busy = busyId === event.id;
+                    const busy = busyId === event.eventoId;
                     return (
                     <tr
-                      key={event.id}
+                      key={event.eventoId}
                       className="hover:bg-surface/50 transition-colors cursor-pointer"
-                      onClick={() => handleSelectEvento(event.id)}
+                      onClick={() => handleSelectEvento(event.eventoId)}
                     >
                       <td className="py-3 pr-4">
-                        <p className="text-sm font-semibold text-white">{event.name}</p>
+                        <p className="text-sm font-semibold text-white">{event.nome}</p>
                         <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-400">
                           <User size={12} className="shrink-0" />
-                          {event.responsible_name
-                            ? <span title="Contratante/responsável">{event.responsible_name}</span>
+                          {event.nomeResponsavel
+                            ? <span title="Contratante/responsável">{event.nomeResponsavel}</span>
                             : <span className="text-gray-600">Contratante não informado</span>}
                         </p>
                        </td>
                       <td className="py-3 pr-4">
-                        <p className="text-sm text-gray-300">{formatEventDate(event.date)}</p>
+                        <p className="text-sm text-gray-300">{formatEventDate(event.data)}</p>
                        </td>
                       <td className="py-3 pr-4">
-                        <p className="text-sm text-gray-300">{event.time ? String(event.time).slice(0, 5) : '-'}</p>
+                        <p className="text-sm text-gray-300">{event.hora ? String(event.hora).slice(0, 5) : '-'}</p>
                        </td>
                       <td className="py-3 pr-4">
-                        <p className="text-sm text-gray-300">{formatDuration(event.duration)}</p>
+                        <p className="text-sm text-gray-300">{formatDuration(event.duracao)}</p>
                        </td>
                       <td className="py-3 pr-4">
                         <Badge variant={statusBadgeVariant[status]}>
@@ -415,14 +415,14 @@ export default function AdminEvents() {
                           <button
                             className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-surface transition-colors"
                             title="Editar"
-                            onClick={(e) => { e.stopPropagation(); navigate(`/admin/events/${event.id}/edit`); }}
+                            onClick={(e) => { e.stopPropagation(); navigate(`/admin/events/${event.eventoId}/edit`); }}
                           >
                             <Edit size={16} />
                           </button>
                           <button
                             className="p-1.5 rounded-lg text-gray-400 hover:text-danger hover:bg-surface transition-colors"
                             title="Excluir"
-                            onClick={(e) => handleDelete(event.id, e)}
+                            onClick={(e) => handleDelete(event.eventoId, e)}
                           >
                             <Trash2 size={16} />
                           </button>
@@ -430,15 +430,15 @@ export default function AdminEvents() {
                             <button
                               className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-surface transition-colors"
                               title="Mais opções"
-                              aria-label={`Mais opções de ${event.name}`}
+                              aria-label={`Mais opções de ${event.nome}`}
                               aria-haspopup="menu"
-                              aria-expanded={menu?.id === event.id}
+                              aria-expanded={menu?.id === event.eventoId}
                               onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (menu?.id === event.id) { setMenu(null); return; }
+                                if (menu?.id === event.eventoId) { setMenu(null); return; }
                                 const rect = e.currentTarget.getBoundingClientRect();
-                                setMenu({ id: event.id, top: rect.bottom + 4, right: window.innerWidth - rect.right });
+                                setMenu({ id: event.eventoId, top: rect.bottom + 4, right: window.innerWidth - rect.right });
                               }}
                             >
                               <MoreHorizontal size={16} />
@@ -506,7 +506,7 @@ export default function AdminEvents() {
               </p>
             )}
             <p className="text-xs text-gray-500">
-              {rescheduling.auto_start
+              {rescheduling.autoInicio
                 ? 'O evento vai iniciar automaticamente na nova data e horário.'
                 : 'O evento continua com início manual: você inicia pelo botão Iniciar.'}
             </p>
@@ -533,7 +533,7 @@ export default function AdminEvents() {
       </Modal>
 
       {menu && (() => {
-        const target = events.find((item: any) => item.id === menu.id);
+        const target = events.find((item: any) => item.eventoId === menu.id);
         if (!target) return null;
         return (
           <div

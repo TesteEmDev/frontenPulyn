@@ -86,6 +86,18 @@ function getAuthHeaders() {
   }
 }
 
+// Mensagens do telão: a API devolve "texto"; as telas leem "text".
+export function mensagemParaTela(mensagem: any) {
+  if (!mensagem || typeof mensagem !== 'object') return mensagem;
+  return { ...mensagem, text: mensagem.text ?? mensagem.texto };
+}
+
+// A API de suporte devolve "cliente" e "atribuidoPara"; as telas do master usam client / assignee.
+function ticketParaTela(ticket: any) {
+  if (!ticket || typeof ticket !== 'object') return ticket;
+  return { ...ticket, client: ticket.client ?? ticket.cliente, assignee: ticket.assignee ?? ticket.atribuidoPara };
+}
+
 async function analyticsRequest(path: string) {
   const res = await fetch(`${API_URL}${path}`, { headers: getAuthHeaders() });
   const data = await res.json().catch(() => null);
@@ -94,6 +106,125 @@ async function analyticsRequest(path: string) {
 }
 
 // Relatório geral (todos os eventos do buffet), devolvido por GET /reports/overview.
+// ---- Conquistar e Destruir (PulynBall) ----
+export interface BombaTime { timeId: string; nome?: string; cor?: string; vitorias?: number }
+export interface BombaJogador {
+  criancaId: string; nome: string; apelido?: string | null; avatar?: string | null;
+  timeId: string; numeroJogador: number | null;
+}
+export interface BombaConfig {
+  vitoriasParaVencer: number; roundsPorLado: number; duracaoRoundSeg: number;
+  plantarMs: number; desarmarMs: number; bombaSeg: number;
+}
+// Local da bomba (checkpoint marcado no jogo): o primeiro é o A, o segundo o B...
+export interface BombaLocal { checkpointId: string; letra: string; nome: string; online: boolean }
+
+export interface BombaRound {
+  roundId: string; numero: number; status: 'aguardando' | 'em_andamento' | 'bomba_plantada' | 'finalizado';
+  timeTr: BombaTime | null; timeCt: BombaTime | null;
+  portadorCriancaId: string | null; portadorNumero: number | null; localCheckpointId: string | null;
+  local: BombaLocal | null;
+  restanteRoundMs: number | null; restanteBombaMs: number | null;
+  vencedorTimeId: string | null; motivo: string | null;
+}
+export interface BombaEstado {
+  agora: string;
+  ativa: boolean;
+  partida: {
+    partidaId: string; status: string; timeA: BombaTime; timeB: BombaTime;
+    timeTrInicialId: string | null; vencedorTimeId: string | null; config: BombaConfig;
+  } | null;
+  round: BombaRound | null;
+  ultimoResultado: { numero: number; vencedorTimeId: string; vencedorLado: 'tr' | 'ct'; motivo: string; finalizadoEm: string; local: BombaLocal | null } | null;
+  locais: BombaLocal[];
+  jogadores: BombaJogador[];
+  emAndamento: { checkpointId: string; tipo: 'plantar' | 'desarmar'; criancaId: string; progressoMs: number; totalMs: number }[];
+}
+
+// Jogo PulynBall com as regras que o cliente editou (tela /admin/pulynball).
+export interface BombaJogo {
+  brincadeiraId: string; eventoId: string; nome: string; descricao: string; regras: string; status: string;
+  config: BombaConfig;
+}
+
+async function partidaRequest<T>(jogo: 'bomba' | 'refem', path: string, method = 'GET', body?: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}/${jogo}${path}`, {
+    method,
+    headers: getAuthHeaders(),
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as any)?.error || `Erro na partida (${res.status})`);
+  return data as T;
+}
+
+const bombaRequest = (path: string, method = 'GET', body?: unknown) => partidaRequest<BombaEstado>('bomba', path, method, body);
+const refemRequest = (path: string, method = 'GET', body?: unknown) => partidaRequest<RefemEstado>('refem', path, method, body);
+
+// ---- Resgate do Refém (PulynBall) ----
+export interface RefemConfig { vitoriasParaVencer: number; roundsPorLado: number; duracaoRoundSeg: number; protecaoSeg: number }
+export interface RefemCheckpoint { checkpointId: string; ordem: number; nome: string; online: boolean }
+export interface RefemRound {
+  roundId: string; numero: number; status: 'aguardando' | 'em_andamento' | 'finalizado';
+  timeTr: BombaTime | null; timeCt: BombaTime | null;
+  refem: { criancaId: string; numero: number | null; nome: string | null; avatar: string | null } | null;
+  posicao: number; total: number;
+  atualCheckpointId: string | null; proximoCheckpointId: string | null;
+  recuperacoes: number; protegidoMs: number; restanteRoundMs: number | null;
+  vencedorTimeId: string | null; motivo: string | null;
+}
+export interface RefemEstado {
+  agora: string;
+  ativa: boolean;
+  partida: {
+    partidaId: string; status: string; timeA: BombaTime; timeB: BombaTime;
+    timeTrInicialId: string | null; vencedorTimeId: string | null; config: RefemConfig;
+  } | null;
+  round: RefemRound | null;
+  ultimoResultado: { numero: number; vencedorTimeId: string; vencedorLado: 'tr' | 'ct'; motivo: string; finalizadoEm: string } | null;
+  sequencia: RefemCheckpoint[];
+  jogadores: BombaJogador[];
+}
+export interface RefemJogo {
+  brincadeiraId: string; eventoId: string; nome: string; descricao: string; regras: string; status: string; config: RefemConfig;
+}
+
+// ---- Zona (Domínio total, PulynBall) ----
+export interface DominioEquipe { timeId: string; nome: string; cor: string; pontos: number; checkpointsLidos: number; zonas: number }
+export interface DominioZona {
+  zonaId: string; nome: string; cor: string | null; checkpoints: string[];
+  donoTimeId: string | null; dono: { timeId: string; nome: string; cor: string } | null;
+}
+export interface DominioEstado {
+  ativo: boolean;
+  partidaStatus?: 'em_andamento' | 'finalizada';
+  totalZonas?: number;
+  zonas?: DominioZona[];
+  equipes?: DominioEquipe[];
+  vencedor?: { timeId: string; nome: string; cor: string } | null;
+}
+
+// Cadastro permanente da criança e os pontos dela em cada evento em que participou.
+export interface PerfilCrianca {
+  perfilCriancaId: string;
+  nome: string;
+  apelido: string | null;
+  idade: number | null;
+  avatar: string | null;
+  ultimoEventoId: string | null;
+  pontosTotais: number;
+  eventos: { criancaId: string; eventoId: string; eventoNome: string; eventoData: string; pontos: number }[];
+}
+
+// Uma zona do evento com o que os checkpoints dela realmente registraram.
+export interface ZoneEngagement {
+  zona: string;
+  checkpoints: number;
+  leituras: number;
+  participantes: number;
+  pontos: number;
+}
+
 export interface GeneralReportData {
   totals: {
     events: number;
@@ -111,7 +242,7 @@ export interface GeneralReportData {
   }>;
   byMonth: Array<{ month: string; events: number; participants: number }>;
   topParticipants: Array<{
-    id: string; name: string; nickname: string; age: number | null; scores: number;
+    id: string; name: string; nickname: string; age: number | null; scores: number; braceletCode: string;
     eventName: string; teamName: string; teamColor: string;
   }>;
   topTeams: Array<{ id: string; name: string; color: string; points: number; eventName: string }>;
@@ -140,7 +271,7 @@ export const api = {
     const res = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, senha: password }),
     });
     return res.json();
   },
@@ -184,7 +315,7 @@ export const api = {
   },
 
   async getPendingFamilyLinks(eventoId?: string) {
-    const query = eventoId ? `?evento_id=${encodeURIComponent(eventoId)}` : '';
+    const query = eventoId ? `?eventoId=${encodeURIComponent(eventoId)}` : '';
     const res = await fetch(`${API_URL}/familias/pending${query}`, { headers: getAuthHeaders() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erro ao carregar aprovações familiares (${res.status})`);
@@ -192,10 +323,26 @@ export const api = {
   },
 
   async getApprovedFamilyLinks(eventoId?: string) {
-    const query = eventoId ? `?evento_id=${encodeURIComponent(eventoId)}` : '';
+    const query = eventoId ? `?eventoId=${encodeURIComponent(eventoId)}` : '';
     const res = await fetch(`${API_URL}/familias/approved${query}`, { headers: getAuthHeaders() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erro ao carregar famílias aprovadas (${res.status})`);
+    return data;
+  },
+
+  // Todas as vinculações (aprovadas, pendentes, desvinculadas e rejeitadas), com criança e responsável.
+  async getFamilyLinks(eventoId?: string) {
+    const query = eventoId ? `?eventoId=${encodeURIComponent(eventoId)}` : '';
+    const res = await fetch(`${API_URL}/familias/links${query}`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar vinculações (${res.status})`);
+    return data;
+  },
+
+  async unlinkFamilyLink(linkId: string) {
+    const res = await fetch(`${API_URL}/familias/links/${linkId}/unlink`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro ao desvincular');
     return data;
   },
 
@@ -365,7 +512,8 @@ export const api = {
         headers: getAuthHeaders(),
       });
       if (!res.ok) return [];
-      return res.json();
+      const eventos = await res.json();
+      return Array.isArray(eventos) ? eventos.map((evento: any) => ({ ...evento, client: evento.client ?? evento.cliente })) : eventos;
     } catch (err) {
       console.error('Erro ao buscar eventos ativos:', err);
       return [];
@@ -396,7 +544,7 @@ export const api = {
   },
 
   async getClientGrowth() {
-    return analyticsRequest('/analytics/client-growth');
+    return analyticsRequest('/analytics/cliente-growth');
   },
 
   async getEventsPerMonth() {
@@ -404,7 +552,7 @@ export const api = {
   },
 
   async getCheckpointsOverTime() {
-    return analyticsRequest('/analytics/checkpoints-over-time');
+    return analyticsRequest('/analytics/pontoVerificacao-over-time');
   },
 
   async getRevenueByPlan() {
@@ -420,10 +568,10 @@ export const api = {
   },
 
   async getScoreHistory(eventoId: string, limit = 100, sessionId?: string) {
-    let url = `${API_URL}/leituras/eventos/${encodeURIComponent(eventoId)}/historico?limit=${limit}`;
+    let url = `${API_URL}/leituras/evento/${encodeURIComponent(eventoId)}/historico?limit=${limit}`;
 
     // 🆕 Adicionar sessionId como query param se fornecido — o backend filtra
-    // leituras.session_id por esse valor (routes/leituras.js), não por
+    // leituras.sessaoId por esse valor (routes/leituras.js), não por
     // brincadeira_id, então esse é o único parâmetro que ele reconhece.
     if (sessionId) {
       url += `&sessionId=${encodeURIComponent(sessionId)}`;
@@ -444,13 +592,6 @@ export const api = {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
-    });
-    return res.json();
-  },
-
-  async getLogsByClient(client: string) {
-    const res = await fetch(`${API_URL}/logs/client/${client}`, {
-      headers: getAuthHeaders(),
     });
     return res.json();
   },
@@ -478,17 +619,24 @@ export const api = {
   async getTickets(limit = 100) {
     const res = await fetch(`${API_URL}/support?limit=${limit}`, { headers: getAuthHeaders() });
     if (!res.ok) throw new Error(`Erro ao carregar tickets (${res.status})`);
-    return res.json();
+    const tickets = await res.json();
+    return Array.isArray(tickets) ? tickets.map(ticketParaTela) : tickets;
   },
 
   async createTicket(data: any) {
     const res = await fetch(`${API_URL}/support`, {
       method: 'POST',
       headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        cliente: data.client,
+        subject: data.subject,
+        priority: data.priority,
+        description: data.description,
+        atribuidoPara: data.assignee,
+      }),
     });
     if (!res.ok) throw new Error(`Erro ao criar ticket (${res.status})`);
-    return res.json();
+    return ticketParaTela(await res.json());
   },
 
   async updateTicketStatus(id: string, status: string) {
@@ -498,7 +646,7 @@ export const api = {
       body: JSON.stringify({ status }),
     });
     if (!res.ok) throw new Error(`Erro ao atualizar ticket (${res.status})`);
-    return res.json();
+    return ticketParaTela(await res.json());
   },
 
   async getTicketStats() {
@@ -507,23 +655,91 @@ export const api = {
     return res.json();
   },
 
+  // Troca só os checkpoints de um jogo (vale também com a partida em andamento).
+  async updateGameCheckpoints(gameId: string, data: { checkpoints: string[]; specialCheckpointId?: string }) {
+    const res = await fetch(`${API_URL}/brincadeiras/${encodeURIComponent(gameId)}/checkpoints`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar os checkpoints (${res.status})`);
+    return body;
+  },
+
+  // ==================== BRINCADEIRA PARALELA (recreacionista) ====================
+  async getParallelGame(eventoId: string) {
+    const res = await fetch(`${API_URL}/parallel-games/eventos/${encodeURIComponent(eventoId)}`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar a brincadeira paralela (${res.status})`);
+    return data;
+  },
+
+  async startParallelGame(eventoId: string, checkpointId: string) {
+    const res = await fetch(`${API_URL}/parallel-games/eventos/${encodeURIComponent(eventoId)}/start`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ checkpointId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao iniciar a brincadeira paralela (${res.status})`);
+    return data;
+  },
+
+  // Lista de objetos da brincadeira "Ache o objeto" (por empresa).
+  async getParallelObjects(): Promise<Array<{ id: string; name: string }>> {
+    const res = await fetch(`${API_URL}/parallel-games/objects`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao carregar os objetos (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async addParallelObject(name: string): Promise<{ id: string; name: string }> {
+    const res = await fetch(`${API_URL}/parallel-games/objects`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ name }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao adicionar o objeto (${res.status})`);
+    return data as { id: string; name: string };
+  },
+
+  async renameParallelObject(id: string, name: string): Promise<{ id: string; name: string }> {
+    const res = await fetch(`${API_URL}/parallel-games/objects/${encodeURIComponent(id)}`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ name }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao renomear o objeto (${res.status})`);
+    return data as { id: string; name: string };
+  },
+
+  async deleteParallelObject(id: string) {
+    const res = await fetch(`${API_URL}/parallel-games/objects/${encodeURIComponent(id)}`, { method: 'DELETE', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao remover o objeto (${res.status})`);
+    return data;
+  },
+
+  async stopParallelGame(eventoId: string) {
+    const res = await fetch(`${API_URL}/parallel-games/eventos/${encodeURIComponent(eventoId)}/stop`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao encerrar a brincadeira paralela (${res.status})`);
+    return data;
+  },
+
   // ==================== MENSAGENS DO DISPLAY ====================
   async getDisplayMessages(eventoId: string, limit = 50) {
-    const res = await fetch(`${API_URL}/messages/eventos/${eventoId}?limit=${limit}`, {
+    const res = await fetch(`${API_URL}/messages/evento/${eventoId}?limit=${limit}`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error(`Erro ao carregar mensagens (${res.status})`);
-    return res.json();
+    const mensagens = await res.json();
+    return Array.isArray(mensagens) ? mensagens.map(mensagemParaTela) : mensagens;
   },
 
-  async createDisplayMessage(eventoId: string, data: { text: string; type: 'preset' | 'custom' }) {
-    const res = await fetch(`${API_URL}/messages/eventos/${eventoId}`, {
+  async createDisplayMessage(eventoId: string, data: { texto: string; type: 'preset' | 'custom' }) {
+    const res = await fetch(`${API_URL}/messages/evento/${eventoId}`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error(`Erro ao enviar mensagem (${res.status})`);
-    return res.json();
+    return mensagemParaTela(await res.json());
   },
 
   // ==================== EVENTOS ====================
@@ -653,6 +869,88 @@ export const api = {
     return data;
   },
 
+  // Tela PulynBall (admin): jogos do evento com as regras editáveis.
+  async getBombaJogos(eventoId: string): Promise<{
+    jogos: BombaJogo[]; padroes: BombaConfig; limites: Record<keyof BombaConfig, [number, number]>;
+  }> {
+    const res = await fetch(`${API_URL}/bomba/jogos?eventoId=${encodeURIComponent(eventoId)}`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any)?.error || `Erro ao carregar os jogos (${res.status})`);
+    return data as any;
+  },
+  async salvarBombaJogo(brincadeiraId: string, dados: { nome: string; descricao: string; regras: string; config: BombaConfig }): Promise<BombaJogo> {
+    const res = await fetch(`${API_URL}/bomba/jogos/${encodeURIComponent(brincadeiraId)}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(dados),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any)?.error || `Erro ao salvar o jogo (${res.status})`);
+    return data as BombaJogo;
+  },
+
+  // Resgate do Refém: estado da partida e controles do recreacionista.
+  getRefemEstado(eventoId: string) { return refemRequest(`/evento/${encodeURIComponent(eventoId)}`); },
+  numerarRefem(eventoId: string) { return refemRequest(`/evento/${encodeURIComponent(eventoId)}/numerar`, 'POST'); },
+  definirNumeroRefem(eventoId: string, criancaId: string, numero: number | null) {
+    return refemRequest(`/evento/${encodeURIComponent(eventoId)}/jogador/${encodeURIComponent(criancaId)}`, 'PUT', { numero });
+  },
+  configurarRefem(eventoId: string, dados: { timeAId?: string; timeBId?: string; timeTrInicialId?: string; config?: Partial<RefemConfig> }) {
+    return refemRequest(`/evento/${encodeURIComponent(eventoId)}/partida/configurar`, 'POST', dados);
+  },
+  iniciarRoundRefem(eventoId: string) { return refemRequest(`/evento/${encodeURIComponent(eventoId)}/round/iniciar`, 'POST'); },
+  encerrarRoundRefem(eventoId: string, vencedor: 'tr' | 'ct') {
+    return refemRequest(`/evento/${encodeURIComponent(eventoId)}/round/encerrar`, 'POST', { vencedor });
+  },
+  async getRefemJogos(eventoId: string): Promise<{
+    jogos: RefemJogo[]; padroes: RefemConfig; limites: Record<keyof RefemConfig, [number, number]>;
+  }> {
+    return partidaRequest('refem', `/jogos?eventoId=${encodeURIComponent(eventoId)}`);
+  },
+  salvarRefemJogo(brincadeiraId: string, dados: { nome: string; descricao: string; regras: string; config: RefemConfig }) {
+    return partidaRequest<RefemJogo>('refem', `/jogos/${encodeURIComponent(brincadeiraId)}`, 'PUT', dados);
+  },
+
+  // Zona (Domínio total): zonas, placar das equipes e vencedor.
+  async getDominioEstado(eventoId: string): Promise<DominioEstado> {
+    const res = await fetch(`${API_URL}/zonaDominio/evento/${encodeURIComponent(eventoId)}/estado`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any)?.error || `Erro ao carregar o jogo (${res.status})`);
+    return data as DominioEstado;
+  },
+
+  // Conquistar e Destruir: estado da partida e controles do recreacionista.
+  getBombaEstado(eventoId: string) { return bombaRequest(`/evento/${encodeURIComponent(eventoId)}`); },
+  numerarBomba(eventoId: string) { return bombaRequest(`/evento/${encodeURIComponent(eventoId)}/numerar`, 'POST'); },
+  definirNumeroBomba(eventoId: string, criancaId: string, numero: number | null) {
+    return bombaRequest(`/evento/${encodeURIComponent(eventoId)}/jogador/${encodeURIComponent(criancaId)}`, 'PUT', { numero });
+  },
+  configurarBomba(eventoId: string, dados: { timeAId?: string; timeBId?: string; timeTrInicialId?: string; config?: Partial<BombaConfig> }) {
+    return bombaRequest(`/evento/${encodeURIComponent(eventoId)}/partida/configurar`, 'POST', dados);
+  },
+  iniciarRoundBomba(eventoId: string) { return bombaRequest(`/evento/${encodeURIComponent(eventoId)}/round/iniciar`, 'POST'); },
+  encerrarRoundBomba(eventoId: string, vencedor: 'tr' | 'ct') {
+    return bombaRequest(`/evento/${encodeURIComponent(eventoId)}/round/encerrar`, 'POST', { vencedor });
+  },
+
+  // Cadastro permanente da criança: pontos totais (todos os eventos) e pontos por evento.
+  async getPerfilCrianca(perfilCriancaId: string): Promise<PerfilCrianca> {
+    const res = await fetch(`${API_URL}/criancas/perfil/${encodeURIComponent(perfilCriancaId)}`, { headers: getAuthHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((body as any)?.error || `Erro ao carregar o cadastro da criança (${res.status})`);
+    return body as PerfilCrianca;
+  },
+
+  // Procura cadastros de crianças que já participaram de outros eventos da empresa.
+  async searchKioskProfiles(eventId: string, busca: string) {
+    const res = await fetch(`${API_URL}/kiosk/profiles?eventId=${encodeURIComponent(eventId)}&busca=${encodeURIComponent(busca)}`, {
+      headers: getAuthHeaders(),
+    });
+    const response = await res.json().catch(() => ([]));
+    if (!res.ok) throw new Error((response as any)?.error || `Erro ao buscar cadastro (${res.status})`);
+    return response;
+  },
+
   async createKioskParticipant(eventId: string, data: any) {
     const res = await fetch(`${API_URL}/kiosk/participants`, {
       method: 'POST',
@@ -682,7 +980,7 @@ export const api = {
     return data.floorPlan || null;
   },
 
-  async saveFloorPlan(data: { dataUrl: string; name: string; type: string }) {
+  async saveFloorPlan(data: { dataUrl: string; nome: string; type: string }) {
     const res = await fetch(`${API_URL}/company-map/floor-plan`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -779,7 +1077,7 @@ export const api = {
 
   // ==================== BRINCADEIRAS / JOGOS ====================
   async getBrincadeiras(eventoId?: string) {
-    const query = eventoId ? `?evento_id=${encodeURIComponent(eventoId)}` : '';
+    const query = eventoId ? `?eventoId=${encodeURIComponent(eventoId)}` : '';
     const res = await fetch(`${API_URL}/brincadeiras${query}`, {
       headers: getAuthHeaders(),
     });
@@ -790,13 +1088,23 @@ export const api = {
     return Array.isArray(data) ? data : [];
   },
 
+  // Tipos de jogo que o plano da empresa permite criar (a lista vem do servidor, que também confere ao salvar).
+  async getTiposDeJogo(): Promise<{ value: string; label: string }[]> {
+    const res = await fetch(`${API_URL}/brincadeiras/tipos`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ([]));
+    if (!res.ok) throw new Error((data as any)?.error || `Erro ao carregar os tipos de jogo (${res.status})`);
+    return Array.isArray(data) ? data : [];
+  },
+
   async createBrincadeira(data: any) {
     const res = await fetch(`${API_URL}/brincadeiras`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((body as any)?.error || `Erro ao criar o jogo (${res.status})`);
+    return body;
   },
 
   async updateBrincadeira(id: string, data: any) {
@@ -805,7 +1113,9 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((body as any)?.error || `Erro ao salvar o jogo (${res.status})`);
+    return body;
   },
 
   // Ativa ou desativa um jogo (só o status)
@@ -836,7 +1146,7 @@ export const api = {
 
   // ==================== CAÇA AO TESOURO ====================
   async getTreasureEventStatus(eventoId: string) {
-    const res = await fetch(`${API_URL}/treasure/eventos/${eventoId}/status`, {
+    const res = await fetch(`${API_URL}/treasure/evento/${eventoId}/status`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -846,7 +1156,7 @@ export const api = {
   },
 
   async getMonsterEventStatus(eventoId: string) {
-    const res = await fetch(`${API_URL}/monster/eventos/${eventoId}/status`, {
+    const res = await fetch(`${API_URL}/monster/evento/${eventoId}/status`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -924,7 +1234,7 @@ export const api = {
   async getTimes(eventoId?: string) {
     try {
       const url = eventoId 
-        ? `${API_URL}/times/eventos/${eventoId}/times`
+        ? `${API_URL}/times/evento/${eventoId}/time`
         : `${API_URL}/times`;
       
       const res = await fetch(url, {
@@ -964,7 +1274,7 @@ export const api = {
 
   async createTime(eventoIdOrData: string | any, maybeData?: any) {
     const data = maybeData
-      ? { ...maybeData, evento_id: eventoIdOrData }
+      ? { ...maybeData, eventoId: eventoIdOrData }
       : eventoIdOrData;
     const res = await fetch(`${API_URL}/times`, {
       method: 'POST',
@@ -984,7 +1294,7 @@ export const api = {
   },
 
   async applyDefaultTimes(eventoId: string) {
-    const res = await fetch(`${API_URL}/times/eventos/${encodeURIComponent(eventoId)}/aplicar-padrao`, {
+    const res = await fetch(`${API_URL}/times/evento/${encodeURIComponent(eventoId)}/aplicar-padrao`, {
       method: 'POST',
       headers: getAuthHeaders(),
     });
@@ -995,7 +1305,7 @@ export const api = {
 
   // Sorteia as crianças do evento entre os times. 'unassigned' = só quem está sem time.
   async distributeChildrenRandomly(eventoId: string, mode: 'unassigned' | 'all') {
-    const res = await fetch(`${API_URL}/times/eventos/${encodeURIComponent(eventoId)}/distribuir-aleatorio`, {
+    const res = await fetch(`${API_URL}/times/evento/${encodeURIComponent(eventoId)}/distribuir-aleatorio`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ mode }),
@@ -1038,7 +1348,7 @@ export const api = {
 
   async getCriancas(eventoId: string) {
     try {
-      const res = await fetch(`${API_URL}/criancas/eventos/${eventoId}/criancas`, {
+      const res = await fetch(`${API_URL}/criancas/evento/${eventoId}/crianca`, {
         headers: getAuthHeaders()
       });
       if (!res.ok) {
@@ -1054,7 +1364,7 @@ export const api = {
 
   async createCrianca(eventoId: string, data: any) {
     try {
-      const res = await fetch(`${API_URL}/criancas/eventos/${eventoId}/criancas`, {
+      const res = await fetch(`${API_URL}/criancas/evento/${eventoId}/crianca`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(data),
@@ -1073,7 +1383,7 @@ export const api = {
   },
 
   async getCriancaByBracelet(code: string) {
-    const res = await fetch(`${API_URL}/criancas/by-bracelet/${encodeURIComponent(code)}`, {
+    const res = await fetch(`${API_URL}/criancas/crianca/by-bracelet/${encodeURIComponent(code)}`, {
       headers: getAuthHeaders(),
     });
     return res.json();
@@ -1081,7 +1391,7 @@ export const api = {
 
   async updateCrianca(eventoId: string, criancaId: string, data: any) {
     try {
-      const res = await fetch(`${API_URL}/criancas/eventos/${eventoId}/criancas/${criancaId}`, {
+      const res = await fetch(`${API_URL}/criancas/evento/${eventoId}/crianca/${criancaId}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(data),
@@ -1101,7 +1411,7 @@ export const api = {
 
   async deleteCrianca(eventoId: string, criancaId: string) {
     try {
-      const res = await fetch(`${API_URL}/criancas/eventos/${eventoId}/criancas/${criancaId}`, {
+      const res = await fetch(`${API_URL}/criancas/evento/${eventoId}/crianca/${criancaId}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -1161,7 +1471,7 @@ export const api = {
     const res = await fetch(`${API_URL}/pulseiras`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ codigo: code }),
     });
     
     if (!res.ok) {
@@ -1195,7 +1505,7 @@ export const api = {
   // ==================== CHECKPOINTS ====================
   // Contagem de checkpoints por evento (cadastrados e online) de todos os eventos do buffet
   async getCheckpointsSummary() {
-    const res = await fetch(`${API_URL}/checkpoints/resumo`, { headers: getAuthHeaders() });
+    const res = await fetch(`${API_URL}/pontoVerificacao/resumo`, { headers: getAuthHeaders() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erro ao carregar resumo de checkpoints (${res.status})`);
     return Array.isArray(data) ? data : [];
@@ -1203,13 +1513,13 @@ export const api = {
 
   async getCheckpoints(eventoId: string) {
     try {
-      const res = await fetch(`${API_URL}/checkpoints/evento/${eventoId}`, {
+      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}`, {
         headers: getAuthHeaders()
       });
       if (!res.ok) return [];
       const data = await res.json();
       return Array.isArray(data)
-        ? data.filter(checkpoint => String(checkpoint?.checkpoint_purpose || 'game').toLowerCase() !== 'reception')
+        ? data.filter(checkpoint => String(checkpoint?.proposito || 'game').toLowerCase() !== 'reception')
         : [];
     } catch (err) {
       console.error('Erro ao carregar checkpoints:', err);
@@ -1221,8 +1531,8 @@ export const api = {
     try {
       // Se eventoId for fornecido, usar rota com contexto de evento
       const url = eventoId 
-        ? `${API_URL}/checkpoints/evento/${eventoId}/config/${checkpointId}`
-        : `${API_URL}/checkpoints/${checkpointId}/config`;
+        ? `${API_URL}/pontoVerificacao/evento/${eventoId}/config/${checkpointId}`
+        : `${API_URL}/pontoVerificacao/${checkpointId}/config`;
       
       const res = await fetch(url, {
         method: 'POST',
@@ -1243,7 +1553,7 @@ export const api = {
   },
 
   async getCheckpointConfig(checkpointId: string) {
-    const res = await fetch(`${API_URL}/checkpoints/${checkpointId}/config`, {
+    const res = await fetch(`${API_URL}/pontoVerificacao/${checkpointId}/config`, {
       headers: getAuthHeaders(),
     });
     return res.json();
@@ -1251,7 +1561,7 @@ export const api = {
 
   async createCheckpoint(eventoId: string, data: any) {
     try {
-      const res = await fetch(`${API_URL}/checkpoints/evento/${eventoId}`, {
+      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(data),
@@ -1259,7 +1569,9 @@ export const api = {
       
       if (!res.ok) {
         const errorText = await res.text();
-        throw new Error(errorText);
+        let mensagem = errorText;
+        try { mensagem = JSON.parse(errorText)?.error || errorText; } catch { /* texto puro */ }
+        throw new Error(mensagem);
       }
       
       return res.json();
@@ -1269,9 +1581,20 @@ export const api = {
     }
   },
 
+  // Código curto do buffet: o ESP32 o informa na página /config quando o mesmo ID também existe em outro buffet.
+  async getCodigoBuffet(): Promise<string | null> {
+    try {
+      const res = await fetch(`${API_URL}/pontoVerificacao/codigo-buffet`, { headers: getAuthHeaders() });
+      if (!res.ok) return null;
+      return ((await res.json()) as { codigo?: string }).codigo || null;
+    } catch {
+      return null;
+    }
+  },
+
   async deleteCheckpoint(eventoId: string, checkpointId: string) {
     try {
-      const res = await fetch(`${API_URL}/checkpoints/evento/${eventoId}/${checkpointId}`, {
+      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}/${checkpointId}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -1300,14 +1623,14 @@ export const api = {
 
   // ==================== RANKING ====================
   async getRankingCriancas(eventoId: string) {
-    const res = await fetch(`${API_URL}/ranking/eventos/${eventoId}/ranking/criancas`, {
+    const res = await fetch(`${API_URL}/ranking/evento/${eventoId}/ranking/crianca`, {
       headers: getAuthHeaders(),
     });
     return res.json();
   },
 
   async getRankingTimes(eventoId: string) {
-    const res = await fetch(`${API_URL}/ranking/eventos/${eventoId}/ranking/times`, {
+    const res = await fetch(`${API_URL}/ranking/evento/${eventoId}/ranking/time`, {
       headers: getAuthHeaders(),
     });
     return res.json();
@@ -1341,6 +1664,14 @@ export const api = {
     return body as GeneralReportData;
   },
 
+  // Engajamento por zona de um evento, calculado das leituras reais dos checkpoints.
+  async getZoneEngagement(eventoId: string): Promise<ZoneEngagement[]> {
+    const res = await fetch(`${API_URL}/reports/evento/${encodeURIComponent(eventoId)}/zonas`, { headers: getAuthHeaders() });
+    const body = await res.json().catch(() => ([]));
+    if (!res.ok) throw new Error((body as any)?.error || `Erro ao carregar o engajamento por zona (${res.status})`);
+    return Array.isArray(body) ? body : [];
+  },
+
   // Logo/foto da unidade (guardada em `clientes`, como data URL).
   async getEmpresaLogo(): Promise<{ dataUrl: string; name: string; type: string } | null> {
     const res = await fetch(`${API_URL}/empresa/me/logo`, { headers: getAuthHeaders() });
@@ -1370,24 +1701,24 @@ export const api = {
   // ==================== SETTINGS ====================
   // Retorna as configurações do buffet como objeto { chave: valor }.
   async getSettings(): Promise<Record<string, string>> {
-    const res = await fetch(`${API_URL}/settings`, {
+    const res = await fetch(`${API_URL}/configuracoes`, {
       headers: getAuthHeaders(),
     });
     const body = await res.json().catch(() => ([]));
     if (!res.ok) throw new Error((body as any).error || `Erro ao carregar configurações (${res.status})`);
-    const rows: Array<{ setting_key: string; setting_value: string | null }> = Array.isArray(body) ? body : [];
-    return Object.fromEntries(rows.map(row => [row.setting_key, row.setting_value ?? '']));
+    const rows: Array<{ chave: string; valor: string | null }> = Array.isArray(body) ? body : [];
+    return Object.fromEntries(rows.map(row => [row.chave, row.valor ?? '']));
   },
 
   async getSetting(key: string) {
-    const res = await fetch(`${API_URL}/settings/${key}`, {
+    const res = await fetch(`${API_URL}/configuracoes/${key}`, {
       headers: getAuthHeaders(),
     });
     return res.json();
   },
 
   async updateSetting(key: string, value: string) {
-    const res = await fetch(`${API_URL}/settings/${key}`, {
+    const res = await fetch(`${API_URL}/configuracoes/${key}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify({ value }),
@@ -1398,7 +1729,7 @@ export const api = {
   },
 
   async updateSettings(settings: Record<string, string>) {
-    const res = await fetch(`${API_URL}/settings`, {
+    const res = await fetch(`${API_URL}/configuracoes`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(settings),
@@ -1411,7 +1742,7 @@ export const api = {
   // ==================== USUÁRIOS (LOGINS) ====================
   async getUsers(empresaId: string) {
     try {
-      const res = await fetch(`${API_URL}/logins/empresa/${empresaId}`, {
+      const res = await fetch(`${API_URL}/acessos/empresa/${empresaId}`, {
         headers: getAuthHeaders()
       });
       
@@ -1431,7 +1762,7 @@ export const api = {
 
   async createUser(userData: any) {
     try {
-      const res = await fetch(`${API_URL}/logins`, {
+      const res = await fetch(`${API_URL}/acessos`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(userData),
@@ -1451,7 +1782,7 @@ export const api = {
 
   async deleteUser(userId: string) {
     try {
-      const res = await fetch(`${API_URL}/logins/${userId}`, {
+      const res = await fetch(`${API_URL}/acessos/${userId}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -1583,7 +1914,7 @@ export const api = {
   async getCheckpointStates(eventoId: string, partidaId: string) {
     try {
       const res = await fetch(
-        `${API_URL}/zone-conquest/checkpoint-states/${encodeURIComponent(eventoId)}/${encodeURIComponent(partidaId)}`,
+        `${API_URL}/zone-conquest/checkpoint-estados/${encodeURIComponent(eventoId)}/${encodeURIComponent(partidaId)}`,
         {
           headers: getAuthHeaders(),
         }
@@ -1605,7 +1936,7 @@ export const api = {
   async getCheckpointState(eventoId: string, checkpointId: string, partidaId: string) {
     try {
       const res = await fetch(
-        `${API_URL}/zone-conquest/checkpoint-state/${encodeURIComponent(eventoId)}/${encodeURIComponent(checkpointId)}/${encodeURIComponent(partidaId)}`,
+        `${API_URL}/zone-conquest/checkpoint-estado/${encodeURIComponent(eventoId)}/${encodeURIComponent(checkpointId)}/${encodeURIComponent(partidaId)}`,
         {
           headers: getAuthHeaders(),
         }
@@ -1627,7 +1958,7 @@ export const api = {
   async updateCheckpointState(stateId: string, updates: any) {
     try {
       const res = await fetch(
-        `${API_URL}/zone-conquest/checkpoint-state/${encodeURIComponent(stateId)}`,
+        `${API_URL}/zone-conquest/checkpoint-estado/${encodeURIComponent(stateId)}`,
         {
           method: 'PUT',
           headers: getAuthHeaders(),
@@ -1651,7 +1982,7 @@ export const api = {
   async getZoneStates(eventoId: string, partidaId: string) {
     try {
       const res = await fetch(
-        `${API_URL}/zone-conquest/zone-states/${encodeURIComponent(eventoId)}/${encodeURIComponent(partidaId)}`,
+        `${API_URL}/zone-conquest/zone-estados/${encodeURIComponent(eventoId)}/${encodeURIComponent(partidaId)}`,
         {
           headers: getAuthHeaders(),
         }
@@ -1673,7 +2004,7 @@ export const api = {
   async getZoneState(eventoId: string, zoneId: string, partidaId: string) {
     try {
       const res = await fetch(
-        `${API_URL}/zone-conquest/zone-state/${encodeURIComponent(eventoId)}/${encodeURIComponent(zoneId)}/${encodeURIComponent(partidaId)}`,
+        `${API_URL}/zone-conquest/zone-estado/${encodeURIComponent(eventoId)}/${encodeURIComponent(zoneId)}/${encodeURIComponent(partidaId)}`,
         {
           headers: getAuthHeaders(),
         }
@@ -1695,7 +2026,7 @@ export const api = {
   async updateZoneState(stateId: string, updates: any) {
     try {
       const res = await fetch(
-        `${API_URL}/zone-conquest/zone-state/${encodeURIComponent(stateId)}`,
+        `${API_URL}/zone-conquest/zone-estado/${encodeURIComponent(stateId)}`,
         {
           method: 'PUT',
           headers: getAuthHeaders(),
@@ -1780,3 +2111,54 @@ export const api = {
     }
   },
 };
+
+// ==================== NOMES DOS CAMPOS DA API ====================
+// A API devolve as linhas do banco com os nomes novos (eventoId, timeId, criancaId, nome, cor,
+// pontos...). Telas ainda escritas com os nomes antigos (id, name, color, points...) continuam
+// funcionando porque cada linha ganha também esses apelidos de LEITURA, apontando para o valor
+// novo. Os nomes novos são a fonte da verdade: ao migrar uma tela, passe a ler os novos e o
+// apelido correspondente deixa de ser usado. Um apelido nunca sobrescreve um campo existente.
+type TipoLinha = 'evento' | 'time' | 'crianca' | 'checkpoint' | 'brincadeira' | 'pulseira' | 'login';
+
+const APELIDOS_DE_LEITURA: Record<TipoLinha, Record<string, string>> = {
+  evento: { id: 'eventoId', name: 'nome', description: 'descricao', date: 'data', time: 'hora', duration: 'duracao' },
+  time: { id: 'timeId', name: 'nome', color: 'cor', points: 'pontos', score: 'pontos' },
+  crianca: { id: 'criancaId', name: 'nome', nickname: 'apelido', age: 'idade', scores: 'pontos', score: 'pontos', points: 'pontos' },
+  checkpoint: { id: 'checkpointId', name: 'nome', type: 'tipo', zone: 'zona', location: 'localizacao', points: 'pontos' },
+  brincadeira: { id: 'brincadeiraId', name: 'nome', description: 'descricao', rules: 'regras', type: 'tipo', duration: 'duracao' },
+  pulseira: { code: 'codigo' },
+  login: { id: 'loginId', role: 'perfil' },
+};
+
+function comApelidos(linha: any, tipo: TipoLinha): any {
+  if (!linha || typeof linha !== 'object' || Array.isArray(linha)) return linha;
+  const copia = { ...linha };
+  for (const [apelido, campo] of Object.entries(APELIDOS_DE_LEITURA[tipo])) {
+    if (!(apelido in copia) && campo in copia) copia[apelido] = copia[campo];
+  }
+  return copia;
+}
+
+function listaComApelidos(dados: any, tipo: TipoLinha): any {
+  return Array.isArray(dados) ? dados.map((linha) => comApelidos(linha, tipo)) : comApelidos(dados, tipo);
+}
+
+const METODOS_QUE_DEVOLVEM_LINHAS: Record<string, TipoLinha> = {
+  getEventos: 'evento',
+  getEvento: 'evento',
+  getBrincadeiras: 'brincadeira',
+  getTimes: 'time',
+  getRankingTimes: 'time',
+  getAllCriancas: 'crianca',
+  getCriancas: 'crianca',
+  getRankingCriancas: 'crianca',
+  getPulseiras: 'pulseira',
+  getCheckpoints: 'checkpoint',
+  getUsers: 'login',
+};
+
+for (const [metodo, tipo] of Object.entries(METODOS_QUE_DEVOLVEM_LINHAS)) {
+  const original = (api as any)[metodo];
+  if (typeof original !== 'function') continue;
+  (api as any)[metodo] = async (...args: unknown[]) => listaComApelidos(await original.apply(api, args), tipo);
+}

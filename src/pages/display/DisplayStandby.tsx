@@ -49,7 +49,7 @@ export default function DisplayStandby() {
   // O standby também segue o evento escolhido pela recepção; não escolhe
   // silenciosamente outro evento apenas por ele estar ativo.
   const activeEvent = eventoAtualId
-    ? events.find((event) => String(event.id) === String(eventoAtualId))
+    ? events.find((event) => String(event.eventoId) === String(eventoAtualId))
     : null;
 
   // Pulse glow effect
@@ -113,10 +113,10 @@ export default function DisplayStandby() {
             <span className="text-xs text-slate-600 uppercase tracking-widest">Evento ativo</span>
             <div className="flex items-center gap-3 bg-dark-card/60 border border-dark-border/50 rounded-full px-6 py-3 backdrop-blur-sm">
               <div className="w-2.5 h-2.5 rounded-full bg-success-500 animate-pulse" />
-              <span className="font-display text-lg text-slate-200">{activeEvent.name}</span>
+              <span className="font-display text-lg text-slate-200">{activeEvent.nome}</span>
             </div>
             <span className="font-mono text-sm text-slate-500">
-              {activeEvent.date} &middot; {activeEvent.time}
+              {activeEvent.data} &middot; {activeEvent.hora}
             </span>
           </div>
         )}

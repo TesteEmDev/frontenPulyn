@@ -10,6 +10,7 @@ import {
   LifeBuoy,
   BarChart3,
   Check,
+  Crosshair,
   Zap,
   Building2,
   Crown,
@@ -21,6 +22,7 @@ import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
+import { planoBadge, planoRotulo } from '../../utils/planos';
 import Button from '../../components/ui/Button';
 
 const masterNavItems = [
@@ -83,7 +85,7 @@ export default function MasterPlans() {
           />
 
           {/* Plan Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
             {plans.map(plan => (
               <Card
                 key={plan.id}
@@ -101,7 +103,7 @@ export default function MasterPlans() {
                     style={{ backgroundColor: plan.color + '20' }}
                   >
                     <span style={{ color: plan.color }}>
-                      {plan.id === 'enterprise' ? <Crown size={32} /> : plan.id === 'professional' ? <Zap size={32} /> : <Rocket size={32} />}
+                      {plan.id === 'enterprise' ? <Crown size={32} /> : plan.id === 'professional' ? <Zap size={32} /> : plan.id === 'pulynball' ? <Crosshair size={32} /> : <Rocket size={32} />}
                     </span>
                   </div>
                   <h3 className="font-display text-xl text-white">{plan.name}</h3>
@@ -203,8 +205,8 @@ export default function MasterPlans() {
                           </div>
                         </td>
                         <td className="py-3 px-4">
-                          <Badge variant={client.plan === 'enterprise' ? 'primary' : client.plan === 'professional' ? 'secondary' : 'muted'}>
-                            {client.plan.charAt(0).toUpperCase() + client.plan.slice(1)}
+                          <Badge variant={planoBadge(client.plan)}>
+                            {planoRotulo(client.plan)}
                           </Badge>
                         </td>
                         <td className="py-3 px-4">

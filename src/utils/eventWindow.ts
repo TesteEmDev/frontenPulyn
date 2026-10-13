@@ -2,11 +2,11 @@
 
 export interface EventWindowSource {
   status?: string | null;
-  date?: string | null;
-  time?: string | null;
-  duration?: number | null;
-  started_at?: string | null;
-  ended_at?: string | null;
+  data?: string | null;
+  hora?: string | null;
+  duracao?: number | null;
+  iniciadoEm?: string | null;
+  finalizadoEm?: string | null;
 }
 
 export interface EventWindow {
@@ -52,8 +52,8 @@ function parseDate(value?: string | null): Date | null {
 
 // Data + horário agendados, no relógio local do navegador (o mesmo do buffet).
 function scheduledStart(event: EventWindowSource): Date | null {
-  const day = String(event.date || '').split('T')[0];
-  const time = String(event.time || '').slice(0, 5);
+  const day = String(event.data || '').split('T')[0];
+  const time = String(event.hora || '').slice(0, 5);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) return null;
   return parseDate(`${day}T${time}:00`);
 }
@@ -69,19 +69,19 @@ export function getEventActiveWindow(
   const last = valid[valid.length - 1] || null;
   const lifecycle = toLifecycle(event.status);
   const planned = scheduledStart(event);
-  const plannedEnd = planned && Number(event.duration) > 0
-    ? new Date(planned.getTime() + Number(event.duration) * 60000)
+  const plannedEnd = planned && Number(event.duracao) > 0
+    ? new Date(planned.getTime() + Number(event.duracao) * 60000)
     : null;
 
   if (lifecycle === 'active') {
-    const start = parseDate(event.started_at) || planned || first;
+    const start = parseDate(event.iniciadoEm) || planned || first;
     if (!start) return null;
     return { start, end: now.getTime() < start.getTime() ? start : now, source: 'lifecycle', ongoing: true };
   }
 
   if (lifecycle === 'finished') {
-    const start = parseDate(event.started_at) || planned || first;
-    const end = parseDate(event.ended_at) || plannedEnd || last;
+    const start = parseDate(event.iniciadoEm) || planned || first;
+    const end = parseDate(event.finalizadoEm) || plannedEnd || last;
     if (!start || !end || end.getTime() < start.getTime()) return null;
     return { start, end, source: 'lifecycle', ongoing: false };
   }

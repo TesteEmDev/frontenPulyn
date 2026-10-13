@@ -54,11 +54,11 @@ export default function AdminSync() {
     if (selectedEventId || safeEvents.length === 0) return;
     const active = safeEvents.find((e) => e?.status === 'active' || e?.status === 'ongoing');
     if (active) {
-      setSelectedEventId(active.id);
+      setSelectedEventId(active.eventoId);
       return;
     }
-    const mostRecent = [...safeEvents].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
-    setSelectedEventId(mostRecent?.id || '');
+    const mostRecent = [...safeEvents].sort((a, b) => (b.data || '').localeCompare(a.data || ''))[0];
+    setSelectedEventId(mostRecent?.eventoId || '');
   }, [safeEvents, selectedEventId]);
 
   const fetchStatus = useCallback(async () => {
@@ -98,8 +98,8 @@ export default function AdminSync() {
 
   const eventOptions = useMemo(() => (
     [...safeEvents]
-      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-      .map((e) => ({ value: e.id, label: `${e.name || 'Evento'} — ${e.date || 'sem data'}` }))
+      .sort((a, b) => (b.data || '').localeCompare(a.data || ''))
+      .map((e) => ({ value: e.eventoId, label: `${e.nome || 'Evento'} — ${e.data || 'sem data'}` }))
   ), [safeEvents]);
 
   const safeCheckpoints = Array.isArray(checkpoints) ? checkpoints : [];
@@ -219,11 +219,11 @@ export default function AdminSync() {
                 {offlineCheckpoints.length > 0 ? (
                   <div className="space-y-2">
                     {offlineCheckpoints.map(cp => (
-                      <div key={cp.id} className="flex items-center gap-3 p-3 rounded-lg bg-surface/50">
+                      <div key={cp.checkpointId} className="flex items-center gap-3 p-3 rounded-lg bg-surface/50">
                         <StatusDot status="offline" />
                         <div className="flex-1">
-                          <p className="text-sm text-white">{cp.name}</p>
-                          <p className="text-xs text-gray-500">{cp.zone || 'Sem zona'}</p>
+                          <p className="text-sm text-white">{cp.nome}</p>
+                          <p className="text-xs text-gray-500">{cp.zona || 'Sem zona'}</p>
                         </div>
                         <Badge variant="danger">Offline</Badge>
                       </div>
@@ -249,7 +249,7 @@ export default function AdminSync() {
                         />
                         <div className="flex-1">
                           <p className="text-sm text-white">
-                            {entry.child_nickname || entry.child_name || 'Participante'} conquistou {entry.checkpoint_name || 'checkpoint'}
+                            {entry.child_apelido || entry.crianca_nome || 'Participante'} conquistou {entry.checkpoint_name || 'checkpoint'}
                           </p>
                         </div>
                         <span className="text-xs text-gray-500 font-mono">{timeAgo(entry.created_at)}</span>

@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import Badge from '../../components/ui/Badge';
+import { planoBadge } from '../../utils/planos';
+import type { PlanoId } from '../../utils/planos';
 import Button from '../../components/ui/Button';
 import ProgressBar from '../../components/ui/ProgressBar';
 import { api } from '../../services/api';
@@ -24,7 +26,7 @@ export interface ClientSummary {
   name: string;
   city: string;
   state: string;
-  plan: 'starter' | 'professional' | 'enterprise';
+  plan: PlanoId;
   status: 'active' | 'blocked' | 'trial';
   eventsDone: number;
   lastAccess: string;
@@ -83,11 +85,6 @@ interface ClientDetails {
   support: { open: number; total: number };
 }
 
-const planBadgeVariant: Record<string, 'primary' | 'secondary' | 'muted'> = {
-  enterprise: 'primary',
-  professional: 'secondary',
-  starter: 'muted',
-};
 const statusBadgeVariant: Record<string, 'success' | 'danger' | 'accent'> = {
   active: 'success',
   blocked: 'danger',
@@ -233,7 +230,7 @@ export default function ClientDetailsModal({
               <h3 className="font-display text-xl text-white break-words">{client.name}</h3>
               <div className="flex flex-wrap items-center gap-2 mt-1">
                 <Badge variant={statusBadgeVariant[client.status]}>{statusLabel[client.status]}</Badge>
-                <Badge variant={planBadgeVariant[client.plan]}>{plan?.name || client.plan}</Badge>
+                <Badge variant={planoBadge(client.plan)}>{plan?.name || client.plan}</Badge>
                 {isLegacy && <Badge variant="muted">Cadastro legado</Badge>}
               </div>
             </div>

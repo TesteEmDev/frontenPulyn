@@ -3,18 +3,18 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 
 export interface EventTeam {
-  id: string;
-  name: string;
-  color: string;
-  evento_id?: string | null;
-  points?: number;
+  timeId: string;
+  nome: string;
+  cor: string;
+  eventoId?: string | null;
+  pontos?: number;
   members_count?: number | string;
 }
 
 export interface EventSummary {
-  id: string;
-  name: string;
-  date: string;
+  eventoId: string;
+  nome: string;
+  data: string;
 }
 
 interface AllEventsTeamsProps {
@@ -43,11 +43,11 @@ export default function AllEventsTeams({ events, teams, loading, onOpenEvent }: 
     );
   }
 
-  const eventTeams = teams.filter(team => team.evento_id);
-  const knownIds = new Set(events.map(event => event.id));
-  const orphanTeams = eventTeams.filter(team => !knownIds.has(String(team.evento_id)));
+  const eventTeams = teams.filter(team => team.eventoId);
+  const knownIds = new Set(events.map(event => event.eventoId));
+  const orphanTeams = eventTeams.filter(team => !knownIds.has(String(team.eventoId)));
   // Eventos mais recentes primeiro.
-  const orderedEvents = [...events].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const orderedEvents = [...events].sort((a, b) => String(b.data).localeCompare(String(a.data)));
 
   const renderTeams = (list: EventTeam[]) =>
     list.length === 0 ? (
@@ -55,16 +55,16 @@ export default function AllEventsTeams({ events, teams, loading, onOpenEvent }: 
     ) : (
       <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {list.map(team => (
-          <li key={team.id} className="flex items-center gap-3 rounded-lg border border-white/[0.08] bg-surface/30 px-3 py-2.5">
-            <span className="h-5 w-5 shrink-0 rounded-full border border-white/30" style={{ backgroundColor: team.color }} aria-hidden="true" />
+          <li key={team.timeId} className="flex items-center gap-3 rounded-lg border border-white/[0.08] bg-surface/30 px-3 py-2.5">
+            <span className="h-5 w-5 shrink-0 rounded-full border border-white/30" style={{ backgroundColor: team.cor }} aria-hidden="true" />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-white">{team.name}</span>
+              <span className="block truncate text-sm font-semibold text-white">{team.nome}</span>
               <span className="block text-xs text-gray-500">
                 {Number(team.members_count || 0)} membro{Number(team.members_count || 0) !== 1 ? 's' : ''}
               </span>
             </span>
             <span className="shrink-0 text-right">
-              <span className="block font-mono text-sm font-bold text-white">{Number(team.points || 0)}</span>
+              <span className="block font-mono text-sm font-bold text-white">{Number(team.pontos || 0)}</span>
               <span className="block text-[10px] uppercase tracking-wide text-gray-500">pontos</span>
             </span>
           </li>
@@ -87,19 +87,19 @@ export default function AllEventsTeams({ events, teams, loading, onOpenEvent }: 
       </p>
 
       {orderedEvents.map(event => {
-        const list = eventTeams.filter(team => String(team.evento_id) === event.id);
-        const date = formatDate(event.date);
+        const list = eventTeams.filter(team => String(team.eventoId) === event.eventoId);
+        const date = formatDate(event.data);
         return (
-          <Card key={event.id}>
+          <Card key={event.eventoId}>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="truncate font-display text-lg text-white">{event.name}</h3>
+                <h3 className="truncate font-display text-lg text-white">{event.nome}</h3>
                 <p className="flex items-center gap-1.5 text-xs text-gray-500">
                   {date && (<><CalendarDays size={13} aria-hidden="true" />{date} · </>)}
                   {list.length} time{list.length !== 1 ? 's' : ''}
                 </p>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => onOpenEvent(event.id)}>
+              <Button variant="ghost" size="sm" onClick={() => onOpenEvent(event.eventoId)}>
                 Gerenciar times
                 <ArrowRight size={14} className="ml-1.5" />
               </Button>

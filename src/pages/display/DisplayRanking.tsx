@@ -136,7 +136,7 @@ export default function DisplayRanking() {
   const rankedChildren = useMemo(
     () =>
       [...children]
-        .filter((c) => c.status === 'active' && (c.teamId || c.team_id || c.time_id || c.team))
+        .filter((c) => c.status === 'active' && (c.teamId || c.team_id || c.timeId || c.team))
         .sort((a, b) => Number(b.scores ?? b.score ?? 0) - Number(a.scores ?? a.score ?? 0)),
     [children]
   );
@@ -180,7 +180,7 @@ export default function DisplayRanking() {
               key={position}
               child={child}
               position={position}
-              team={child ? getTeam(child.teamId ?? child.team_id ?? child.time_id ?? child.team) : null}
+              team={child ? getTeam(child.teamId ?? child.team_id ?? child.timeId ?? child.team) : null}
               height={podiumHeights[position]}
             />
           ))}
@@ -200,8 +200,8 @@ export default function DisplayRanking() {
                   </span>
                   <Avatar emoji={child.avatar} size="sm" decorative />
                   <span className="font-display text-lg text-slate-200 flex-1">{child.nickname}</span>
-                  {child.teamId || child.team_id || child.time_id || child.team && (() => {
-                    const t = getTeam(child.teamId ?? child.team_id ?? child.time_id ?? child.team);
+                  {child.teamId || child.team_id || child.timeId || child.team && (() => {
+                    const t = getTeam(child.teamId ?? child.team_id ?? child.timeId ?? child.team);
                     return t ? (
                       <span
                         className="text-xs font-bold px-2 py-0.5 rounded-full"

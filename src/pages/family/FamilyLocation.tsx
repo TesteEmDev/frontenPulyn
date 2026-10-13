@@ -134,7 +134,7 @@ export default function FamilyLocation() {
         </h3>
         <div className="space-y-2 mb-6">
           {activeChildren.map((child) => {
-            const team = child.time_id ? { color: child.time_color || '#1E9BD7' } : null;
+            const team = child.timeId ? { color: child.time_color || '#1E9BD7' } : null;
             return (
               <Card key={child.id} className="flex items-center gap-3 py-2.5">
                 <Avatar emoji={child.avatar || '👤'} size="sm" bgColor={team ? `${team.color}30` : 'bg-primary/30'} />

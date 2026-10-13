@@ -20,6 +20,8 @@ import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
+import { planoBadge, planoRotulo } from '../../utils/planos';
+import type { PlanoId } from '../../utils/planos';
 import StatusDot from '../../components/ui/StatusDot';
 import { api } from '../../services/api';
 import { BRAZIL_STATES, type BrazilStateShape } from './brazilMapData';
@@ -41,7 +43,7 @@ interface MasterClient {
   city: string;
   state: string;
   status: 'active' | 'blocked' | 'trial';
-  plan: 'starter' | 'professional' | 'enterprise';
+  plan: PlanoId;
 }
 
 interface MasterAlert {
@@ -961,10 +963,10 @@ export default function MasterDashboard() {
                       </div>
                       {client && (
                         <Badge
-                          variant={client.plan === 'enterprise' ? 'primary' : client.plan === 'professional' ? 'secondary' : 'muted'}
+                          variant={planoBadge(client.plan)}
                           className="mt-2"
                         >
-                          {client.plan}
+                          {planoRotulo(client.plan)}
                         </Badge>
                       )}
                     </div>

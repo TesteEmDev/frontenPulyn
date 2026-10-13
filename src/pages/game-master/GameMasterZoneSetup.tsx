@@ -13,8 +13,8 @@ interface Checkpoint {
 }
 
 interface Evento {
-  id: string;
-  name: string;
+  eventoId: string;
+  nome: string;
 }
 
 interface GameMasterZoneSetupState {
@@ -55,7 +55,7 @@ export default function GameMasterZoneSetup() {
     try {
       const response = await api.getEventos();
       const eventos = response || [];
-      const firstEventId = eventos.length > 0 ? eventos[0].id : '';
+      const firstEventId = eventos.length > 0 ? eventos[0].eventoId : '';
       setState(prev => ({ 
         ...prev, 
         eventos,
@@ -186,8 +186,8 @@ export default function GameMasterZoneSetup() {
             >
               <option value="">Selecionar Evento</option>
               {state.eventos.map(evento => (
-                <option key={evento.id} value={evento.id}>
-                  {evento.name}
+                <option key={evento.eventoId} value={evento.eventoId}>
+                  {evento.nome}
                 </option>
               ))}
             </select>
