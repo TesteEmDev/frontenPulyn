@@ -192,7 +192,7 @@ export default function AdminCheckpoints() {
         const criado = await api.createCheckpoint(targetEventId, config);
         if (criado?.empresaCodigo) setCodigoBuffet(criado.empresaCodigo);
         avisoPrefixo = criado?.prefixado
-          ? `\n\nAtenção: o ID ${criado.codigo} também é usado por outro buffet. Na página /config deste ESP32, preencha "Código do buffet" com ${criado.empresaCodigo} (além do ID ${criado.codigo}).`
+          ? `\n\nAtenção: o ID ${criado.codigo} também é usado em outro buffet. Se o ESP32 for gravado só com o número, ele vai falar com o checkpoint do outro buffet. Opções: no ESP32 (página /config), preencha "Código do buffet" com ${criado.empresaCodigo}; ou peça ao suporte para passar o ID simples ${criado.codigo} para este checkpoint.`
           : '';
         setCheckpointsList(prev => [...prev, {
           id: criado?.id ?? formData.id,
@@ -342,8 +342,8 @@ export default function AdminCheckpoints() {
                         <td className="py-3 pr-4">
                           <p className="text-sm font-mono text-gray-300">{cp.codigo ?? cp.id}</p>
                           {cp.prefixado && (
-                            <p className="text-xs text-warning" title="O mesmo ID também é usado por outro buffet">
-                              ESP32: código do buffet {cp.empresaCodigo}
+                            <p className="text-xs text-warning" title="O mesmo ID também é usado em outro buffet: um ESP32 gravado só com o número fala com o outro. Preencha o código do buffet no ESP32 ou peça ao suporte para passar o ID simples para este checkpoint.">
+                              ID repetido em outro buffet · código do buffet no ESP32: {cp.empresaCodigo}
                             </p>
                           )}
                         </td>
