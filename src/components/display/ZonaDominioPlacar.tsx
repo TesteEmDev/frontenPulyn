@@ -1,4 +1,4 @@
-// Placar da Zona (Domínio total) sobre o mapa do telão: quantas zonas cada equipe domina, os pontos e o vencedor.
+// Placar da Zona (Domínio total) sobre o mapa do telão: quantos checkpoints cada equipe domina, os pontos e o vencedor.
 // Só aparece quando o jogo em andamento é o Domínio total (senão o servidor responde ativo = false e nada é desenhado).
 import { useDominioEstado } from '../../hooks/useDominioEstado';
 
@@ -7,8 +7,8 @@ export default function ZonaDominioPlacar({ eventoId }: { eventoId: string }) {
   if (!estado?.ativo) return null;
 
   const equipes = estado.equipes || [];
-  const zonas = estado.zonas || [];
-  const total = estado.totalZonas || 0;
+  const checkpoints = estado.checkpoints || [];
+  const total = estado.totalCheckpoints || 0;
   const vencedor = estado.vencedor;
 
   return (
@@ -16,7 +16,7 @@ export default function ZonaDominioPlacar({ eventoId }: { eventoId: string }) {
       <div className="absolute left-3 top-3 z-20 w-[clamp(15rem,24vw,26rem)] rounded-2xl border border-white/10 bg-slate-950/85 p-3 shadow-2xl backdrop-blur-md" aria-live="polite">
         <div className="mb-2 flex items-center justify-between gap-2">
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-primary-300">Domínio total</p>
-          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.15em] text-gray-400">{total} {total === 1 ? 'zona' : 'zonas'}</p>
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.15em] text-gray-400">{total} checkpoints</p>
         </div>
 
         <div className="space-y-1.5">
@@ -27,22 +27,23 @@ export default function ZonaDominioPlacar({ eventoId }: { eventoId: string }) {
                 <p className="text-[0.6rem] uppercase tracking-[0.2em] text-gray-400">{Math.round(equipe.pontos)} pts</p>
               </div>
               <p className="font-display text-4xl font-bold leading-none text-white tabular-nums">
-                {equipe.zonas}<span className="text-lg text-gray-500">/{total}</span>
+                {equipe.checkpoints}<span className="text-lg text-gray-500">/{total}</span>
               </p>
             </div>
           ))}
         </div>
 
-        {zonas.length > 0 && (
+        {checkpoints.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {zonas.filter((z) => z.checkpoints.length > 0).map((zona) => (
+            {checkpoints.map((checkpoint) => (
               <span
-                key={zona.zonaId}
+                key={checkpoint.checkpointId}
                 className="flex items-center gap-1.5 rounded-full bg-white/5 px-2 py-0.5 text-[0.65rem] font-semibold text-gray-200"
-                style={{ boxShadow: zona.dono ? `inset 0 0 0 1.5px ${zona.dono.cor}` : 'inset 0 0 0 1px rgba(148,163,184,0.35)' }}
+                style={{ boxShadow: checkpoint.dono ? `inset 0 0 0 1.5px ${checkpoint.dono.cor}` : 'inset 0 0 0 1px rgba(148,163,184,0.35)' }}
+                title={checkpoint.dono ? `${checkpoint.nome} · ${checkpoint.dono.nome}` : `${checkpoint.nome} · livre`}
               >
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: zona.dono?.cor || '#64748B' }} />
-                {zona.nome}
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: checkpoint.dono?.cor || '#64748B' }} />
+                {checkpoint.codigo}
               </span>
             ))}
           </div>
@@ -54,7 +55,7 @@ export default function ZonaDominioPlacar({ eventoId }: { eventoId: string }) {
           <div className="rounded-3xl border-2 bg-slate-950/90 px-10 py-5 text-center shadow-2xl backdrop-blur-md" style={{ borderColor: vencedor.cor || '#22C55E' }}>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-300">Domínio total</p>
             <p className="font-display text-5xl font-bold text-white">{vencedor.nome} venceu!</p>
-            <p className="mt-1 text-sm text-gray-300">A equipe dominou todas as zonas.</p>
+            <p className="mt-1 text-sm text-gray-300">A equipe dominou todos os checkpoints.</p>
           </div>
         </div>
       )}
