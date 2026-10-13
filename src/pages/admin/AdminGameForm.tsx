@@ -45,6 +45,8 @@ export default function AdminGameForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { brincadeiras, checkpoints, loadCheckpoints, events, loadEventos } = usePulynStore();
+  // ID que o recreacionista deu ao checkpoint (a chave interna pode ter o código do buffet na frente).
+  const codigoDe = (checkpointId: string) => String((checkpoints.find(c => c.id === checkpointId) as any)?.codigo ?? checkpointId);
   const { eventoAtualId, setEventoAtualId } = useEvento();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -488,7 +490,7 @@ export default function AdminGameForm() {
                                 {checkpoint?.name || cp.id}
                                 {formData.type === 'hostage_rescue' && cp.enabled && (
                                   <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs font-bold text-accent">
-                                    Passo {checkpointConfigs.filter(item => item.enabled).map(item => item.id).sort(porIdNatural).indexOf(cp.id) + 1}
+                                    Passo {checkpointConfigs.filter(item => item.enabled).map(item => item.id).sort((a, b) => porIdNatural(codigoDe(a), codigoDe(b))).indexOf(cp.id) + 1}
                                   </span>
                                 )}
                                 {formData.type === 'bomb_defusal' && cp.enabled && (

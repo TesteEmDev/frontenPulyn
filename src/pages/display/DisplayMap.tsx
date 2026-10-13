@@ -632,7 +632,7 @@ export default function DisplayMap({
                 />
                 <circle r={5} fill={color} />
                 <text y={-22} textAnchor="middle" fill="#FFFFFF" fontSize={10} fontWeight={600}>
-                  {checkpoint.id}
+                  {(checkpoint as any).codigo ?? checkpoint.id}
                 </text>
                 <text y={30} textAnchor="middle" fill="#D1D5DB" fontSize={9}>
                   {checkpoint.name}
