@@ -1569,13 +1569,26 @@ export const api = {
       
       if (!res.ok) {
         const errorText = await res.text();
-        throw new Error(errorText);
+        let mensagem = errorText;
+        try { mensagem = JSON.parse(errorText)?.error || errorText; } catch { /* texto puro */ }
+        throw new Error(mensagem);
       }
       
       return res.json();
     } catch (err) {
       console.error('Erro ao criar checkpoint:', err);
       throw err;
+    }
+  },
+
+  // Código curto do buffet: o ESP32 o informa na página /config quando o mesmo ID também existe em outro buffet.
+  async getCodigoBuffet(): Promise<string | null> {
+    try {
+      const res = await fetch(`${API_URL}/pontoVerificacao/codigo-buffet`, { headers: getAuthHeaders() });
+      if (!res.ok) return null;
+      return ((await res.json()) as { codigo?: string }).codigo || null;
+    } catch {
+      return null;
     }
   },
 
