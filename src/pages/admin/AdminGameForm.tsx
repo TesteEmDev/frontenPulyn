@@ -34,7 +34,12 @@ const TIPOS_ANTIGOS: Record<string, string> = {
   treasure_hunt: 'Caça ao Tesouro',
   monster_hunt: 'Caça ao Monstro',
   bomb_defusal: 'Conquistar e Destruir (PulynBall)',
+  zone_domination: 'Zona - Domínio total (PulynBall)',
+  hostage_rescue: 'Resgate do Refém (PulynBall)',
 };
+
+// Ordem do Resgate do Refém: pelo id do checkpoint (10, 11, 12...), igual ao servidor.
+const porIdNatural = (a: string, b: string) => String(a).localeCompare(String(b), 'pt-BR', { numeric: true, sensitivity: 'base' });
 
 export default function AdminGameForm() {
   const navigate = useNavigate();
@@ -296,6 +301,11 @@ export default function AdminGameForm() {
       return;
     }
 
+    if (formData.type === 'hostage_rescue' && selectedCheckpoints.length < 2) {
+      setSaveError('O Resgate do Refém precisa de pelo menos 2 checkpoints: o início e o fim da sequência.');
+      return;
+    }
+
     if (formData.type === 'monster_hunt' && selectedCheckpoints.some((cp) =>
       !Number.isInteger(cp.cooldown) || cp.cooldown < 1 || cp.cooldown > 120
     )) {
@@ -446,7 +456,11 @@ export default function AdminGameForm() {
                   <p className="text-sm text-gray-400 mb-4">
                     {formData.type === 'bomb_defusal'
                       ? 'Selecione os 2 checkpoints-bomba. O primeiro marcado (na ordem da lista) é o local A e o segundo é o B; só eles valem como bomba neste jogo. Os tempos e as regras da partida ficam na tela PulynBall.'
-                      : 'Selecione os checkpoints e configure pontos e cooldown para cada um.'}
+                      : formData.type === 'hostage_rescue'
+                        ? 'Selecione os checkpoints da sequência do resgate. O refém percorre todos na ordem do id (por exemplo 10, 11, 12...) e o último é o destino. Os tempos e as regras da partida ficam na tela PulynBall.'
+                        : formData.type === 'zone_domination'
+                          ? 'A equipe que dominar todas as zonas do mapa vence. Selecione os checkpoints do jogo; as zonas e as posições dos checkpoints vêm do mapa do espaço.'
+                          : 'Selecione os checkpoints e configure pontos e cooldown para cada um.'}
                   </p>
                   <div className="space-y-3">
                     {checkpointConfigs.map(cp => {
@@ -472,6 +486,11 @@ export default function AdminGameForm() {
                             <div className="flex-1">
                               <p className="text-sm font-semibold text-white">
                                 {checkpoint?.name || cp.id}
+                                {formData.type === 'hostage_rescue' && cp.enabled && (
+                                  <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs font-bold text-accent">
+                                    Passo {checkpointConfigs.filter(item => item.enabled).map(item => item.id).sort(porIdNatural).indexOf(cp.id) + 1}
+                                  </span>
+                                )}
                                 {formData.type === 'bomb_defusal' && cp.enabled && (
                                   <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs font-bold text-accent">
                                     Local {String.fromCharCode(65 + checkpointConfigs.filter(item => item.enabled).findIndex(item => item.id === cp.id))}
@@ -481,7 +500,7 @@ export default function AdminGameForm() {
                               <p className="text-xs text-gray-500">{checkpoint?.zone} &middot; {checkpoint?.type}</p>
                             </div>
                           </div>
-                          {cp.enabled && formData.type !== 'bomb_defusal' && (
+                          {cp.enabled && formData.type !== 'bomb_defusal' && formData.type !== 'hostage_rescue' && (
                             <div className="grid grid-cols-2 gap-3 ml-8 mt-2">
                               <div className="col-span-2 flex items-center gap-2 text-xs text-gray-300">
                                 <input

@@ -3,9 +3,7 @@
 import type { BombaLocal, BombaTime } from '../../services/api';
 import { usePulynStore } from '../../store/mockData';
 import { formatarTempo, useBombaEstado } from '../../hooks/useBombaEstado';
-
-const MAP_WIDTH = 450;
-const MAP_HEIGHT = 320;
+import { MAP_HEIGHT, MAP_WIDTH, posicaoNoMapa } from './posicaoNoMapa';
 
 const MOTIVOS: Record<string, string> = {
   explodiu: 'A bomba explodiu!',
@@ -15,19 +13,6 @@ const MOTIVOS: Record<string, string> = {
   eliminacao_ct: 'Agentes eliminados',
   jogo_parado: 'Jogo parado',
 };
-
-// Posição salva no mapa; sem ela, distribui os checkpoints numa grade para nenhum ficar escondido.
-function posicaoNoMapa(checkpoint: { mapaX?: number | null; mapaY?: number | null; mapX?: number | null; mapY?: number | null }, indice: number, total: number) {
-  const x = Number(checkpoint.mapaX ?? checkpoint.mapX);
-  const y = Number(checkpoint.mapaY ?? checkpoint.mapY);
-  if (Number.isFinite(x) && Number.isFinite(y)) return { x, y };
-  const colunas = Math.max(1, Math.ceil(Math.sqrt(total)));
-  const linhas = Math.ceil(total / colunas);
-  return {
-    x: MAP_WIDTH * ((indice % colunas) + 1) / (colunas + 1),
-    y: MAP_HEIGHT * (Math.floor(indice / colunas) + 1) / (linhas + 1),
-  };
-}
 
 export default function BombaMapa({ eventoId, floorPlan }: { eventoId: string; floorPlan?: string | null }) {
   const { estado, erro, restante } = useBombaEstado(eventoId);
@@ -96,16 +81,16 @@ export default function BombaMapa({ eventoId, floorPlan }: { eventoId: string; f
           return (
             <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
               {explodindo && (
-                <circle r={26} fill="none" stroke="#EF4444" strokeWidth={2.5}>
-                  <animate attributeName="r" values="20;38;20" dur="1s" repeatCount="indefinite" />
+                <circle r={17} fill="none" stroke="#EF4444" strokeWidth={2.5}>
+                  <animate attributeName="r" values="13;26;13" dur="1s" repeatCount="indefinite" />
                   <animate attributeName="stroke-opacity" values="0.9;0;0.9" dur="1s" repeatCount="indefinite" />
                 </circle>
               )}
-              <circle r={20} fill={cor} fillOpacity={explodindo ? 0.35 : 0.2} stroke={cor} strokeWidth={3} />
-              <text y={1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize={22} fontWeight={800}>
+              <circle r={13} fill={cor} fillOpacity={explodindo ? 0.35 : 0.2} stroke={cor} strokeWidth={2.5} />
+              <text y={1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize={15} fontWeight={800}>
                 {local.letra}
               </text>
-              <text y={36} textAnchor="middle" fill="#E5E7EB" fontSize={11} fontWeight={600}>
+              <text y={25} textAnchor="middle" fill="#E5E7EB" fontSize={9} fontWeight={600}>
                 {local.nome}
               </text>
             </g>

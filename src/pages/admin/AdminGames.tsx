@@ -19,6 +19,8 @@ const typeBadge: Record<string, { variant: 'primary' | 'secondary' | 'accent'; l
   treasure_hunt: { variant: 'secondary', label: 'Caça ao Tesouro' },
   monster_hunt: { variant: 'primary', label: 'Caça ao Monstro' },
   bomb_defusal: { variant: 'accent', label: 'Conquistar e Destruir' },
+  zone_domination: { variant: 'primary', label: 'Zona (domínio total)' },
+  hostage_rescue: { variant: 'accent', label: 'Resgate do Refém' },
 };
 
 export default function AdminGames() {

@@ -147,15 +147,61 @@ export interface BombaJogo {
   config: BombaConfig;
 }
 
-async function bombaRequest(path: string, method = 'GET', body?: unknown): Promise<BombaEstado> {
-  const res = await fetch(`${API_URL}/bomba${path}`, {
+async function partidaRequest<T>(jogo: 'bomba' | 'refem', path: string, method = 'GET', body?: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}/${jogo}${path}`, {
     method,
     headers: getAuthHeaders(),
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as any)?.error || `Erro na partida (${res.status})`);
-  return data as BombaEstado;
+  return data as T;
+}
+
+const bombaRequest = (path: string, method = 'GET', body?: unknown) => partidaRequest<BombaEstado>('bomba', path, method, body);
+const refemRequest = (path: string, method = 'GET', body?: unknown) => partidaRequest<RefemEstado>('refem', path, method, body);
+
+// ---- Resgate do Refém (PulynBall) ----
+export interface RefemConfig { vitoriasParaVencer: number; roundsPorLado: number; duracaoRoundSeg: number; protecaoSeg: number }
+export interface RefemCheckpoint { checkpointId: string; ordem: number; nome: string; online: boolean }
+export interface RefemRound {
+  roundId: string; numero: number; status: 'aguardando' | 'em_andamento' | 'finalizado';
+  timeTr: BombaTime | null; timeCt: BombaTime | null;
+  refem: { criancaId: string; numero: number | null; nome: string | null; avatar: string | null } | null;
+  posicao: number; total: number;
+  atualCheckpointId: string | null; proximoCheckpointId: string | null;
+  recuperacoes: number; protegidoMs: number; restanteRoundMs: number | null;
+  vencedorTimeId: string | null; motivo: string | null;
+}
+export interface RefemEstado {
+  agora: string;
+  ativa: boolean;
+  partida: {
+    partidaId: string; status: string; timeA: BombaTime; timeB: BombaTime;
+    timeTrInicialId: string | null; vencedorTimeId: string | null; config: RefemConfig;
+  } | null;
+  round: RefemRound | null;
+  ultimoResultado: { numero: number; vencedorTimeId: string; vencedorLado: 'tr' | 'ct'; motivo: string; finalizadoEm: string } | null;
+  sequencia: RefemCheckpoint[];
+  jogadores: BombaJogador[];
+}
+export interface RefemJogo {
+  brincadeiraId: string; eventoId: string; nome: string; descricao: string; regras: string; status: string; config: RefemConfig;
+}
+
+// ---- Zona (Domínio total, PulynBall) ----
+export interface DominioEquipe { timeId: string; nome: string; cor: string; pontos: number; checkpointsLidos: number; zonas: number }
+export interface DominioZona {
+  zonaId: string; nome: string; cor: string | null; checkpoints: string[];
+  donoTimeId: string | null; dono: { timeId: string; nome: string; cor: string } | null;
+}
+export interface DominioEstado {
+  ativo: boolean;
+  partidaStatus?: 'em_andamento' | 'finalizada';
+  totalZonas?: number;
+  zonas?: DominioZona[];
+  equipes?: DominioEquipe[];
+  vencedor?: { timeId: string; nome: string; cor: string } | null;
 }
 
 // Cadastro permanente da criança e os pontos dela em cada evento em que participou.
@@ -841,6 +887,36 @@ export const api = {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error((data as any)?.error || `Erro ao salvar o jogo (${res.status})`);
     return data as BombaJogo;
+  },
+
+  // Resgate do Refém: estado da partida e controles do recreacionista.
+  getRefemEstado(eventoId: string) { return refemRequest(`/evento/${encodeURIComponent(eventoId)}`); },
+  numerarRefem(eventoId: string) { return refemRequest(`/evento/${encodeURIComponent(eventoId)}/numerar`, 'POST'); },
+  definirNumeroRefem(eventoId: string, criancaId: string, numero: number | null) {
+    return refemRequest(`/evento/${encodeURIComponent(eventoId)}/jogador/${encodeURIComponent(criancaId)}`, 'PUT', { numero });
+  },
+  configurarRefem(eventoId: string, dados: { timeAId?: string; timeBId?: string; timeTrInicialId?: string; config?: Partial<RefemConfig> }) {
+    return refemRequest(`/evento/${encodeURIComponent(eventoId)}/partida/configurar`, 'POST', dados);
+  },
+  iniciarRoundRefem(eventoId: string) { return refemRequest(`/evento/${encodeURIComponent(eventoId)}/round/iniciar`, 'POST'); },
+  encerrarRoundRefem(eventoId: string, vencedor: 'tr' | 'ct') {
+    return refemRequest(`/evento/${encodeURIComponent(eventoId)}/round/encerrar`, 'POST', { vencedor });
+  },
+  async getRefemJogos(eventoId: string): Promise<{
+    jogos: RefemJogo[]; padroes: RefemConfig; limites: Record<keyof RefemConfig, [number, number]>;
+  }> {
+    return partidaRequest('refem', `/jogos?eventoId=${encodeURIComponent(eventoId)}`);
+  },
+  salvarRefemJogo(brincadeiraId: string, dados: { nome: string; descricao: string; regras: string; config: RefemConfig }) {
+    return partidaRequest<RefemJogo>('refem', `/jogos/${encodeURIComponent(brincadeiraId)}`, 'PUT', dados);
+  },
+
+  // Zona (Domínio total): zonas, placar das equipes e vencedor.
+  async getDominioEstado(eventoId: string): Promise<DominioEstado> {
+    const res = await fetch(`${API_URL}/zonaDominio/evento/${encodeURIComponent(eventoId)}/estado`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any)?.error || `Erro ao carregar o jogo (${res.status})`);
+    return data as DominioEstado;
   },
 
   // Conquistar e Destruir: estado da partida e controles do recreacionista.

@@ -7,7 +7,7 @@ import { usePulynStore } from '../../store/mockData';
 import { useEvento } from '../../contexts/EventoContext';
 import { useAuth } from '../../hooks/useAuth';
 import { api } from '../../services/api';
-import type { BombaConfig, BombaJogo } from '../../services/api';
+
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -16,19 +16,26 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 
-type Limites = Record<keyof BombaConfig, [number, number]>;
+type Config = Record<string, number>;
+type Limites = Record<string, [number, number]>;
+type Campo = { chave: string; rotulo: string; unidade: string; fator: number; passo: number; ajuda: string };
 
-// Os campos aparecem em unidades que o recreacionista entende (minutos e segundos); o servidor guarda
-// segundos e milissegundos.
-const CAMPOS: {
-  chave: keyof BombaConfig; rotulo: string; unidade: string; fator: number; passo: number; ajuda: string;
-}[] = [
+// Cada jogo PulynBall tem os seus campos. Eles aparecem em unidades que o recreacionista entende (minutos e
+// segundos); o servidor guarda segundos e milissegundos.
+const CAMPOS_BOMBA: Campo[] = [
   { chave: 'vitoriasParaVencer', rotulo: 'Vitórias para vencer', unidade: 'rounds', fator: 1, passo: 1, ajuda: 'A primeira equipe a chegar nesse número vence a partida.' },
   { chave: 'roundsPorLado', rotulo: 'Trocar de lado a cada', unidade: 'rounds', fator: 1, passo: 1, ajuda: 'Rebeldes e Agentes trocam de papel depois desses rounds.' },
   { chave: 'duracaoRoundSeg', rotulo: 'Duração do round', unidade: 'minutos', fator: 60, passo: 0.5, ajuda: 'Se a bomba não for plantada nesse tempo, os Agentes vencem.' },
   { chave: 'plantarMs', rotulo: 'Tempo para plantar', unidade: 'segundos', fator: 1000, passo: 0.5, ajuda: 'O portador precisa segurar a pulseira no leitor esse tempo.' },
   { chave: 'desarmarMs', rotulo: 'Tempo para desarmar', unidade: 'segundos', fator: 1000, passo: 0.5, ajuda: 'Um Agente precisa segurar a pulseira esse tempo; se soltar, recomeça.' },
   { chave: 'bombaSeg', rotulo: 'Duração da bomba', unidade: 'segundos', fator: 1, passo: 5, ajuda: 'Depois de plantada, explode nesse tempo se ninguém desarmar.' },
+];
+
+const CAMPOS_REFEM: Campo[] = [
+  { chave: 'vitoriasParaVencer', rotulo: 'Vitórias para vencer', unidade: 'rounds', fator: 1, passo: 1, ajuda: 'A primeira equipe a chegar nesse número vence a partida.' },
+  { chave: 'roundsPorLado', rotulo: 'Trocar de lado a cada', unidade: 'rounds', fator: 1, passo: 1, ajuda: 'Rebeldes e Agentes trocam de papel depois desses rounds.' },
+  { chave: 'duracaoRoundSeg', rotulo: 'Duração do round', unidade: 'minutos', fator: 60, passo: 0.5, ajuda: 'Se o refém não chegar ao último checkpoint nesse tempo, os Rebeldes vencem.' },
+  { chave: 'protecaoSeg', rotulo: 'Proteção do refém', unidade: 'segundos', fator: 1, passo: 1, ajuda: 'Logo que o refém chega a um checkpoint, os Rebeldes não podem recuperá-lo durante esse tempo.' },
 ];
 
 // 2026-10-09T03:00:00.000Z -> 09/10/2026
@@ -45,29 +52,43 @@ function minutosESegundos(segundos: number) {
   return m > 0 ? `${m} min${s ? ` ${s} s` : ''}` : `${s} s`;
 }
 
-function resumoDasRegras(c: BombaConfig) {
+function resumoDasRegrasRefem(c: Config) {
+  return `Um Agente é sorteado como refém a cada round e percorre os checkpoints na ordem do id até o último; os Rebeldes o recuperam lendo no checkpoint onde ele está, `
+    + `e ele fica protegido por ${numeroBr(c.protecaoSeg)} s ao chegar. Cada round dura ${minutosESegundos(c.duracaoRoundSeg)}. `
+    + `Vence quem fizer ${c.vitoriasParaVencer} rounds primeiro, trocando de lado a cada ${c.roundsPorLado}.`;
+}
+
+function resumoDasRegras(c: Config) {
   return `Os Rebeldes plantam em ${numeroBr(c.plantarMs / 1000)} s e os Agentes desarmam em ${numeroBr(c.desarmarMs / 1000)} s. `
     + `A bomba explode ${minutosESegundos(c.bombaSeg)} depois de plantada e cada round dura ${minutosESegundos(c.duracaoRoundSeg)}. `
     + `Vence quem fizer ${c.vitoriasParaVencer} rounds primeiro, trocando de lado a cada ${c.roundsPorLado}.`;
 }
 
-function JogoCard({ jogo, padroes, limites, onSalvo }: {
-  jogo: BombaJogo; padroes: BombaConfig; limites: Limites; onSalvo: (jogo: BombaJogo) => void;
+type JogoGenerico = { brincadeiraId: string; eventoId: string; nome: string; descricao: string; regras: string; status: string; config: Config };
+type Grupo = {
+  tipo: 'bomb_defusal' | 'hostage_rescue'; titulo: string; campos: Campo[]; resumo: (c: Config) => string;
+  salvar: (id: string, dados: { nome: string; descricao: string; regras: string; config: any }) => Promise<JogoGenerico>;
+  jogos: JogoGenerico[]; padroes: Config; limites: Limites;
+};
+
+function JogoCard({ jogo, grupo, onSalvo }: {
+  jogo: JogoGenerico; grupo: Grupo; onSalvo: (jogo: JogoGenerico) => void;
 }) {
+  const { campos: CAMPOS, padroes, limites } = grupo;
   const [nome, setNome] = useState(jogo.nome);
   const [descricao, setDescricao] = useState(jogo.descricao);
   const [regras, setRegras] = useState(jogo.regras);
   // Texto digitado em cada campo (unidade de exibição); convertido ao salvar.
-  const paraTexto = (config: BombaConfig) => Object.fromEntries(
+  const paraTexto = (config: Config) => Object.fromEntries(
     CAMPOS.map(campo => [campo.chave, numeroBr(config[campo.chave] / campo.fator)])
-  ) as Record<keyof BombaConfig, string>;
+  ) as Record<string, string>;
   const [valores, setValores] = useState(() => paraTexto(jogo.config));
   const [salvando, setSalvando] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
   // Converte o texto de cada campo para o número do servidor; null = inválido.
   const convertido = useMemo(() => {
-    const resultado: Partial<BombaConfig> = {};
+    const resultado: Config = {};
     const erros: string[] = [];
     for (const campo of CAMPOS) {
       const numero = Number(String(valores[campo.chave]).replace(',', '.'));
@@ -79,8 +100,8 @@ function JogoCard({ jogo, padroes, limites, onSalvo }: {
         resultado[campo.chave] = interno;
       }
     }
-    return { config: resultado as BombaConfig, erros };
-  }, [valores, limites]);
+    return { config: resultado, erros };
+  }, [valores, limites, CAMPOS]);
 
   const alterado = nome !== jogo.nome || descricao !== jogo.descricao || regras !== jogo.regras
     || CAMPOS.some(campo => convertido.config[campo.chave] !== jogo.config[campo.chave]);
@@ -90,7 +111,7 @@ function JogoCard({ jogo, padroes, limites, onSalvo }: {
     setSalvando(true);
     setAviso(null);
     try {
-      const salvo = await api.salvarBombaJogo(jogo.brincadeiraId, { nome: nome.trim(), descricao, regras, config: convertido.config });
+      const salvo = await grupo.salvar(jogo.brincadeiraId, { nome: nome.trim(), descricao, regras, config: convertido.config });
       onSalvo(salvo);
       setAviso({ tipo: 'ok', texto: 'Alterações salvas. Valem a partir da próxima partida.' });
     } catch (e) {
@@ -108,7 +129,7 @@ function JogoCard({ jogo, padroes, limites, onSalvo }: {
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/15 text-accent"><Crosshair size={22} /></div>
             <div>
               <h2 className="font-display text-xl text-white">{jogo.nome}</h2>
-              <p className="text-xs text-gray-500">Conquistar e Destruir</p>
+              <p className="text-xs text-gray-500">{grupo.titulo}</p>
             </div>
           </div>
         </div>
@@ -158,7 +179,7 @@ function JogoCard({ jogo, padroes, limites, onSalvo }: {
             ))}
           </div>
           {convertido.erros.length === 0 ? (
-            <p className="rounded-lg bg-surface/50 p-3 text-sm text-gray-300">{resumoDasRegras(convertido.config)}</p>
+            <p className="rounded-lg bg-surface/50 p-3 text-sm text-gray-300">{grupo.resumo(convertido.config)}</p>
           ) : (
             <ul className="space-y-1 text-sm text-danger" role="alert">
               {convertido.erros.map(erro => <li key={erro}>{erro}</li>)}
@@ -182,9 +203,7 @@ export default function AdminPulynBall() {
   const { user } = useAuth();
   const { events, loadEventos } = usePulynStore();
   const { eventoAtualId, setEventoAtualId } = useEvento();
-  const [jogos, setJogos] = useState<BombaJogo[]>([]);
-  const [padroes, setPadroes] = useState<BombaConfig | null>(null);
-  const [limites, setLimites] = useState<Limites | null>(null);
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
 
@@ -203,12 +222,21 @@ export default function AdminPulynBall() {
     let ativo = true;
     setCarregando(true);
     setErro('');
-    api.getBombaJogos(eventoAtualId)
-      .then(dados => {
+    Promise.all([api.getBombaJogos(eventoAtualId), api.getRefemJogos(eventoAtualId)])
+      .then(([bomba, refem]) => {
         if (!ativo) return;
-        setJogos(dados.jogos);
-        setPadroes(dados.padroes);
-        setLimites(dados.limites);
+        setGrupos([
+          {
+            tipo: 'bomb_defusal', titulo: 'Conquistar e Destruir', campos: CAMPOS_BOMBA, resumo: resumoDasRegras,
+            salvar: (id, dados) => api.salvarBombaJogo(id, dados) as unknown as Promise<JogoGenerico>,
+            jogos: bomba.jogos as unknown as JogoGenerico[], padroes: bomba.padroes as unknown as Config, limites: bomba.limites as Limites,
+          },
+          {
+            tipo: 'hostage_rescue', titulo: 'Resgate do Refém', campos: CAMPOS_REFEM, resumo: resumoDasRegrasRefem,
+            salvar: (id, dados) => api.salvarRefemJogo(id, dados) as unknown as Promise<JogoGenerico>,
+            jogos: refem.jogos as unknown as JogoGenerico[], padroes: refem.padroes as unknown as Config, limites: refem.limites as Limites,
+          },
+        ]);
       })
       .catch(e => { if (ativo) setErro(e instanceof Error ? e.message : 'Não foi possível carregar os jogos'); })
       .finally(() => { if (ativo) setCarregando(false); });
@@ -248,7 +276,7 @@ export default function AdminPulynBall() {
               {erro && <Card><p className="text-danger" role="alert">{erro}</p></Card>}
               {carregando && <p className="text-sm text-gray-400">Carregando os jogos...</p>}
 
-              {!carregando && !erro && jogos.length === 0 && (
+              {!carregando && !erro && grupos.every(grupo => grupo.jogos.length === 0) && (
                 <Card>
                   <div className="space-y-3 text-center">
                     <p className="text-gray-300">Este evento ainda não tem jogos do PulynBall.</p>
@@ -257,15 +285,16 @@ export default function AdminPulynBall() {
                 </Card>
               )}
 
-              {padroes && limites && jogos.map(jogo => (
+              {grupos.flatMap(grupo => grupo.jogos.map(jogo => (
                 <JogoCard
                   key={jogo.brincadeiraId}
                   jogo={jogo}
-                  padroes={padroes}
-                  limites={limites}
-                  onSalvo={salvo => setJogos(lista => lista.map(item => item.brincadeiraId === salvo.brincadeiraId ? salvo : item))}
+                  grupo={grupo}
+                  onSalvo={salvo => setGrupos(lista => lista.map(item => item.tipo !== grupo.tipo ? item : {
+                    ...item, jogos: item.jogos.map(atual => atual.brincadeiraId === salvo.brincadeiraId ? salvo : atual),
+                  }))}
                 />
-              ))}
+              )))}
             </>
           )}
         </main>
