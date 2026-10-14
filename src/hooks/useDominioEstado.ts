@@ -1,9 +1,9 @@
-// Estado da Zona (Domínio total): zonas, placar das equipes e vencedor. Consulta a cada 2 segundos.
+// Estado da Zona (Domínio total): checkpoints com dono, placar das equipes e vencedor. Consulta a cada segundo.
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../services/api';
 import type { DominioEstado } from '../services/api';
 
-export function useDominioEstado(eventoId: string | null | undefined, ativo = true, intervaloMs = 2000) {
+export function useDominioEstado(eventoId: string | null | undefined, ativo = true, intervaloMs = 1000) {
   const [estado, setEstado] = useState<DominioEstado | null>(null);
   const emCurso = useRef(false);
 
