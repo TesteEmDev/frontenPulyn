@@ -671,7 +671,7 @@ export default function AdminMap() {
       const dataUrl = await optimizeFloorPlan(file);
       await api.saveFloorPlan({
         dataUrl,
-        name: file.name,
+        nome: file.name,
         type: dataUrl.slice(5, dataUrl.indexOf(';')) || 'image/jpeg',
       });
       setFloorPlanUrl(dataUrl);

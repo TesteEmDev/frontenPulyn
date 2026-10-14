@@ -24,6 +24,8 @@ export default function AdminCheckpoints() {
   const [events, setEvents] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [checkpointsList, setCheckpointsList] = useState<any[]>([]);
+  // Checkpoints de recepção (leitor do balcão): ficam numa seção própria, fora dos checkpoints de jogo
+  const [receptionList, setReceptionList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Verificar permissão: apenas admin pode acessar
@@ -36,6 +38,7 @@ export default function AdminCheckpoints() {
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCheckpoint, setEditingCheckpoint] = useState<any>(null);
+  const [modalPurpose, setModalPurpose] = useState<'game' | 'reception'>('game');
   const [formData, setFormData] = useState({
     id: '',
     name: '',
@@ -79,12 +82,14 @@ export default function AdminCheckpoints() {
       if (!selectedEventId) {
         setLoading(false);
         setCheckpointsList([]);
+        setReceptionList([]);
         return;
       }
 
       setLoading(true);
       try {
         let data: any[];
+        let reception: any[];
         if (selectedEventId === ALL_EVENTS) {
           // Cada checkpoint leva o evento a que pertence (para a coluna Evento e para editar/excluir)
           const lists = await Promise.all(events.map((event) =>
@@ -97,16 +102,28 @@ export default function AdminCheckpoints() {
               .catch(() => [])
           ));
           data = lists.flat();
+          const receptionLists = await Promise.all(events.map((event) =>
+            api.getReceptionCheckpoints(event.eventoId)
+              .then((list: any[]) => list.map((cp) => ({
+                ...cp,
+                eventoId: cp.eventoId ?? event.eventoId,
+                evento_name: event.nome || `Evento ${event.eventoId}`,
+              })))
+          ));
+          reception = receptionLists.flat();
         } else {
           data = await api.getCheckpoints(selectedEventId);
+          reception = await api.getReceptionCheckpoints(selectedEventId);
         }
         if (disposed) return;
         console.log('📍 Checkpoints carregados:', data);
         setCheckpointsList(data || []);
+        setReceptionList(reception || []);
       } catch (err) {
         if (disposed) return;
         console.error('❌ Erro ao carregar checkpoints:', err);
         setCheckpointsList([]);
+        setReceptionList([]);
       } finally {
         if (!disposed) setLoading(false);
       }
@@ -118,7 +135,8 @@ export default function AdminCheckpoints() {
 
   const isAllEvents = selectedEventId === ALL_EVENTS;
 
-  const handleOpenModal = (checkpoint?: any) => {
+  const handleOpenModal = (checkpoint?: any, purpose: 'game' | 'reception' = 'game') => {
+    setModalPurpose(purpose);
     if (checkpoint) {
       setEditingCheckpoint(checkpoint);
       setFormData({
@@ -165,7 +183,7 @@ export default function AdminCheckpoints() {
     setSaving(true);
     
     try {
-      const config = {
+      const config: any = {
         id: formData.id,
         name: formData.name,
         type: formData.type,
@@ -173,6 +191,7 @@ export default function AdminCheckpoints() {
         zone: formData.zone,
         points: formData.points,
       };
+      if (modalPurpose === 'reception') config.proposito = 'reception';
       
       // Debug log
       console.log('🔍 Salvando checkpoint com config:', config);
@@ -186,7 +205,7 @@ export default function AdminCheckpoints() {
       } else {
         // Criar novo checkpoint
         await api.createCheckpoint(targetEventId, config);
-        setCheckpointsList(prev => [...prev, {
+        const novo = {
           id: formData.id,
           name: formData.name,
           type: formData.type,
@@ -195,7 +214,10 @@ export default function AdminCheckpoints() {
           points: formData.points,
           status: 'configured',
           eventoId: targetEventId,
-        }]);
+          evento_name: events.find(e => e.eventoId === targetEventId)?.nome,
+        };
+        if (modalPurpose === 'reception') setReceptionList(prev => [...prev, novo]);
+        else setCheckpointsList(prev => [...prev, novo]);
       }
       
       // Fechar modal e mostrar sucesso
@@ -210,7 +232,7 @@ export default function AdminCheckpoints() {
     }
   };
 
-  const handleDelete = async (checkpoint: any) => {
+  const handleDelete = async (checkpoint: any, purpose: 'game' | 'reception' = 'game') => {
     const id = checkpoint.id;
     const eventId = checkpoint.eventoId || selectedEventId;
     if (!eventId || eventId === ALL_EVENTS) {
@@ -220,8 +242,9 @@ export default function AdminCheckpoints() {
     
     if (confirm(`Tem certeza que deseja excluir o checkpoint ${id}?`)) {
       try {
-        await api.deleteCheckpoint(eventId, id);
-        setCheckpointsList(prev => prev.filter(cp => cp.id !== id));
+        await api.deleteCheckpoint(eventId, id, purpose === 'reception' ? 'reception' : undefined);
+        if (purpose === 'reception') setReceptionList(prev => prev.filter(cp => cp.id !== id));
+        else setCheckpointsList(prev => prev.filter(cp => cp.id !== id));
         alert('Checkpoint excluído com sucesso!');
       } catch (error: any) {
         console.error('Erro ao excluir:', error);
@@ -396,6 +419,84 @@ export default function AdminCheckpoints() {
               </table>
             </div>
           </Card>
+
+          {/* Recepção: o leitor do balcão não é um checkpoint de jogo (não entra em jogos, território nem pontuação) */}
+          <Card>
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-base font-display font-semibold text-white">Recepção</h2>
+                <p className="text-xs text-gray-400">
+                  Leitor do balcão que cadastra as pulseiras. Use o ID cadastrado aqui na página /config da placa da recepção.
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => handleOpenModal(undefined, 'reception')}
+                disabled={isAllEvents || !selectedEventId}
+                title={isAllEvents ? 'Escolha um evento para cadastrar a recepção' : undefined}
+              >
+                <Plus size={16} className="mr-1.5" />
+                Cadastrar Recepção
+              </Button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="pb-3 text-sm font-body font-semibold text-gray-400">ID</th>
+                    <th className="pb-3 text-sm font-body font-semibold text-gray-400">Nome</th>
+                    {isAllEvents && (
+                      <th className="pb-3 text-sm font-body font-semibold text-gray-400">Evento</th>
+                    )}
+                    <th className="pb-3 text-sm font-body font-semibold text-gray-400">Status</th>
+                    <th className="pb-3 text-sm font-body font-semibold text-gray-400">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {receptionList.length > 0 ? (
+                    receptionList.map(cp => (
+                      <tr key={`reception-${cp.eventoId || ''}-${cp.id}`} className="hover:bg-surface/50 transition-colors">
+                        <td className="py-3 pr-4">
+                          <p className="text-sm font-mono text-gray-300">{cp.id}</p>
+                        </td>
+                        <td className="py-3 pr-4">
+                          <p className="text-sm font-semibold text-white">{cp.name}</p>
+                        </td>
+                        {isAllEvents && (
+                          <td className="py-3 pr-4">
+                            <p className="text-sm text-gray-300">{cp.evento_name || '-'}</p>
+                          </td>
+                        )}
+                        <td className="py-3 pr-4">
+                          <div className="flex items-center gap-2">
+                            <StatusDot status={cp.status === 'online' ? 'online' : 'offline'} />
+                            <span className="text-sm text-gray-300">
+                              {cp.status === 'online' ? 'Online' : cp.status === 'configured' ? 'Configurado' : 'Offline'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3">
+                          <button
+                            onClick={() => handleDelete(cp, 'reception')}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-danger hover:bg-surface transition-colors"
+                            title="Excluir"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={isAllEvents ? 5 : 4} className="py-6 text-center text-gray-500">
+                        Nenhuma recepção cadastrada.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </main>
       </div>
 
@@ -403,7 +504,7 @@ export default function AdminCheckpoints() {
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingCheckpoint ? `Editar Checkpoint: ${editingCheckpoint.id}` : 'Cadastrar Novo Checkpoint'}
+        title={editingCheckpoint ? `Editar Checkpoint: ${editingCheckpoint.id}` : modalPurpose === 'reception' ? 'Cadastrar Recepção' : 'Cadastrar Novo Checkpoint'}
         size="lg"
       >
         <div className="space-y-4">
@@ -425,6 +526,7 @@ export default function AdminCheckpoints() {
             />
           </div>
 
+          {modalPurpose === 'game' && (<>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="checkpoint-type" className="mb-1.5 block text-sm font-body font-semibold text-gray-300">Tipo</label>
@@ -462,6 +564,7 @@ export default function AdminCheckpoints() {
             value={formData.points}
             onChange={(e) => setFormData({ ...formData, points: parseInt(e.target.value) || 0 })}
           />
+          </>)}
 
           <div className="flex justify-end gap-3 pt-4">
             <Button variant="ghost" onClick={() => setModalOpen(false)}>

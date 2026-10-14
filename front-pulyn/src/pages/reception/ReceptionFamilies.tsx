@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Copy, Link as LinkIcon, Check, Users, UserCheck, UserX, QrCode, Share2, Download } from 'lucide-react';
+import { Copy, Link as LinkIcon, Check, Users, QrCode, Share2, Download } from 'lucide-react';
 import { api } from '../../services/api';
 import ReceptionSidebar from '../../components/layout/ReceptionSidebar';
 import ReceptionTopBar from '../../components/layout/ReceptionTopBar';
@@ -12,23 +12,17 @@ import { QRCodeSVG as QRCode } from 'qrcode.react';
 export default function ReceptionFamilies() {
   const [events, setEvents] = useState<any[]>([]);
   const [eventId, setEventId] = useState('');
-  const [pending, setPending] = useState<any[]>([]);
   const [approved, setApproved] = useState<any[]>([]);
   const [inviteUrl, setInviteUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [working, setWorking] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [showQRModal, setShowQRModal] = useState(false);
 
   const loadFamilyData = async (selectedEvent = eventId) => {
     try {
       setLoading(true);
-      const [pendingData, approvedData] = await Promise.all([
-        api.getPendingFamilyLinks(selectedEvent || undefined),
-        api.getApprovedFamilyLinks(selectedEvent || undefined),
-      ]);
-      setPending(pendingData || []);
+      const approvedData = await api.getApprovedFamilyLinks(selectedEvent || undefined);
       setApproved(approvedData || []);
     } catch (err: any) {
       setError(err.message || 'Não foi possível carregar as famílias.');
@@ -108,26 +102,13 @@ export default function ReceptionFamilies() {
     }
   };
 
-  const decide = async (linkId: string, action: 'approve' | 'reject') => {
-    try {
-      setWorking(linkId);
-      if (action === 'approve') await api.approveFamilyLink(linkId);
-      else await api.rejectFamilyLink(linkId);
-      await loadFamilyData();
-    } catch (err: any) {
-      setError(err.message || 'Não foi possível atualizar a solicitação.');
-    } finally {
-      setWorking(null);
-    }
-  };
-
   return (
     <div className="flex h-screen bg-dark">
       <ReceptionSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <ReceptionTopBar subtitle="Convites e aprovações" />
+        <ReceptionTopBar subtitle="Convites para as famílias" />
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
-          <PageHeader title="Famílias" description="Cadastre responsáveis por convite e aprove os vínculos" icon={<Users size={24} />} />
+          <PageHeader title="Famílias" description="Envie o link de convite para cadastrar os responsáveis" icon={<Users size={24} />} />
 
           {error && (
             <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{error}</p>
@@ -164,42 +145,14 @@ export default function ReceptionFamilies() {
 
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-white font-display text-lg font-semibold">Solicitações pendentes</h2>
-              <p className="text-sm text-gray-400">A aprovação libera o login e ativa a participação.</p>
+              <h2 className="text-white font-display text-lg font-semibold">Crianças vinculadas</h2>
+              <p className="text-sm text-gray-400">Depois do vínculo, defina o time da criança na tela de Participantes.</p>
             </div>
-            <Badge variant={pending.length ? 'warning' : 'muted'}>{pending.length} pendente{pending.length === 1 ? '' : 's'}</Badge>
-          </div>
-
-          {loading ? <Card><p className="text-gray-400">Carregando...</p></Card> : pending.length === 0 ? (
-            <Card className="text-center py-10"><Users className="mx-auto mb-3 text-gray-500" size={32} /><p className="text-gray-400">Nenhuma solicitação pendente.</p></Card>
-          ) : (
-            <div className="space-y-3">
-              {pending.map((item) => (
-                <Card key={item.link_id} className="flex flex-col md:flex-row md:items-center gap-4">
-                  <div className="flex-1">
-                    <p className="text-white font-semibold">{item.nomeFamilia || item.email}</p>
-                    <p className="text-sm text-gray-300">Criança: {item.crianca_name} {item.age ? `(${item.age} anos)` : ''}</p>
-                    <p className="text-xs text-gray-500">{item.evento_name} · {item.email}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="secondary" size="sm" disabled={working === item.link_id} onClick={() => decide(item.link_id, 'approve')}><UserCheck size={16} className="mr-1" /> Aprovar</Button>
-                    <Button variant="danger" size="sm" disabled={working === item.link_id} onClick={() => decide(item.link_id, 'reject')}><UserX size={16} className="mr-1" /> Rejeitar</Button>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          <div className="flex items-center justify-between pt-4">
-            <div>
-              <h2 className="text-white font-display text-lg font-semibold">Crianças aprovadas</h2>
-              <p className="text-sm text-gray-400">Depois da aprovação, defina o time da criança na tela de Participantes.</p>
-            </div>
-            <Badge variant={approved.length ? 'success' : 'muted'}>{approved.length} aprovada{approved.length === 1 ? '' : 's'}</Badge>
+            <Badge variant={approved.length ? 'success' : 'muted'}>{approved.length} vinculada{approved.length === 1 ? '' : 's'}</Badge>
           </div>
 
           {loading ? <Card><p className="text-gray-400">Carregando...</p></Card> : approved.length === 0 ? (
-            <Card className="text-center py-10"><Users className="mx-auto mb-3 text-gray-500" size={32} /><p className="text-gray-400">Nenhuma criança aprovada neste evento.</p></Card>
+            <Card className="text-center py-10"><Users className="mx-auto mb-3 text-gray-500" size={32} /><p className="text-gray-400">Nenhuma criança vinculada neste evento.</p></Card>
           ) : (
             <div className="space-y-3">
               {approved.map((item) => (

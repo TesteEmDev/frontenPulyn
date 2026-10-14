@@ -71,6 +71,13 @@ const configuredForProduction = import.meta.env.PROD
 
 export const API_URL = (configuredForProduction || fallbackApiUrl).replace(/\/+$/, '');
 
+// O backend lê o nome do checkpoint no campo "nome"; as telas trabalham com "name".
+function corpoCheckpoint(dados: any) {
+  if (!dados || typeof dados !== 'object') return dados;
+  const { name, ...resto } = dados;
+  return { ...resto, nome: dados.nome ?? name };
+}
+
 // Helper para obter headers com autenticação
 function getAuthHeaders() {
   try {
@@ -186,14 +193,6 @@ export const api = {
     return response;
   },
 
-  async getPendingFamilyLinks(eventoId?: string) {
-    const query = eventoId ? `?eventoId=${encodeURIComponent(eventoId)}` : '';
-    const res = await fetch(`${API_URL}/familias/pending${query}`, { headers: getAuthHeaders() });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `Erro ao carregar aprovações familiares (${res.status})`);
-    return data;
-  },
-
   async getApprovedFamilyLinks(eventoId?: string) {
     const query = eventoId ? `?eventoId=${encodeURIComponent(eventoId)}` : '';
     const res = await fetch(`${API_URL}/familias/approved${query}`, { headers: getAuthHeaders() });
@@ -215,20 +214,6 @@ export const api = {
     const res = await fetch(`${API_URL}/familias/links/${linkId}/unlink`, { method: 'POST', headers: getAuthHeaders() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Erro ao desvincular');
-    return data;
-  },
-
-  async approveFamilyLink(linkId: string) {
-    const res = await fetch(`${API_URL}/familias/links/${linkId}/approve`, { method: 'POST', headers: getAuthHeaders() });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Erro ao aprovar família');
-    return data;
-  },
-
-  async rejectFamilyLink(linkId: string) {
-    const res = await fetch(`${API_URL}/familias/links/${linkId}/reject`, { method: 'POST', headers: getAuthHeaders() });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Erro ao rejeitar família');
     return data;
   },
 
@@ -768,7 +753,7 @@ export const api = {
     return data.floorPlan || null;
   },
 
-  async saveFloorPlan(data: { dataUrl: string; name: string; type: string }) {
+  async saveFloorPlan(data: { dataUrl: string; nome: string; type: string }) {
     const res = await fetch(`${API_URL}/company-map/floor-plan`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -1303,6 +1288,21 @@ export const api = {
     }
   },
 
+  // Checkpoints de RECEPÇÃO do evento (leitor do balcão). Ficam fora de getCheckpoints, que lista só os de jogo.
+  async getReceptionCheckpoints(eventoId: string) {
+    try {
+      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}?proposito=reception`, {
+        headers: getAuthHeaders()
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch (err) {
+      console.error('Erro ao carregar checkpoints de recepção:', err);
+      return [];
+    }
+  },
+
   async saveCheckpointConfig(checkpointId: string, config: any, eventoId?: string) {
     try {
       // Se eventoId for fornecido, usar rota com contexto de evento
@@ -1313,7 +1313,7 @@ export const api = {
       const res = await fetch(url, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify(config),
+        body: JSON.stringify(corpoCheckpoint(config)),
       });
       
       if (!res.ok) {
@@ -1340,14 +1340,14 @@ export const api = {
       const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(corpoCheckpoint(data)),
       });
-      
+
       if (!res.ok) {
         const errorText = await res.text();
         throw new Error(errorText);
       }
-      
+
       return res.json();
     } catch (err) {
       console.error('Erro ao criar checkpoint:', err);
@@ -1355,9 +1355,10 @@ export const api = {
     }
   },
 
-  async deleteCheckpoint(eventoId: string, checkpointId: string) {
+  async deleteCheckpoint(eventoId: string, checkpointId: string, proposito?: 'reception') {
     try {
-      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}/${checkpointId}`, {
+      const sufixo = proposito === 'reception' ? '?proposito=reception' : '';
+      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}/${checkpointId}${sufixo}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });

@@ -123,11 +123,11 @@ export default function MasterSupport() {
     if (!newClient || !newSubject) return;
     try {
       const ticket = await api.createTicket({
-        client: newClient,
+        cliente: newClient,
         subject: newSubject,
         priority: newPriority,
         description: newDescription,
-        assignee: newAssignee || 'Atribuir'
+        atribuidoPara: newAssignee || 'Atribuir'
       });
       setTickets(prev => [ticket, ...prev]);
       setShowNewTicketModal(false);
