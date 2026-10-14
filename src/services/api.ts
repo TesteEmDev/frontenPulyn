@@ -189,17 +189,16 @@ export interface RefemJogo {
   brincadeiraId: string; eventoId: string; nome: string; descricao: string; regras: string; status: string; config: RefemConfig;
 }
 
-// ---- Zona (Domínio total, PulynBall) ----
-export interface DominioEquipe { timeId: string; nome: string; cor: string; pontos: number; checkpointsLidos: number; zonas: number }
-export interface DominioZona {
-  zonaId: string; nome: string; cor: string | null; checkpoints: string[];
-  donoTimeId: string | null; dono: { timeId: string; nome: string; cor: string } | null;
+// ---- Zona (Domínio total, PulynBall): vence quem domina todos os checkpoints ----
+export interface DominioEquipe { timeId: string; nome: string; cor: string; pontos: number; checkpointsLidos: number; checkpoints: number }
+export interface DominioCheckpoint {
+  checkpointId: string; codigo: string; nome: string; dono: { timeId: string; nome: string; cor: string } | null;
 }
 export interface DominioEstado {
   ativo: boolean;
   partidaStatus?: 'em_andamento' | 'finalizada';
-  totalZonas?: number;
-  zonas?: DominioZona[];
+  totalCheckpoints?: number;
+  checkpoints?: DominioCheckpoint[];
   equipes?: DominioEquipe[];
   vencedor?: { timeId: string; nome: string; cor: string } | null;
 }

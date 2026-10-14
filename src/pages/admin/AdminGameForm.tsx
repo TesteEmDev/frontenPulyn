@@ -461,7 +461,7 @@ export default function AdminGameForm() {
                       : formData.type === 'hostage_rescue'
                         ? 'Selecione os checkpoints da sequência do resgate. O refém percorre todos na ordem do id (por exemplo 10, 11, 12...) e o último é o destino. Os tempos e as regras da partida ficam na tela PulynBall.'
                         : formData.type === 'zone_domination'
-                          ? 'A equipe que dominar todas as zonas do mapa vence. Selecione os checkpoints do jogo; as zonas e as posições dos checkpoints vêm do mapa do espaço.'
+                          ? 'A equipe que dominar todos os checkpoints selecionados vence e o jogo termina na hora. Cada equipe só relê o mesmo checkpoint depois de ler 3 outros.'
                           : 'Selecione os checkpoints e configure pontos e cooldown para cada um.'}
                   </p>
                   <div className="space-y-3">

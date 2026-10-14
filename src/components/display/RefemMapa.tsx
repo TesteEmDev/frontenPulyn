@@ -58,6 +58,9 @@ export default function RefemMapa({ eventoId, floorPlan }: { eventoId: string; f
     return { ...passo, ...posicaoNoMapa(base, indice >= 0 ? indice : 0, Math.max(1, checkpoints.length)) };
   });
   const caminho = pontos.map((p) => `${p.x},${p.y}`).join(' ');
+  // Objetivo atual = o checkpoint onde o refém deve ler agora; "depois" = o seguinte da sequência.
+  const objetivo = emAndamento ? pontos[posicao] : undefined;
+  const depois = emAndamento ? pontos[posicao + 1] : undefined;
 
   return (
     <div className="relative h-full overflow-hidden rounded-2xl border border-primary-400/20 bg-dark-card/40" aria-live="polite">
@@ -84,6 +87,11 @@ export default function RefemMapa({ eventoId, floorPlan }: { eventoId: string; f
                 <circle r={13} fill="none" stroke="#FACC15" strokeWidth={2}>
                   <animate attributeName="stroke-opacity" values="1;0.2;1" dur="0.8s" repeatCount="indefinite" />
                 </circle>
+              )}
+              {(proximo || (emAndamento && i === posicao + 1)) && (
+                <text y={-17} textAnchor="middle" fill={proximo ? '#FACC15' : '#CBD5E1'} fontSize={7.5} fontWeight={800} letterSpacing={0.6}>
+                  {proximo ? 'OBJETIVO' : 'DEPOIS'}
+                </text>
               )}
               <circle r={11} fill={cor} fillOpacity={atual ? 0.4 : 0.22} stroke={cor} strokeWidth={2.5} />
               <text y={1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize={13} fontWeight={800}>{p.ordem}</text>
@@ -126,6 +134,21 @@ export default function RefemMapa({ eventoId, floorPlan }: { eventoId: string; f
           </p>
           <p className="text-right text-[0.6rem] uppercase tracking-[0.2em] text-gray-400">{emAndamento ? 'tempo do round' : ''}</p>
         </div>
+
+        {objetivo && (
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            <div className="rounded-lg border border-yellow-400/40 bg-yellow-400/10 px-2 py-1.5">
+              <p className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-yellow-300">Objetivo atual</p>
+              <p className="truncate font-display text-base font-bold leading-tight text-white">{objetivo.ordem} · {objetivo.nome}</p>
+            </div>
+            <div className="rounded-lg bg-white/5 px-2 py-1.5">
+              <p className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-gray-400">Depois</p>
+              <p className="truncate font-display text-base font-bold leading-tight text-white">
+                {depois ? `${depois.ordem} · ${depois.nome}` : 'Fim do caminho'}
+              </p>
+            </div>
+          </div>
+        )}
 
         {emAndamento && round?.refem && (
           <div className="mt-2 rounded-lg bg-white/5 px-2 py-1.5">
