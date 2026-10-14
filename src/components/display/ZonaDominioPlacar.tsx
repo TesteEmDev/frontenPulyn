@@ -1,9 +1,12 @@
 // Placar da Zona (Domínio total) sobre o mapa do telão: quantos checkpoints cada equipe domina, os pontos e o vencedor.
 // Só aparece quando o jogo em andamento é o Domínio total (senão o servidor responde ativo = false e nada é desenhado).
 import { useDominioEstado } from '../../hooks/useDominioEstado';
+import type { DominioEstado } from '../../services/api';
 
-export default function ZonaDominioPlacar({ eventoId }: { eventoId: string }) {
-  const estado = useDominioEstado(eventoId);
+// `estadoRecebido`: quem já consulta o estado (DominioMapa) passa aqui e evita uma segunda consulta.
+export default function ZonaDominioPlacar({ eventoId, estado: estadoRecebido }: { eventoId: string; estado?: DominioEstado | null }) {
+  const consultado = useDominioEstado(eventoId, !estadoRecebido);
+  const estado = estadoRecebido ?? consultado;
   if (!estado?.ativo) return null;
 
   const equipes = estado.equipes || [];
