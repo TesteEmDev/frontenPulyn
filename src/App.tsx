@@ -40,6 +40,8 @@ import AdminGameForm from './pages/admin/AdminGameForm';
 import AdminCheckpoints from './pages/admin/AdminCheckpoints';
 import AdminCheckpointConfig from './pages/admin/AdminCheckpointConfig';
 import AdminMap from './pages/admin/AdminMap';
+import AdminUhf from './pages/admin/AdminUhf';
+import AdminMapaCalor from './pages/admin/AdminMapaCalor';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminTeams from './pages/admin/AdminTeams';
 import AdminReports from './pages/admin/AdminReports';
@@ -245,6 +247,8 @@ function App() {
           <Route path="/admin/checkpoints" element={<ProtectedRoute allowedRoles={['admin']}><AdminCheckpoints /></ProtectedRoute>} />
           <Route path="/admin/checkpoints/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminCheckpointConfig /></ProtectedRoute>} />
           <Route path="/admin/map" element={<ProtectedRoute allowedRoles={['admin']}><AdminMap /></ProtectedRoute>} />
+          <Route path="/admin/uhf" element={<ProtectedRoute allowedRoles={['admin']}><AdminUhf /></ProtectedRoute>} />
+          <Route path="/admin/mapa-calor" element={<ProtectedRoute allowedRoles={['admin']}><AdminMapaCalor /></ProtectedRoute>} />
           <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['admin']}><AdminUsers /></ProtectedRoute>} />
           <Route path="/admin/teams" element={<ProtectedRoute allowedRoles={['admin']}><AdminTeams /></ProtectedRoute>} />
           <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={['admin']}><AdminReports /></ProtectedRoute>} />
