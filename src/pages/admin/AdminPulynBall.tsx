@@ -26,7 +26,7 @@ const CAMPOS_BOMBA: Campo[] = [
   { chave: 'vitoriasParaVencer', rotulo: 'Vitórias para vencer', unidade: 'rounds', fator: 1, passo: 1, ajuda: 'A primeira equipe a chegar nesse número vence a partida.' },
   { chave: 'roundsPorLado', rotulo: 'Trocar de lado a cada', unidade: 'rounds', fator: 1, passo: 1, ajuda: 'Rebeldes e Agentes trocam de papel depois desses rounds.' },
   { chave: 'duracaoRoundSeg', rotulo: 'Duração do round', unidade: 'minutos', fator: 60, passo: 0.5, ajuda: 'Se a bomba não for plantada nesse tempo, os Agentes vencem.' },
-  { chave: 'plantarMs', rotulo: 'Tempo para plantar', unidade: 'segundos', fator: 1000, passo: 0.5, ajuda: 'O portador precisa segurar a pulseira no leitor esse tempo.' },
+  { chave: 'plantarMs', rotulo: 'Tempo para plantar', unidade: 'segundos', fator: 1000, passo: 0.5, ajuda: 'Um jogador dos Rebeldes precisa segurar a pulseira no leitor esse tempo.' },
   { chave: 'desarmarMs', rotulo: 'Tempo para desarmar', unidade: 'segundos', fator: 1000, passo: 0.5, ajuda: 'Um Agente precisa segurar a pulseira esse tempo; se soltar, recomeça.' },
   { chave: 'bombaSeg', rotulo: 'Duração da bomba', unidade: 'segundos', fator: 1, passo: 5, ajuda: 'Depois de plantada, explode nesse tempo se ninguém desarmar. A contagem começa quando o som de bomba plantada termina (cerca de 2,5 s).' },
 ];
