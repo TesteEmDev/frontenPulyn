@@ -1319,6 +1319,17 @@ export const api = {
     };
   },
 
+  // Coloca um participante em um time (ou tira do time, com timeId nulo). Muda só o time.
+  async assignChildToTeam(eventoId: string, criancaId: string, timeId: string | null) {
+    const res = await fetch(
+      `${API_URL}/times/evento/${encodeURIComponent(eventoId)}/crianca/${encodeURIComponent(criancaId)}/time`,
+      { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ timeId }) },
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao mudar o time do participante (${res.status})`);
+    return data as { ok: boolean; criancaId: string; timeId: string | null };
+  },
+
   async updateTime(id: string, data: any) {
     const res = await fetch(`${API_URL}/times/${id}`, {
       method: 'PUT',
