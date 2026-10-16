@@ -10,6 +10,7 @@ import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import MapaPlanta, { LARGURA_PLANTA, ALTURA_PLANTA, type PontoPlanta } from '../../components/uhf/MapaPlanta';
 import MarcadorAntena, { CORES_LEITOR } from '../../components/uhf/MarcadorAntena';
+import VinculoPulseiras from '../../components/uhf/VinculoPulseiras';
 
 const ESCALA_PADRAO = 0.05;
 const campo = 'w-full rounded-lg border border-dark-border bg-dark-surface px-3 py-2 text-sm text-white focus:border-primary focus:outline-none';
@@ -109,7 +110,7 @@ export default function AdminUhf() {
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Leitores UHF"
-            description="Cadastre os leitores Chainway UR4, posicione as 4 antenas de cada um na planta e defina a escala. O mapa de calor usa essas posições."
+            description="Cadastre os leitores Chainway UR4, posicione as 4 antenas de cada um na planta, defina a escala e vincule o EPC de cada pulseira. O mapa de calor usa essas informações."
             icon={<Radio size={28} />}
             action={<Button onClick={() => setNovoAberto(true)}><Plus size={16} className="mr-1.5" />Novo leitor</Button>}
           />
@@ -268,6 +269,8 @@ export default function AdminUhf() {
               )}
             </Card>
           </div>
+
+          <VinculoPulseiras />
         </main>
       </div>
 

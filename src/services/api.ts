@@ -179,7 +179,7 @@ export interface UhfMapaAntena {
   mapaX: number | null; mapaY: number | null; direcaoGraus: number | null; raioMetros: number; ativa: boolean; online: boolean;
 }
 export interface UhfMapaCrianca {
-  codigo: string; criancaId: string | null; nome: string | null; avatar: string | null; timeId: string | null; eventoId: string | null;
+  codigo: string; tag?: string; criancaId: string | null; nome: string | null; avatar: string | null; timeId: string | null; eventoId: string | null;
   x: number; y: number; metodo: 'antena' | 'centroide' | 'trilateracao'; confianca: number; antenas: number;
 }
 export interface UhfMapa {
@@ -190,6 +190,12 @@ export interface UhfMapa {
   regioes: { x: number; y: number; largura: number; altura: number; total: number }[];
   totais: { pulseirasVistas: number; porMetodo: Record<string, number> };
 }
+
+export interface UhfTagVista {
+  tag: string; epc: string; ultimaVez: string; rssiMax: number; n: number; antenas: string[];
+  pulseira: { codigo: string; nome: string | null } | null;
+}
+export interface UhfPulseira { codigo: string; epc: string | null; status: string; crianca: string | null }
 
 async function uhfRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const res = await fetch(`${API_URL}/uhf${path}`, {
@@ -1045,6 +1051,11 @@ export const api = {
     Object.entries(filtros).forEach(([chave, valor]) => { if (valor) params.set(chave, String(valor)); });
     const query = params.toString();
     return uhfRequest<UhfMapa>(`/mapa-calor${query ? `?${query}` : ''}`);
+  },
+  getUhfTagsVistas() { return uhfRequest<UhfTagVista[]>('/tags-vistas'); },
+  getUhfPulseiras() { return uhfRequest<UhfPulseira[]>('/pulseiras'); },
+  vincularUhfEpc(codigo: string, epc: string | null) {
+    return uhfRequest<{ codigo: string; epc: string | null }>(`/pulseiras/${encodeURIComponent(codigo)}/epc`, 'PUT', { epc });
   },
 
   async saveFloorPlan(data: { dataUrl: string; nome: string; type: string }) {
