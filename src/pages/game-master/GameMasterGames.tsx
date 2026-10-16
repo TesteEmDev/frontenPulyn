@@ -164,6 +164,7 @@ export default function GameMasterGames() {
                     game={selectedGame}
                     eventCheckpoints={checkpoints}
                     running={runningGameId === String(selectedGame.id)}
+                    includePaintball
                     onSaved={() => loadData(eventoAtualId, true)}
                   />
                 ) : (

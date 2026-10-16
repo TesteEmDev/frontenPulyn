@@ -10,6 +10,9 @@ interface LiveGameCheckpointsProps {
   eventCheckpoints: Array<{ id: string; name: string; zone?: string; status?: string; codigo?: string }>;
   running: boolean;
   onSaved?: () => void | Promise<void>;
+  // Libera a edição dos jogos de paintball (bomba, refém e zona). Só a tela de checkpoints dos jogos liga isso;
+  // no painel do recreacionista esses jogos não mostram o seletor.
+  includePaintball?: boolean;
 }
 
 const idOf = (item: any): string => String(item && typeof item === 'object' ? item.id : item ?? '').trim();
@@ -23,8 +26,8 @@ const porIdNatural = (a: string, b: string) => String(a).localeCompare(String(b)
 // Troca os checkpoints de um jogo. No Tesouro e no Monstro vale inclusive com a partida em andamento: o servidor
 // corrige o alvo (Tesouro) ou o checkpoint especial (Monstro) se for preciso. Nos jogos de paintball (bomba, refém e
 // zona) a lista nova vale a partir da próxima partida.
-export default function LiveGameCheckpoints({ game, eventCheckpoints, running, onSaved }: LiveGameCheckpointsProps) {
-  const isPaintball = PAINTBALL_TYPES.includes(game.type);
+export default function LiveGameCheckpoints({ game, eventCheckpoints, running, onSaved, includePaintball = false }: LiveGameCheckpointsProps) {
+  const isPaintball = includePaintball && PAINTBALL_TYPES.includes(game.type);
   const supported = game.type === 'treasure_hunt' || game.type === 'monster_hunt' || isPaintball;
   const isMonster = game.type === 'monster_hunt';
 
