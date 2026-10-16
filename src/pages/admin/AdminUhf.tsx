@@ -297,8 +297,8 @@ export default function AdminUhf() {
         {chaveGerada && (
           <div className="space-y-4 text-sm">
             <p className="text-gray-300">
-              Esta chave aparece <strong>só agora</strong>. Configure o leitor <strong>{chaveGerada.leitor.nome}</strong> pelo Bluetooth (HC-06)
-              enviando os comandos abaixo, um por linha:
+              Esta chave aparece <strong>só agora</strong>. Configure o leitor <strong>{chaveGerada.leitor.nome}</strong> pelo Bluetooth
+              (BLE "AdvTrkOneRFID-BT") enviando os comandos abaixo, um por vez:
             </p>
             <pre className="overflow-x-auto rounded-lg bg-dark-surface p-3 text-xs text-green-300">{[
               `SET_MODULE_ID:${chaveGerada.leitor.moduleId}`,
@@ -308,6 +308,7 @@ export default function AdminUhf() {
             ].join('\n')}</pre>
             <p className="text-xs text-gray-500">
               Se o endereço da API acima for "localhost", troque pelo IP do computador do backend na rede do leitor (ex.: http://192.168.0.50:3001/api/uhf/lote).
+              Backend local é sempre http (não https).
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => navigator.clipboard?.writeText(chaveGerada.chave)}>Copiar chave</Button>
