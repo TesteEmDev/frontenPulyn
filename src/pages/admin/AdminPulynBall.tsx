@@ -28,7 +28,7 @@ const CAMPOS_BOMBA: Campo[] = [
   { chave: 'duracaoRoundSeg', rotulo: 'Duração do round', unidade: 'minutos', fator: 60, passo: 0.5, ajuda: 'Se a bomba não for plantada nesse tempo, os Agentes vencem.' },
   { chave: 'plantarMs', rotulo: 'Tempo para plantar', unidade: 'segundos', fator: 1000, passo: 0.5, ajuda: 'O portador precisa segurar a pulseira no leitor esse tempo.' },
   { chave: 'desarmarMs', rotulo: 'Tempo para desarmar', unidade: 'segundos', fator: 1000, passo: 0.5, ajuda: 'Um Agente precisa segurar a pulseira esse tempo; se soltar, recomeça.' },
-  { chave: 'bombaSeg', rotulo: 'Duração da bomba', unidade: 'segundos', fator: 1, passo: 5, ajuda: 'Depois de plantada, explode nesse tempo se ninguém desarmar.' },
+  { chave: 'bombaSeg', rotulo: 'Duração da bomba', unidade: 'segundos', fator: 1, passo: 5, ajuda: 'Depois de plantada, explode nesse tempo se ninguém desarmar. A contagem começa quando o som de bomba plantada termina (cerca de 2,5 s).' },
 ];
 
 const CAMPOS_REFEM: Campo[] = [
