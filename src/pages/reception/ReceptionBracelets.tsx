@@ -135,15 +135,19 @@ export default function ReceptionBracelets() {
 
     try {
       if (modalAction === 'release' && modalBracelet.childId) {
-        // 🔴 IMPORTANTE: Chamar unassignBracelet (que atualiza status para disponível)await api.unassignBracelet(modalBracelet.childId);
+        // Desvincula da criança (o backend também volta a pulseira para disponível)
+        await api.unassignBracelet(modalBracelet.childId);
       } else if (modalAction === 'lost' || modalAction === 'block') {
         // Para perdida ou bloqueada, usar updatePulseiraStatus
-        const status = modalAction === 'lost' ? 'perdida' : 'bloqueada';await api.updatePulseiraStatus(modalBracelet.code, status);
+        const status = modalAction === 'lost' ? 'perdida' : 'bloqueada';
+        await api.updatePulseiraStatus(modalBracelet.code, status);
       } else if (modalAction === 'release' && !modalBracelet.childId) {
-        // Se for release mas não tem criança (pulseira já estava disponível), apenas atualizar statusawait api.updatePulseiraStatus(modalBracelet.code, 'disponivel');
+        // Se for release mas não tem criança (pulseira perdida ou bloqueada), apenas atualizar o status
+        await api.updatePulseiraStatus(modalBracelet.code, 'disponivel');
       }
-      
-      // Recarregar dadosawait loadBracelets();
+
+      // Recarregar dados
+      await loadBracelets();
       await loadChildren();
       
     } catch (error: any) {
