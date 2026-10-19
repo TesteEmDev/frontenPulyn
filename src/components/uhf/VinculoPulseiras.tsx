@@ -36,7 +36,7 @@ export default function VinculoPulseiras() {
 
   useEffect(() => {
     Promise.all([carregarPulseiras(), carregarTags()]).finally(() => setCarregando(false));
-    const intervalo = setInterval(carregarTags, 5000);
+    const intervalo = setInterval(carregarTags, 2000);   // o leitor manda 2 lotes por segundo
     return () => clearInterval(intervalo);
   }, [carregarPulseiras, carregarTags]);
 
@@ -81,7 +81,7 @@ export default function VinculoPulseiras() {
           <h3 className="font-display text-lg text-white">Pulseiras UHF</h3>
           <p className="text-xs text-gray-500">
             Vincule o EPC gravado na tag UHF ao código NFC da pulseira. Deixe só a pulseira que vai vincular perto de uma antena:
-            a tag dela aparece em "Tags lidas agora" em até 20 s.
+            a tag dela aparece em "Tags lidas agora" em poucos segundos.
           </p>
         </div>
         <Badge variant={vinculadas === pulseiras.length && pulseiras.length > 0 ? 'success' : 'secondary'}>
