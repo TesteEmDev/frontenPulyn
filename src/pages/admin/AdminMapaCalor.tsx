@@ -59,7 +59,7 @@ export default function AdminMapaCalor() {
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Mapa de calor"
-            description="Onde as crianças estão (Agora) ou por onde passaram e quanto tempo ficaram (últimos 5 ou 30 min), pelas leituras dos leitores UHF. O mapa é recalculado a cada janela de 20 segundos."
+            description="Onde as crianças estão (Agora) ou por onde passaram e quanto tempo ficaram (últimos 5 ou 30 min, evento todo; o mais antigo fica mais fraco), pelas leituras dos leitores UHF. O mapa é recalculado a cada janela de 20 segundos."
             icon={<Flame size={28} />}
           />
 
@@ -88,6 +88,8 @@ export default function AdminMapaCalor() {
                 <Button size="sm" variant={modo === 'agora' ? 'primary' : 'ghost'} onClick={() => setModo('agora')}>Agora</Button>
                 <Button size="sm" variant={modo === '5min' ? 'primary' : 'ghost'} onClick={() => setModo('5min')}>Últimos 5 min</Button>
                 <Button size="sm" variant={modo === '30min' ? 'primary' : 'ghost'} onClick={() => setModo('30min')}>Últimos 30 min</Button>
+                <Button size="sm" variant={modo === 'evento' ? 'primary' : 'ghost'} onClick={() => setModo('evento')}
+                  title="Do início do evento escolhido (ou das últimas 12 h) até agora; o rastro mais antigo fica mais fraco">Evento todo</Button>
               </div>
               <label className="flex items-center gap-1.5 text-xs text-gray-300">
                 <input type="checkbox" checked={mostrarCriancas} onChange={(e) => setMostrarCriancas(e.target.checked)} />Crianças

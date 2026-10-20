@@ -182,8 +182,9 @@ export interface UhfMapaCrianca {
   codigo: string; tag?: string; criancaId: string | null; nome: string | null; avatar: string | null; timeId: string | null; eventoId: string | null;
   x: number; y: number; metodo: 'antena' | 'centroide' | 'trilateracao'; confianca: number; antenas: number;
 }
-// 'agora' = onde as pulseiras estão; '5min' e '30min' = tempo somado no período (fica o rastro por onde passaram).
-export type ModoUhfMapa = 'agora' | '5min' | '30min';
+// 'agora' = onde as pulseiras estão; '5min', '30min' e 'evento' = tempo somado no período (fica o rastro por onde
+// passaram, mais fraco quanto mais antigo). 'evento' vai do início do evento escolhido (ou das últimas 12 h).
+export type ModoUhfMapa = 'agora' | '5min' | '30min' | 'evento';
 export interface UhfMapa {
   geradoEm: string; balde: string; janelaSeg: number; modo: ModoUhfMapa; acumulado?: boolean; proximaAtualizacaoEm: string;
   largura: number; altura: number; escalaMetrosPorUnidade: number; escalaPadrao: boolean;
