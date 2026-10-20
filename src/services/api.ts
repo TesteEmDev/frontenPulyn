@@ -182,8 +182,10 @@ export interface UhfMapaCrianca {
   codigo: string; tag?: string; criancaId: string | null; nome: string | null; avatar: string | null; timeId: string | null; eventoId: string | null;
   x: number; y: number; metodo: 'antena' | 'centroide' | 'trilateracao'; confianca: number; antenas: number;
 }
+// 'agora' = onde as pulseiras estão; '5min' e '30min' = tempo somado no período (fica o rastro por onde passaram).
+export type ModoUhfMapa = 'agora' | '5min' | '30min';
 export interface UhfMapa {
-  geradoEm: string; balde: string; janelaSeg: number; modo: 'agora' | '5min'; proximaAtualizacaoEm: string;
+  geradoEm: string; balde: string; janelaSeg: number; modo: ModoUhfMapa; acumulado?: boolean; proximaAtualizacaoEm: string;
   largura: number; altura: number; escalaMetrosPorUnidade: number; escalaPadrao: boolean;
   celulaUnidades: number; valorMax: number; celulas: { x: number; y: number; valor: number }[];
   antenas: UhfMapaAntena[]; criancas: UhfMapaCrianca[];
@@ -1046,7 +1048,7 @@ export const api = {
       `/antenas/${encodeURIComponent(antenaId)}/calibrar`, 'POST', medicoes ? { medicoes } : { limpar: true }
     );
   },
-  getUhfMapa(filtros: { modo?: 'agora' | '5min'; balde?: string; eventoId?: string; timeId?: string } = {}) {
+  getUhfMapa(filtros: { modo?: ModoUhfMapa; balde?: string; eventoId?: string; timeId?: string } = {}) {
     const params = new URLSearchParams();
     Object.entries(filtros).forEach(([chave, valor]) => { if (valor) params.set(chave, String(valor)); });
     const query = params.toString();

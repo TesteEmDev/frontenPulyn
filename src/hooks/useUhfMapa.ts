@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { API_URL, api, type UhfMapa } from '../services/api';
+import { API_URL, api, type ModoUhfMapa, type UhfMapa } from '../services/api';
 import { createAuthenticatedWebSocket, getWebSocketServerUrl } from '../services/websocket';
 
 export interface FiltrosUhfMapa {
-  modo: 'agora' | '5min';
+  modo: ModoUhfMapa;
   balde?: string;      // momento passado (replay): não atualiza sozinho
   eventoId?: string;
   timeId?: string;

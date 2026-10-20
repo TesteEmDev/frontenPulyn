@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Flame, RefreshCw, Loader2, History } from 'lucide-react';
-import { api } from '../../services/api';
+import { api, type ModoUhfMapa } from '../../services/api';
 import { usePulynStore } from '../../store/mockData';
 import { useUhfMapa, type FiltrosUhfMapa } from '../../hooks/useUhfMapa';
 import AdminSidebar from '../../components/layout/AdminSidebar';
@@ -25,7 +25,7 @@ export default function AdminMapaCalor() {
   const [eventoId, setEventoId] = useState('');
   const [timeId, setTimeId] = useState('');
   const [times, setTimes] = useState<any[]>([]);
-  const [modo, setModo] = useState<'agora' | '5min'>('agora');
+  const [modo, setModo] = useState<ModoUhfMapa>('agora');
   const [mostrarCriancas, setMostrarCriancas] = useState(true);
   const [mostrarAntenas, setMostrarAntenas] = useState(true);
   // Replay: quantas janelas de 20 s para trás (0 = ao vivo).
@@ -59,7 +59,7 @@ export default function AdminMapaCalor() {
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Mapa de calor"
-            description="Onde as crianças estão, pelas leituras dos leitores UHF. O mapa é recalculado a cada janela de 20 segundos."
+            description="Onde as crianças estão (Agora) ou por onde passaram e quanto tempo ficaram (últimos 5 ou 30 min), pelas leituras dos leitores UHF. O mapa é recalculado a cada janela de 20 segundos."
             icon={<Flame size={28} />}
           />
 
@@ -87,6 +87,7 @@ export default function AdminMapaCalor() {
               <div className="flex gap-1.5">
                 <Button size="sm" variant={modo === 'agora' ? 'primary' : 'ghost'} onClick={() => setModo('agora')}>Agora</Button>
                 <Button size="sm" variant={modo === '5min' ? 'primary' : 'ghost'} onClick={() => setModo('5min')}>Últimos 5 min</Button>
+                <Button size="sm" variant={modo === '30min' ? 'primary' : 'ghost'} onClick={() => setModo('30min')}>Últimos 30 min</Button>
               </div>
               <label className="flex items-center gap-1.5 text-xs text-gray-300">
                 <input type="checkbox" checked={mostrarCriancas} onChange={(e) => setMostrarCriancas(e.target.checked)} />Crianças
@@ -129,10 +130,10 @@ export default function AdminMapaCalor() {
                 <p className="text-xs text-gray-500">
                   {mapa ? `Janela das ${new Date(mapa.balde).toLocaleTimeString('pt-BR')} · ${mapa.totais.pulseirasVistas} pulseira(s) vista(s)` : 'Carregando...'}
                 </p>
-                <LegendaCalor valorMax={mapa?.valorMax || 0} />
+                <LegendaCalor valorMax={mapa?.valorMax || 0} acumulado={mapa?.acumulado} />
               </div>
               <MapaPlanta plantaUrl={plantaUrl} altura={520}>
-                {mapa && <CamadaCalor celulas={mapa.celulas} celulaUnidades={mapa.celulaUnidades} valorMax={mapa.valorMax} />}
+                {mapa && <CamadaCalor celulas={mapa.celulas} celulaUnidades={mapa.celulaUnidades} valorMax={mapa.valorMax} acumulado={mapa.acumulado} />}
                 {mostrarAntenas && mapa?.antenas.filter((a) => a.mapaX !== null).map((a) => (
                   <MarcadorAntena
                     key={a.antenaId}

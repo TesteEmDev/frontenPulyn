@@ -25,12 +25,15 @@ export function corDoCalor(t: number) {
 interface CamadaCalorProps {
   celulas: { x: number; y: number; valor: number }[];
   celulaUnidades: number;
-  // Valor que já fica vermelho (pulseiras/m²). Sem ele, usa o maior valor do mapa.
+  // Valor que já fica vermelho (pulseiras/m², ou minutos/m² se acumulado). Sem ele, usa o maior valor do mapa.
   valorMax: number;
+  // Tempo somado no período: a escala é a raiz, para uma passagem rápida (o rastro) continuar visível ao lado de
+  // onde a criança ficou muito tempo.
+  acumulado?: boolean;
 }
 
 // Células da grade de densidade, desfocadas para parecer uma mancha contínua.
-export default function CamadaCalor({ celulas, celulaUnidades, valorMax }: CamadaCalorProps) {
+export default function CamadaCalor({ celulas, celulaUnidades, valorMax, acumulado = false }: CamadaCalorProps) {
   const filtroId = `calor-${useId().replace(/:/g, '')}`;
   if (!celulas.length || !valorMax) return null;
   const lado = celulaUnidades;
@@ -42,7 +45,7 @@ export default function CamadaCalor({ celulas, celulaUnidades, valorMax }: Camad
         </filter>
       </defs>
       {celulas.map((c) => {
-        const t = c.valor / valorMax;
+        const t = acumulado ? Math.sqrt(c.valor / valorMax) : c.valor / valorMax;
         return (
           <rect
             key={`${c.x}-${c.y}`}
@@ -59,13 +62,13 @@ export default function CamadaCalor({ celulas, celulaUnidades, valorMax }: Camad
   );
 }
 
-export function LegendaCalor({ valorMax }: { valorMax: number }) {
+export function LegendaCalor({ valorMax, acumulado = false }: { valorMax: number; acumulado?: boolean }) {
   const fundo = `linear-gradient(to right, ${[0, 0.33, 0.66, 1].map(corDoCalor).join(', ')})`;
   return (
     <div className="flex items-center gap-2 text-xs text-gray-400">
       <span>0</span>
       <span className="h-2.5 w-32 rounded-full" style={{ background: fundo }} />
-      <span>{valorMax ? valorMax.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : '—'} pulseiras/m²</span>
+      <span>{valorMax ? valorMax.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : '—'} {acumulado ? 'min/m² (tempo somado)' : 'pulseiras/m²'}</span>
     </div>
   );
 }
