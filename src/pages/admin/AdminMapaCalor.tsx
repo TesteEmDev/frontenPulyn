@@ -14,7 +14,7 @@ import CamadaCalor, { LegendaCalor } from '../../components/uhf/CamadaCalor';
 import MarcadorAntena, { CORES_LEITOR } from '../../components/uhf/MarcadorAntena';
 
 const campo = 'rounded-lg border border-dark-border bg-dark-surface px-3 py-2 text-sm text-white focus:border-primary focus:outline-none';
-const JANELA_MS = 20000;
+const JANELA_MS = 5000;   // mesma janela do backend (utils/uhfLote.js)
 const MINUTOS_DE_HISTORICO = 30;
 
 const NOME_METODO: Record<string, string> = { antena: '1 antena', centroide: 'entre antenas', trilateracao: 'triangulada' };
@@ -28,7 +28,7 @@ export default function AdminMapaCalor() {
   const [modo, setModo] = useState<ModoUhfMapa>('agora');
   const [mostrarCriancas, setMostrarCriancas] = useState(true);
   const [mostrarAntenas, setMostrarAntenas] = useState(true);
-  // Replay: quantas janelas de 20 s para trás (0 = ao vivo).
+  // Replay: quantas janelas de 5 s para trás (0 = ao vivo).
   const [voltar, setVoltar] = useState(0);
   const [baseReplay, setBaseReplay] = useState<number>(() => Date.now());
 
@@ -59,7 +59,7 @@ export default function AdminMapaCalor() {
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Mapa de calor"
-            description="Onde as crianças estão (Agora) ou por onde passaram e quanto tempo ficaram (últimos 5 ou 30 min, evento todo; o mais antigo fica mais fraco), pelas leituras dos leitores UHF. O mapa é recalculado a cada janela de 20 segundos."
+            description="Onde as crianças estão (Agora) ou por onde passaram e quanto tempo ficaram (últimos 5 ou 30 min, evento todo; o mais antigo fica mais fraco), pelas leituras dos leitores UHF. O mapa é recalculado a cada 5 segundos."
             icon={<Flame size={28} />}
           />
 

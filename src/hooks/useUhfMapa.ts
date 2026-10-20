@@ -9,9 +9,9 @@ export interface FiltrosUhfMapa {
   timeId?: string;
 }
 
-const ATUALIZACAO_PADRAO_MS = 20000;
+const ATUALIZACAO_PADRAO_MS = 5000;
 
-// Mapa de calor que se atualiza sozinho a cada janela de 20 s. O aviso UHF_MAPA_ATUALIZADO pelo WebSocket da
+// Mapa de calor que se atualiza sozinho a cada janela de 5 s. O aviso UHF_MAPA_ATUALIZADO pelo WebSocket da
 // empresa adianta a atualização; se ele não chegar, a busca acontece no horário que o servidor indicou.
 export function useUhfMapa(filtros: FiltrosUhfMapa) {
   const [mapa, setMapa] = useState<UhfMapa | null>(null);

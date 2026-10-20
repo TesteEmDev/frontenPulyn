@@ -488,7 +488,7 @@ function PainelAntena({ antena, leitor, cor, onSalvar, onCalibrar }: {
         ) : (
           <div className="space-y-2 text-sm">
             <p className="text-xs text-gray-400">
-              Segure uma pulseira no pulso, de frente para a antena, a uma distância medida. Espere uma janela de 20 s e clique em
+              Segure uma pulseira no pulso, de frente para a antena, a uma distância medida. Espere uns 5 s e clique em
               "Registrar". Repita em pelo menos 2 distâncias (ex.: 0,5 m, 1 m e 1,5 m).
             </p>
             <p className="text-xs text-gray-300">
