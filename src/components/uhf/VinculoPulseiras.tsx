@@ -36,7 +36,7 @@ export default function VinculoPulseiras() {
 
   useEffect(() => {
     Promise.all([carregarPulseiras(), carregarTags()]).finally(() => setCarregando(false));
-    const intervalo = setInterval(carregarTags, 2000);   // o leitor manda 2 lotes por segundo
+    const intervalo = setInterval(carregarTags, 2000);   // o leitor manda 1 lote por segundo
     return () => clearInterval(intervalo);
   }, [carregarPulseiras, carregarTags]);
 
