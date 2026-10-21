@@ -13,6 +13,7 @@ import Avatar from '../../components/ui/Avatar';
 import ScoreCounter from '../../components/ui/ScoreCounter';
 import { api } from '../../services/api';
 import RandomTeamDistributionModal from '../../components/team/RandomTeamDistributionModal';
+import AddTeamMemberModal from '../../components/team/AddTeamMemberModal';
 
 const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
@@ -31,6 +32,8 @@ export default function GameMasterTeams() {
   const [editForm, setEditForm] = useState({ name: '', color: '#1E9BD7' });
   const [showNewTeamForm, setShowNewTeamForm] = useState(false);
   const [showDistributeModal, setShowDistributeModal] = useState(false);
+  const [addMemberTeamId, setAddMemberTeamId] = useState<string | null>(null);
+  const [removingChildId, setRemovingChildId] = useState<string | null>(null);
   const [newTeam, setNewTeam] = useState({ name: '', color: '#1E9BD7' });
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<any[]>([]);
@@ -145,7 +148,28 @@ export default function GameMasterTeams() {
     }
   };
 
+  // Coloca o participante no time (ou tira do time, com timeId nulo) e atualiza a tela
+  const assignChild = async (criancaId: string, timeId: string | null) => {
+    if (!selectedEventId) throw new Error('Selecione um evento primeiro');
+    await api.assignChildToTeam(selectedEventId, criancaId, timeId);
+    await Promise.all([loadTeams(), loadChildren()]);
+  };
+
+  const handleRemoveFromTeam = async (criancaId: string) => {
+    setRemovingChildId(criancaId);
+    try {
+      await assignChild(criancaId, null);
+    } catch (error) {
+      console.error('❌ Erro ao tirar participante do time:', error);
+      alert(error instanceof Error ? error.message : 'Erro ao tirar o participante do time');
+    } finally {
+      setRemovingChildId(null);
+    }
+  };
+
   const safeTeams = teams || [];
+  const teamNames = Object.fromEntries(safeTeams.map(team => [team.id, team.name])) as Record<string, string>;
+  const addMemberTeam = safeTeams.find(team => team.id === addMemberTeamId) || null;
   const teamIds = new Set(safeTeams.map(team => team.id));
   const unassignedCount = children.filter(child => !child.timeId || !teamIds.has(child.timeId)).length;
   const sortedTeams = [...safeTeams].sort((a, b) => getTeamScore(b.id) - getTeamScore(a.id));
@@ -361,7 +385,19 @@ export default function GameMasterTeams() {
 
                     {/* Lista de Membros */}
                     <div className="p-4">
-                      <h4 className="text-sm font-semibold text-gray-400 mb-3">MEMBROS</h4>
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <h4 className="text-sm font-semibold text-gray-400">MEMBROS</h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setAddMemberTeamId(team.id)}
+                          disabled={children.length === 0}
+                          title={children.length === 0 ? 'Ainda não há participantes neste evento' : undefined}
+                        >
+                          <Plus size={14} className="mr-1" />
+                          Adicionar participante
+                        </Button>
+                      </div>
                       {members.length > 0 ? (
                         <div className="space-y-2">
                           {members.map(child => (
@@ -375,9 +411,21 @@ export default function GameMasterTeams() {
                                   <p className="text-xs text-gray-500">{child.age} anos</p>
                                 </div>
                               </div>
-                              <Badge variant="success" className="text-xs">
-                                {child.scores || 0} pts
-                              </Badge>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="success" className="text-xs">
+                                  {child.scores || 0} pts
+                                </Badge>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveFromTeam(child.id)}
+                                  disabled={removingChildId !== null}
+                                  title="Tirar do time"
+                                  aria-label={`Tirar ${child.nickname || child.name} do time`}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-danger hover:bg-surface transition-colors disabled:opacity-50"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -422,6 +470,15 @@ export default function GameMasterTeams() {
           </div>
         </div>
       </main>
+
+      <AddTeamMemberModal
+        isOpen={addMemberTeam !== null}
+        onClose={() => setAddMemberTeamId(null)}
+        team={addMemberTeam ? { id: addMemberTeam.id, name: addMemberTeam.name, color: addMemberTeam.color } : null}
+        participants={children}
+        teamNames={teamNames}
+        onAssign={assignChild}
+      />
 
       <RandomTeamDistributionModal
         isOpen={showDistributeModal}

@@ -26,9 +26,9 @@ const CAMPOS_BOMBA: Campo[] = [
   { chave: 'vitoriasParaVencer', rotulo: 'Vitórias para vencer', unidade: 'rounds', fator: 1, passo: 1, ajuda: 'A primeira equipe a chegar nesse número vence a partida.' },
   { chave: 'roundsPorLado', rotulo: 'Trocar de lado a cada', unidade: 'rounds', fator: 1, passo: 1, ajuda: 'Rebeldes e Agentes trocam de papel depois desses rounds.' },
   { chave: 'duracaoRoundSeg', rotulo: 'Duração do round', unidade: 'minutos', fator: 60, passo: 0.5, ajuda: 'Se a bomba não for plantada nesse tempo, os Agentes vencem.' },
-  { chave: 'plantarMs', rotulo: 'Tempo para plantar', unidade: 'segundos', fator: 1000, passo: 0.5, ajuda: 'O portador precisa segurar a pulseira no leitor esse tempo.' },
+  { chave: 'plantarMs', rotulo: 'Tempo para plantar', unidade: 'segundos', fator: 1000, passo: 0.5, ajuda: 'Um jogador dos Rebeldes precisa segurar a pulseira no leitor esse tempo.' },
   { chave: 'desarmarMs', rotulo: 'Tempo para desarmar', unidade: 'segundos', fator: 1000, passo: 0.5, ajuda: 'Um Agente precisa segurar a pulseira esse tempo; se soltar, recomeça.' },
-  { chave: 'bombaSeg', rotulo: 'Duração da bomba', unidade: 'segundos', fator: 1, passo: 5, ajuda: 'Depois de plantada, explode nesse tempo se ninguém desarmar.' },
+  { chave: 'bombaSeg', rotulo: 'Duração da bomba', unidade: 'segundos', fator: 1, passo: 5, ajuda: 'Depois de plantada, explode nesse tempo se ninguém desarmar. A contagem começa quando o som de bomba plantada termina (cerca de 2,5 s).' },
 ];
 
 const CAMPOS_REFEM: Campo[] = [
@@ -71,8 +71,10 @@ type Grupo = {
   jogos: JogoGenerico[]; padroes: Config; limites: Limites;
 };
 
-function JogoCard({ jogo, grupo, onSalvo }: {
+function JogoCard({ jogo, grupo, onSalvo, onAlteradoChange }: {
   jogo: JogoGenerico; grupo: Grupo; onSalvo: (jogo: JogoGenerico) => void;
+  // Avisa a tela quando há alterações ainda não salvas (para perguntar antes de trocar de jogo)
+  onAlteradoChange: (alterado: boolean) => void;
 }) {
   const { campos: CAMPOS, padroes, limites } = grupo;
   const [nome, setNome] = useState(jogo.nome);
@@ -106,6 +108,8 @@ function JogoCard({ jogo, grupo, onSalvo }: {
   const alterado = nome !== jogo.nome || descricao !== jogo.descricao || regras !== jogo.regras
     || CAMPOS.some(campo => convertido.config[campo.chave] !== jogo.config[campo.chave]);
   const podeSalvar = alterado && !salvando && convertido.erros.length === 0 && nome.trim().length > 0;
+
+  useEffect(() => { onAlteradoChange(alterado); }, [alterado, onAlteradoChange]);
 
   const salvar = async () => {
     setSalvando(true);
@@ -206,6 +210,8 @@ export default function AdminPulynBall() {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
+  const [jogoEscolhidoId, setJogoEscolhidoId] = useState<string | null>(null);
+  const [editandoAlterado, setEditandoAlterado] = useState(false);
 
   const temPlano = user?.plan === 'pulynball' || user?.role === 'master';
   const listaEventos = Array.isArray(events) ? events : [];
@@ -222,6 +228,8 @@ export default function AdminPulynBall() {
     let ativo = true;
     setCarregando(true);
     setErro('');
+    setJogoEscolhidoId(null);
+    setEditandoAlterado(false);
     Promise.all([api.getBombaJogos(eventoAtualId), api.getRefemJogos(eventoAtualId)])
       .then(([bomba, refem]) => {
         if (!ativo) return;
@@ -242,6 +250,23 @@ export default function AdminPulynBall() {
       .finally(() => { if (ativo) setCarregando(false); });
     return () => { ativo = false; };
   }, [eventoAtualId, temPlano]);
+
+  const todosOsJogos = grupos.flatMap(grupo => grupo.jogos.map(jogo => ({ jogo, grupo })));
+  const escolhido = todosOsJogos.find(item => item.jogo.brincadeiraId === jogoEscolhidoId) ?? null;
+
+  const confirmarPerdaDeAlteracoes = () =>
+    !editandoAlterado || window.confirm('Você tem alterações não salvas neste jogo. Deseja descartá-las?');
+
+  const escolherJogo = (id: string) => {
+    if (id === jogoEscolhidoId || !confirmarPerdaDeAlteracoes()) return;
+    setEditandoAlterado(false);
+    setJogoEscolhidoId(id);
+  };
+
+  const trocarEvento = (id: string) => {
+    if (id === eventoAtualId || !confirmarPerdaDeAlteracoes()) return;
+    setEventoAtualId(id);
+  };
 
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">
@@ -269,7 +294,7 @@ export default function AdminPulynBall() {
                   label="Evento"
                   options={listaEventos.map(evento => ({ value: evento.eventoId, label: `${evento.nome || 'Evento'} — ${dataBr(evento.data)}` }))}
                   value={eventoAtualId || ''}
-                  onChange={e => setEventoAtualId(e.target.value)}
+                  onChange={e => trocarEvento(e.target.value)}
                 />
               </div>
 
@@ -285,16 +310,57 @@ export default function AdminPulynBall() {
                 </Card>
               )}
 
-              {grupos.flatMap(grupo => grupo.jogos.map(jogo => (
-                <JogoCard
-                  key={jogo.brincadeiraId}
-                  jogo={jogo}
-                  grupo={grupo}
-                  onSalvo={salvo => setGrupos(lista => lista.map(item => item.tipo !== grupo.tipo ? item : {
-                    ...item, jogos: item.jogos.map(atual => atual.brincadeiraId === salvo.brincadeiraId ? salvo : atual),
-                  }))}
-                />
-              )))}
+              {!carregando && !erro && todosOsJogos.length > 0 && (
+                <section className="space-y-3" aria-label="Escolha o jogo para editar">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400">1. Escolha o jogo que quer editar</h2>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {todosOsJogos.map(({ jogo, grupo }) => {
+                      const ativo = jogo.brincadeiraId === jogoEscolhidoId;
+                      return (
+                        <button
+                          key={jogo.brincadeiraId}
+                          type="button"
+                          aria-pressed={ativo}
+                          onClick={() => escolherJogo(jogo.brincadeiraId)}
+                          className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500/40 ${
+                            ativo ? 'border-primary-400 bg-primary-500/10' : 'border-white/[0.10] bg-dark-card hover:border-white/25'
+                          }`}
+                        >
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${ativo ? 'bg-primary-500/20 text-primary-300' : 'bg-accent/15 text-accent'}`}>
+                            <Crosshair size={20} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate font-display text-base text-white">{jogo.nome}</p>
+                            <p className="text-xs text-gray-500">{grupo.titulo}</p>
+                            <p className="mt-1 text-xs text-gray-400">
+                              {jogo.config.vitoriasParaVencer} vitórias · round de {minutosESegundos(jogo.config.duracaoRoundSeg)}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {escolhido && (
+                <section className="space-y-3" aria-label="Edição do jogo">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400">2. Edite as informações e regras</h2>
+                  <JogoCard
+                    key={escolhido.jogo.brincadeiraId}
+                    jogo={escolhido.jogo}
+                    grupo={escolhido.grupo}
+                    onAlteradoChange={setEditandoAlterado}
+                    onSalvo={salvo => setGrupos(lista => lista.map(item => item.tipo !== escolhido.grupo.tipo ? item : {
+                      ...item, jogos: item.jogos.map(atual => atual.brincadeiraId === salvo.brincadeiraId ? salvo : atual),
+                    }))}
+                  />
+                </section>
+              )}
+
+              {!carregando && !erro && todosOsJogos.length > 0 && !escolhido && (
+                <p className="text-sm text-gray-500">Selecione um jogo acima para ver as opções de edição.</p>
+              )}
             </>
           )}
         </main>

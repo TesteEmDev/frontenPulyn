@@ -13,6 +13,8 @@ interface AvatarSelectorProps {
   disabled?: boolean;
   className?: string;
   compact?: boolean;
+  /** Tela só de avatar: mais colunas e altura maior, usando a largura toda. */
+  wide?: boolean;
 }
 
 function AvatarSelector({
@@ -21,19 +23,25 @@ function AvatarSelector({
   disabled = false,
   className = '',
   compact = false,
+  wide = false,
 }: AvatarSelectorProps) {
   const selectedValue = ADVENTURER_AVATARS.some(option => option.id === value)
     ? value
     : DEFAULT_AVATAR_ID;
 
-  const scrollClasses = compact
-    ? 'max-h-[300px] sm:max-h-[340px] xl:max-h-[420px]'
+  const scrollClasses = wide
+    ? 'max-h-[50dvh] sm:max-h-[55dvh]'
+    : compact
+    ? 'max-h-[260px] sm:max-h-[340px] xl:max-h-[420px]'
     : 'max-h-[420px] sm:max-h-[520px]';
+  const gridClasses = wide
+    ? 'grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4 lg:grid-cols-5'
+    : `grid-cols-2 ${compact ? 'gap-2 sm:gap-4' : 'gap-4'}`;
 
   return (
     <div className={className} role="group" aria-label="Escolha seu avatar">
       <div className={`overflow-y-auto overscroll-contain pr-2 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5 ${scrollClasses}`}>
-        <div className="grid grid-cols-2 gap-4 px-1 py-2">
+        <div className={`grid px-1 py-2 ${gridClasses}`}>
           {ADVENTURER_AVATARS.map((option, index) => {
             const selected = selectedValue === option.id;
             const tilt = index % 2 === 0 ? '-rotate-2' : 'rotate-2';

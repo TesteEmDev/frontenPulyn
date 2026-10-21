@@ -161,6 +161,56 @@ async function partidaRequest<T>(jogo: 'bomba' | 'refem', path: string, method =
 const bombaRequest = (path: string, method = 'GET', body?: unknown) => partidaRequest<BombaEstado>('bomba', path, method, body);
 const refemRequest = (path: string, method = 'GET', body?: unknown) => partidaRequest<RefemEstado>('refem', path, method, body);
 
+// ---- Leitores UHF (Chainway UR4) e mapa de calor ----
+export interface UhfAntena {
+  antenaId: string; leitorId: string; porta: number; nome: string | null;
+  mapaX: number | null; mapaY: number | null; direcaoGraus: number | null; raioMetros: number;
+  rssi1m: number | null; expoente: number; ativa: boolean; ultimaAmostraEm: string | null;
+}
+export interface UhfLeitor {
+  leitorId: string; moduleId: string; nome: string; potenciaDbm: number; rssiMin: number; ativo: boolean;
+  ultimoLoteEm: string | null; ultimoSeq: number; fw: string | null; ultimasPortas: string | null; online: boolean;
+  antenas: UhfAntena[];
+}
+export interface UhfConfig { escalaMetrosPorUnidade: number | null; leitores: UhfLeitor[] }
+export interface UhfLeituraAntena { balde: string; codigo: string; n: number; ciclos: number; rssiMed: number; rssiMax: number }
+export interface UhfMapaAntena {
+  antenaId: string; leitorId: string; leitorNome: string; moduleId: string; porta: number; nome: string | null;
+  mapaX: number | null; mapaY: number | null; direcaoGraus: number | null; raioMetros: number; ativa: boolean; online: boolean;
+}
+export interface UhfMapaCrianca {
+  codigo: string; tag?: string; criancaId: string | null; nome: string | null; avatar: string | null; timeId: string | null; eventoId: string | null;
+  x: number; y: number; metodo: 'antena' | 'centroide' | 'trilateracao'; confianca: number; antenas: number;
+}
+// 'agora' = onde as pulseiras estão; '5min', '30min' e 'evento' = tempo somado no período (fica o rastro por onde
+// passaram, mais fraco quanto mais antigo). 'evento' vai do início do evento escolhido (ou das últimas 12 h).
+export type ModoUhfMapa = 'agora' | '5min' | '30min' | 'evento';
+export interface UhfMapa {
+  geradoEm: string; balde: string; janelaSeg: number; modo: ModoUhfMapa; acumulado?: boolean; proximaAtualizacaoEm: string;
+  largura: number; altura: number; escalaMetrosPorUnidade: number; escalaPadrao: boolean;
+  celulaUnidades: number; valorMax: number; celulas: { x: number; y: number; valor: number }[];
+  antenas: UhfMapaAntena[]; criancas: UhfMapaCrianca[];
+  regioes: { x: number; y: number; largura: number; altura: number; total: number }[];
+  totais: { pulseirasVistas: number; porMetodo: Record<string, number> };
+}
+
+export interface UhfTagVista {
+  tag: string; epc: string; ultimaVez: string; rssiMax: number; n: number; antenas: string[];
+  pulseira: { codigo: string; nome: string | null } | null;
+}
+export interface UhfPulseira { codigo: string; epc: string | null; status: string; crianca: string | null }
+
+async function uhfRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}/uhf${path}`, {
+    method,
+    headers: getAuthHeaders(),
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as any)?.error || `Erro nos leitores UHF (${res.status})`);
+  return data as T;
+}
+
 // ---- Resgate do Refém (PulynBall) ----
 export interface RefemConfig { vitoriasParaVencer: number; roundsPorLado: number; duracaoRoundSeg: number; protecaoSeg: number }
 export interface RefemCheckpoint { checkpointId: string; ordem: number; nome: string; online: boolean }
@@ -979,6 +1029,38 @@ export const api = {
     return data.floorPlan || null;
   },
 
+  // ---- Leitores UHF e mapa de calor ----
+  getUhfConfig() { return uhfRequest<UhfConfig>('/config'); },
+  salvarUhfEscala(metrosPorUnidade: number) { return uhfRequest<{ ok: boolean; escalaMetrosPorUnidade: number }>('/escala', 'PUT', { metrosPorUnidade }); },
+  criarUhfLeitor(dados: { moduleId: string; nome?: string; potenciaDbm?: number; rssiMin?: number }) {
+    return uhfRequest<{ leitor: UhfLeitor; chave: string }>('/leitores', 'POST', dados);
+  },
+  atualizarUhfLeitor(leitorId: string, dados: Partial<Pick<UhfLeitor, 'moduleId' | 'nome' | 'potenciaDbm' | 'rssiMin' | 'ativo'>>) {
+    return uhfRequest<UhfLeitor>(`/leitores/${encodeURIComponent(leitorId)}`, 'PUT', dados);
+  },
+  gerarUhfChave(leitorId: string) { return uhfRequest<{ chave: string }>(`/leitores/${encodeURIComponent(leitorId)}/chave`, 'POST'); },
+  removerUhfLeitor(leitorId: string) { return uhfRequest<{ ok: boolean }>(`/leitores/${encodeURIComponent(leitorId)}`, 'DELETE'); },
+  atualizarUhfAntena(antenaId: string, dados: Partial<Pick<UhfAntena, 'nome' | 'mapaX' | 'mapaY' | 'direcaoGraus' | 'raioMetros' | 'ativa'>>) {
+    return uhfRequest<UhfAntena>(`/antenas/${encodeURIComponent(antenaId)}`, 'PUT', dados);
+  },
+  getUhfLeiturasAntena(antenaId: string) { return uhfRequest<UhfLeituraAntena[]>(`/antenas/${encodeURIComponent(antenaId)}/leituras`); },
+  calibrarUhfAntena(antenaId: string, medicoes: { distancia: number; rssi: number }[] | null) {
+    return uhfRequest<{ rssi1m: number | null; expoente: number }>(
+      `/antenas/${encodeURIComponent(antenaId)}/calibrar`, 'POST', medicoes ? { medicoes } : { limpar: true }
+    );
+  },
+  getUhfMapa(filtros: { modo?: ModoUhfMapa; balde?: string; eventoId?: string; timeId?: string } = {}) {
+    const params = new URLSearchParams();
+    Object.entries(filtros).forEach(([chave, valor]) => { if (valor) params.set(chave, String(valor)); });
+    const query = params.toString();
+    return uhfRequest<UhfMapa>(`/mapa-calor${query ? `?${query}` : ''}`);
+  },
+  getUhfTagsVistas() { return uhfRequest<UhfTagVista[]>('/tags-vistas'); },
+  getUhfPulseiras() { return uhfRequest<UhfPulseira[]>('/pulseiras'); },
+  vincularUhfEpc(codigo: string, epc: string | null) {
+    return uhfRequest<{ codigo: string; epc: string | null }>(`/pulseiras/${encodeURIComponent(codigo)}/epc`, 'PUT', { epc });
+  },
+
   async saveFloorPlan(data: { dataUrl: string; nome: string; type: string }) {
     const res = await fetch(`${API_URL}/company-map/floor-plan`, {
       method: 'POST',
@@ -1317,6 +1399,17 @@ export const api = {
       totalChildren: number;
       teams: Array<{ id: string; name: string; members: number }>;
     };
+  },
+
+  // Coloca um participante em um time (ou tira do time, com timeId nulo). Muda só o time.
+  async assignChildToTeam(eventoId: string, criancaId: string, timeId: string | null) {
+    const res = await fetch(
+      `${API_URL}/times/evento/${encodeURIComponent(eventoId)}/crianca/${encodeURIComponent(criancaId)}/time`,
+      { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ timeId }) },
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao mudar o time do participante (${res.status})`);
+    return data as { ok: boolean; criancaId: string; timeId: string | null };
   },
 
   async updateTime(id: string, data: any) {

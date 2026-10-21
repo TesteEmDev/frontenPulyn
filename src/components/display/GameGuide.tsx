@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Clock, Gamepad2, Users, User } from 'lucide-react';
 import Card from '../ui/Card';
 import FitToBox from './FitToBox';
@@ -19,11 +19,50 @@ export const parseGuideRules = (rules: string | null | undefined): string[] =>
     .map((line) => line.replace(/^\s*(?:[-•*–]+|\d+\s*[.)\-–:])\s*/, '').trim())
     .filter(Boolean);
 
-// Quanto mais texto, mais tempo o jogo fica na tela (com mínimo e máximo).
+// Quanto mais texto, mais tempo o jogo fica na tela (com mínimo e máximo; o máximo dá tempo de ler as duas partes das regras longas).
 export const guideSlideDuration = (game: GuideGame) => {
   const chars = (game.description || '').length + (game.rules || '').length + game.name.length;
-  return Math.min(Math.max(9000 + chars * 45, 10000), 30000);
+  return Math.min(Math.max(9000 + chars * 45, 10000), 45000);
 };
+
+// Divide as regras em duas partes de tamanho parecido (pelo total de letras), sem separar uma regra no meio.
+const splitRulesInTwo = (rules: string[]): [string[], string[]] => {
+  const total = rules.reduce((sum, rule) => sum + rule.length, 0);
+  let bestCut = 1;
+  let bestGap = Number.POSITIVE_INFINITY;
+  let acc = 0;
+  for (let cut = 1; cut < rules.length; cut += 1) {
+    acc += rules[cut - 1].length;
+    const gap = Math.abs(acc - total / 2);
+    if (gap < bestGap) {
+      bestGap = gap;
+      bestCut = cut;
+    }
+  }
+  return [rules.slice(0, bestCut), rules.slice(bestCut)];
+};
+
+const RULE_TEXT = 'text-[clamp(0.9rem,2.1vh,1.55rem)]';
+const RULES_LABEL = 'text-[clamp(0.65rem,1.4vh,0.9rem)] font-bold uppercase tracking-[0.25em] text-primary-300';
+
+// Lista numerada das regras; `offset` continua a numeração na segunda parte.
+function RuleList({ rules, offset = 0, spacing }: { rules: string[]; offset?: number; spacing: string }) {
+  if (rules.length === 1 && offset === 0) {
+    return <p className={`leading-snug text-white ${RULE_TEXT}`}>{rules[0]}</p>;
+  }
+  return (
+    <ol className={spacing}>
+      {rules.map((rule, position) => (
+        <li key={`${offset + position}-${rule}`} className={`flex gap-3 leading-snug text-white ${RULE_TEXT}`}>
+          <span className="mt-0.5 flex h-[1.6em] w-[1.6em] shrink-0 items-center justify-center rounded-full bg-primary-500/20 text-[0.8em] font-bold text-primary-300">
+            {offset + position + 1}
+          </span>
+          <span>{rule}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 // Nome do jogo com tipo e duração
 function GameTitleRow({ game, isNext }: { game: GuideGame; isNext: boolean }) {
@@ -51,8 +90,9 @@ function GameTitleRow({ game, isNext }: { game: GuideGame; isNext: boolean }) {
   );
 }
 
-// Guia em rodízio por todos os jogos, enquanto não há jogo rodando. Cada jogo aparece inteiro, com a
-// descrição e TODAS as regras na mesma tela: se o texto for grande, ele é reduzido o necessário para caber.
+// Guia em rodízio por todos os jogos, enquanto não há jogo rodando. Cada jogo aparece com a descrição e as regras:
+// o texto é reduzido o necessário para caber. Se mesmo assim não couber, as regras são mostradas em duas partes
+// (a primeira metade e depois a outra) dentro do tempo do jogo na tela.
 export default function GameGuide({
   games,
   highlightName,
@@ -68,10 +108,16 @@ export default function GameGuide({
     const found = highlightName ? games.findIndex((g) => g.name === highlightName) : -1;
     return found >= 0 ? found : 0;
   });
+  // Jogos cujas regras não cabem inteiras e passam a ser mostradas em duas partes. Vale até a tela mudar de tamanho.
+  const [pagedGames, setPagedGames] = useState<Record<string, boolean>>({});
+  const [page, setPage] = useState(0);
 
   const count = games.length;
   const current = count > 0 ? games[index % count] : null;
   const slideMs = current ? guideSlideDuration(current) : 0;
+  const rules = parseGuideRules(current?.rules);
+  const currentId = current?.id;
+  const isPaged = Boolean(currentId && pagedGames[currentId]) && rules.length > 1;
 
   useEffect(() => {
     if (count < 2) return undefined;
@@ -87,16 +133,47 @@ export default function GameGuide({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightName]);
 
+  // Em duas partes: cada uma fica metade do tempo do jogo na tela.
+  useEffect(() => {
+    setPage(0);
+    if (!isPaged) return undefined;
+    const timer = window.setTimeout(() => setPage(1), Math.max(slideMs / 2, 5000));
+    return () => window.clearTimeout(timer);
+  }, [currentId, isPaged, slideMs]);
+
+  // A tela mudou de tamanho: mede de novo o que cabe.
+  useEffect(() => {
+    let timer = 0;
+    const onResize = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setPagedGames({}), 300);
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
+
+  // Só decide paginar com as regras inteiras na tela (depois de paginado, a medição não volta atrás).
+  const handleOverflow = useCallback((overflowing: boolean) => {
+    if (!overflowing || !currentId) return;
+    setPagedGames((previous) => (previous[currentId] ? previous : { ...previous, [currentId]: true }));
+  }, [currentId]);
+
   if (!current) return null;
 
-  const rules = parseGuideRules(current.rules);
   const isNext = Boolean(highlightName) && current.name === highlightName;
-  const ruleText = 'text-[clamp(0.9rem,2.1vh,1.55rem)]';
+  const [firstHalf, secondHalf] = isPaged ? splitRulesInTwo(rules) : [rules, []];
+  const visibleRules = isPaged ? (page === 0 ? firstHalf : secondHalf) : rules;
+  const visibleOffset = isPaged && page === 1 ? firstHalf.length : 0;
+  const pageLabel = isPaged ? ` · parte ${page + 1} de 2` : '';
+  const overflowWatcher = isPaged ? undefined : handleOverflow;
 
   return (
     <section aria-label="Guia dos jogos" className="h-full min-h-0">
-      <Card variant="glow" className="flex h-full min-h-0 flex-col overflow-hidden p-4 sm:p-5">
-        <div className="mb-3 flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+      <Card variant="glow" className="flex h-full min-h-0 flex-col overflow-hidden p-2.5 sm:p-3">
+        <div className="mb-2 flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.06] pb-2">
           <div className="flex items-center gap-3">
             <div className="rounded-xl border border-primary-400/20 bg-primary-500/10 p-2 text-primary-300">
               <Gamepad2 size={20} />
@@ -121,77 +198,49 @@ export default function GameGuide({
         {compact ? (
           // Metade da tela: tudo numa coluna, reduzido o necessário para caber
           <div className="min-h-0 flex-1" aria-live="polite">
-            <FitToBox minScale={0.4} maxScale={1}>
-              <div key={current.id} className="animate-in fade-in duration-500">
+            <FitToBox key={`${current.id}-${page}`} scrollOverflow minScale={0.55} maxScale={1} onOverflowChange={overflowWatcher}>
+              <div className="animate-in fade-in duration-500">
                 <GameTitleRow game={current} isNext={isNext} />
-                {current.description ? (
-                  <p className="mt-3 leading-snug text-gray-200 text-[clamp(0.9rem,2vh,1.5rem)]">{current.description}</p>
+                {current.description && (!isPaged || page === 0) ? (
+                  <p className="mt-2 leading-snug text-gray-200 text-[clamp(0.9rem,2vh,1.5rem)]">{current.description}</p>
                 ) : null}
-                {rules.length > 0 && (
-                  <div className="mt-4">
-                    <p className="mb-2 text-[clamp(0.65rem,1.4vh,0.9rem)] font-bold uppercase tracking-[0.25em] text-primary-300">Regras</p>
-                    {rules.length === 1 ? (
-                      <p className={`leading-snug text-white ${ruleText}`}>{rules[0]}</p>
-                    ) : (
-                      <ol className="space-y-2">
-                        {rules.map((rule, position) => (
-                          <li key={`${position}-${rule}`} className={`flex gap-3 leading-snug text-white ${ruleText}`}>
-                            <span className="mt-0.5 flex h-[1.6em] w-[1.6em] shrink-0 items-center justify-center rounded-full bg-primary-500/20 text-[0.8em] font-bold text-primary-300">
-                              {position + 1}
-                            </span>
-                            <span>{rule}</span>
-                          </li>
-                        ))}
-                      </ol>
-                    )}
+                {visibleRules.length > 0 && (
+                  <div className="mt-3">
+                    <p className={`mb-2 ${RULES_LABEL}`}>Regras{pageLabel}</p>
+                    <RuleList rules={visibleRules} offset={visibleOffset} spacing="space-y-1.5" />
                   </div>
                 )}
               </div>
             </FitToBox>
           </div>
         ) : (
-          <>
-          {/* Painel dividido ao meio: o jogo (nome, tipo, descrição) à esquerda e as regras à direita */}
-          <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:gap-0" aria-live="polite">
-            <div className={`min-h-[200px] min-w-0 lg:min-h-0 ${rules.length > 0 ? 'lg:w-1/2 lg:pr-8' : 'lg:w-full'}`}>
-              <FitToBox align="center" minScale={0.45} maxScale={1.2}>
-                <div key={current.id} className="animate-in fade-in duration-500">
+          // Painel dividido ao meio: o jogo (nome, tipo, descrição) à esquerda e as regras à direita
+          <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row lg:gap-0" aria-live="polite">
+            <div className={`min-h-[200px] min-w-0 lg:min-h-0 ${rules.length > 0 ? 'lg:w-1/2 lg:pr-5' : 'lg:w-full'}`}>
+              <FitToBox key={current.id} align="center" scrollOverflow minScale={0.55} maxScale={1.2}>
+                <div className="animate-in fade-in duration-500">
                   <GameTitleRow game={current} isNext={isNext} />
                   {current.description ? (
-                    <p className="mt-4 leading-snug text-gray-200 text-[clamp(0.95rem,2.2vh,1.7rem)]">{current.description}</p>
+                    <p className="mt-3 leading-snug text-gray-200 text-[clamp(0.95rem,2.2vh,1.7rem)]">{current.description}</p>
                   ) : null}
                 </div>
               </FitToBox>
             </div>
-  
+
             {rules.length > 0 && (
               <>
                 <div className="hidden w-px shrink-0 bg-gradient-to-b from-transparent via-white/15 to-transparent lg:block" aria-hidden="true" />
-                <div className="min-h-[240px] min-w-0 lg:min-h-0 lg:w-1/2 lg:pl-8">
-                  <FitToBox align="center" minScale={0.45} maxScale={1.2}>
-                    <div key={current.id} className="animate-in fade-in duration-500">
-                      <p className="mb-3 text-[clamp(0.65rem,1.4vh,0.9rem)] font-bold uppercase tracking-[0.25em] text-primary-300">Regras</p>
-                      {rules.length === 1 ? (
-                        <p className={`leading-snug text-white ${ruleText}`}>{rules[0]}</p>
-                      ) : (
-                        <ol className="space-y-3">
-                          {rules.map((rule, position) => (
-                            <li key={`${position}-${rule}`} className={`flex gap-3 leading-snug text-white ${ruleText}`}>
-                              <span className="mt-0.5 flex h-[1.6em] w-[1.6em] shrink-0 items-center justify-center rounded-full bg-primary-500/20 text-[0.8em] font-bold text-primary-300">
-                                {position + 1}
-                              </span>
-                              <span>{rule}</span>
-                            </li>
-                          ))}
-                        </ol>
-                      )}
+                <div className="min-h-[240px] min-w-0 lg:min-h-0 lg:w-1/2 lg:pl-5">
+                  <FitToBox key={`${current.id}-${page}`} align="center" scrollOverflow minScale={0.55} maxScale={1.2} onOverflowChange={overflowWatcher}>
+                    <div className="animate-in fade-in duration-500">
+                      <p className={`mb-2 ${RULES_LABEL}`}>Regras{pageLabel}</p>
+                      <RuleList rules={visibleRules} offset={visibleOffset} spacing="space-y-2" />
                     </div>
                   </FitToBox>
                 </div>
               </>
             )}
           </div>
-          </>
         )}
       </Card>
     </section>

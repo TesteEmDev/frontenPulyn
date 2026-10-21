@@ -97,7 +97,6 @@ export default function BombaPainel({ eventoId }: { eventoId: string }) {
   const plantada = round?.status === 'bomba_plantada';
   const emAndamento = round?.status === 'em_andamento';
   const contagem = plantada ? restante(round?.restanteBombaMs) : emAndamento ? restante(round?.restanteRoundMs) : null;
-  const portador = (estado.jogadores || []).find(j => j.criancaId === round?.portadorCriancaId);
   const resultado = estado.ultimoResultado;
   const timesParaEscolher = timesDoEvento.length ? timesDoEvento : [partida.timeA, partida.timeB];
 
@@ -151,13 +150,8 @@ export default function BombaPainel({ eventoId }: { eventoId: string }) {
               <p className={`mt-1 font-display text-4xl font-bold tabular-nums ${plantada ? 'text-danger' : 'text-white'}`}>{formatarTempo(contagem)}</p>
             </div>
             <div className="rounded-lg bg-surface/50 p-3">
-              <p className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-gray-500"><Crosshair size={14} /> Portador da bomba</p>
-              {round.portadorNumero ? (
-                <p className="mt-1 text-white">
-                  <span className="font-display text-3xl font-bold">nº {round.portadorNumero}</span>
-                  <span className="ml-2 text-sm text-gray-400">{portador ? (portador.apelido || portador.nome) : ''}</span>
-                </p>
-              ) : <p className="mt-1 text-sm text-gray-400">Sorteado quando o round começar.</p>}
+              <p className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-gray-500"><Crosshair size={14} /> Quem planta a bomba</p>
+              <p className="mt-1 text-sm text-white">Todos os Rebeldes{round.timeTr ? ` (${nomeDoTime(round.timeTr)})` : ''}</p>
             </div>
             <div className="rounded-lg bg-surface/50 p-3">
               <p className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-gray-500"><Shield size={14} /> Leitura em andamento</p>
@@ -249,7 +243,7 @@ export default function BombaPainel({ eventoId }: { eventoId: string }) {
             <p className="text-sm font-semibold text-white">Jogadores e números</p>
             <Button size="sm" variant="ghost" disabled={ocupado || !emPartida} onClick={() => executar(() => api.numerarBomba(eventoId), 'Jogadores sem número foram numerados.')}>Numerar quem falta</Button>
           </div>
-          <p className="mb-2 text-xs text-gray-500">A cada round, o portador da bomba é sorteado entre os números da equipe dos Rebeldes.</p>
+          <p className="mb-2 text-xs text-gray-500">Todos os jogadores da equipe dos Rebeldes podem plantar a bomba. O número serve só para identificar o jogador.</p>
           <div className="grid gap-3 md:grid-cols-2">
             {[partida.timeA, partida.timeB].map(time => (
               <div key={time.timeId}>

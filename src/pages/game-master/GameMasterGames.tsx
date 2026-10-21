@@ -82,7 +82,7 @@ export default function GameMasterGames() {
 
   const selectedGame = games.find(game => game.id === selectedGameId) || null;
   const selectedEvent = events.find(event => event.eventoId === eventoAtualId);
-  const supported = selectedGame && (selectedGame.type === 'treasure_hunt' || selectedGame.type === 'monster_hunt');
+  const supported = selectedGame && ['treasure_hunt', 'monster_hunt', 'bomb_defusal', 'hostage_rescue', 'zone_domination'].includes(selectedGame.type);
 
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">
@@ -164,13 +164,14 @@ export default function GameMasterGames() {
                     game={selectedGame}
                     eventCheckpoints={checkpoints}
                     running={runningGameId === String(selectedGame.id)}
+                    includePaintball
                     onSaved={() => loadData(eventoAtualId, true)}
                   />
                 ) : (
                   <Card>
                     <h3 className="font-display text-lg text-white">{selectedGame.name}</h3>
                     <p className="mt-2 text-sm text-gray-400">
-                      Os jogos de Zona usam todos os checkpoints do evento, então não há lista para editar aqui.
+                      Este tipo de jogo não tem lista de checkpoints para editar aqui.
                     </p>
                   </Card>
                 )}
