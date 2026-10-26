@@ -103,6 +103,25 @@ export default function Sidebar({
         })}
       </nav>
 
+      {/* Trocar de área: só aparece para conta com mais de uma área */}
+      {user && (user.papeis?.length ?? 0) > 1 && (
+        <div className="p-3 border-t border-dark-border">
+          <button
+            onClick={() => navigate('/escolher-area')}
+            title="Trocar de área"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors duration-200 hover:bg-dark-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60"
+            style={{ color: '#6B8BA4' }}
+          >
+            <span
+              className="text-sm whitespace-nowrap transition-opacity duration-300"
+              style={{ opacity: collapsed ? 0 : 1 }}
+            >
+              Trocar de área
+            </span>
+          </button>
+        </div>
+      )}
+
       {/* Logout Button */}
       <div className="p-3 border-t border-dark-border">
         <button

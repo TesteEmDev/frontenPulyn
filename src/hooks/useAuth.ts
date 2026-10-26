@@ -7,6 +7,8 @@ export interface User {
   name: string;
   email: string;
   role: string;
+  // Áreas que a conta pode usar (o papel atual é `role`). Conta com uma área só: lista de um item.
+  papeis?: string[];
   redirect: string;
   plan?: string;
 }
@@ -16,6 +18,7 @@ interface AuthStore {
   token: string | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  trocarArea: (role: string) => Promise<{ success: boolean; redirect?: string; error?: string }>;
   logout: () => void;
 }
 
@@ -65,7 +68,8 @@ export const useAuth = create<AuthStore>((set) => {
                 : decoded.role === 'kiosk' ? '/reception/kiosk'
                 : decoded.role === 'score_kiosk' ? '/score-kiosk'
                 : '/login',
-        plan: decoded.plan
+        plan: decoded.plan,
+        papeis: Array.isArray(decoded.papeis) ? decoded.papeis : [decoded.role || 'admin']
       };
       isInitiallyAuthenticated = true;
     }
@@ -96,6 +100,20 @@ export const useAuth = create<AuthStore>((set) => {
       } catch (err) {
         console.error('Erro ao fazer login:', err);
         return { success: false, error: 'Não foi possível conectar ao servidor. Tente novamente.' };
+      }
+    },
+
+    trocarArea: async (role: string): Promise<{ success: boolean; redirect?: string; error?: string }> => {
+      try {
+        const response = await api.trocarPapel(role);
+        if (response.success && response.user && response.token) {
+          set({ user: response.user, token: response.token, isAuthenticated: true });
+          localStorage.setItem('authToken', response.token);
+          return { success: true, redirect: response.user.redirect };
+        }
+        return { success: false, error: response.error || 'Não foi possível trocar de área' };
+      } catch (err: any) {
+        return { success: false, error: err.message || 'Não foi possível trocar de área' };
       }
     },
 

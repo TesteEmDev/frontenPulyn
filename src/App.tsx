@@ -9,6 +9,7 @@ import { EventoProvider } from './contexts/EventoContext';
 
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/login/LoginPage';
+import EscolherArea from './pages/EscolherArea';
 import NotFound from './pages/NotFound';
 import DisplayMain from './pages/display/DisplayMain';
 import DisplayRanking from './pages/display/DisplayRanking';
@@ -203,6 +204,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/escolher-area" element={<ProtectedRoute><EscolherArea /></ProtectedRoute>} />
 
           {/* Telão */}
           <Route path="/display" element={<ProtectedRoute allowedRoles={['display']}><DisplayMain /></ProtectedRoute>} />
