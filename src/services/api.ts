@@ -337,9 +337,9 @@ export const api = {
     return data;
   },
 
-  // Define as áreas extras de uma conta da equipe (ver routes/logins.js).
+  // Define as áreas extras de uma conta da equipe (ver routes/logins.js, montado em /acessos).
   async definirPapeisLogin(loginId: string, papeis: string[]): Promise<any> {
-    const res = await fetch(`${API_URL}/logins/${encodeURIComponent(loginId)}/papeis`, {
+    const res = await fetch(`${API_URL}/acessos/${encodeURIComponent(loginId)}/papeis`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify({ papeis }),
