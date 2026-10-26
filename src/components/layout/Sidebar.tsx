@@ -1,6 +1,6 @@
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
+import { ChevronDown, ChevronRight, LogOut } from 'lucide-react';
 import PulynLogo from '../ui/PulynLogo';
 import { useAuth, roleLabels } from '../../hooks/useAuth';
 import { useBuffetName, useBuffetNameStore, DEFAULT_BUFFET_TITLE } from '../../hooks/useBuffetName';
@@ -46,6 +46,14 @@ export default function Sidebar({
     .filter((role) => role !== user?.role)
     .map((role) => ({ role, items: navegacaoDaArea(role) }))
     .filter((area) => area.items.length > 0);
+
+  // Dropdown de cada área extra. Abre sozinha quando a tela atual é dela; recolhido, o menu mostra os ícones.
+  const [areasAbertas, setAreasAbertas] = useState<Record<string, boolean>>({});
+  const areaEstaAberta = (role: string, items: SidebarItem[]) =>
+    collapsed ||
+    (areasAbertas[role] ?? items.some((item) => activePath === item.path || activePath.startsWith(`${item.path}/`)));
+  const alternarArea = (role: string, items: SidebarItem[]) =>
+    setAreasAbertas((prev) => ({ ...prev, [role]: !areaEstaAberta(role, items) }));
 
   const irParaArea = async (role: string, path: string) => {
     const resultado = await trocarArea(role);
@@ -128,15 +136,23 @@ export default function Sidebar({
           );
         })}
 
-        {outrasAreas.map((area) => (
-          <div key={area.role} className="pt-4">
-            <p
-              className="px-3 pb-1 text-xs uppercase tracking-wide whitespace-nowrap transition-opacity duration-300"
-              style={{ color: '#6B8BA4', opacity: collapsed ? 0 : 1 }}
+        {outrasAreas.map((area) => {
+          const aberta = areaEstaAberta(area.role, area.items);
+          return (
+          <div key={area.role} className="pt-3">
+            <button
+              onClick={() => alternarArea(area.role, area.items)}
+              disabled={collapsed}
+              aria-expanded={aberta}
+              className="w-full flex items-center justify-between px-3 pb-1 text-xs uppercase tracking-wide whitespace-nowrap transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60"
+              style={{ color: '#6B8BA4' }}
             >
-              {roleLabels[area.role] || area.role}
-            </p>
-            {area.items.map((item) => (
+              <span className="transition-opacity duration-300" style={{ opacity: collapsed ? 0 : 1 }}>
+                {roleLabels[area.role] || area.role}
+              </span>
+              {!collapsed && (aberta ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
+            </button>
+            {aberta && area.items.map((item) => (
               <button
                 key={item.path}
                 onClick={() => irParaArea(area.role, item.path)}
@@ -153,7 +169,8 @@ export default function Sidebar({
               </button>
             ))}
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* Logout Button */}
