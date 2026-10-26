@@ -4,12 +4,23 @@ import { LogOut } from 'lucide-react';
 import PulynLogo from '../ui/PulynLogo';
 import { useAuth, roleLabels } from '../../hooks/useAuth';
 import { useBuffetName, useBuffetNameStore, DEFAULT_BUFFET_TITLE } from '../../hooks/useBuffetName';
+import { ADMIN_NAV_ITEMS } from './AdminSidebar';
+import { RECEPTION_NAV_ITEMS } from './ReceptionSidebar';
+import { GAME_MASTER_NAV_ITEMS } from './gameMasterNav';
 
 interface SidebarItem {
   icon: ReactNode;
   label: string;
   path: string;
 }
+
+// Menu de cada área. Conta com mais de uma área mostra as outras áreas abaixo do menu atual.
+const navegacaoDaArea = (role: string): SidebarItem[] => {
+  if (role === 'admin') return ADMIN_NAV_ITEMS;
+  if (role === 'reception') return RECEPTION_NAV_ITEMS;
+  if (role === 'game_master') return GAME_MASTER_NAV_ITEMS;
+  return [];
+};
 
 interface SidebarProps {
   items: SidebarItem[];
@@ -27,8 +38,23 @@ export default function Sidebar({
   onToggleCollapse,
   accentColor = '#1E9BD7',
 }: SidebarProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, trocarArea } = useAuth();
   const navigate = useNavigate();
+
+  // Áreas extras da conta: aparecem no menu. Clicar em um item troca de área e abre a tela.
+  const outrasAreas = (user?.papeis ?? [])
+    .filter((role) => role !== user?.role)
+    .map((role) => ({ role, items: navegacaoDaArea(role) }))
+    .filter((area) => area.items.length > 0);
+
+  const irParaArea = async (role: string, path: string) => {
+    const resultado = await trocarArea(role);
+    if (resultado.success) {
+      navigate(path);
+    } else {
+      alert(resultado.error || 'Não foi possível abrir essa área');
+    }
+  };
   // No admin, o nome exibido é o "Nome da unidade" do cadastro do buffet.
   const unitName = useBuffetName(user?.role === 'admin');
   const displayName = user?.role === 'admin' && unitName !== DEFAULT_BUFFET_TITLE ? unitName : user?.name || '';
@@ -101,26 +127,34 @@ export default function Sidebar({
             </NavLink>
           );
         })}
-      </nav>
 
-      {/* Trocar de área: só aparece para conta com mais de uma área */}
-      {user && (user.papeis?.length ?? 0) > 1 && (
-        <div className="p-3 border-t border-dark-border">
-          <button
-            onClick={() => navigate('/escolher-area')}
-            title="Trocar de área"
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors duration-200 hover:bg-dark-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60"
-            style={{ color: '#6B8BA4' }}
-          >
-            <span
-              className="text-sm whitespace-nowrap transition-opacity duration-300"
-              style={{ opacity: collapsed ? 0 : 1 }}
+        {outrasAreas.map((area) => (
+          <div key={area.role} className="pt-4">
+            <p
+              className="px-3 pb-1 text-xs uppercase tracking-wide whitespace-nowrap transition-opacity duration-300"
+              style={{ color: '#6B8BA4', opacity: collapsed ? 0 : 1 }}
             >
-              Trocar de área
-            </span>
-          </button>
-        </div>
-      )}
+              {roleLabels[area.role] || area.role}
+            </p>
+            {area.items.map((item) => (
+              <button
+                key={item.path}
+                onClick={() => irParaArea(area.role, item.path)}
+                title={collapsed ? item.label : undefined}
+                className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-gray-400 transition-all duration-200 hover:bg-white/[0.05] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60"
+              >
+                <span className="shrink-0">{item.icon}</span>
+                <span
+                  className="whitespace-nowrap transition-opacity duration-300"
+                  style={{ opacity: collapsed ? 0 : 1 }}
+                >
+                  {item.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        ))}
+      </nav>
 
       {/* Logout Button */}
       <div className="p-3 border-t border-dark-border">
