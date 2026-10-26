@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronRight, LogOut } from 'lucide-react';
+import { ChevronDown, LogOut } from 'lucide-react';
 import PulynLogo from '../ui/PulynLogo';
 import { useAuth, roleLabels } from '../../hooks/useAuth';
 import { useBuffetName, useBuffetNameStore, DEFAULT_BUFFET_TITLE } from '../../hooks/useBuffetName';
@@ -47,11 +47,10 @@ export default function Sidebar({
     .map((role) => ({ role, items: navegacaoDaArea(role) }))
     .filter((area) => area.items.length > 0);
 
-  // Dropdown de cada área extra. Abre sozinha quando a tela atual é dela; recolhido, o menu mostra os ícones.
+  // Dropdown de cada área extra. Abre sozinha quando a tela atual é dela.
   const [areasAbertas, setAreasAbertas] = useState<Record<string, boolean>>({});
   const areaEstaAberta = (role: string, items: SidebarItem[]) =>
-    collapsed ||
-    (areasAbertas[role] ?? items.some((item) => activePath === item.path || activePath.startsWith(`${item.path}/`)));
+    areasAbertas[role] ?? items.some((item) => activePath === item.path || activePath.startsWith(`${item.path}/`));
   const alternarArea = (role: string, items: SidebarItem[]) =>
     setAreasAbertas((prev) => ({ ...prev, [role]: !areaEstaAberta(role, items) }));
 
@@ -136,39 +135,41 @@ export default function Sidebar({
           );
         })}
 
-        {outrasAreas.map((area) => {
+        {/* Outras áreas da conta: só com o menu aberto, para não trocar de área por engano */}
+        {!collapsed && outrasAreas.map((area) => {
           const aberta = areaEstaAberta(area.role, area.items);
           return (
-          <div key={area.role} className="pt-3">
-            <button
-              onClick={() => alternarArea(area.role, area.items)}
-              disabled={collapsed}
-              aria-expanded={aberta}
-              className="w-full flex items-center justify-between px-3 pb-1 text-xs uppercase tracking-wide whitespace-nowrap transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60"
-              style={{ color: '#6B8BA4' }}
-            >
-              <span className="transition-opacity duration-300" style={{ opacity: collapsed ? 0 : 1 }}>
-                {roleLabels[area.role] || area.role}
-              </span>
-              {!collapsed && (aberta ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
-            </button>
-            {aberta && area.items.map((item) => (
+            <div key={area.role} className="pt-2">
               <button
-                key={item.path}
-                onClick={() => irParaArea(area.role, item.path)}
-                title={collapsed ? item.label : undefined}
-                className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-gray-400 transition-all duration-200 hover:bg-white/[0.05] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60"
+                onClick={() => alternarArea(area.role, area.items)}
+                aria-expanded={aberta}
+                className="group w-full flex items-center justify-between rounded-lg px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400 transition-colors duration-200 hover:bg-white/[0.04] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60"
               >
-                <span className="shrink-0">{item.icon}</span>
-                <span
-                  className="whitespace-nowrap transition-opacity duration-300"
-                  style={{ opacity: collapsed ? 0 : 1 }}
-                >
-                  {item.label}
-                </span>
+                <span>{roleLabels[area.role] || area.role}</span>
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform duration-200 ${aberta ? 'rotate-180' : ''}`}
+                />
               </button>
-            ))}
-          </div>
+              {aberta && (
+                <div className="mt-1 ml-4 space-y-0.5 border-l border-white/[0.08] pl-2">
+                  {area.items.map((item) => (
+                    <button
+                      key={item.path}
+                      onClick={() => {
+                        if (window.confirm(`Trocar para a área "${roleLabels[area.role] || area.role}"?`)) {
+                          irParaArea(area.role, item.path);
+                        }
+                      }}
+                      className="w-full flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-gray-400 transition-colors duration-200 hover:bg-white/[0.05] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60"
+                    >
+                      <span className="shrink-0">{item.icon}</span>
+                      <span className="whitespace-nowrap">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           );
         })}
       </nav>
