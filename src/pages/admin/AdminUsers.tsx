@@ -37,6 +37,8 @@ const roleConfig: Record<UserRole, { label: string; description: string; variant
   score_kiosk: { label: 'Consulta de pontuação', description: 'Totem para consultar pontos', variant: 'accent' },
 };
 
+const USUARIOS_POR_PAGINA = 10;
+
 // Só a equipe acumula áreas (mesma regra do backend, utils/papeis.js).
 const PAPEIS_ACUMULAVEIS: UserRole[] = ['admin', 'reception', 'game_master'];
 
@@ -63,6 +65,14 @@ export default function AdminUsers() {
     password: '',
     role: 'reception' as UserRole,
   });
+
+  // Paginação da lista (a API devolve todos os usuários do buffet; a paginação é no navegador)
+  const [pagina, setPagina] = useState(1);
+  const totalPaginas = Math.max(1, Math.ceil(users.length / USUARIOS_POR_PAGINA));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const usuariosDaPagina = users.slice((paginaAtual - 1) * USUARIOS_POR_PAGINA, paginaAtual * USUARIOS_POR_PAGINA);
+  const inicioPagina = users.length === 0 ? 0 : (paginaAtual - 1) * USUARIOS_POR_PAGINA + 1;
+  const fimPagina = Math.min(paginaAtual * USUARIOS_POR_PAGINA, users.length);
 
   // Áreas extras de uma conta da equipe (modal de áreas)
   const [areasDe, setAreasDe] = useState<User | null>(null);
@@ -244,7 +254,7 @@ export default function AdminUsers() {
                           </td>
                         </tr>
                       ) : (
-                        users.map(userData => {
+                        usuariosDaPagina.map(userData => {
                           const config = roleConfig[userData.perfil];
                           return (
                             <tr key={userData.loginId} className="hover:bg-surface/50 transition-colors">
@@ -300,8 +310,31 @@ export default function AdminUsers() {
                   </table>
                 </div>
                 {users.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-border">
-                    <p className="text-sm text-gray-500">{users.length} usuário(s) criado(s)</p>
+                  <div className="mt-4 pt-4 border-t border-border flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm text-gray-500">
+                      {inicioPagina}–{fimPagina} de {users.length} usuário(s)
+                    </p>
+                    {totalPaginas > 1 && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="secondary"
+                          onClick={() => setPagina(paginaAtual - 1)}
+                          disabled={paginaAtual <= 1}
+                        >
+                          Anterior
+                        </Button>
+                        <span className="text-sm text-gray-400">
+                          Página {paginaAtual} de {totalPaginas}
+                        </span>
+                        <Button
+                          variant="secondary"
+                          onClick={() => setPagina(paginaAtual + 1)}
+                          disabled={paginaAtual >= totalPaginas}
+                        >
+                          Próxima
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </>
