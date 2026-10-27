@@ -17,6 +17,7 @@ import Input from '../../components/ui/Input';
 import CheckpointsRecebidos from '../../components/checkpoints/CheckpointsRecebidos';
 import AtribuirEvento from '../../components/checkpoints/AtribuirEvento';
 import toast from 'react-hot-toast';
+import { numeroDoCheckpoint } from '../../utils/checkpoints';
 
 // Valor do seletor para listar os checkpoints de todos os eventos
 const ALL_EVENTS = 'all';
@@ -155,7 +156,7 @@ export default function AdminCheckpoints() {
   const colocarNoEvento = async (checkpoint: any, eventoId: string) => {
     try {
       await api.atribuirEventoCheckpoint(checkpoint.id, eventoId);
-      toast.success(`Checkpoint ${checkpoint.codigo ?? checkpoint.id} colocado no evento`);
+      toast.success(`Checkpoint ${numeroDoCheckpoint(checkpoint)} colocado no evento`);
       setRecarregar((n) => n + 1);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Não foi possível colocar no evento');
@@ -301,11 +302,17 @@ export default function AdminCheckpoints() {
       return;
     }
     
-    if (confirm(`Tem certeza que deseja excluir o checkpoint ${id}?`)) {
+    // Aparelho cadastrado pelo super admin (tem MAC): não é apagado, volta para o estoque dele.
+    const devolver = Boolean(checkpoint.macAddress);
+    const rotulo = `${numeroDoCheckpoint(checkpoint)}${checkpoint.name ? ` (${checkpoint.name})` : ''}`;
+    const pergunta = devolver
+      ? `Devolver o checkpoint ${rotulo} ao super admin? Ele sai do seu buffet e do evento, e as leituras e pontos dele neste buffet são apagados.`
+      : `Tem certeza que deseja excluir o checkpoint ${rotulo}?`;
+    if (confirm(pergunta)) {
       try {
         await api.deleteCheckpoint(eventId, id);
         setCheckpointsList(prev => prev.filter(cp => cp.id !== id));
-        alert('Checkpoint excluído com sucesso!');
+        alert(devolver ? 'Checkpoint devolvido ao super admin!' : 'Checkpoint excluído com sucesso!');
       } catch (error: any) {
         console.error('Erro ao excluir:', error);
         alert(`Erro ao excluir checkpoint: ${error.message || 'Tente novamente'}`);
@@ -413,7 +420,7 @@ export default function AdminCheckpoints() {
                     checkpointsList.map(cp => (
                       <tr key={`${cp.eventoId || ''}-${cp.id}`} className="hover:bg-surface/50 transition-colors">
                         <td className="py-3 pr-4">
-                          <p className="text-sm font-mono text-gray-300">{cp.codigo ?? cp.id}</p>
+                          <p className="text-sm font-mono text-gray-300">{numeroDoCheckpoint(cp)}</p>
                           {cp.macAddress && (
                             <p className="text-xs text-gray-500" title="O aparelho é identificado pelo MAC; o número pode ser trocado aqui sem regravar o ESP32.">
                               MAC <span className="font-mono">{cp.macAddress}</span>
@@ -471,7 +478,7 @@ export default function AdminCheckpoints() {
                               <button
                                 onClick={() => handleDelete(cp)}
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-danger hover:bg-surface transition-colors"
-                                title="Excluir"
+                                title={cp.macAddress ? 'Devolver ao super admin' : 'Excluir'}
                               >
                                 <Trash2 size={16} />
                               </button>
@@ -566,7 +573,7 @@ export default function AdminCheckpoints() {
 
           <div className="grid grid-cols-2 gap-4">
             <Input
-              label="Endereço IP"
+              label="Endereço IP (opcional)"
               placeholder="192.168.0.60"
               value={formData.ip}
               onChange={(e) => setFormData({ ...formData, ip: e.target.value })}
