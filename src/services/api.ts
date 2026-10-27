@@ -86,6 +86,28 @@ function getAuthHeaders() {
   }
 }
 
+// Checkpoint que o super admin transferiu para este buffet (rotas de recebimento).
+export interface CheckpointRecebido {
+  checkpointId: string;
+  nome: string;
+  tipo: string;
+  proposito?: string;
+  macAddress: string | null;
+  numCheck: string | null;
+  statusTransferencia?: 'estoque' | 'pendente' | 'aceito';
+  eventoId?: string | null;
+  eventoNome?: string | null;
+  transferidoEm?: string | null;
+}
+
+// Chamada às rotas de recebimento: devolve o JSON ou lança o erro com a mensagem que a API mandou.
+async function pedirRecebimento<T>(caminho: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${API_URL}/pontoVerificacao/recebimento${caminho}`, { ...init, headers: getAuthHeaders() });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error || `Erro ${res.status}`);
+  return data as T;
+}
+
 // Mensagens do telão: a API devolve "texto"; as telas leem "text".
 export function mensagemParaTela(mensagem: any) {
   if (!mensagem || typeof mensagem !== 'object') return mensagem;
@@ -1682,6 +1704,40 @@ export const api = {
     } catch {
       return null;
     }
+  },
+
+  // ---- Checkpoints transferidos pelo super admin: o buffet aceita, define o número e o evento ----
+  getCheckpointsPendentes() {
+    return pedirRecebimento<CheckpointRecebido[]>('/pendentes');
+  },
+
+  getCheckpointsSemEvento() {
+    return pedirRecebimento<CheckpointRecebido[]>('/sem-evento');
+  },
+
+  aceitarCheckpoint(checkpointId: string, numCheck: string, eventoId?: string | null) {
+    return pedirRecebimento<CheckpointRecebido>(`/${encodeURIComponent(checkpointId)}/aceitar`, {
+      method: 'POST',
+      body: JSON.stringify({ numCheck, eventoId: eventoId || null }),
+    });
+  },
+
+  recusarCheckpoint(checkpointId: string) {
+    return pedirRecebimento<{ success: boolean }>(`/${encodeURIComponent(checkpointId)}/recusar`, { method: 'POST' });
+  },
+
+  alterarNumeroCheckpoint(checkpointId: string, numCheck: string) {
+    return pedirRecebimento<CheckpointRecebido>(`/${encodeURIComponent(checkpointId)}/numero`, {
+      method: 'PATCH',
+      body: JSON.stringify({ numCheck }),
+    });
+  },
+
+  atribuirEventoCheckpoint(checkpointId: string, eventoId: string | null) {
+    return pedirRecebimento<CheckpointRecebido>(`/${encodeURIComponent(checkpointId)}/evento`, {
+      method: 'PATCH',
+      body: JSON.stringify({ eventoId }),
+    });
   },
 
   async deleteCheckpoint(eventoId: string, checkpointId: string) {

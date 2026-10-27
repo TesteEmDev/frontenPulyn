@@ -14,6 +14,7 @@ import Button from '../../components/ui/Button';
 import StatusDot from '../../components/ui/StatusDot';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
+import CheckpointsRecebidos from '../../components/checkpoints/CheckpointsRecebidos';
 
 // Valor do seletor para listar os checkpoints de todos os eventos
 const ALL_EVENTS = 'all';
@@ -25,6 +26,8 @@ export default function AdminCheckpoints() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [checkpointsList, setCheckpointsList] = useState<any[]>([]);
   const [codigoBuffet, setCodigoBuffet] = useState<string | null>(null);
+  // Sobe quando um checkpoint recebido entra num evento, para a lista recarregar.
+  const [recarregar, setRecarregar] = useState(0);
 
   useEffect(() => { api.getCodigoBuffet().then(setCodigoBuffet); }, []);
   const [loading, setLoading] = useState(true);
@@ -117,7 +120,7 @@ export default function AdminCheckpoints() {
 
     loadData();
     return () => { disposed = true; };
-  }, [selectedEventId, events]);
+  }, [selectedEventId, events, recarregar]);
 
   const isAllEvents = selectedEventId === ALL_EVENTS;
 
@@ -182,10 +185,19 @@ export default function AdminCheckpoints() {
       console.log('🔍 Salvando checkpoint com config:', config);
       
       if (editingCheckpoint) {
+        // Checkpoint recebido do super admin (tem MAC): o número pode mudar, pois quem o identifica é o MAC.
+        const numeroNovo = formData.id.trim();
+        const numeroMudou = Boolean(editingCheckpoint.macAddress) && numeroNovo !== String(editingCheckpoint.codigo ?? '');
+        if (numeroMudou) await api.alterarNumeroCheckpoint(editingCheckpoint.id, numeroNovo);
+
         // Atualizar checkpoint existente
         await api.saveCheckpointConfig(editingCheckpoint.id, config, targetEventId);
-        setCheckpointsList(prev => 
-          prev.map(cp => cp.id === editingCheckpoint.id ? { ...cp, name: formData.name, type: formData.type, ip: formData.ip, zone: formData.zone, points: formData.points } : cp)
+        setCheckpointsList(prev =>
+          prev.map(cp => cp.id === editingCheckpoint.id ? {
+            ...cp,
+            ...(numeroMudou ? { codigo: numeroNovo, numCheck: numeroNovo } : {}),
+            name: formData.name, type: formData.type, ip: formData.ip, zone: formData.zone, points: formData.points,
+          } : cp)
         );
       } else {
         // Criar novo checkpoint
@@ -280,6 +292,9 @@ export default function AdminCheckpoints() {
             }
           />
 
+          {/* Checkpoints que o super admin transferiu para este buffet */}
+          <CheckpointsRecebidos events={events} onChange={() => setRecarregar((n) => n + 1)} />
+
           {/* Event Selector */}
           <Card>
             <div className="flex items-center gap-4">
@@ -341,7 +356,12 @@ export default function AdminCheckpoints() {
                       <tr key={`${cp.eventoId || ''}-${cp.id}`} className="hover:bg-surface/50 transition-colors">
                         <td className="py-3 pr-4">
                           <p className="text-sm font-mono text-gray-300">{cp.codigo ?? cp.id}</p>
-                          {cp.prefixado && (
+                          {cp.macAddress && (
+                            <p className="text-xs text-gray-500" title="O aparelho é identificado pelo MAC; o número pode ser trocado aqui sem regravar o ESP32.">
+                              MAC <span className="font-mono">{cp.macAddress}</span>
+                            </p>
+                          )}
+                          {cp.prefixado && !cp.macAddress && (
                             <p className="text-xs text-warning" title="O mesmo ID também é usado em outro buffet: um ESP32 gravado só com o número fala com o outro. Preencha o código do buffet no ESP32 ou peça ao suporte para passar o ID simples para este checkpoint.">
                               ID repetido em outro buffet · grave no ESP32: <span className="font-mono font-semibold">{cp.id}</span>
                             </p>
@@ -430,11 +450,11 @@ export default function AdminCheckpoints() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Input
-              label="ID do Checkpoint"
+              label={editingCheckpoint?.macAddress ? 'Número do Checkpoint' : 'ID do Checkpoint'}
               placeholder="Ex: CP-01"
               value={formData.id}
               onChange={(e) => setFormData({ ...formData, id: e.target.value.toUpperCase() })}
-              disabled={!!editingCheckpoint}
+              disabled={!!editingCheckpoint && !editingCheckpoint.macAddress}
               required
             />
             <Input
