@@ -451,6 +451,13 @@ export const api = {
     return res.json();
   },
 
+  // Eventos anteriores da criança, com pontos e checkpoints visitados (ver routes/familias.js).
+  async getFamilyChildHistory(childId: string): Promise<any> {
+    const res = await fetch(`${API_URL}/familias/children/${encodeURIComponent(childId)}/history`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(`Erro ao carregar histórico da criança (${res.status})`);
+    return res.json();
+  },
+
   // ==================== CLIENTES ====================
   async getClientes() {
     const res = await fetch(`${API_URL}/clientes`, {

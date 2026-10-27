@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Medal,
   Clock,
+  History,
 } from 'lucide-react';
 import {
   LineChart,
@@ -54,6 +55,23 @@ export default function FamilyScores() {
         timestamp: score.created_at ? new Date(score.created_at).toLocaleString('pt-BR') : '',
       })))))
       .catch(() => setScoreLog([]));
+  }, [children]);
+
+  // Eventos anteriores de cada criança (pontos e checkpoints visitados em cada um)
+  const [historico, setHistorico] = useState<{ childId: string; nome: string; eventoAtualId?: string; eventos: any[] }[]>([]);
+
+  useEffect(() => {
+    Promise.all(children.map((child) =>
+      api.getFamilyChildHistory(child.id)
+        .then((res) => ({
+          childId: child.id,
+          nome: child.nickname || child.name,
+          eventoAtualId: child.eventoId,
+          eventos: res.eventos || [],
+        }))
+        .catch(() => ({ childId: child.id, nome: child.nickname || child.name, eventoAtualId: child.eventoId, eventos: [] }))
+    ))
+      .then(setHistorico);
   }, [children]);
 
   const sortedTeams = useMemo(() => {
@@ -252,6 +270,50 @@ export default function FamilyScores() {
             </ResponsiveContainer>
           </div>
         </Card>
+
+        {/* Eventos anteriores */}
+        {historico.some((h) => h.eventos.length > 0) && (
+          <Card className="mb-6">
+            <div className="flex items-center gap-2 mb-4">
+              <History size={18} className="text-primary" />
+              <h3 className="text-white font-display font-semibold">Eventos anteriores</h3>
+            </div>
+            <div className="space-y-5">
+              {historico.filter((h) => h.eventos.length > 0).map((h) => (
+                <div key={h.childId}>
+                  <p className="text-sm font-semibold text-gray-300 mb-2">{h.nome}</p>
+                  <div className="space-y-2">
+                    {h.eventos.map((ev: any) => {
+                      const atual = ev.eventoId === h.eventoAtualId;
+                      return (
+                        <div
+                          key={`${ev.criancaId}-${ev.eventoId}`}
+                          className="flex items-center justify-between gap-3 rounded-xl bg-surface/50 px-3 py-2.5"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm text-white truncate flex items-center gap-2">
+                              {ev.eventoNome || 'Evento'}
+                              {atual && <Badge variant="success">Atual</Badge>}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {ev.data ? new Date(ev.data).toLocaleDateString('pt-BR') : 'Data não informada'}
+                              {' · '}
+                              {ev.checkpointsVisitados} {ev.checkpointsVisitados === 1 ? 'checkpoint' : 'checkpoints'}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-white font-mono font-bold text-lg">{ev.pontos}</p>
+                            <p className="text-xs text-gray-400">pts</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {/* Score Log */}
         <Card className="mb-6">
