@@ -100,6 +100,41 @@ export interface CheckpointRecebido {
   transferidoEm?: string | null;
 }
 
+// Checkpoint visto pelo super admin (estoque, transferido para um buffet, ou já aceito por ele).
+export interface CheckpointMaster {
+  id: number;
+  numCheck: string | null;
+  macAddress: string | null;
+  nome: string;
+  tipo: string;
+  proposito: string | null;
+  status: string | null;
+  ultimoVisto: string | null;
+  statusTransferencia: 'estoque' | 'pendente' | 'aceito';
+  empresaId: string | null;
+  empresaNome: string | null;
+  empresaDestinoId: string | null;
+  empresaDestinoNome: string | null;
+  eventoId: string | null;
+  transferidoEm: string | null;
+  criadoEm: string | null;
+}
+
+export interface BuffetOpcao {
+  empresaId: string;
+  nome: string;
+  cidade?: string | null;
+  estado?: string | null;
+}
+
+// Chamada às rotas do super admin (/master/checkpoints): devolve o JSON ou lança o erro com a mensagem da API.
+async function pedirMasterCheckpoints<T>(caminho: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${API_URL}/master/checkpoints${caminho}`, { ...init, headers: getAuthHeaders() });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error || `Erro ${res.status}`);
+  return data as T;
+}
+
 // Chamada às rotas de recebimento: devolve o JSON ou lança o erro com a mensagem que a API mandou.
 async function pedirRecebimento<T>(caminho: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}/pontoVerificacao/recebimento${caminho}`, { ...init, headers: getAuthHeaders() });
@@ -1704,6 +1739,35 @@ export const api = {
     } catch {
       return null;
     }
+  },
+
+  // ---- Super admin: cadastra checkpoints (pelo MAC) e os transfere para os buffets ----
+  masterGetCheckpoints() {
+    return pedirMasterCheckpoints<CheckpointMaster[]>('');
+  },
+
+  masterGetBuffets() {
+    return pedirMasterCheckpoints<BuffetOpcao[]>('/buffets');
+  },
+
+  masterCriarCheckpoint(dados: { macAddress: string; nome?: string; tipo?: string; proposito?: string; numCheck?: string }) {
+    return pedirMasterCheckpoints<CheckpointMaster>('', { method: 'POST', body: JSON.stringify(dados) });
+  },
+
+  masterEditarCheckpoint(id: number, dados: { macAddress?: string; nome?: string; tipo?: string; proposito?: string; numCheck?: string }) {
+    return pedirMasterCheckpoints<CheckpointMaster>(`/${id}`, { method: 'PATCH', body: JSON.stringify(dados) });
+  },
+
+  masterTransferirCheckpoint(id: number, empresaId: string) {
+    return pedirMasterCheckpoints<CheckpointMaster>(`/${id}/transferir`, { method: 'POST', body: JSON.stringify({ empresaId }) });
+  },
+
+  masterCancelarTransferencia(id: number) {
+    return pedirMasterCheckpoints<CheckpointMaster>(`/${id}/cancelar-transferencia`, { method: 'POST' });
+  },
+
+  masterExcluirCheckpoint(id: number) {
+    return pedirMasterCheckpoints<{ success: boolean }>(`/${id}`, { method: 'DELETE' });
   },
 
   // ---- Checkpoints transferidos pelo super admin: o buffet aceita, define o número e o evento ----

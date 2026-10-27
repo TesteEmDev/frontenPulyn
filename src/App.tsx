@@ -54,6 +54,7 @@ import MasterMonitoring from './pages/master/MasterMonitoring';
 import MasterLogs from './pages/master/MasterLogs';
 import MasterSupport from './pages/master/MasterSupport';
 import MasterAnalytics from './pages/master/MasterAnalytics';
+import MasterCheckpoints from './pages/master/MasterCheckpoints';
 import FamilyHome from './pages/family/FamilyHome';
 import FamilyLocation from './pages/family/FamilyLocation';
 import FamilyScores from './pages/family/FamilyScores';
@@ -263,6 +264,7 @@ function App() {
           <Route path="/master/logs" element={<ProtectedRoute allowedRoles={['master']}><MasterLogs /></ProtectedRoute>} />
           <Route path="/master/support" element={<ProtectedRoute allowedRoles={['master']}><MasterSupport /></ProtectedRoute>} />
           <Route path="/master/analytics" element={<ProtectedRoute allowedRoles={['master']}><MasterAnalytics /></ProtectedRoute>} />
+          <Route path="/master/checkpoints" element={<ProtectedRoute allowedRoles={['master']}><MasterCheckpoints /></ProtectedRoute>} />
 
           {/* App Família */}
           <Route path="/family/invite/:token" element={<FamilyInviteRegister />} />
