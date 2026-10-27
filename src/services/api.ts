@@ -98,6 +98,9 @@ export interface CheckpointRecebido {
   eventoId?: string | null;
   eventoNome?: string | null;
   transferidoEm?: string | null;
+  zona?: string | null;
+  pontos?: number | null;
+  status?: string | null;
 }
 
 // Checkpoint visto pelo super admin (estoque, transferido para um buffet, ou já aceito por ele).

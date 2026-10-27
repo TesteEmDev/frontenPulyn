@@ -15,6 +15,8 @@ import StatusDot from '../../components/ui/StatusDot';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
 import CheckpointsRecebidos from '../../components/checkpoints/CheckpointsRecebidos';
+import AtribuirEvento from '../../components/checkpoints/AtribuirEvento';
+import toast from 'react-hot-toast';
 
 // Valor do seletor para listar os checkpoints de todos os eventos
 const ALL_EVENTS = 'all';
@@ -64,9 +66,10 @@ export default function AdminCheckpoints() {
         const activeEvent = eventosData?.find((e: any) => e.status === 'active' || e.status === 'ongoing');
         if (activeEvent) {
           setSelectedEventId(activeEvent.eventoId);
-        } else if (eventosData && eventosData.length > 0) {
+        } else {
           // Sem evento ativo, mostra os checkpoints de todos os eventos: o primeiro da
-          // lista costuma ser o evento mais novo, que ainda pode não ter nenhum.
+          // lista costuma ser o evento mais novo, que ainda pode não ter nenhum. Também vale sem evento nenhum:
+          // os checkpoints recebidos e ainda fora de um evento aparecem em "todos".
           setSelectedEventId(ALL_EVENTS);
         }
       } catch (err) {
@@ -93,16 +96,38 @@ export default function AdminCheckpoints() {
         let data: any[];
         if (selectedEventId === ALL_EVENTS) {
           // Cada checkpoint leva o evento a que pertence (para a coluna Evento e para editar/excluir)
-          const lists = await Promise.all(events.map((event) =>
-            api.getCheckpoints(event.eventoId)
-              .then((list: any[]) => (list || []).map((cp) => ({
-                ...cp,
-                eventoId: cp.eventoId ?? event.eventoId,
-                evento_name: event.nome || `Evento ${event.eventoId}`,
-              })))
-              .catch(() => [])
-          ));
-          data = lists.flat();
+          const [lists, semEvento] = await Promise.all([
+            Promise.all(events.map((event) =>
+              api.getCheckpoints(event.eventoId)
+                .then((list: any[]) => (list || []).map((cp) => ({
+                  ...cp,
+                  eventoId: cp.eventoId ?? event.eventoId,
+                  evento_name: event.nome || `Evento ${event.eventoId}`,
+                })))
+                .catch(() => [])
+            )),
+            // Aceitos que ainda não estão em nenhum evento (não saem das listas por evento).
+            api.getCheckpointsSemEvento().catch(() => []),
+          ]);
+          data = [
+            ...lists.flat(),
+            ...semEvento
+              .filter((cp) => String(cp.proposito || 'game').toLowerCase() !== 'reception')
+              .map((cp) => ({
+                id: cp.checkpointId,
+                checkpointId: cp.checkpointId,
+                codigo: cp.numCheck,
+                numCheck: cp.numCheck,
+                macAddress: cp.macAddress,
+                name: cp.nome,
+                type: cp.tipo,
+                zone: cp.zona,
+                points: cp.pontos,
+                status: cp.status,
+                eventoId: null,
+                evento_name: null,
+              })),
+          ];
         } else {
           data = await api.getCheckpoints(selectedEventId);
         }
@@ -123,6 +148,19 @@ export default function AdminCheckpoints() {
   }, [selectedEventId, events, recarregar]);
 
   const isAllEvents = selectedEventId === ALL_EVENTS;
+  // Recebido do super admin e ainda fora de um evento: só o número pode mudar por enquanto.
+  const somenteNumero = Boolean(editingCheckpoint && !editingCheckpoint.eventoId && editingCheckpoint.macAddress);
+
+  // Coloca num evento um checkpoint aceito que ainda não tinha; a lista recarrega e ele passa a ter o evento.
+  const colocarNoEvento = async (checkpoint: any, eventoId: string) => {
+    try {
+      await api.atribuirEventoCheckpoint(checkpoint.id, eventoId);
+      toast.success(`Checkpoint ${checkpoint.codigo ?? checkpoint.id} colocado no evento`);
+      setRecarregar((n) => n + 1);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível colocar no evento');
+    }
+  };
 
   const handleOpenModal = (checkpoint?: any) => {
     if (checkpoint) {
@@ -161,6 +199,28 @@ export default function AdminCheckpoints() {
       alert('O nome do checkpoint é obrigatório');
       return;
     }
+    // Checkpoint recebido que ainda não está em nenhum evento: só o número pode mudar (o resto é configurado
+    // por evento, depois de colocá-lo em um).
+    if (editingCheckpoint && !editingCheckpoint.eventoId && editingCheckpoint.macAddress) {
+      const numeroNovo = formData.id.trim();
+      if (numeroNovo === String(editingCheckpoint.codigo ?? '')) {
+        setModalOpen(false);
+        return;
+      }
+      setSaving(true);
+      try {
+        await api.alterarNumeroCheckpoint(editingCheckpoint.id, numeroNovo);
+        setCheckpointsList(prev => prev.map(cp => cp.id === editingCheckpoint.id ? { ...cp, codigo: numeroNovo, numCheck: numeroNovo } : cp));
+        setModalOpen(false);
+        toast.success(`Número alterado para ${numeroNovo}`);
+      } catch (error: any) {
+        toast.error(error.message || 'Não foi possível alterar o número');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     // Editando, vale o evento do próprio checkpoint (em "todos os eventos" não há um evento selecionado).
     const targetEventId = editingCheckpoint?.eventoId || selectedEventId;
     if (!targetEventId || targetEventId === ALL_EVENTS) {
@@ -293,7 +353,11 @@ export default function AdminCheckpoints() {
           />
 
           {/* Checkpoints que o super admin transferiu para este buffet */}
-          <CheckpointsRecebidos events={events} onChange={() => setRecarregar((n) => n + 1)} />
+          <CheckpointsRecebidos
+            events={events}
+            eventoPadrao={isAllEvents ? null : selectedEventId}
+            onChange={() => setRecarregar((n) => n + 1)}
+          />
 
           {/* Event Selector */}
           <Card>
@@ -304,18 +368,12 @@ export default function AdminCheckpoints() {
                 onChange={(e) => setSelectedEventId(e.target.value)}
                 className="min-w-[14rem] px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white font-body text-sm cursor-pointer"
               >
-                {events && events.length > 0 ? (
-                  <>
-                    <option value={ALL_EVENTS} style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>Todos os eventos</option>
-                    {events.map(event => (
-                      <option key={event.eventoId} value={event.eventoId} style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>
-                        {event.nome || `Evento ${event.eventoId}`}
-                      </option>
-                    ))}
-                  </>
-                ) : (
-                  <option value="" disabled style={{ backgroundColor: '#1a1a2e', color: '#999' }}>Nenhum evento disponível</option>
-                )}
+                <option value={ALL_EVENTS} style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>Todos os eventos</option>
+                {(events || []).map(event => (
+                  <option key={event.eventoId} value={event.eventoId} style={{ backgroundColor: '#1a1a2e', color: '#fff' }}>
+                    {event.nome || `Evento ${event.eventoId}`}
+                  </option>
+                ))}
               </select>
               {isAllEvents && (
                 <span className="text-xs text-gray-500">Para cadastrar um checkpoint, escolha um evento.</span>
@@ -372,7 +430,15 @@ export default function AdminCheckpoints() {
                         </td>
                         {isAllEvents && (
                           <td className="py-3 pr-4">
-                            <p className="text-sm text-gray-300">{cp.evento_name || '-'}</p>
+                            {cp.macAddress && !cp.eventoId ? (
+                              <AtribuirEvento
+                                events={events}
+                                nomeCheckpoint={cp.name}
+                                onAtribuir={(eventoId) => colocarNoEvento(cp, eventoId)}
+                              />
+                            ) : (
+                              <p className="text-sm text-gray-300">{cp.evento_name || '-'}</p>
+                            )}
                           </td>
                         )}
                         <td className="py-3 pr-4">
@@ -401,13 +467,15 @@ export default function AdminCheckpoints() {
                             >
                               <Edit size={16} />
                             </button>
-                            <button
-                              onClick={() => handleDelete(cp)}
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-danger hover:bg-surface transition-colors"
-                              title="Excluir"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            {cp.eventoId && (
+                              <button
+                                onClick={() => handleDelete(cp)}
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-danger hover:bg-surface transition-colors"
+                                title="Excluir"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                             <button
                               className="p-1.5 rounded-lg text-gray-400 hover:text-accent hover:bg-surface transition-colors"
                               title="Testar LED"
@@ -448,6 +516,11 @@ export default function AdminCheckpoints() {
         size="lg"
       >
         <div className="space-y-4">
+          {somenteNumero && (
+            <p className="text-sm text-gray-400">
+              Este checkpoint ainda não está em nenhum evento. Por enquanto só o número pode mudar; o restante é configurado depois de colocá-lo em um evento.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <Input
               label={editingCheckpoint?.macAddress ? 'Número do Checkpoint' : 'ID do Checkpoint'}
@@ -462,6 +535,7 @@ export default function AdminCheckpoints() {
               placeholder="Ex: Entrada Principal"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              disabled={somenteNumero}
               required
             />
           </div>
@@ -473,6 +547,7 @@ export default function AdminCheckpoints() {
                 id="checkpoint-type"
                 value={formData.type}
                 onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                disabled={somenteNumero}
                 className="input-dark w-full rounded-xl border border-white/[0.10] bg-dark-card px-3.5 py-3 font-body text-white transition-all duration-200 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/15"
               >
                 <option value="NFC">NFC/RFID</option>
@@ -485,6 +560,7 @@ export default function AdminCheckpoints() {
               placeholder="Ex: Área 1"
               value={formData.zone}
               onChange={(e) => setFormData({ ...formData, zone: e.target.value })}
+              disabled={somenteNumero}
             />
           </div>
 
@@ -494,6 +570,7 @@ export default function AdminCheckpoints() {
               placeholder="192.168.0.60"
               value={formData.ip}
               onChange={(e) => setFormData({ ...formData, ip: e.target.value })}
+              disabled={somenteNumero}
             />
           </div>
 
@@ -502,6 +579,7 @@ export default function AdminCheckpoints() {
             type="number"
             value={formData.points}
             onChange={(e) => setFormData({ ...formData, points: parseInt(e.target.value) || 0 })}
+            disabled={somenteNumero}
           />
 
           <div className="flex justify-end gap-3 pt-4">
