@@ -51,10 +51,9 @@ interface Formulario {
   nome: string;
   tipo: string;
   proposito: string;
-  numCheck: string;
 }
 
-const FORM_VAZIO: Formulario = { macAddress: '', nome: '', tipo: 'NFC', proposito: 'game', numCheck: '' };
+const FORM_VAZIO: Formulario = { macAddress: '', nome: '', tipo: 'NFC', proposito: 'game' };
 
 function BadgeSituacao({ situacao }: { situacao: Situacao }) {
   if (situacao === 'aceito') return <Badge variant="success">Aceito</Badge>;
@@ -134,7 +133,6 @@ export default function MasterCheckpoints() {
       nome: cp.nome,
       tipo: cp.tipo || 'NFC',
       proposito: cp.proposito || 'game',
-      numCheck: cp.numCheck ?? '',
     });
     setFormAberto(true);
   };
@@ -146,13 +144,12 @@ export default function MasterCheckpoints() {
     }
     const feito = editando
       ? await executar(() => {
-          // Só manda o que mudou; o número fica por conta do buffet depois do aceite.
+          // Só manda o que mudou. O número do checkpoint não é do master: o admin do buffet o define ao aceitar.
           const dados: Parameters<typeof api.masterEditarCheckpoint>[1] = {};
           if (form.macAddress.trim().toUpperCase() !== (editando.macAddress ?? '')) dados.macAddress = form.macAddress.trim();
           if (form.nome.trim() !== editando.nome) dados.nome = form.nome.trim();
           if (form.tipo !== editando.tipo) dados.tipo = form.tipo;
           if (form.proposito !== (editando.proposito || 'game')) dados.proposito = form.proposito;
-          if (editando.statusTransferencia !== 'aceito' && form.numCheck.trim() !== (editando.numCheck ?? '')) dados.numCheck = form.numCheck.trim();
           if (Object.keys(dados).length === 0) return Promise.reject(new Error('Nada mudou'));
           return api.masterEditarCheckpoint(editando.id, dados);
         }, 'Checkpoint atualizado')
@@ -161,7 +158,6 @@ export default function MasterCheckpoints() {
           nome: form.nome.trim() || undefined,
           tipo: form.tipo,
           proposito: form.proposito,
-          numCheck: form.numCheck.trim() || undefined,
         }), 'Checkpoint cadastrado no estoque');
     if (feito) setFormAberto(false);
   };
@@ -184,8 +180,6 @@ export default function MasterCheckpoints() {
 
   const buffetDe = (cp: CheckpointMaster) =>
     (cp.statusTransferencia === 'aceito' ? cp.empresaNome : cp.statusTransferencia === 'pendente' ? cp.empresaDestinoNome : null) || '—';
-
-  const numeroFixo = Boolean(editando && editando.statusTransferencia === 'aceito');
 
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">
@@ -337,22 +331,15 @@ export default function MasterCheckpoints() {
           <p className="-mt-2 text-xs text-gray-500">
             Aparece no Serial Monitor ao ligar a placa e na página /config dela. Aceita com dois-pontos, hífen ou sem separador.
           </p>
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Nome"
-              placeholder="Ex: Entrada principal"
-              value={form.nome}
-              onChange={(e) => setForm({ ...form, nome: e.target.value })}
-            />
-            <Input
-              label="Número (opcional)"
-              placeholder="O buffet define ao aceitar"
-              value={form.numCheck}
-              onChange={(e) => setForm({ ...form, numCheck: e.target.value.toUpperCase() })}
-              disabled={numeroFixo}
-            />
-          </div>
-          {numeroFixo && <p className="-mt-2 text-xs text-gray-500">O buffet já aceitou: o número é dele.</p>}
+          <Input
+            label="Nome (opcional)"
+            placeholder="Ex: Entrada principal"
+            value={form.nome}
+            onChange={(e) => setForm({ ...form, nome: e.target.value })}
+          />
+          <p className="-mt-2 text-xs text-gray-500">
+            O ID é gerado automaticamente. O número do checkpoint é definido pelo admin do buffet, ao aceitar.
+          </p>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="mc-tipo" className="mb-1.5 block text-sm font-body font-semibold text-gray-300">Tipo</label>

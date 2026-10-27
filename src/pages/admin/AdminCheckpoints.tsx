@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  MapPin, Plus, Lightbulb, Volume2, Edit, Trash2
+  MapPin, Lightbulb, Volume2, Edit, Trash2
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { api } from '../../services/api';
@@ -28,11 +28,9 @@ export default function AdminCheckpoints() {
   const [events, setEvents] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [checkpointsList, setCheckpointsList] = useState<any[]>([]);
-  const [codigoBuffet, setCodigoBuffet] = useState<string | null>(null);
   // Sobe quando um checkpoint recebido entra num evento, para a lista recarregar.
   const [recarregar, setRecarregar] = useState(0);
 
-  useEffect(() => { api.getCodigoBuffet().then(setCodigoBuffet); }, []);
   const [loading, setLoading] = useState(true);
 
   // Verificar permissão: apenas admin pode acessar
@@ -149,8 +147,8 @@ export default function AdminCheckpoints() {
   }, [selectedEventId, events, recarregar]);
 
   const isAllEvents = selectedEventId === ALL_EVENTS;
-  // Recebido do super admin e ainda fora de um evento: só o número pode mudar por enquanto.
-  const somenteNumero = Boolean(editingCheckpoint && !editingCheckpoint.eventoId && editingCheckpoint.macAddress);
+  // Ainda fora de um evento: só o número pode mudar por enquanto.
+  const somenteNumero = Boolean(editingCheckpoint && !editingCheckpoint.eventoId);
 
   // Coloca num evento um checkpoint aceito que ainda não tinha; a lista recarrega e ele passa a ter o evento.
   const colocarNoEvento = async (checkpoint: any, eventoId: string) => {
@@ -163,48 +161,38 @@ export default function AdminCheckpoints() {
     }
   };
 
-  const handleOpenModal = (checkpoint?: any) => {
-    if (checkpoint) {
-      setEditingCheckpoint(checkpoint);
-      setFormData({
-        id: checkpoint.codigo ?? checkpoint.id,
-        name: checkpoint.name || '',
-        type: checkpoint.type || 'NFC',
-        ip: checkpoint.ip || '',
-        zone: checkpoint.zone || '',
-        ledColor: checkpoint.led || checkpoint.corLed || '#00FF00',
-        points: checkpoint.points || 10,
-      });
-    } else {
-      setEditingCheckpoint(null);
-      setFormData({
-        id: '',
-        name: '',
-        type: 'NFC',
-        ip: '',
-        zone: '',
-        ledColor: '#00FF00',
-        points: 10,
-      });
-    }
+  // Os checkpoints são cadastrados pelo super admin e chegam aqui para aceitar: o buffet só edita o que já recebeu.
+  // `id` do formulário é o NÚMERO do checkpoint, o único valor que o admin do buffet define.
+  const handleOpenModal = (checkpoint: any) => {
+    setEditingCheckpoint(checkpoint);
+    setFormData({
+      id: numeroDoCheckpoint(checkpoint),
+      name: checkpoint.name || '',
+      type: checkpoint.type || 'NFC',
+      ip: checkpoint.ip || '',
+      zone: checkpoint.zone || '',
+      ledColor: checkpoint.led || checkpoint.corLed || '#00FF00',
+      points: checkpoint.points || 10,
+    });
     setModalOpen(true);
   };
 
-  // Função handleSave CORRIGIDA
   const handleSave = async () => {
-    if (!formData.id.trim()) {
-      alert('O ID do checkpoint é obrigatório');
+    if (!editingCheckpoint) return;
+    const numeroNovo = formData.id.trim();
+    if (!numeroNovo) {
+      alert('O número do checkpoint é obrigatório');
       return;
     }
     if (!formData.name.trim()) {
       alert('O nome do checkpoint é obrigatório');
       return;
     }
-    // Checkpoint recebido que ainda não está em nenhum evento: só o número pode mudar (o resto é configurado
-    // por evento, depois de colocá-lo em um).
-    if (editingCheckpoint && !editingCheckpoint.eventoId && editingCheckpoint.macAddress) {
-      const numeroNovo = formData.id.trim();
-      if (numeroNovo === String(editingCheckpoint.codigo ?? '')) {
+    const numeroMudou = numeroNovo !== numeroDoCheckpoint(editingCheckpoint);
+
+    // Ainda sem evento: só o número pode mudar (o resto é configurado por evento, depois de colocá-lo em um).
+    if (!editingCheckpoint.eventoId) {
+      if (!numeroMudou) {
         setModalOpen(false);
         return;
       }
@@ -222,73 +210,29 @@ export default function AdminCheckpoints() {
       return;
     }
 
-    // Editando, vale o evento do próprio checkpoint (em "todos os eventos" não há um evento selecionado).
-    const targetEventId = editingCheckpoint?.eventoId || selectedEventId;
-    if (!targetEventId || targetEventId === ALL_EVENTS) {
-      alert('Selecione um evento primeiro');
-      return;
-    }
-
     setSaving(true);
-    
     try {
-      let avisoPrefixo = '';
-      const config = {
-        id: formData.id,
+      // O número é a única coisa que o buffet define; o ID é gerado pelo banco e não muda.
+      if (numeroMudou) await api.alterarNumeroCheckpoint(editingCheckpoint.id, numeroNovo);
+      await api.saveCheckpointConfig(editingCheckpoint.id, {
         nome: formData.name,
         tipo: formData.type,
         ip: formData.ip,
         zone: formData.zone,
         points: formData.points,
-      };
-      
-      // Debug log
-      console.log('🔍 Salvando checkpoint com config:', config);
-      
-      if (editingCheckpoint) {
-        // Checkpoint recebido do super admin (tem MAC): o número pode mudar, pois quem o identifica é o MAC.
-        const numeroNovo = formData.id.trim();
-        const numeroMudou = Boolean(editingCheckpoint.macAddress) && numeroNovo !== String(editingCheckpoint.codigo ?? '');
-        if (numeroMudou) await api.alterarNumeroCheckpoint(editingCheckpoint.id, numeroNovo);
-
-        // Atualizar checkpoint existente
-        await api.saveCheckpointConfig(editingCheckpoint.id, config, targetEventId);
-        setCheckpointsList(prev =>
-          prev.map(cp => cp.id === editingCheckpoint.id ? {
-            ...cp,
-            ...(numeroMudou ? { codigo: numeroNovo, numCheck: numeroNovo } : {}),
-            name: formData.name, type: formData.type, ip: formData.ip, zone: formData.zone, points: formData.points,
-          } : cp)
-        );
-      } else {
-        // Criar novo checkpoint
-        const criado = await api.createCheckpoint(targetEventId, config);
-        if (criado?.empresaCodigo) setCodigoBuffet(criado.empresaCodigo);
-        avisoPrefixo = criado?.prefixado
-          ? `\n\nAtenção: o ID ${criado.codigo} também é usado em outro buffet. Se o ESP32 for gravado só com o número, ele vai falar com o checkpoint do outro buffet. Opções: grave no ESP32 o ID ${criado.id} (na página /config, no campo ID); ou peça ao suporte para passar o ID simples ${criado.codigo} para este checkpoint.`
-          : '';
-        setCheckpointsList(prev => [...prev, {
-          id: criado?.id ?? formData.id,
-          codigo: criado?.codigo ?? formData.id,
-          empresaCodigo: criado?.empresaCodigo,
-          prefixado: Boolean(criado?.prefixado),
-          name: formData.name,
-          type: formData.type,
-          ip: formData.ip,
-          zone: formData.zone,
-          points: formData.points,
-          status: 'configured',
-          eventoId: targetEventId,
-        }]);
-      }
-      
-      // Fechar modal e mostrar sucesso
+      }, editingCheckpoint.eventoId);
+      setCheckpointsList(prev =>
+        prev.map(cp => cp.id === editingCheckpoint.id ? {
+          ...cp,
+          ...(numeroMudou ? { codigo: numeroNovo, numCheck: numeroNovo } : {}),
+          name: formData.name, type: formData.type, ip: formData.ip, zone: formData.zone, points: formData.points,
+        } : cp)
+      );
       setModalOpen(false);
-      alert(`Checkpoint ${formData.id} ${editingCheckpoint ? 'atualizado' : 'criado'} com sucesso!${avisoPrefixo}`);
-      
+      toast.success(`Checkpoint ${numeroNovo} atualizado`);
     } catch (error: any) {
       console.error('❌ Erro ao salvar checkpoint:', error);
-      alert(`Erro ao salvar: ${error.message || 'Tente novamente'}`);
+      toast.error(`Erro ao salvar: ${error.message || 'Tente novamente'}`);
     } finally {
       setSaving(false);
     }
@@ -344,19 +288,8 @@ export default function AdminCheckpoints() {
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Checkpoints"
-            description="Gerencie os pontos de leitura do sistema"
+            description="Os checkpoints são cadastrados pelo super admin. Aceite os que chegarem e defina o número de cada um"
             icon={<MapPin size={28} />}
-            action={
-              <Button
-                variant="primary"
-                onClick={() => handleOpenModal()}
-                disabled={isAllEvents || !selectedEventId}
-                title={isAllEvents ? 'Escolha um evento para cadastrar um checkpoint' : undefined}
-              >
-                <Plus size={16} className="mr-1.5" />
-                Cadastrar Checkpoint
-              </Button>
-            }
           />
 
           {/* Checkpoints que o super admin transferiu para este buffet */}
@@ -382,14 +315,6 @@ export default function AdminCheckpoints() {
                   </option>
                 ))}
               </select>
-              {isAllEvents && (
-                <span className="text-xs text-gray-500">Para cadastrar um checkpoint, escolha um evento.</span>
-              )}
-              {codigoBuffet && (
-                <span className="text-xs text-gray-400" title="Só preencha no ESP32 se o ID do checkpoint também for usado por outro buffet">
-                  Código do buffet: <span className="font-mono text-gray-200">{codigoBuffet}</span>
-                </span>
-              )}
               {selectedEventId && checkpointsList.length > 0 && (
                 <span className="text-xs text-gray-400 ml-auto">
                   ✓ {checkpointsList.length} checkpoint(s)
@@ -424,11 +349,6 @@ export default function AdminCheckpoints() {
                           {cp.macAddress && (
                             <p className="text-xs text-gray-500" title="O aparelho é identificado pelo MAC; o número pode ser trocado aqui sem regravar o ESP32.">
                               MAC <span className="font-mono">{cp.macAddress}</span>
-                            </p>
-                          )}
-                          {cp.prefixado && !cp.macAddress && (
-                            <p className="text-xs text-warning" title="O mesmo ID também é usado em outro buffet: um ESP32 gravado só com o número fala com o outro. Preencha o código do buffet no ESP32 ou peça ao suporte para passar o ID simples para este checkpoint.">
-                              ID repetido em outro buffet · grave no ESP32: <span className="font-mono font-semibold">{cp.id}</span>
                             </p>
                           )}
                         </td>
@@ -503,8 +423,8 @@ export default function AdminCheckpoints() {
                     <tr>
                       <td colSpan={isAllEvents ? 8 : 7} className="py-8 text-center text-gray-500">
                         {isAllEvents
-                          ? 'Nenhum checkpoint cadastrado em nenhum evento.'
-                          : 'Nenhum checkpoint cadastrado. Clique em "Cadastrar Checkpoint" para começar.'}
+                          ? 'Nenhum checkpoint em nenhum evento.'
+                          : 'Nenhum checkpoint neste evento. Os checkpoints chegam do super admin para você aceitar e colocar no evento.'}
                       </td>
                     </tr>
                   )}
@@ -519,7 +439,7 @@ export default function AdminCheckpoints() {
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingCheckpoint ? `Editar Checkpoint: ${editingCheckpoint.codigo ?? editingCheckpoint.id}` : 'Cadastrar Novo Checkpoint'}
+        title={editingCheckpoint ? `Editar Checkpoint: ${numeroDoCheckpoint(editingCheckpoint)}` : 'Editar Checkpoint'}
         size="lg"
       >
         <div className="space-y-4">
@@ -530,11 +450,10 @@ export default function AdminCheckpoints() {
           )}
           <div className="grid grid-cols-2 gap-4">
             <Input
-              label={editingCheckpoint?.macAddress ? 'Número do Checkpoint' : 'ID do Checkpoint'}
-              placeholder="Ex: CP-01"
+              label="Número do Checkpoint"
+              placeholder="Ex: 12"
               value={formData.id}
               onChange={(e) => setFormData({ ...formData, id: e.target.value.toUpperCase() })}
-              disabled={!!editingCheckpoint && !editingCheckpoint.macAddress}
               required
             />
             <Input
@@ -594,7 +513,7 @@ export default function AdminCheckpoints() {
               Cancelar
             </Button>
             <Button variant="primary" onClick={handleSave} disabled={saving}>
-              {saving ? 'Salvando...' : editingCheckpoint ? 'Atualizar' : 'Cadastrar'}
+              {saving ? 'Salvando...' : 'Atualizar'}
             </Button>
           </div>
         </div>

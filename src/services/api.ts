@@ -1711,39 +1711,6 @@ export const api = {
     return res.json();
   },
 
-  async createCheckpoint(eventoId: string, data: any) {
-    try {
-      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(data),
-      });
-      
-      if (!res.ok) {
-        const errorText = await res.text();
-        let mensagem = errorText;
-        try { mensagem = JSON.parse(errorText)?.error || errorText; } catch { /* texto puro */ }
-        throw new Error(mensagem);
-      }
-      
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao criar checkpoint:', err);
-      throw err;
-    }
-  },
-
-  // Código curto do buffet: o ESP32 o informa na página /config quando o mesmo ID também existe em outro buffet.
-  async getCodigoBuffet(): Promise<string | null> {
-    try {
-      const res = await fetch(`${API_URL}/pontoVerificacao/codigo-buffet`, { headers: getAuthHeaders() });
-      if (!res.ok) return null;
-      return ((await res.json()) as { codigo?: string }).codigo || null;
-    } catch {
-      return null;
-    }
-  },
-
   // ---- Super admin: cadastra checkpoints (pelo MAC) e os transfere para os buffets ----
   masterGetCheckpoints() {
     return pedirMasterCheckpoints<CheckpointMaster[]>('');
@@ -1753,11 +1720,11 @@ export const api = {
     return pedirMasterCheckpoints<BuffetOpcao[]>('/buffets');
   },
 
-  masterCriarCheckpoint(dados: { macAddress: string; nome?: string; tipo?: string; proposito?: string; numCheck?: string }) {
+  masterCriarCheckpoint(dados: { macAddress: string; nome?: string; tipo?: string; proposito?: string }) {
     return pedirMasterCheckpoints<CheckpointMaster>('', { method: 'POST', body: JSON.stringify(dados) });
   },
 
-  masterEditarCheckpoint(id: number, dados: { macAddress?: string; nome?: string; tipo?: string; proposito?: string; numCheck?: string }) {
+  masterEditarCheckpoint(id: number, dados: { macAddress?: string; nome?: string; tipo?: string; proposito?: string }) {
     return pedirMasterCheckpoints<CheckpointMaster>(`/${id}`, { method: 'PATCH', body: JSON.stringify(dados) });
   },
 
