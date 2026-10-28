@@ -15,7 +15,9 @@ export default function ReceptionFamilies() {
   const [pending, setPending] = useState<any[]>([]);
   const [approved, setApproved] = useState<any[]>([]);
   const [inviteUrl, setInviteUrl] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [copied, setCopied] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -60,12 +62,15 @@ export default function ReceptionFamilies() {
       setError('');
       const result = await api.createFamilyInvite({ eventoId: eventId });
       
-      // Sempre usar result.token e reconstruir com window.location.origin
-      const token = result.token;
-      const correctUrl = `${window.location.origin}/family/invite/${token}`;
-      
+      // O convite é um código de 8 dígitos hexadecimais (result.codigo); o link leva o mesmo código.
+      // Reconstrói o link com window.location.origin para não depender do FRONTEND_URL do servidor.
+      const code = String(result.codigo || result.token).toUpperCase();
+      const correctUrl = `${window.location.origin}/family/invite/${code}`;
+
+      setInviteCode(code);
       setInviteUrl(correctUrl);
       setCopied(false);
+      setCodeCopied(false);
     } catch (err: any) {
       setError(err.message || 'Não foi possível criar o convite.');
     }
@@ -78,13 +83,20 @@ export default function ReceptionFamilies() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const copyCode = async () => {
+    if (!inviteCode) return;
+    await navigator.clipboard?.writeText(inviteCode);
+    setCodeCopied(true);
+    setTimeout(() => setCodeCopied(false), 2000);
+  };
+
   const shareInvite = async () => {
     if (!inviteUrl) return;
     if (navigator.share) {
       try {
         await navigator.share({
           title: 'Convite Pulyn Family',
-          text: 'Clique no link para se registrar no app da família Pulyn',
+          text: `Seu código de convite no app Pulyn Family: ${inviteCode}. Digite no app ou use o link para se registrar.`,
           url: inviteUrl,
         });
       } catch (err) {
@@ -146,10 +158,18 @@ export default function ReceptionFamilies() {
                 <option value="">Selecione o evento</option>
                 {events.map((event) => <option key={event.eventoId} value={event.eventoId}>{event.nome}</option>)}
               </select>
-              <Button onClick={createInvite} disabled={!eventId}>Gerar link</Button>
+              <Button onClick={createInvite} disabled={!eventId}>Gerar código</Button>
             </div>
             {inviteUrl && (
               <div className="mt-4 space-y-3">
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-dark-surface px-4 py-3">
+                  <div>
+                    <p className="text-xs text-gray-400">Código do convite</p>
+                    <p aria-label="Código do convite" className="font-mono text-2xl font-semibold tracking-[0.3em] text-white">{inviteCode}</p>
+                  </div>
+                  <Button variant="secondary" onClick={copyCode}>{codeCopied ? <Check size={17} /> : <Copy size={17} />}</Button>
+                </div>
+                <p className="text-xs text-gray-400">O responsável digita este código no app. Também vale o link abaixo.</p>
                 <div className="flex gap-2">
                   <input readOnly value={inviteUrl} className="min-w-0 flex-1 rounded-lg border border-border bg-dark-surface px-3 py-2 text-sm text-gray-300" />
                   <Button variant="secondary" onClick={copyInvite}>{copied ? <Check size={17} /> : <Copy size={17} />}</Button>
