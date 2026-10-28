@@ -229,39 +229,43 @@ export default function MasterCheckpoints() {
           />
 
           <Card>
-            <div className="mb-4 max-w-md">
-              <label htmlFor="mc-buffet" className="mb-1.5 block text-sm font-body font-semibold text-gray-300">
-                Ver os checkpoints de qual buffet?
-              </label>
-              <select id="mc-buffet" value={buffetFiltro} onChange={(e) => setBuffetFiltro(e.target.value)} className={SELECT_CLASSES}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {FILTROS.map((f) => {
+                  const total = f.valor === 'todos' ? doBuffet.length : contagem[f.valor];
+                  const ativo = filtro === f.valor;
+                  return (
+                    <button
+                      key={f.valor}
+                      onClick={() => setFiltro(f.valor)}
+                      aria-pressed={ativo}
+                      className={`rounded-lg border px-3 py-1.5 text-sm font-body transition-colors ${
+                        ativo
+                          ? 'border-primary-400/60 bg-primary-500/15 text-white'
+                          : 'border-white/10 text-gray-400 hover:text-white hover:bg-white/[0.04]'
+                      }`}
+                    >
+                      {f.rotulo} <span className="ml-1 font-semibold">{total}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <select
+                id="mc-buffet"
+                aria-label="Buffet"
+                title="Ver os checkpoints de qual buffet"
+                value={buffetFiltro}
+                onChange={(e) => setBuffetFiltro(e.target.value)}
+                className="w-48 px-2 py-1.5 bg-gray-900 border border-gray-600 rounded-lg text-white font-body text-sm cursor-pointer"
+              >
                 <option value={TODOS_BUFFETS} style={OPTION_STYLE}>Todos os buffets ({lista.length})</option>
-                <option value={SEM_BUFFET} style={OPTION_STYLE}>Sem buffet — em estoque ({totalPorBuffet.get(SEM_BUFFET) ?? 0})</option>
+                <option value={SEM_BUFFET} style={OPTION_STYLE}>Sem buffet ({totalPorBuffet.get(SEM_BUFFET) ?? 0})</option>
                 {buffets.map((b) => (
                   <option key={b.empresaId} value={b.empresaId} style={OPTION_STYLE}>
                     {b.nome} ({totalPorBuffet.get(b.empresaId) ?? 0})
                   </option>
                 ))}
               </select>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {FILTROS.map((f) => {
-                const total = f.valor === 'todos' ? doBuffet.length : contagem[f.valor];
-                const ativo = filtro === f.valor;
-                return (
-                  <button
-                    key={f.valor}
-                    onClick={() => setFiltro(f.valor)}
-                    aria-pressed={ativo}
-                    className={`rounded-lg border px-3 py-1.5 text-sm font-body transition-colors ${
-                      ativo
-                        ? 'border-primary-400/60 bg-primary-500/15 text-white'
-                        : 'border-white/10 text-gray-400 hover:text-white hover:bg-white/[0.04]'
-                    }`}
-                  >
-                    {f.rotulo} <span className="ml-1 font-semibold">{total}</span>
-                  </button>
-                );
-              })}
             </div>
           </Card>
 
