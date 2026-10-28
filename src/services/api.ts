@@ -1767,6 +1767,18 @@ export const api = {
     });
   },
 
+  // Manda a placa acender o LED ou tocar o som (ela busca o comando em até ~10 s). Lança o erro com a mensagem da API.
+  async testarCheckpoint(checkpointId: string, tipo: 'led' | 'som') {
+    const res = await fetch(`${API_URL}/pontoVerificacao/${encodeURIComponent(checkpointId)}/testar`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ tipo }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as { error?: string }).error || `Erro ${res.status}`);
+    return data as { ok: true; tipo: 'led' | 'som'; validadeSegundos: number };
+  },
+
   atribuirEventoCheckpoint(checkpointId: string, eventoId: string | null) {
     return pedirRecebimento<CheckpointRecebido>(`/${encodeURIComponent(checkpointId)}/evento`, {
       method: 'PATCH',

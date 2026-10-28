@@ -22,6 +22,10 @@ import { numeroDoCheckpoint } from '../../utils/checkpoints';
 // Valor do seletor para listar os checkpoints de todos os eventos
 const ALL_EVENTS = 'all';
 
+// O teste só chega à placa que está num evento e online (o servidor confere de novo).
+const podeTestar = (cp: any) => Boolean(cp.eventoId) && cp.status === 'online';
+const motivoSemTeste = (cp: any) => (!cp.eventoId ? 'Coloque o checkpoint em um evento para testar' : 'Checkpoint offline: não dá para testar');
+
 export default function AdminCheckpoints() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -238,6 +242,21 @@ export default function AdminCheckpoints() {
     }
   };
 
+  // Manda a placa acender o LED ou tocar o som. A placa busca o comando de ~10 em ~10 s.
+  const [testando, setTestando] = useState<string | null>(null);
+  const testar = async (checkpoint: any, tipo: 'led' | 'som') => {
+    const chave = `${checkpoint.id}-${tipo}`;
+    setTestando(chave);
+    try {
+      await api.testarCheckpoint(checkpoint.id, tipo);
+      toast.success(`${tipo === 'led' ? 'Teste do LED' : 'Teste do som'} enviado ao checkpoint ${numeroDoCheckpoint(checkpoint)}: a placa executa em até 10 segundos`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível enviar o teste');
+    } finally {
+      setTestando(null);
+    }
+  };
+
   const handleDelete = async (checkpoint: any) => {
     const id = checkpoint.id;
     const eventId = checkpoint.eventoId || selectedEventId;
@@ -404,14 +423,20 @@ export default function AdminCheckpoints() {
                               </button>
                             )}
                             <button
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-accent hover:bg-surface transition-colors"
-                              title="Testar LED"
+                              onClick={() => testar(cp, 'led')}
+                              disabled={!podeTestar(cp) || testando === `${cp.id}-led`}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-accent hover:bg-surface transition-colors disabled:opacity-40 disabled:hover:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                              title={podeTestar(cp) ? 'Testar LED' : motivoSemTeste(cp)}
+                              aria-label={`Testar LED do checkpoint ${numeroDoCheckpoint(cp)}`}
                             >
                               <Lightbulb size={16} />
                             </button>
                             <button
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-secondary hover:bg-surface transition-colors"
-                              title="Testar Som"
+                              onClick={() => testar(cp, 'som')}
+                              disabled={!podeTestar(cp) || testando === `${cp.id}-som`}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-secondary hover:bg-surface transition-colors disabled:opacity-40 disabled:hover:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                              title={podeTestar(cp) ? 'Testar Som' : motivoSemTeste(cp)}
+                              aria-label={`Testar som do checkpoint ${numeroDoCheckpoint(cp)}`}
                             >
                               <Volume2 size={16} />
                             </button>
