@@ -131,6 +131,8 @@ export default function ReceptionKioskOtimizado() {
   const [profileSearch, setProfileSearch] = useState('');
   const [profileResults, setProfileResults] = useState<KioskProfile[]>([]);
   const [profileLoading, setProfileLoading] = useState(false);
+  // Falha na busca (rede, permissão, rota) — sem isso ela parecia "não encontrado".
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<KioskProfile | null>(null);
   const lastReadRef = useRef<{ code: string; at: number } | null>(null);
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -342,7 +344,8 @@ export default function ReceptionKioskOtimizado() {
     
     try {
       const nickname = form.nickname.trim() || form.name.trim().split(' ')[0];
-      const avatar = returning ? profileAvatar(selectedProfile!.avatar) : form.avatar;
+      // Quem volta pode trocar o personagem; começa com o avatar do cadastro (ver seleção do perfil).
+      const avatar = form.avatar;
       await api.createKioskParticipant(selectedEventId, returning
         ? {
             // Quem já tem cadastro só entra no evento: nome, idade e apelido vêm do cadastro permanente.
@@ -482,13 +485,20 @@ export default function ReceptionKioskOtimizado() {
     if (term.length < 2) {
       setProfileResults([]);
       setProfileLoading(false);
+      setProfileError(null);
       return;
     }
     let active = true;
     setProfileLoading(true);
+    setProfileError(null);
     api.searchKioskProfiles(selectedEventId, term)
       .then(result => { if (active) setProfileResults(Array.isArray(result) ? result : []); })
-      .catch(() => { if (active) setProfileResults([]); })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setProfileResults([]);
+        console.error('[KIOSK] Erro na busca de cadastros:', err);
+        setProfileError(err instanceof Error ? err.message : 'erro desconhecido');
+      })
       .finally(() => { if (active) setProfileLoading(false); });
     return () => { active = false; };
   }, [debouncedProfileSearch, mode, selectedEventId]);
@@ -958,7 +968,7 @@ export default function ReceptionKioskOtimizado() {
                       {selectedProfile ? (
                         <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
                           <div className="rounded-full border-4 border-fuchsia-300/50 bg-fuchsia-300/10 p-4 shadow-md">
-                            <Avatar emoji={profileAvatar(selectedProfile.avatar)} size="lg" bgColor="bg-primary/20" />
+                            <Avatar emoji={form.avatar} size="lg" bgColor="bg-primary/20" />
                           </div>
                           <div>
                             <p className="text-xs font-bold uppercase tracking-[0.3em] text-fuchsia-300">É você?</p>
@@ -969,6 +979,17 @@ export default function ReceptionKioskOtimizado() {
                               {selectedProfile.nomeExibicao}
                               {selectedProfile.idade ? ` • ${selectedProfile.idade} anos` : ''}
                             </p>
+                          </div>
+                          <div className="w-full">
+                            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">
+                              Quer mudar o personagem?
+                            </p>
+                            <AvatarSelector
+                              value={form.avatar}
+                              onChange={handleAvatarChange}
+                              disabled={!canInteract || state === 'saving'}
+                              wide
+                            />
                           </div>
                           <button
                             type="button"
@@ -990,7 +1011,10 @@ export default function ReceptionKioskOtimizado() {
                                 <li key={profile.perfilCriancaId}>
                                   <button
                                     type="button"
-                                    onClick={() => setSelectedProfile(profile)}
+                                    onClick={() => {
+                                      setSelectedProfile(profile);
+                                      setForm(prev => ({ ...prev, avatar: profileAvatar(profile.avatar) }));
+                                    }}
                                     disabled={!canInteract}
                                     className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-[#120a27]/70 p-2.5 text-left transition hover:border-fuchsia-300/50 hover:bg-fuchsia-300/10 active:scale-[0.99]"
                                   >
@@ -1016,6 +1040,8 @@ export default function ReceptionKioskOtimizado() {
                                 ? 'Digite pelo menos 2 letras do seu apelido ou nome.'
                                 : profileLoading
                                 ? 'Procurando...'
+                                : profileError
+                                ? <span className="text-rose-300">Não foi possível buscar agora ({profileError}). Confira a conexão e digite de novo.</span>
                                 : 'Não encontramos esse cadastro. Confira as letras ou volte e escolha "Sou novo!".'}
                             </div>
                           )}
