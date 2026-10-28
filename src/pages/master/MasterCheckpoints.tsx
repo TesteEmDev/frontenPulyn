@@ -36,6 +36,10 @@ const FILTROS: { valor: Filtro; rotulo: string }[] = [
   { valor: 'aceito', rotulo: 'Aceitos' },
 ];
 
+// Valores do seletor de buffet que não são o id de um buffet.
+const TODOS_BUFFETS = '';
+const SEM_BUFFET = '__sem-buffet';
+
 const SELECT_CLASSES =
   'w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white font-body text-sm cursor-pointer';
 const OPTION_STYLE = { backgroundColor: '#1a1a2e', color: '#fff' };
@@ -55,6 +59,10 @@ interface Formulario {
 
 const FORM_VAZIO: Formulario = { macAddress: '', nome: '', tipo: 'NFC', proposito: 'game' };
 
+// Buffet a que o checkpoint pertence: quem aceitou ou, enquanto aguarda o aceite, o destino da transferência.
+const buffetIdDe = (cp: CheckpointMaster) =>
+  cp.statusTransferencia === 'aceito' ? cp.empresaId : cp.statusTransferencia === 'pendente' ? cp.empresaDestinoId : null;
+
 function BadgeSituacao({ situacao }: { situacao: Situacao }) {
   if (situacao === 'aceito') return <Badge variant="success">Aceito</Badge>;
   if (situacao === 'pendente') return <Badge variant="warning">Aguardando aceite</Badge>;
@@ -68,6 +76,7 @@ export default function MasterCheckpoints() {
   const [buffets, setBuffets] = useState<BuffetOpcao[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [filtro, setFiltro] = useState<Filtro>('todos');
+  const [buffetFiltro, setBuffetFiltro] = useState(TODOS_BUFFETS);
   const [ocupado, setOcupado] = useState(false);
 
   // Cadastro/edição
@@ -93,15 +102,29 @@ export default function MasterCheckpoints() {
 
   useEffect(() => { void carregar(); }, [carregar]);
 
+  const totalPorBuffet = useMemo(() => {
+    const total = new Map<string, number>();
+    for (const cp of lista) {
+      const id = buffetIdDe(cp) ?? SEM_BUFFET;
+      total.set(id, (total.get(id) ?? 0) + 1);
+    }
+    return total;
+  }, [lista]);
+
+  const doBuffet = useMemo(
+    () => (buffetFiltro === TODOS_BUFFETS ? lista : lista.filter((c) => (buffetIdDe(c) ?? SEM_BUFFET) === buffetFiltro)),
+    [lista, buffetFiltro]
+  );
+
   const contagem = useMemo(() => ({
-    estoque: lista.filter((c) => c.statusTransferencia === 'estoque').length,
-    pendente: lista.filter((c) => c.statusTransferencia === 'pendente').length,
-    aceito: lista.filter((c) => c.statusTransferencia === 'aceito').length,
-  }), [lista]);
+    estoque: doBuffet.filter((c) => c.statusTransferencia === 'estoque').length,
+    pendente: doBuffet.filter((c) => c.statusTransferencia === 'pendente').length,
+    aceito: doBuffet.filter((c) => c.statusTransferencia === 'aceito').length,
+  }), [doBuffet]);
 
   const visiveis = useMemo(
-    () => (filtro === 'todos' ? lista : lista.filter((c) => c.statusTransferencia === filtro)),
-    [lista, filtro]
+    () => (filtro === 'todos' ? doBuffet : doBuffet.filter((c) => c.statusTransferencia === filtro)),
+    [doBuffet, filtro]
   );
 
   // Roda uma ação com o botão travado, avisa o resultado e recarrega a lista.
@@ -206,9 +229,23 @@ export default function MasterCheckpoints() {
           />
 
           <Card>
+            <div className="mb-4 max-w-md">
+              <label htmlFor="mc-buffet" className="mb-1.5 block text-sm font-body font-semibold text-gray-300">
+                Ver os checkpoints de qual buffet?
+              </label>
+              <select id="mc-buffet" value={buffetFiltro} onChange={(e) => setBuffetFiltro(e.target.value)} className={SELECT_CLASSES}>
+                <option value={TODOS_BUFFETS} style={OPTION_STYLE}>Todos os buffets ({lista.length})</option>
+                <option value={SEM_BUFFET} style={OPTION_STYLE}>Sem buffet — em estoque ({totalPorBuffet.get(SEM_BUFFET) ?? 0})</option>
+                {buffets.map((b) => (
+                  <option key={b.empresaId} value={b.empresaId} style={OPTION_STYLE}>
+                    {b.nome} ({totalPorBuffet.get(b.empresaId) ?? 0})
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               {FILTROS.map((f) => {
-                const total = f.valor === 'todos' ? lista.length : contagem[f.valor];
+                const total = f.valor === 'todos' ? doBuffet.length : contagem[f.valor];
                 const ativo = filtro === f.valor;
                 return (
                   <button
@@ -246,7 +283,9 @@ export default function MasterCheckpoints() {
                       <td colSpan={6} className="py-8 text-center text-gray-500">
                         {lista.length === 0
                           ? 'Nenhum checkpoint cadastrado. Clique em "Cadastrar checkpoint" e informe o MAC da placa.'
-                          : 'Nenhum checkpoint nesta situação.'}
+                          : doBuffet.length === 0
+                            ? 'Este buffet ainda não tem checkpoints. Transfira um do estoque para ele.'
+                            : 'Nenhum checkpoint nesta situação.'}
                       </td>
                     </tr>
                   ) : visiveis.map((cp) => (
