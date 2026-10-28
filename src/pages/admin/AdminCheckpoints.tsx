@@ -22,9 +22,9 @@ import { numeroDoCheckpoint } from '../../utils/checkpoints';
 // Valor do seletor para listar os checkpoints de todos os eventos
 const ALL_EVENTS = 'all';
 
-// O teste só chega à placa que está num evento e online (o servidor confere de novo).
-const podeTestar = (cp: any) => Boolean(cp.eventoId) && cp.status === 'online';
-const motivoSemTeste = (cp: any) => (!cp.eventoId ? 'Coloque o checkpoint em um evento para testar' : 'Checkpoint offline: não dá para testar');
+// O teste só chega à placa online, esteja ou não num evento (o servidor confere de novo).
+const podeTestar = (cp: any) => cp.status === 'online';
+const motivoSemTeste = () => 'Checkpoint offline: não dá para testar';
 
 export default function AdminCheckpoints() {
   const navigate = useNavigate();
@@ -426,7 +426,7 @@ export default function AdminCheckpoints() {
                               onClick={() => testar(cp, 'led')}
                               disabled={!podeTestar(cp) || testando === `${cp.id}-led`}
                               className="p-1.5 rounded-lg text-gray-400 hover:text-accent hover:bg-surface transition-colors disabled:opacity-40 disabled:hover:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed"
-                              title={podeTestar(cp) ? 'Testar LED' : motivoSemTeste(cp)}
+                              title={podeTestar(cp) ? 'Testar LED' : motivoSemTeste()}
                               aria-label={`Testar LED do checkpoint ${numeroDoCheckpoint(cp)}`}
                             >
                               <Lightbulb size={16} />
@@ -435,7 +435,7 @@ export default function AdminCheckpoints() {
                               onClick={() => testar(cp, 'som')}
                               disabled={!podeTestar(cp) || testando === `${cp.id}-som`}
                               className="p-1.5 rounded-lg text-gray-400 hover:text-secondary hover:bg-surface transition-colors disabled:opacity-40 disabled:hover:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed"
-                              title={podeTestar(cp) ? 'Testar Som' : motivoSemTeste(cp)}
+                              title={podeTestar(cp) ? 'Testar Som' : motivoSemTeste()}
                               aria-label={`Testar som do checkpoint ${numeroDoCheckpoint(cp)}`}
                             >
                               <Volume2 size={16} />

@@ -1208,12 +1208,18 @@ export const api = {
     return body;
   },
 
+  // Apaga o evento e o que é só dele (participantes, times, pontos...). Lança o erro com a mensagem da API.
   async deleteEvento(id: string) {
-    const res = await fetch(`${API_URL}/eventos/${id}`, {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(id)}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao excluir evento (${res.status})`);
+    return body as {
+      deleted: true;
+      resumo: { participantesApagados: number; timesApagados: number; pulseirasLiberadas: number; checkpointsLiberados: number };
+    };
   },
 
   // ==================== BRINCADEIRAS / JOGOS ====================
