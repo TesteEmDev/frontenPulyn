@@ -18,6 +18,9 @@ export default function ReceptionFamilies() {
   const [inviteCode, setInviteCode] = useState('');
   const [copied, setCopied] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [eventCode, setEventCode] = useState<{ codigo: string; inviteUrl: string; encerrado: boolean } | null>(null);
+  const [eventCodeCopied, setEventCodeCopied] = useState<'code' | 'link' | null>(null);
+  const [eventCodeBusy, setEventCodeBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -39,6 +42,43 @@ export default function ReceptionFamilies() {
     }
   };
 
+  // Código fixo do evento: nasce na primeira consulta, então basta pedir
+  const loadEventCode = async (selectedEvent: string) => {
+    setEventCode(null);
+    setEventCodeCopied(null);
+    if (!selectedEvent) return;
+    try {
+      const result = await api.getFamilyEventCode(selectedEvent);
+      setEventCode({ codigo: result.codigo, inviteUrl: result.inviteUrl, encerrado: result.encerrado });
+    } catch (err: any) {
+      setError(err.message || 'Não foi possível carregar o código do evento.');
+    }
+  };
+
+  const renewEventCode = async () => {
+    if (!eventId) return;
+    const ok = window.confirm('Gerar um novo código para este evento?\n\nO código atual deixa de valer agora. Quem já entrou no evento continua nele.');
+    if (!ok) return;
+    try {
+      setError('');
+      setEventCodeBusy(true);
+      const result = await api.renewFamilyEventCode(eventId);
+      setEventCode({ codigo: result.codigo, inviteUrl: result.inviteUrl, encerrado: result.encerrado });
+      setEventCodeCopied(null);
+    } catch (err: any) {
+      setError(err.message || 'Não foi possível gerar um novo código.');
+    } finally {
+      setEventCodeBusy(false);
+    }
+  };
+
+  const copyEventCode = async (what: 'code' | 'link') => {
+    if (!eventCode) return;
+    await navigator.clipboard?.writeText(what === 'code' ? eventCode.codigo : `${window.location.origin}/family/invite/${eventCode.codigo}`);
+    setEventCodeCopied(what);
+    setTimeout(() => setEventCodeCopied(null), 2000);
+  };
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -47,6 +87,7 @@ export default function ReceptionFamilies() {
         const active = (eventData || []).find((item: any) => item.status === 'active' || item.status === 'ongoing');
         const nextEventId = active?.eventoId || '';
         setEventId(nextEventId);
+        loadEventCode(nextEventId);
         await loadFamilyData(nextEventId);
       } catch (err: any) {
         setError(err.message || 'Não foi possível carregar os dados.');
@@ -149,16 +190,53 @@ export default function ReceptionFamilies() {
             <div className="flex items-start gap-3 mb-4">
               <LinkIcon className="text-primary mt-1" size={20} />
               <div>
-                <h2 className="text-white font-semibold">Gerar convite</h2>
-                <p className="text-sm text-gray-400">Gere um convite para cada criança. O responsável pode usar o mesmo e-mail e senha para vincular várias crianças, sem escolher time ou pulseira.</p>
+                <h2 className="text-white font-semibold">Código do evento</h2>
+                <p className="text-sm text-gray-400">Um código fixo para todas as famílias do evento: pode ser repetido para quantas famílias quiser e vale até o evento terminar. O responsável digita no app.</p>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <select value={eventId} onChange={(event) => { setEventId(event.target.value); loadFamilyData(event.target.value); }} className="flex-1 rounded-lg border border-border bg-dark-surface px-3 py-2 text-white">
-                <option value="">Selecione o evento</option>
-                {events.map((event) => <option key={event.eventoId} value={event.eventoId}>{event.nome}</option>)}
-              </select>
-              <Button onClick={createInvite} disabled={!eventId}>Gerar código</Button>
+            <select value={eventId} onChange={(event) => { setEventId(event.target.value); loadFamilyData(event.target.value); loadEventCode(event.target.value); }} className="w-full rounded-lg border border-border bg-dark-surface px-3 py-2 text-white">
+              <option value="">Selecione o evento</option>
+              {events.map((event) => <option key={event.eventoId} value={event.eventoId}>{event.nome}</option>)}
+            </select>
+            {eventCode && (
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-dark-surface px-4 py-3">
+                  <div>
+                    <p className="text-xs text-gray-400">Código do evento</p>
+                    <p aria-label="Código do evento" className="font-mono text-3xl font-semibold tracking-[0.3em] text-white">{eventCode.codigo}</p>
+                  </div>
+                  <Button variant="secondary" onClick={() => copyEventCode('code')}>
+                    {eventCodeCopied === 'code' ? <Check size={17} /> : <Copy size={17} />}
+                  </Button>
+                </div>
+                {eventCode.encerrado && (
+                  <p role="status" className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-2 text-sm text-warning">
+                    Este evento já terminou: o código não vale mais para novas famílias.
+                  </p>
+                )}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button variant="secondary" onClick={() => copyEventCode('link')} className="flex-1">
+                    {eventCodeCopied === 'link' ? <Check size={17} className="mr-2" /> : <Copy size={17} className="mr-2" />}Copiar link
+                  </Button>
+                  <Button variant="secondary" onClick={renewEventCode} disabled={eventCodeBusy} className="flex-1">
+                    Gerar novo código
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-400">Se o código vazar, gere um novo: o antigo para de valer na hora e quem já entrou no evento continua nele.</p>
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <div className="flex items-start gap-3 mb-4">
+              <QrCode className="text-primary mt-1" size={20} />
+              <div>
+                <h2 className="text-white font-semibold">Convite individual</h2>
+                <p className="text-sm text-gray-400">Um código de uso único, para uma criança ou uma família específica. O responsável pode usar o mesmo e-mail e senha para vincular várias crianças, sem escolher time ou pulseira.</p>
+              </div>
+            </div>
+            <div className="flex">
+              <Button onClick={createInvite} disabled={!eventId}>Gerar código individual</Button>
             </div>
             {inviteUrl && (
               <div className="mt-4 space-y-3">

@@ -423,6 +423,25 @@ export const api = {
     return response;
   },
 
+  // Código fixo do evento: o mesmo para todas as famílias, até o evento terminar (nasce na primeira consulta)
+  async getFamilyEventCode(eventoId: string): Promise<{ eventoId: string; codigo: string; inviteUrl: string; encerrado: boolean }> {
+    const res = await fetch(`${API_URL}/familias/eventos/${encodeURIComponent(eventoId)}/codigo`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar o código do evento (${res.status})`);
+    return data;
+  },
+
+  // Troca o código do evento: o antigo para de valer na hora
+  async renewFamilyEventCode(eventoId: string): Promise<{ eventoId: string; codigo: string; inviteUrl: string; encerrado: boolean }> {
+    const res = await fetch(`${API_URL}/familias/eventos/${encodeURIComponent(eventoId)}/codigo/renovar`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao gerar novo código (${res.status})`);
+    return data;
+  },
+
   async getPendingFamilyLinks(eventoId?: string) {
     const query = eventoId ? `?eventoId=${encodeURIComponent(eventoId)}` : '';
     const res = await fetch(`${API_URL}/familias/pending${query}`, { headers: getAuthHeaders() });
