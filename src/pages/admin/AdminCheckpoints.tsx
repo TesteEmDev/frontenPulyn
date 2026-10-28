@@ -242,14 +242,14 @@ export default function AdminCheckpoints() {
     }
   };
 
-  // Manda a placa acender o LED ou tocar o som. A placa busca o comando de ~10 em ~10 s.
+  // Manda a placa acender o LED ou tocar o som; ela busca o comando sozinha (ver esperaSegundos).
   const [testando, setTestando] = useState<string | null>(null);
   const testar = async (checkpoint: any, tipo: 'led' | 'som') => {
     const chave = `${checkpoint.id}-${tipo}`;
     setTestando(chave);
     try {
-      await api.testarCheckpoint(checkpoint.id, tipo);
-      toast.success(`${tipo === 'led' ? 'Teste do LED' : 'Teste do som'} enviado ao checkpoint ${numeroDoCheckpoint(checkpoint)}: a placa executa em até 10 segundos`);
+      const { esperaSegundos } = await api.testarCheckpoint(checkpoint.id, tipo);
+      toast.success(`${tipo === 'led' ? 'Teste do LED' : 'Teste do som'} enviado ao checkpoint ${numeroDoCheckpoint(checkpoint)}: a placa executa em até ${esperaSegundos} segundos`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Não foi possível enviar o teste');
     } finally {
