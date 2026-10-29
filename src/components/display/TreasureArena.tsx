@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Compass, Gem, TimerReset, Trophy } from 'lucide-react';
 import type { Checkpoint, Team } from '../../store/mockData';
+import { numeroDoCheckpoint } from '../../utils/checkpoints';
 
 // Estilos CSS para animação de onda
 const treasureWaveStyles = `
@@ -193,7 +194,7 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
                   <circle r={11} fill={markerColor} fillOpacity={0.18} stroke={markerColor} strokeWidth={2} />
                   <circle r={5} fill={markerColor} />
                   <text y={-16} textAnchor="middle" fill="#FFFFFF" fontSize={10} fontWeight={600}>
-                    {checkpoint.id}
+                    {numeroDoCheckpoint(checkpoint)}
                   </text>
                   <text y={18} textAnchor="middle" fill="#D1D5DB" fontSize={8}>
                     {isTarget ? 'TESOURO' : checkpoint.name}

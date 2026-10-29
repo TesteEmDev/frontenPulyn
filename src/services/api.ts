@@ -86,6 +86,66 @@ function getAuthHeaders() {
   }
 }
 
+// Checkpoint que o super admin transferiu para este buffet (rotas de recebimento).
+export interface CheckpointRecebido {
+  checkpointId: string;
+  nome: string;
+  tipo: string;
+  proposito?: string;
+  macAddress: string | null;
+  numCheck: string | null;
+  statusTransferencia?: 'estoque' | 'pendente' | 'aceito';
+  eventoId?: string | null;
+  eventoNome?: string | null;
+  transferidoEm?: string | null;
+  zona?: string | null;
+  pontos?: number | null;
+  status?: string | null;
+}
+
+// Checkpoint visto pelo super admin (estoque, transferido para um buffet, ou já aceito por ele).
+export interface CheckpointMaster {
+  id: number;
+  numCheck: string | null;
+  macAddress: string | null;
+  nome: string;
+  tipo: string;
+  proposito: string | null;
+  status: string | null;
+  ultimoVisto: string | null;
+  statusTransferencia: 'estoque' | 'pendente' | 'aceito';
+  empresaId: string | null;
+  empresaNome: string | null;
+  empresaDestinoId: string | null;
+  empresaDestinoNome: string | null;
+  eventoId: string | null;
+  transferidoEm: string | null;
+  criadoEm: string | null;
+}
+
+export interface BuffetOpcao {
+  empresaId: string;
+  nome: string;
+  cidade?: string | null;
+  estado?: string | null;
+}
+
+// Chamada às rotas do super admin (/master/checkpoints): devolve o JSON ou lança o erro com a mensagem da API.
+async function pedirMasterCheckpoints<T>(caminho: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${API_URL}/master/checkpoints${caminho}`, { ...init, headers: getAuthHeaders() });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error || `Erro ${res.status}`);
+  return data as T;
+}
+
+// Chamada às rotas de recebimento: devolve o JSON ou lança o erro com a mensagem que a API mandou.
+async function pedirRecebimento<T>(caminho: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${API_URL}/pontoVerificacao/recebimento${caminho}`, { ...init, headers: getAuthHeaders() });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error || `Erro ${res.status}`);
+  return data as T;
+}
+
 // Mensagens do telão: a API devolve "texto"; as telas leem "text".
 export function mensagemParaTela(mensagem: any) {
   if (!mensagem || typeof mensagem !== 'object') return mensagem;
@@ -385,6 +445,25 @@ export const api = {
     const response = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(response.error || `Erro ao criar convite (${res.status})`);
     return response;
+  },
+
+  // Código fixo do evento: o mesmo para todas as famílias, até o evento terminar (nasce na primeira consulta)
+  async getFamilyEventCode(eventoId: string): Promise<{ eventoId: string; codigo: string; inviteUrl: string; encerrado: boolean }> {
+    const res = await fetch(`${API_URL}/familias/eventos/${encodeURIComponent(eventoId)}/codigo`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar o código do evento (${res.status})`);
+    return data;
+  },
+
+  // Troca o código do evento: o antigo para de valer na hora
+  async renewFamilyEventCode(eventoId: string): Promise<{ eventoId: string; codigo: string; inviteUrl: string; encerrado: boolean }> {
+    const res = await fetch(`${API_URL}/familias/eventos/${encodeURIComponent(eventoId)}/codigo/renovar`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao gerar novo código (${res.status})`);
+    return data;
   },
 
   async getPendingFamilyLinks(eventoId?: string) {
@@ -1179,12 +1258,18 @@ export const api = {
     return body;
   },
 
+  // Apaga o evento e o que é só dele (participantes, times, pontos...). Lança o erro com a mensagem da API.
   async deleteEvento(id: string) {
-    const res = await fetch(`${API_URL}/eventos/${id}`, {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(id)}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao excluir evento (${res.status})`);
+    return body as {
+      deleted: true;
+      resumo: { participantesApagados: number; timesApagados: number; pulseirasLiberadas: number; checkpointsLiberados: number };
+    };
   },
 
   // ==================== BRINCADEIRAS / JOGOS ====================
@@ -1682,37 +1767,79 @@ export const api = {
     return res.json();
   },
 
-  async createCheckpoint(eventoId: string, data: any) {
-    try {
-      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(data),
-      });
-      
-      if (!res.ok) {
-        const errorText = await res.text();
-        let mensagem = errorText;
-        try { mensagem = JSON.parse(errorText)?.error || errorText; } catch { /* texto puro */ }
-        throw new Error(mensagem);
-      }
-      
-      return res.json();
-    } catch (err) {
-      console.error('Erro ao criar checkpoint:', err);
-      throw err;
-    }
+  // ---- Super admin: cadastra checkpoints (pelo MAC) e os transfere para os buffets ----
+  masterGetCheckpoints() {
+    return pedirMasterCheckpoints<CheckpointMaster[]>('');
   },
 
-  // Código curto do buffet: o ESP32 o informa na página /config quando o mesmo ID também existe em outro buffet.
-  async getCodigoBuffet(): Promise<string | null> {
-    try {
-      const res = await fetch(`${API_URL}/pontoVerificacao/codigo-buffet`, { headers: getAuthHeaders() });
-      if (!res.ok) return null;
-      return ((await res.json()) as { codigo?: string }).codigo || null;
-    } catch {
-      return null;
-    }
+  masterGetBuffets() {
+    return pedirMasterCheckpoints<BuffetOpcao[]>('/buffets');
+  },
+
+  masterCriarCheckpoint(dados: { macAddress: string; nome?: string; tipo?: string; proposito?: string }) {
+    return pedirMasterCheckpoints<CheckpointMaster>('', { method: 'POST', body: JSON.stringify(dados) });
+  },
+
+  masterEditarCheckpoint(id: number, dados: { macAddress?: string; nome?: string; tipo?: string; proposito?: string }) {
+    return pedirMasterCheckpoints<CheckpointMaster>(`/${id}`, { method: 'PATCH', body: JSON.stringify(dados) });
+  },
+
+  masterTransferirCheckpoint(id: number, empresaId: string) {
+    return pedirMasterCheckpoints<CheckpointMaster>(`/${id}/transferir`, { method: 'POST', body: JSON.stringify({ empresaId }) });
+  },
+
+  masterCancelarTransferencia(id: number) {
+    return pedirMasterCheckpoints<CheckpointMaster>(`/${id}/cancelar-transferencia`, { method: 'POST' });
+  },
+
+  masterExcluirCheckpoint(id: number) {
+    return pedirMasterCheckpoints<{ success: boolean }>(`/${id}`, { method: 'DELETE' });
+  },
+
+  // ---- Checkpoints transferidos pelo super admin: o buffet aceita, define o número e o evento ----
+  getCheckpointsPendentes() {
+    return pedirRecebimento<CheckpointRecebido[]>('/pendentes');
+  },
+
+  getCheckpointsSemEvento() {
+    return pedirRecebimento<CheckpointRecebido[]>('/sem-evento');
+  },
+
+  aceitarCheckpoint(checkpointId: string, numCheck: string, eventoId?: string | null) {
+    return pedirRecebimento<CheckpointRecebido>(`/${encodeURIComponent(checkpointId)}/aceitar`, {
+      method: 'POST',
+      body: JSON.stringify({ numCheck, eventoId: eventoId || null }),
+    });
+  },
+
+  recusarCheckpoint(checkpointId: string) {
+    return pedirRecebimento<{ success: boolean }>(`/${encodeURIComponent(checkpointId)}/recusar`, { method: 'POST' });
+  },
+
+  alterarNumeroCheckpoint(checkpointId: string, numCheck: string) {
+    return pedirRecebimento<CheckpointRecebido>(`/${encodeURIComponent(checkpointId)}/numero`, {
+      method: 'PATCH',
+      body: JSON.stringify({ numCheck }),
+    });
+  },
+
+  // Manda a placa acender o LED ou tocar o som (ela busca o comando sozinha; esperaSegundos é o prazo). Lança o erro com a mensagem da API.
+  async testarCheckpoint(checkpointId: string, tipo: 'led' | 'som') {
+    const res = await fetch(`${API_URL}/pontoVerificacao/${encodeURIComponent(checkpointId)}/testar`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ tipo }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as { error?: string }).error || `Erro ${res.status}`);
+    return data as { ok: true; tipo: 'led' | 'som'; esperaSegundos: number };
+  },
+
+  atribuirEventoCheckpoint(checkpointId: string, eventoId: string | null) {
+    return pedirRecebimento<CheckpointRecebido>(`/${encodeURIComponent(checkpointId)}/evento`, {
+      method: 'PATCH',
+      body: JSON.stringify({ eventoId }),
+    });
   },
 
   async deleteCheckpoint(eventoId: string, checkpointId: string) {

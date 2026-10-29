@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
+import { isGameActive } from '../../utils/games';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -51,7 +52,6 @@ export default function AdminGames() {
   }, [brincadeiras]);
 
   // Sem status registrado, o servidor trata o jogo como ativo.
-  const isGameActive = (game: any) => String(game.status || 'active').toLowerCase() === 'active';
 
   // Some a mensagem de sucesso sozinha; erros ficam até a próxima ação.
   useEffect(() => {

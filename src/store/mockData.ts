@@ -35,6 +35,10 @@ export interface Team {
 
 export interface Checkpoint {
   id: string;
+  /** Número que o buffet deu ao checkpoint (é o que se mostra; `id` é a chave interna). */
+  numCheck?: string;
+  codigo?: string;
+  macAddress?: string;
   eventoId?: string;
   name: string;
   type: string;
