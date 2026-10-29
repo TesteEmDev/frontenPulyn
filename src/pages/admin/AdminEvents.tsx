@@ -173,17 +173,31 @@ export default function AdminEvents() {
     navigate('/admin');
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (eventItem: any, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm('Tem certeza que deseja excluir este evento?')) {
-      try {
-        await api.deleteEvento(id);
-        // Recarregar eventos após deletar
-        await loadEventos();
-      } catch (error) {
-        console.error('Erro ao deletar evento:', error);
-        alert('Erro ao deletar evento. Tente novamente.');
-      }
+    if (busyId) return;
+    if (!confirm(
+      `Excluir o evento "${eventItem.nome}"?
+
+`
+      + 'Participantes, times, pontuação e o histórico do jogo deste evento serão apagados. '
+      + 'As pulseiras voltam a ficar disponíveis e os checkpoints continuam no buffet, sem evento. '
+      + 'Essa ação não pode ser desfeita.'
+    )) return;
+
+    setBusyId(eventItem.eventoId);
+    try {
+      const { resumo } = await api.deleteEvento(eventItem.eventoId);
+      toast.success(
+        `Evento "${eventItem.nome}" excluído`
+        + (resumo.participantesApagados ? ` (${resumo.participantesApagados} participante(s) removido(s))` : '')
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível excluir o evento');
+    } finally {
+      setBusyId(null);
+      // O evento pode ter mudado no servidor (ex.: começou sozinho); atualiza a lista de qualquer jeito.
+      await loadEventos();
     }
   };
 
@@ -254,8 +268,8 @@ export default function AdminEvents() {
     if (busyId) return;
 
     const question = action === 'start'
-      ? `Iniciar o evento "${eventItem.name}" agora?`
-      : `Encerrar o evento "${eventItem.name}"?\n\nO jogo em andamento será parado e a recepção deixará de cadastrar participantes nele. Essa ação não pode ser desfeita.`;
+      ? `Iniciar o evento "${eventItem.nome}" agora?`
+      : `Encerrar o evento "${eventItem.nome}"?\n\nO jogo em andamento será parado e a recepção deixará de cadastrar participantes nele. Essa ação não pode ser desfeita.`;
     if (!confirm(question)) return;
 
     setBusyId(eventItem.eventoId);
@@ -420,9 +434,11 @@ export default function AdminEvents() {
                             <Edit size={16} />
                           </button>
                           <button
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-danger hover:bg-surface transition-colors"
-                            title="Excluir"
-                            onClick={(e) => handleDelete(event.eventoId, e)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-danger hover:bg-surface transition-colors disabled:opacity-40 disabled:hover:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                            title={status === 'active' ? 'Encerre o evento antes de excluir' : 'Excluir'}
+                            aria-label={`Excluir o evento ${event.nome}`}
+                            disabled={busy || status === 'active'}
+                            onClick={(e) => handleDelete(event, e)}
                           >
                             <Trash2 size={16} />
                           </button>
@@ -467,11 +483,11 @@ export default function AdminEvents() {
         {rescheduling && (
           <div className="space-y-4">
             <div className="rounded-lg border border-border bg-surface/40 p-3">
-              <p className="text-sm font-semibold text-white">{rescheduling.name}</p>
+              <p className="text-sm font-semibold text-white">{rescheduling.nome}</p>
               <p className="mt-0.5 text-xs text-gray-400">
                 {rescheduleMode === 'reopen'
                   ? (describeLifecycle(rescheduling, 'finished') || 'Evento encerrado')
-                  : <>Agendado para {formatEventDate(rescheduling.date)}{rescheduling.time ? ` às ${String(rescheduling.time).slice(0, 5)}` : ''}</>}
+                  : <>Agendado para {formatEventDate(rescheduling.data)}{rescheduling.hora ? ` às ${String(rescheduling.hora).slice(0, 5)}` : ''}</>}
               </p>
             </div>
 

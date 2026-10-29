@@ -15,7 +15,6 @@ import StatusDot from '../../components/ui/StatusDot';
 import Timer from '../../components/ui/Timer';
 import ScoreCounter from '../../components/ui/ScoreCounter';
 import { api, API_URL } from '../../services/api';
-import LiveGameCheckpoints from '../../components/game-master/LiveGameCheckpoints';
 
 const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
@@ -851,15 +850,6 @@ export default function GameMasterDashboard() {
               </div>
             </div>
           </Card>
-
-          {activeGame && (
-            <LiveGameCheckpoints
-              game={games.find(game => String(game.id) === String(activeGame.id)) || activeGame}
-              eventCheckpoints={safeCheckpoints}
-              running={gameRunning}
-              onSaved={async () => { if (selectedEventId) setGames(await api.getBrincadeiras(selectedEventId)); }}
-            />
-          )}
 
           {/* Active Game Card */}
           <Card variant="glow" className="mb-6">

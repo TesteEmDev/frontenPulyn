@@ -4,6 +4,7 @@ import {
   Check, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { isGameActive } from '../../utils/games';
 import { useAuth } from '../../hooks/useAuth';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import TopBar from '../../components/layout/TopBar';
@@ -372,8 +373,8 @@ export default function AdminEventNew() {
                               {tipoDoJogo(game.type)} &middot; {game.duration}min
                             </p>
                           </div>
-                          <Badge variant={game.status === 'active' ? 'success' : 'muted'}>
-                            {game.status === 'active' ? 'Ativo' : 'Inativo'}
+                          <Badge variant={isGameActive(game) ? 'success' : 'muted'}>
+                            {isGameActive(game) ? 'Ativo' : 'Inativo'}
                           </Badge>
                         </div>
                       );

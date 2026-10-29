@@ -15,6 +15,7 @@ import {
   WifiOff,
   Clock,
   Zap,
+  Cpu,
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -31,6 +32,7 @@ const masterNavItems = [
   { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/master' },
   { icon: <Users size={20} />, label: 'Clientes', path: '/master/clients' },
   { icon: <CreditCard size={20} />, label: 'Planos', path: '/master/plans' },
+  { icon: <Cpu size={20} />, label: 'Checkpoints', path: '/master/checkpoints' },
   { icon: <Activity size={20} />, label: 'Monitoramento', path: '/master/monitoring' },
   { icon: <ScrollText size={20} />, label: 'Logs', path: '/master/logs' },
   { icon: <LifeBuoy size={20} />, label: 'Suporte', path: '/master/support' },

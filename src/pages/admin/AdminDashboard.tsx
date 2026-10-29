@@ -8,6 +8,7 @@ import {
 } from 'recharts';
 import { usePulynStore } from '../../store/mockData';
 import { api, API_URL } from '../../services/api';
+import { isGameActive } from '../../utils/games';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -706,8 +707,8 @@ export default function AdminDashboard() {
                               &middot; {game.checkpoints?.length || 0} checkpoints
                             </p>
                           </div>
-                          <Badge variant={game.status === 'active' ? 'success' : 'muted'}>
-                            {game.status === 'active' ? 'Ativo' : 'Inativo'}
+                          <Badge variant={isGameActive(game) ? 'success' : 'muted'}>
+                            {isGameActive(game) ? 'Ativo' : 'Inativo'}
                           </Badge>
                         </div>
                       ))

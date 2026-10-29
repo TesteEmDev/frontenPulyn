@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MapPin, Map, RefreshCw, Upload, Pencil, Trash2, Plus, Save, Loader2 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
+import { numeroDoCheckpoint } from '../../utils/checkpoints';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -952,7 +953,7 @@ export default function AdminMap() {
                       >
                         <circle r={circleRadius} fill={color} fillOpacity={0.18} stroke={isSelected ? '#FFFFFF' : color} strokeWidth={isSelected ? 3 : 2} />
                         <circle r="5" fill={color} />
-                        <text y="-22" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="600">{checkpoint.checkpointId}</text>
+                        <text y="-22" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="600">{numeroDoCheckpoint(checkpoint)}</text>
                         <text y="30" textAnchor="middle" fill="#D1D5DB" fontSize="9">{checkpoint.nome}</text>
                       </g>
                     );
@@ -1070,7 +1071,7 @@ export default function AdminMap() {
                       <StatusDot status={checkpoint.status === 'online' ? 'online' : 'offline'} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-xs font-semibold text-white">{checkpoint.nome}</span>
-                        <span className="block truncate text-[11px] text-gray-500">{checkpoint.checkpointId} · {checkpoint.zona || checkpoint.localizacao || 'Sem zona'}</span>
+                        <span className="block truncate text-[11px] text-gray-500">{numeroDoCheckpoint(checkpoint)} · {checkpoint.zona || checkpoint.localizacao || 'Sem zona'}</span>
                       </span>
                       {savingCheckpointId === checkpoint.checkpointId ? <Loader2 size={14} className="animate-spin text-primary" /> : <MapPin size={14} className="text-gray-500" />}
                     </button>
