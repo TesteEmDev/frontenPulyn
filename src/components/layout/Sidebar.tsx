@@ -1,15 +1,33 @@
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
+import { ChevronDown, Loader2, LogOut } from 'lucide-react';
 import PulynLogo from '../ui/PulynLogo';
 import { useAuth, roleLabels } from '../../hooks/useAuth';
 import { useBuffetName, useBuffetNameStore, DEFAULT_BUFFET_TITLE } from '../../hooks/useBuffetName';
+import { ADMIN_NAV_ITEMS } from './AdminSidebar';
+import { RECEPTION_NAV_ITEMS } from './ReceptionSidebar';
+import { GAME_MASTER_NAV_ITEMS } from './gameMasterNav';
 
 interface SidebarItem {
   icon: ReactNode;
   label: string;
   path: string;
 }
+
+// Cor de identificação de cada área no menu.
+const AREA_COR: Record<string, string> = {
+  admin: '#1E9BD7',
+  reception: '#A78BFA',
+  game_master: '#F59E0B',
+};
+
+// Menu de cada área. Conta com mais de uma área mostra as outras áreas abaixo do menu atual.
+const navegacaoDaArea = (role: string): SidebarItem[] => {
+  if (role === 'admin') return ADMIN_NAV_ITEMS;
+  if (role === 'reception') return RECEPTION_NAV_ITEMS;
+  if (role === 'game_master') return GAME_MASTER_NAV_ITEMS;
+  return [];
+};
 
 interface SidebarProps {
   items: SidebarItem[];
@@ -27,8 +45,34 @@ export default function Sidebar({
   onToggleCollapse,
   accentColor = '#1E9BD7',
 }: SidebarProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, trocarArea } = useAuth();
   const navigate = useNavigate();
+
+  // Áreas extras da conta: aparecem no menu. Clicar em um item troca de área e abre a tela.
+  const outrasAreas = (user?.papeis ?? [])
+    .filter((role) => role !== user?.role)
+    .map((role) => ({ role, items: navegacaoDaArea(role) }))
+    .filter((area) => area.items.length > 0);
+
+  // Dropdown de cada área extra. Abre sozinha quando a tela atual é dela.
+  const [areasAbertas, setAreasAbertas] = useState<Record<string, boolean>>({});
+  const areaEstaAberta = (role: string, items: SidebarItem[]) =>
+    areasAbertas[role] ?? items.some((item) => activePath === item.path || activePath.startsWith(`${item.path}/`));
+  const alternarArea = (role: string, items: SidebarItem[]) =>
+    setAreasAbertas((prev) => ({ ...prev, [role]: !areaEstaAberta(role, items) }));
+
+  // Clicar em um item de outra área troca a área e abre a tela. Enquanto troca, o item mostra o carregamento.
+  const [trocando, setTrocando] = useState<string | null>(null);
+  const irParaArea = async (role: string, path: string) => {
+    setTrocando(`${role}|${path}`);
+    const resultado = await trocarArea(role);
+    setTrocando(null);
+    if (resultado.success) {
+      navigate(path);
+    } else {
+      alert(resultado.error || 'Não foi possível abrir essa área');
+    }
+  };
   // No admin, o nome exibido é o "Nome da unidade" do cadastro do buffet.
   const unitName = useBuffetName(user?.role === 'admin');
   const displayName = user?.role === 'admin' && unitName !== DEFAULT_BUFFET_TITLE ? unitName : user?.name || '';
@@ -99,6 +143,61 @@ export default function Sidebar({
                 {item.label}
               </span>
             </NavLink>
+          );
+        })}
+
+        {/* Outras áreas da conta: só com o menu aberto, para não trocar de área por engano */}
+        {!collapsed && outrasAreas.length > 0 && (
+          <div className="mt-5 px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-500">
+            Outras áreas
+          </div>
+        )}
+        {!collapsed && outrasAreas.map((area) => {
+          const aberta = areaEstaAberta(area.role, area.items);
+          const cor = AREA_COR[area.role] || '#1E9BD7';
+          return (
+            <div key={area.role} className="mt-1">
+              <button
+                onClick={() => alternarArea(area.role, area.items)}
+                aria-expanded={aberta}
+                className="group w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors duration-200 hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60"
+              >
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: cor, boxShadow: `0 0 8px ${cor}` }} />
+                <span className="flex-1 text-sm font-medium text-gray-200 group-hover:text-white">
+                  {roleLabels[area.role] || area.role}
+                </span>
+                <span className="rounded-full bg-white/[0.08] px-1.5 py-0.5 text-[10px] tabular-nums text-gray-400">
+                  {area.items.length}
+                </span>
+                <ChevronDown
+                  size={14}
+                  className={`text-gray-500 transition-transform duration-200 ${aberta ? 'rotate-180' : ''}`}
+                />
+              </button>
+              <div
+                className={`grid transition-all duration-200 ease-out ${aberta ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+              >
+                <div className="overflow-hidden">
+                  <div className="mt-1 ml-3 space-y-0.5 border-l-2 pl-2" style={{ borderColor: `${cor}40` }}>
+                    {area.items.map((item) => {
+                      const trocandoEste = trocando === `${area.role}|${item.path}`;
+                      return (
+                        <button
+                          key={item.path}
+                          onClick={() => irParaArea(area.role, item.path)}
+                          disabled={trocando !== null}
+                          className="group w-full flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-gray-400 transition-all duration-200 hover:bg-white/[0.06] hover:text-white disabled:cursor-wait focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60"
+                        >
+                          <span className="shrink-0 transition-transform duration-200 group-hover:scale-110">{item.icon}</span>
+                          <span className="flex-1 whitespace-nowrap text-left">{item.label}</span>
+                          {trocandoEste && <Loader2 size={14} className="animate-spin" style={{ color: cor }} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
           );
         })}
       </nav>

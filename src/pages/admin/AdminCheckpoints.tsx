@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   MapPin, Lightbulb, Volume2, Edit, Trash2
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../../hooks/useAuth';
 import { api } from '../../services/api';
 import AdminSidebar from '../../components/layout/AdminSidebar';
@@ -47,11 +48,87 @@ export default function AdminCheckpoints() {
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCheckpoint, setEditingCheckpoint] = useState<any>(null);
+  const [instalando, setInstalando] = useState<any>(null);
+
+  // Link que abre a página /config do checkpoint (rede própria dele, 192.168.4.1) já com ID e servidor preenchidos.
+  const linkInstalacao = (cp: any) =>
+    `http://192.168.4.1/config?id=${encodeURIComponent(cp.id)}&servidor=${encodeURIComponent(window.location.origin)}`;
+
+  // Exporta a lista do evento para importar em outro buffet (ver importarLista).
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importando, setImportando] = useState(false);
+
+  const exportarLista = () => {
+    const evento = events.find(e => e.eventoId === selectedEventId);
+    const arquivo = {
+      formato: 'pulyn-checkpoints',
+      versao: 1,
+      evento: evento?.nome ?? null,
+      checkpoints: checkpointsList.map(cp => ({
+        id: cp.codigo ?? cp.id,
+        nome: cp.name,
+        tipo: cp.type,
+        zona: cp.zone || '',
+        pontos: cp.points || 10,
+      })),
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(arquivo, null, 2)], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `checkpoints-${(evento?.nome || 'evento').replace(/[^\w-]+/g, '-')}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Cria cada checkpoint do arquivo no evento selecionado. Se o ID já existir em outro buffet, o backend
+  // grava com o prefixo do buffet: a lista mostra o ID que o ESP32 precisa.
+  const importarLista = async (e: ChangeEvent<HTMLInputElement>) => {
+    const arquivo = e.target.files?.[0];
+    e.target.value = '';
+    if (!arquivo || !selectedEventId || selectedEventId === ALL_EVENTS) return;
+
+    let lista: any[];
+    try {
+      const dados = JSON.parse(await arquivo.text());
+      if (dados?.formato !== 'pulyn-checkpoints' || !Array.isArray(dados.checkpoints)) throw new Error('formato');
+      lista = dados.checkpoints;
+    } catch {
+      alert('Arquivo inválido. Use um arquivo gerado por "Exportar lista".');
+      return;
+    }
+    if (!window.confirm(`Importar ${lista.length} checkpoint(s) para este evento?`)) return;
+
+    setImportando(true);
+    let criados = 0;
+    let prefixados = 0;
+    const erros: string[] = [];
+    for (const cp of lista) {
+      try {
+        const criado = await api.createCheckpoint(selectedEventId, {
+          id: cp.id,
+          nome: cp.nome,
+          tipo: cp.tipo,
+          zone: cp.zona,
+          points: cp.pontos,
+        });
+        criados++;
+        if (criado?.prefixado) prefixados++;
+      } catch (err: any) {
+        erros.push(`${cp.id}: ${err.message}`);
+      }
+    }
+    setCheckpointsList(await api.getCheckpoints(selectedEventId));
+    setImportando(false);
+
+    const linhas = [`${criados} checkpoint(s) importado(s).`];
+    if (prefixados > 0) linhas.push(`${prefixados} com ID repetido em outro buffet: use o ID mostrado na lista ao gravar o ESP32.`);
+    if (erros.length > 0) linhas.push(`Não importados:\n${erros.join('\n')}`);
+    alert(linhas.join('\n\n'));
+  };
   const [formData, setFormData] = useState({
     id: '',
     name: '',
     type: 'NFC',
-    ip: '',
     zone: '',
     ledColor: '#00FF00',
     points: 10,
@@ -221,7 +298,6 @@ export default function AdminCheckpoints() {
       await api.saveCheckpointConfig(editingCheckpoint.id, {
         nome: formData.name,
         tipo: formData.type,
-        ip: formData.ip,
         zone: formData.zone,
         points: formData.points,
       }, editingCheckpoint.eventoId);
@@ -407,6 +483,13 @@ export default function AdminCheckpoints() {
                         <td className="py-3">
                           <div className="flex items-center gap-1">
                             <button
+                              onClick={() => setInstalando(cp)}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-surface transition-colors"
+                              title="Instalar (QR code)"
+                            >
+                              <QrCode size={16} />
+                            </button>
+                            <button
                               onClick={() => handleOpenModal(cp)}
                               className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-surface transition-colors"
                               title="Editar"
@@ -459,6 +542,28 @@ export default function AdminCheckpoints() {
           </Card>
         </main>
       </div>
+
+      {/* Modal de instalação: QR code que abre a página /config do checkpoint já preenchida */}
+      <Modal
+        isOpen={Boolean(instalando)}
+        onClose={() => setInstalando(null)}
+        title={`Instalar checkpoint ${instalando?.id ?? ''}`}
+        size="md"
+      >
+        {instalando && (
+          <div className="flex flex-col items-center gap-4">
+            <div className="rounded-xl bg-white p-4">
+              <QRCodeSVG value={linkInstalacao(instalando)} size={220} />
+            </div>
+            <ol className="text-sm text-gray-300 list-decimal pl-5 space-y-1">
+              <li>Ligue o checkpoint sem configuração, ou segure o botão BOOT por 3 s.</li>
+              <li>Conecte o celular ao Wi-Fi <span className="font-mono">Pulyn-CP-…</span> (em placa nova o nome termina no MAC, não no ID).</li>
+              <li>Escaneie o QR code e confira o ID e o servidor, depois preencha a rede e salve.</li>
+            </ol>
+            <p className="text-xs text-gray-500 break-all font-mono">{linkInstalacao(instalando)}</p>
+          </div>
+        )}
+      </Modal>
 
       {/* Modal de Cadastro/Edição de Checkpoint */}
       <Modal

@@ -12,7 +12,7 @@ const svgProps = {
 } as const;
 
 // Um único menu para todas as telas da recepção (antes cada tela tinha a sua própria cópia).
-const RECEPTION_NAV_ITEMS = [
+export const RECEPTION_NAV_ITEMS = [
   {
     icon: (
       <svg {...svgProps}>

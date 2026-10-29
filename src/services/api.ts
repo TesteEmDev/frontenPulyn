@@ -385,6 +385,30 @@ export const api = {
     return res.json();
   },
 
+  // Troca de área: a mesma conta pede um token para outro papel que ela já tem (ver routes/auth.js).
+  async trocarPapel(role: string): Promise<any> {
+    const res = await fetch(`${API_URL}/auth/papel`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ role }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao trocar de área (${res.status})`);
+    return data;
+  },
+
+  // Define as áreas extras de uma conta da equipe (ver routes/logins.js, montado em /acessos).
+  async definirPapeisLogin(loginId: string, papeis: string[]): Promise<any> {
+    const res = await fetch(`${API_URL}/acessos/${encodeURIComponent(loginId)}/papeis`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ papeis }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao salvar as áreas da conta (${res.status})`);
+    return data;
+  },
+
   async logout() {
     const res = await fetch(`${API_URL}/auth/logout`, {
       method: 'POST',

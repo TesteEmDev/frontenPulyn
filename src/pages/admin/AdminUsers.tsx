@@ -21,6 +21,8 @@ interface User {
   loginId: string;
   email: string;
   perfil: UserRole;
+  // Áreas que a conta pode usar: o perfil principal primeiro, depois as extras.
+  papeis?: UserRole[];
   status: 'active' | 'inactive';
   criadoEm: string;
 }
@@ -34,6 +36,11 @@ const roleConfig: Record<UserRole, { label: string; description: string; variant
   kiosk: { label: 'Autoatendimento', description: 'Totem de cadastro de crianças', variant: 'primary' },
   score_kiosk: { label: 'Consulta de pontuação', description: 'Totem para consultar pontos', variant: 'accent' },
 };
+
+const USUARIOS_POR_PAGINA = 10;
+
+// Só a equipe acumula áreas (mesma regra do backend, utils/papeis.js).
+const PAPEIS_ACUMULAVEIS: UserRole[] = ['admin', 'reception', 'game_master'];
 
 // Mesma regra do backend (utils/unitEmail.js): minúsculas, números e . _ - entre letras/números.
 const USERNAME_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
@@ -58,6 +65,44 @@ export default function AdminUsers() {
     password: '',
     role: 'reception' as UserRole,
   });
+
+  // Paginação da lista (a API devolve todos os usuários do buffet; a paginação é no navegador)
+  const [pagina, setPagina] = useState(1);
+  const totalPaginas = Math.max(1, Math.ceil(users.length / USUARIOS_POR_PAGINA));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const usuariosDaPagina = users.slice((paginaAtual - 1) * USUARIOS_POR_PAGINA, paginaAtual * USUARIOS_POR_PAGINA);
+  const inicioPagina = users.length === 0 ? 0 : (paginaAtual - 1) * USUARIOS_POR_PAGINA + 1;
+  const fimPagina = Math.min(paginaAtual * USUARIOS_POR_PAGINA, users.length);
+
+  // Áreas extras de uma conta da equipe (modal de áreas)
+  const [areasDe, setAreasDe] = useState<User | null>(null);
+  const [areasSelecionadas, setAreasSelecionadas] = useState<string[]>([]);
+  const [areasErro, setAreasErro] = useState<string | null>(null);
+  const [salvandoAreas, setSalvandoAreas] = useState(false);
+
+  const abrirAreas = (u: User) => {
+    setAreasDe(u);
+    setAreasSelecionadas((u.papeis ?? []).filter(p => p !== u.perfil));
+    setAreasErro(null);
+  };
+
+  const alternarArea = (p: string) =>
+    setAreasSelecionadas(prev => (prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]));
+
+  const salvarAreas = async () => {
+    if (!areasDe) return;
+    setSalvandoAreas(true);
+    setAreasErro(null);
+    try {
+      await api.definirPapeisLogin(areasDe.loginId, areasSelecionadas);
+      setAreasDe(null);
+      await loadUsers();
+    } catch (err: any) {
+      setAreasErro(err.message || 'Não foi possível salvar as áreas');
+    } finally {
+      setSalvandoAreas(false);
+    }
+  };
 
   // Carregar usuários
   const loadUsers = async () => {
@@ -209,7 +254,7 @@ export default function AdminUsers() {
                           </td>
                         </tr>
                       ) : (
-                        users.map(userData => {
+                        usuariosDaPagina.map(userData => {
                           const config = roleConfig[userData.perfil];
                           return (
                             <tr key={userData.loginId} className="hover:bg-surface/50 transition-colors">
@@ -220,6 +265,9 @@ export default function AdminUsers() {
                                 <div>
                                   <Badge variant={config.variant}>{config.label}</Badge>
                                   <p className="text-xs text-gray-400 mt-1">{config.description}</p>
+                                  {(userData.papeis ?? []).slice(1).map(p => (
+                                    <Badge key={p} variant="muted" className="mt-1 mr-1">{roleConfig[p].label}</Badge>
+                                  ))}
                                 </div>
                               </td>
                               <td className="py-3 pr-4">
@@ -238,9 +286,10 @@ export default function AdminUsers() {
                               <td className="py-3">
                                 <div className="flex items-center gap-1">
                                   <button
-                                    className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-surface transition-colors"
-                                    title="Editar"
-                                    disabled
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-surface transition-colors disabled:opacity-40"
+                                    title={PAPEIS_ACUMULAVEIS.includes(userData.perfil) ? 'Áreas desta conta' : 'Esta conta não acumula áreas'}
+                                    disabled={!PAPEIS_ACUMULAVEIS.includes(userData.perfil)}
+                                    onClick={() => abrirAreas(userData)}
                                   >
                                     <Settings size={16} />
                                   </button>
@@ -261,13 +310,75 @@ export default function AdminUsers() {
                   </table>
                 </div>
                 {users.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-border">
-                    <p className="text-sm text-gray-500">{users.length} usuário(s) criado(s)</p>
+                  <div className="mt-4 pt-4 border-t border-border flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm text-gray-500">
+                      {inicioPagina}–{fimPagina} de {users.length} usuário(s)
+                    </p>
+                    {totalPaginas > 1 && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="secondary"
+                          onClick={() => setPagina(paginaAtual - 1)}
+                          disabled={paginaAtual <= 1}
+                        >
+                          Anterior
+                        </Button>
+                        <span className="text-sm text-gray-400">
+                          Página {paginaAtual} de {totalPaginas}
+                        </span>
+                        <Button
+                          variant="secondary"
+                          onClick={() => setPagina(paginaAtual + 1)}
+                          disabled={paginaAtual >= totalPaginas}
+                        >
+                          Próxima
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </>
             )}
           </Card>
+
+          {/* Áreas da conta: além do perfil principal, em quais outras áreas ela trabalha */}
+          <Modal
+            isOpen={Boolean(areasDe)}
+            onClose={() => setAreasDe(null)}
+            title={`Áreas de ${areasDe?.email ?? ''}`}
+            size="md"
+          >
+            {areasDe && (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-400">
+                  Além de {roleConfig[areasDe.perfil].label}, esta conta pode trabalhar nestas áreas. Ela entra com o mesmo e-mail e escolhe a área depois do login.
+                </p>
+                <div className="space-y-2">
+                  {PAPEIS_ACUMULAVEIS.filter(p => p !== areasDe.perfil).map(p => (
+                    <label key={p} className="flex items-center gap-3 text-sm text-gray-200">
+                      <input
+                        type="checkbox"
+                        checked={areasSelecionadas.includes(p)}
+                        onChange={() => alternarArea(p)}
+                      />
+                      {roleConfig[p].label}
+                    </label>
+                  ))}
+                </div>
+                {areasErro && (
+                  <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                    {areasErro}
+                  </p>
+                )}
+                <div className="flex justify-end gap-3">
+                  <Button variant="ghost" onClick={() => setAreasDe(null)}>Cancelar</Button>
+                  <Button variant="primary" onClick={salvarAreas} disabled={salvandoAreas}>
+                    {salvandoAreas ? 'Salvando...' : 'Salvar'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Modal>
 
           {/* Add User Modal */}
           <Modal
