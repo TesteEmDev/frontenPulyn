@@ -1587,7 +1587,10 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    // Antes um erro do servidor passava como se tivesse salvo
+    if (!res.ok) throw new Error(body.error || `Erro ao atualizar o time (${res.status})`);
+    return body;
   },
 
   async deleteTime(id: string) {
