@@ -21,6 +21,8 @@ export interface Child {
   codigoPulseira?: string;
   bracelet?: string | null;
   eventoId?: string;
+  // Cadastro permanente da criança (vale para todos os eventos)
+  perfilCriancaId?: string;
 }
 
 export interface Team {

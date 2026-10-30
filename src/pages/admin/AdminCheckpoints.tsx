@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ChangeEvent } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   MapPin, Lightbulb, Volume2, Edit, Trash2, QrCode
@@ -54,81 +54,11 @@ export default function AdminCheckpoints() {
   const linkInstalacao = (cp: any) =>
     `http://192.168.4.1/config?id=${encodeURIComponent(cp.id)}&servidor=${encodeURIComponent(window.location.origin)}`;
 
-  // Exporta a lista do evento para importar em outro buffet (ver importarLista).
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importando, setImportando] = useState(false);
-
-  const exportarLista = () => {
-    const evento = events.find(e => e.eventoId === selectedEventId);
-    const arquivo = {
-      formato: 'pulyn-checkpoints',
-      versao: 1,
-      evento: evento?.nome ?? null,
-      checkpoints: checkpointsList.map(cp => ({
-        id: cp.codigo ?? cp.id,
-        nome: cp.name,
-        tipo: cp.type,
-        zona: cp.zone || '',
-        pontos: cp.points || 10,
-      })),
-    };
-    const url = URL.createObjectURL(new Blob([JSON.stringify(arquivo, null, 2)], { type: 'application/json' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `checkpoints-${(evento?.nome || 'evento').replace(/[^\w-]+/g, '-')}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Cria cada checkpoint do arquivo no evento selecionado. Se o ID já existir em outro buffet, o backend
-  // grava com o prefixo do buffet: a lista mostra o ID que o ESP32 precisa.
-  const importarLista = async (e: ChangeEvent<HTMLInputElement>) => {
-    const arquivo = e.target.files?.[0];
-    e.target.value = '';
-    if (!arquivo || !selectedEventId || selectedEventId === ALL_EVENTS) return;
-
-    let lista: any[];
-    try {
-      const dados = JSON.parse(await arquivo.text());
-      if (dados?.formato !== 'pulyn-checkpoints' || !Array.isArray(dados.checkpoints)) throw new Error('formato');
-      lista = dados.checkpoints;
-    } catch {
-      alert('Arquivo inválido. Use um arquivo gerado por "Exportar lista".');
-      return;
-    }
-    if (!window.confirm(`Importar ${lista.length} checkpoint(s) para este evento?`)) return;
-
-    setImportando(true);
-    let criados = 0;
-    let prefixados = 0;
-    const erros: string[] = [];
-    for (const cp of lista) {
-      try {
-        const criado = await api.createCheckpoint(selectedEventId, {
-          id: cp.id,
-          nome: cp.nome,
-          tipo: cp.tipo,
-          zone: cp.zona,
-          points: cp.pontos,
-        });
-        criados++;
-        if (criado?.prefixado) prefixados++;
-      } catch (err: any) {
-        erros.push(`${cp.id}: ${err.message}`);
-      }
-    }
-    setCheckpointsList(await api.getCheckpoints(selectedEventId));
-    setImportando(false);
-
-    const linhas = [`${criados} checkpoint(s) importado(s).`];
-    if (prefixados > 0) linhas.push(`${prefixados} com ID repetido em outro buffet: use o ID mostrado na lista ao gravar o ESP32.`);
-    if (erros.length > 0) linhas.push(`Não importados:\n${erros.join('\n')}`);
-    alert(linhas.join('\n\n'));
-  };
   const [formData, setFormData] = useState({
     id: '',
     name: '',
     type: 'NFC',
+    ip: '',
     zone: '',
     ledColor: '#00FF00',
     points: 10,
@@ -298,6 +228,7 @@ export default function AdminCheckpoints() {
       await api.saveCheckpointConfig(editingCheckpoint.id, {
         nome: formData.name,
         tipo: formData.type,
+        ip: formData.ip,
         zone: formData.zone,
         points: formData.points,
       }, editingCheckpoint.eventoId);

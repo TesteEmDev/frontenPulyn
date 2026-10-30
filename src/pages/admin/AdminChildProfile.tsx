@@ -155,7 +155,7 @@ export default function AdminChildProfile() {
                         <p className="truncate text-sm font-semibold text-white">{item.eventoNome}</p>
                         <p className="text-xs text-gray-500">{ano && mes && dia ? `${dia}/${mes}/${ano}` : 'Sem data'}</p>
                       </div>
-                      <Badge variant={item.eventoId === perfil.ultimoEventoId ? 'success' : 'default'}>
+                      <Badge variant={item.eventoId === perfil.ultimoEventoId ? 'success' : 'muted'}>
                         {item.pontos} pts{item.eventoId === perfil.ultimoEventoId ? ' · último evento' : ''}
                       </Badge>
                     </li>

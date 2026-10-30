@@ -373,7 +373,7 @@ export default function AdminTeams() {
                         </tr>
                       ) : (
                         visibleTeams.map((team, index) => (
-                          <tr key={team.timeId ?? team.id ?? `${team.nome ?? team.name ?? 'time'}-${index}`} className="hover:bg-surface/50 transition-colors">
+                          <tr key={team.timeId ?? `${team.nome ?? 'time'}-${index}`} className="hover:bg-surface/50 transition-colors">
                             <td className="py-3 pr-4">
                               <div className="flex items-center gap-3">
                                 <div
