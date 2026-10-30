@@ -42,8 +42,8 @@ const splitRulesInTwo = (rules: string[]): [string[], string[]] => {
   return [rules.slice(0, bestCut), rules.slice(bestCut)];
 };
 
-const RULE_TEXT = 'text-[clamp(0.9rem,2.1vh,1.55rem)]';
-const RULES_LABEL = 'text-[clamp(0.65rem,1.4vh,0.9rem)] font-bold uppercase tracking-[0.25em] text-primary-300';
+const RULE_TEXT = 'text-[clamp(0.8rem,1.6vh,1.15rem)]';
+const RULES_LABEL = 'text-[clamp(0.6rem,1.15vh,0.8rem)] font-bold uppercase tracking-[0.25em] text-primary-300';
 
 // Lista numerada das regras; `offset` continua a numeração na segunda parte.
 function RuleList({ rules, offset = 0, spacing }: { rules: string[]; offset?: number; spacing: string }) {
@@ -67,10 +67,10 @@ function RuleList({ rules, offset = 0, spacing }: { rules: string[]; offset?: nu
 // Nome do jogo com tipo e duração
 function GameTitleRow({ game, isNext }: { game: GuideGame; isNext: boolean }) {
   const isTeam = String(game.type || 'team').toLowerCase() !== 'individual';
-  const chip = 'inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-3 py-0.5 text-[clamp(0.75rem,1.7vh,1.05rem)] text-gray-300';
+  const chip = 'inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-3 py-0.5 text-[clamp(0.7rem,1.35vh,0.9rem)] text-gray-300';
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-      <h3 className="font-display text-[clamp(1.6rem,4.6vh,3.4rem)] font-bold leading-tight text-white">{game.name}</h3>
+      <h3 className="font-display text-[clamp(1.3rem,3.3vh,2.5rem)] font-bold leading-tight text-white">{game.name}</h3>
       <span className={chip}>
         {isTeam ? <Users size={16} /> : <User size={16} />}
         {isTeam ? 'Em equipe' : 'Individual'}
@@ -82,7 +82,7 @@ function GameTitleRow({ game, isNext }: { game: GuideGame; isNext: boolean }) {
         </span>
       ) : null}
       {isNext && (
-        <span className="rounded-full border border-warning-400/30 bg-warning-500/15 px-3 py-0.5 text-[clamp(0.7rem,1.5vh,0.95rem)] font-bold uppercase tracking-wide text-warning-300">
+        <span className="rounded-full border border-warning-400/30 bg-warning-500/15 px-3 py-0.5 text-[clamp(0.65rem,1.25vh,0.85rem)] font-bold uppercase tracking-wide text-warning-300">
           Próximo jogo
         </span>
       )}
@@ -211,7 +211,7 @@ export default function GameGuide({
               <div className="animate-in fade-in duration-500">
                 <GameTitleRow game={current} isNext={isNext} />
                 {current.description && (!isPaged || page === 0) ? (
-                  <p className="mt-2 leading-snug text-gray-200 text-[clamp(0.9rem,2vh,1.5rem)]">{current.description}</p>
+                  <p className="mt-2 leading-snug text-gray-200 text-[clamp(0.8rem,1.55vh,1.1rem)]">{current.description}</p>
                 ) : null}
                 {visibleRules.length > 0 && (
                   <div className="mt-3">
@@ -226,11 +226,11 @@ export default function GameGuide({
           // Painel dividido ao meio: o jogo (nome, tipo, descrição) à esquerda e as regras à direita
           <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row lg:gap-0" aria-live="polite">
             <div className={`min-h-[200px] min-w-0 lg:min-h-0 ${rules.length > 0 ? 'lg:w-1/2 lg:pr-5' : 'lg:w-full'}`}>
-              <FitToBox key={current.id} align="center" scrollOverflow minScale={0.55} maxScale={1.2}>
+              <FitToBox key={current.id} align="center" scrollOverflow minScale={0.55} maxScale={1}>
                 <div className="animate-in fade-in duration-500">
                   <GameTitleRow game={current} isNext={isNext} />
                   {current.description ? (
-                    <p className="mt-3 leading-snug text-gray-200 text-[clamp(0.95rem,2.2vh,1.7rem)]">{current.description}</p>
+                    <p className="mt-3 leading-snug text-gray-200 text-[clamp(0.8rem,1.65vh,1.2rem)]">{current.description}</p>
                   ) : null}
                 </div>
               </FitToBox>
@@ -240,7 +240,7 @@ export default function GameGuide({
               <>
                 <div className="hidden w-px shrink-0 bg-gradient-to-b from-transparent via-white/15 to-transparent lg:block" aria-hidden="true" />
                 <div className="min-h-[240px] min-w-0 lg:min-h-0 lg:w-1/2 lg:pl-5">
-                  <FitToBox key={`${current.id}-${page}`} align="center" scrollOverflow minScale={0.55} maxScale={1.2} onOverflowChange={overflowWatcher}>
+                  <FitToBox key={`${current.id}-${page}`} align="center" scrollOverflow minScale={0.55} maxScale={1} onOverflowChange={overflowWatcher}>
                     <div className="animate-in fade-in duration-500">
                       <p className={`mb-2 ${RULES_LABEL}`}>Regras{pageLabel}</p>
                       <RuleList rules={visibleRules} offset={visibleOffset} spacing="space-y-2" />
