@@ -416,7 +416,7 @@ export default function DisplayMain() {
         setMonsterStatus(null);
       } else if (event.type === 'TEAMS_DRAWN' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const equipes = Array.isArray(event.payload?.teams) ? event.payload.teams : [];
-        if (equipes.length > 0) setSorteioEquipes({ chave: Date.now(), teams: equipes });
+        if (equipes.length > 0) setSorteioEquipes({ chave: Date.now(), mode: event.payload?.mode, teams: equipes });
         // Os times e seus pontos mudaram com o sorteio
         const { loadTeams: reloadTeams, loadChildren: reloadChildren } = usePulynStore.getState();
         reloadTeams();
