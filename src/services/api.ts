@@ -1,4 +1,5 @@
 // src/services/api.ts
+import { lerToken } from '../utils/sessao';
 import { useAuth } from '../hooks/useAuth';
 
 const LOCAL_API_URL = `${window.location.protocol === 'https:' ? 'https' : 'http'}://${window.location.hostname}:3001/api`;
@@ -71,7 +72,7 @@ export const API_URL = (configuredForProduction || fallbackApiUrl).replace(/\/+$
 // Helper para obter headers com autenticação
 function getAuthHeaders() {
   try {
-    const token = localStorage.getItem('authToken') || useAuth.getState().token;
+    const token = lerToken() || useAuth.getState().token;
     if (!token) {
       throw new Error('Sessão expirada. Faça login novamente.');
     }
@@ -409,6 +410,14 @@ export const api = {
     } catch {
       throw Object.assign(new Error('Sem conexão com o servidor'), { semConexao: true });
     }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao abrir o telão (${res.status})`);
+    return data;
+  },
+
+  // Telão aberto pela equipe logada: pede a sessão de telão do próprio buffet (ver routes/auth.js).
+  async abrirTelaoDaEquipe(): Promise<any> {
+    const res = await fetch(`${API_URL}/auth/telao-da-equipe`, { method: 'POST', headers: getAuthHeaders() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erro ao abrir o telão (${res.status})`);
     return data;

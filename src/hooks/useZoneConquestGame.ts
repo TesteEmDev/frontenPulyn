@@ -1,4 +1,5 @@
 // hooks/useZoneConquestGame.ts - Hook para gerenciar estado do Zone Conquest INDIVIDUAL
+import { lerToken } from '../utils/sessao';
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { API_URL } from '../services/api';
 
@@ -64,7 +65,7 @@ export function useZoneConquestGame(eventoId: string | null) {
 
     try {
       setLoading(true);
-      const token = localStorage.getItem('authToken');
+      const token = lerToken();
       const res = await fetch(`${API_URL}/leituras/${encodeURIComponent(eventoId)}/zone-conquest/status`, {
         headers: {
           'Content-Type': 'application/json',

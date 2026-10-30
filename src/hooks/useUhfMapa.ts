@@ -1,3 +1,4 @@
+import { lerToken } from '../utils/sessao';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_URL, api, type ModoUhfMapa, type UhfMapa } from '../services/api';
 import { createAuthenticatedWebSocket, getWebSocketServerUrl } from '../services/websocket';
@@ -67,7 +68,7 @@ export function useUhfMapa(filtros: FiltrosUhfMapa) {
   // Aviso em tempo real (canal da empresa). Só vale no modo ao vivo.
   useEffect(() => {
     if (balde) return undefined;
-    const token = localStorage.getItem('authToken');
+    const token = lerToken();
     if (!token) return undefined;
     let socket: WebSocket | null = null;
     let fechado = false;

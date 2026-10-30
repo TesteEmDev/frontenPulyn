@@ -1,3 +1,4 @@
+import { lerToken, sessaoSoDestaAba } from './utils/sessao';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useEffect, useCallback } from 'react';
@@ -72,7 +73,8 @@ function TelaoSessao() {
   const entrarComoTelao = useAuth((state) => state.entrarComoTelao);
   useEffect(() => {
     const codigo = localStorage.getItem('telaoCodigo');
-    if (papel !== 'display' || !codigo) return;
+    // Telão aberto pela equipe (sessão só desta aba) não renova por código: ele escreveria na sessão da recepção
+    if (papel !== 'display' || !codigo || sessaoSoDestaAba()) return;
     const renovar = setInterval(() => { entrarComoTelao(codigo); }, 6 * 60 * 60 * 1000);
     return () => clearInterval(renovar);
   }, [papel, entrarComoTelao]);
@@ -142,7 +144,7 @@ function App() {
 
   // Restaurar sessão ao iniciar a app
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
+    const token = lerToken();
     if (token && !isAuthenticated) {
       // Token existe mas não está no state - pode ser um reload
       // O useAuth já tenta recuperar, então apenas continua
@@ -221,6 +223,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
 
           {/* Telão */}
+          <Route path="/telao" element={<TelaoEntrada />} />
           <Route path="/telao/:codigo" element={<TelaoEntrada />} />
           <Route path="/display" element={<ProtectedRoute allowedRoles={['display']}><DisplayMain /></ProtectedRoute>} />
           <Route path="/display/ranking" element={<ProtectedRoute allowedRoles={['display']}><DisplayRanking /></ProtectedRoute>} />

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../services/api';
+import { lerToken, guardarTokenSoDestaAba, sessaoSoDestaAba, limparTokenDestaAba } from '../utils/sessao';
 
 export interface User {
   id: string;
@@ -23,6 +24,8 @@ interface AuthStore {
   atualizarAreas: () => Promise<void>;
   // Telão sem login (/telao/<código>): `semConexao` diz que vale tentar de novo; sem ele, o código foi recusado.
   entrarComoTelao: (codigo: string) => Promise<{ success: boolean; error?: string; semConexao?: boolean }>;
+  // Telão aberto pela equipe logada (botão da recepção): sessão de telão só desta aba, sem mexer na da equipe.
+  abrirTelaoDaEquipe: () => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 
@@ -50,7 +53,7 @@ export const useAuth = create<AuthStore>((set, get) => {
   }
 
   // Tentar recuperar token do localStorage ao iniciar
-  const savedToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+  const savedToken = typeof window !== 'undefined' ? lerToken() : null;
   let initialUser: User | null = null;
   let isInitiallyAuthenticated = false;
 
@@ -151,10 +154,28 @@ export const useAuth = create<AuthStore>((set, get) => {
       }
     },
 
+    abrirTelaoDaEquipe: async () => {
+      try {
+        const response = await api.abrirTelaoDaEquipe();
+        if (!response.success || !response.user || !response.token) return { success: false, error: 'Resposta inesperada do servidor' };
+        // Só nesta aba: a conta da equipe segue logada nas outras abas
+        guardarTokenSoDestaAba(response.token);
+        set({ user: response.user, token: response.token, isAuthenticated: true });
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err.message || 'Não foi possível abrir o telão' };
+      }
+    },
+
     logout: () => {
       api.logout().catch(err => console.error('Erro ao fazer logout:', err));
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('telaoCodigo');
+      if (sessaoSoDestaAba()) {
+        // Telão aberto pela equipe: sair daqui não derruba a sessão da equipe nas outras abas
+        limparTokenDestaAba();
+      } else {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('telaoCodigo');
+      }
       set({ user: null, token: null, isAuthenticated: false });
     },
   };

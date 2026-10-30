@@ -1,4 +1,5 @@
 // hooks/useNFCReader_otimizado.ts - VERSÃO ULTRA OTIMIZADA
+import { lerToken } from '../utils/sessao';
 import { useEffect, useRef, useState } from 'react';
 import { API_URL } from '../services/api';
 import { createAuthenticatedWebSocket, getWebSocketServerUrl } from '../services/websocket';
@@ -61,7 +62,7 @@ export function useNFCOtimizado(
       if (disposed || !pollingEnabledRef.current || !supportsPollingSource || !eventoId) return since;
 
       try {
-        const token = localStorage.getItem('authToken');
+        const token = lerToken();
         if (!token) return since;
 
         const readingPath = expectedSource === 'score-kiosk' ? 'score-readings' : 'reception-readings';
@@ -111,7 +112,7 @@ export function useNFCOtimizado(
 
       const serverUrl = getWebSocketServerUrl(API_URL);
       const token = (expectedSource === 'reception' || expectedSource === 'score-kiosk')
-        ? localStorage.getItem('authToken')
+        ? lerToken()
         : null;
       const eventQuery = new URLSearchParams({ eventoId: eventoId });
       const wsUrl = `${serverUrl}?${eventQuery.toString()}`;
