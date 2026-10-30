@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { ChevronDown, Loader2, LogOut } from 'lucide-react';
 import PulynLogo from '../ui/PulynLogo';
@@ -35,6 +35,11 @@ const navegacaoDaArea = (role: string, plan?: string): SidebarItem[] => {
   if (role === 'game_master') return GAME_MASTER_NAV_ITEMS;
   return [];
 };
+
+// Cada tela monta o próprio menu, então ele nasce de novo a cada troca de tela. O que o usuário já fez nele (até onde
+// rolou e quais áreas abriu ou fechou) fica guardado aqui para a próxima tela montar o menu do mesmo jeito.
+let rolagemDoMenu = 0;
+const areasAbertasDoMenu: Record<string, boolean> = {};
 
 interface SidebarProps {
   items: SidebarItem[];
@@ -83,11 +88,27 @@ export default function Sidebar({
     .filter((area) => area.items.length > 0);
 
   // Dropdown de cada área extra. Abre sozinha quando a tela atual é dela.
-  const [areasAbertas, setAreasAbertas] = useState<Record<string, boolean>>({});
+  const [areasAbertas, setAreasAbertas] = useState<Record<string, boolean>>(() => ({ ...areasAbertasDoMenu }));
   const areaEstaAberta = (role: string, items: SidebarItem[]) =>
     areasAbertas[role] ?? items.some((item) => activePath === item.path || activePath.startsWith(`${item.path}/`));
-  const alternarArea = (role: string, items: SidebarItem[]) =>
-    setAreasAbertas((prev) => ({ ...prev, [role]: !areaEstaAberta(role, items) }));
+  const alternarArea = (role: string, items: SidebarItem[]) => {
+    const aberta = !areaEstaAberta(role, items);
+    areasAbertasDoMenu[role] = aberta;
+    setAreasAbertas((prev) => ({ ...prev, [role]: aberta }));
+  };
+
+  // Ao trocar de tela o menu volta para onde estava; na primeira vez (ou ao recarregar) mostra o item da tela atual.
+  const navRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    if (rolagemDoMenu > 0) {
+      nav.scrollTop = rolagemDoMenu;
+    } else {
+      nav.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' });
+      rolagemDoMenu = nav.scrollTop;
+    }
+  }, []);
 
   // Abre uma tela de qualquer área da conta. Se ela é de outra área, antes pede o acesso dessa área (o menu continua o mesmo).
   const [trocando, setTrocando] = useState<string | null>(null);
@@ -152,7 +173,12 @@ export default function Sidebar({
         </div>
       )}
 
-      <nav aria-label="Navegação principal" className="flex-1 space-y-1 overflow-y-auto py-4">
+      <nav
+        ref={navRef}
+        aria-label="Navegação principal"
+        className="flex-1 space-y-1 overflow-y-auto py-4"
+        onScroll={(e) => { rolagemDoMenu = e.currentTarget.scrollTop; }}
+      >
         {itensPrincipais.map((item) => {
           const isActive = activePath === item.path;
           return (
