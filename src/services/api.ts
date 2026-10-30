@@ -397,6 +397,38 @@ export const api = {
     return data;
   },
 
+  // Telão sem login: troca o código do link (/telao/<código>) por uma sessão do perfil display (ver routes/auth.js).
+  async entrarTelao(codigo: string): Promise<any> {
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}/auth/telao`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo }),
+      });
+    } catch {
+      throw Object.assign(new Error('Sem conexão com o servidor'), { semConexao: true });
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao abrir o telão (${res.status})`);
+    return data;
+  },
+
+  // Código do link do telão deste buffet (o admin vê e pode trocar; ver routes/telao.js).
+  async getCodigoTelao(): Promise<string> {
+    const res = await fetch(`${API_URL}/telao/codigo`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao buscar o link do telão (${res.status})`);
+    return data.codigo;
+  },
+
+  async renovarCodigoTelao(): Promise<string> {
+    const res = await fetch(`${API_URL}/telao/codigo/renovar`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao gerar um novo link do telão (${res.status})`);
+    return data.codigo;
+  },
+
   // Define as áreas extras de uma conta da equipe (ver routes/logins.js, montado em /acessos).
   async definirPapeisLogin(loginId: string, papeis: string[]): Promise<any> {
     const res = await fetch(`${API_URL}/acessos/${encodeURIComponent(loginId)}/papeis`, {

@@ -11,6 +11,9 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
 
   // ✅ Se não está autenticado, redireciona para login
   if (!isAuthenticated) {
+    // Telão aberto por link: a sessão venceu, mas o código ficou guardado e entra de novo sozinho
+    const codigoTelao = allowedRoles?.includes('display') ? localStorage.getItem('telaoCodigo') : null;
+    if (codigoTelao) return <Navigate to={`/telao/${encodeURIComponent(codigoTelao)}`} replace />;
     return <Navigate to="/login" replace />;
   }
 

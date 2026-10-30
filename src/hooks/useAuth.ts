@@ -21,6 +21,8 @@ interface AuthStore {
   trocarArea: (role: string) => Promise<{ success: boolean; redirect?: string; error?: string }>;
   // Busca as áreas atuais da conta no servidor (o token da sessão guarda as de quando ela entrou).
   atualizarAreas: () => Promise<void>;
+  // Telão sem login (/telao/<código>): `semConexao` diz que vale tentar de novo; sem ele, o código foi recusado.
+  entrarComoTelao: (codigo: string) => Promise<{ success: boolean; error?: string; semConexao?: boolean }>;
   logout: () => void;
 }
 
@@ -135,9 +137,24 @@ export const useAuth = create<AuthStore>((set, get) => {
       }
     },
 
+    entrarComoTelao: async (codigo: string) => {
+      try {
+        const response = await api.entrarTelao(codigo);
+        if (!response.success || !response.user || !response.token) return { success: false, error: 'Resposta inesperada do servidor' };
+        set({ user: response.user, token: response.token, isAuthenticated: true });
+        localStorage.setItem('authToken', response.token);
+        // A TV guarda o código para entrar de novo quando a sessão vencer (ProtectedRoute e TelaoSessao)
+        localStorage.setItem('telaoCodigo', codigo);
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err.message || 'Não foi possível abrir o telão', semConexao: Boolean(err.semConexao) };
+      }
+    },
+
     logout: () => {
       api.logout().catch(err => console.error('Erro ao fazer logout:', err));
       localStorage.removeItem('authToken');
+      localStorage.removeItem('telaoCodigo');
       set({ user: null, token: null, isAuthenticated: false });
     },
   };
