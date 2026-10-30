@@ -19,7 +19,7 @@ export interface FimDeJogo {
 const EXIBICAO_MS = 45000;
 const MEDALHAS = ['#FACC15', '#CBD5E1', '#FB923C'];
 
-interface Linha {
+export interface Linha {
   id: string;
   nome: string;
   pontos: number;
@@ -59,7 +59,8 @@ function ListaDeRanking({ titulo, linhas, destacarPrimeiro = true }: { titulo: s
   );
 }
 
-export default function PontuacaoFinal({ fim, onTerminar }: { fim: FimDeJogo; onTerminar: () => void }) {
+// `exemplo` troca os dados do evento por dados de teste (página de demonstração /demo/pontuacao-final).
+export default function PontuacaoFinal({ fim, onTerminar, exemplo }: { fim: FimDeJogo; onTerminar: () => void; exemplo?: { equipes: Linha[]; participantes: Linha[] } }) {
   const teams = usePulynStore((state) => state.teams);
   const children = usePulynStore((state) => state.children);
 
@@ -68,12 +69,12 @@ export default function PontuacaoFinal({ fim, onTerminar }: { fim: FimDeJogo; on
     return () => window.clearTimeout(timer);
   }, [fim.chave, onTerminar]);
 
-  const equipes = useMemo<Linha[]>(() => [...teams]
+  const equipesDoEvento = useMemo<Linha[]>(() => [...teams]
     .map((team: any) => ({ id: String(team.id), nome: String(team.name ?? team.nome ?? 'Equipe'), pontos: Number(team.points ?? team.score ?? 0), cor: String(team.color ?? team.cor ?? '#1E9BD7') }))
     .sort((a, b) => b.pontos - a.pontos)
     .slice(0, 5), [teams]);
 
-  const participantes = useMemo<Linha[]>(() => {
+  const participantesDoEvento = useMemo<Linha[]>(() => {
     const corDaEquipe = new Map(teams.map((team: any) => [String(team.id), String(team.color ?? team.cor ?? '#1E9BD7')]));
     return [...children]
       .filter((child) => child.status === 'active')
@@ -87,6 +88,9 @@ export default function PontuacaoFinal({ fim, onTerminar }: { fim: FimDeJogo; on
       .sort((a, b) => b.pontos - a.pontos)
       .slice(0, fim.individual ? 5 : 3);
   }, [children, teams, fim.individual]);
+
+  const equipes = exemplo ? exemplo.equipes : equipesDoEvento;
+  const participantes = exemplo ? exemplo.participantes.slice(0, fim.individual ? 5 : 3) : participantesDoEvento;
 
   const temPontos = [...equipes, ...participantes].some((linha) => linha.pontos > 0);
 
