@@ -21,6 +21,7 @@ import RouletteOverlay, { type RouletteData } from '../../components/game-master
 import PreJogoMapa, { type LeituraPreJogo } from '../../components/display/PreJogoMapa';
 import SorteioEquipes, { type SorteioDasEquipes } from '../../components/display/SorteioEquipes';
 import UltimasLeituras, { type LeituraDoJogo } from '../../components/display/UltimasLeituras';
+import PontuacaoFinal, { type FimDeJogo } from '../../components/display/PontuacaoFinal';
 import { numeroDoCheckpoint } from '../../utils/checkpoints';
 
 interface MonsterDisplayMonster {
@@ -75,6 +76,9 @@ export default function DisplayMain() {
   // Sorteio das equipes em andamento no telão (some sozinho depois de mostrar tudo)
   const [sorteioEquipes, setSorteioEquipes] = useState<SorteioDasEquipes | null>(null);
   const encerrarSorteio = useCallback(() => setSorteioEquipes(null), []);
+  // Fim de um jogo: pontuação final com o Pulyn comemorando (some sozinha)
+  const [fimDeJogo, setFimDeJogo] = useState<FimDeJogo | null>(null);
+  const encerrarFimDeJogo = useCallback(() => setFimDeJogo(null), []);
   const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
   const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
   // Jogo escolhido pelo recreacionista e ainda não iniciado: o telão mostra as regras dele
@@ -347,6 +351,7 @@ export default function DisplayMain() {
       setSelectedGameType(null);
       setSelectedGameName(null);
       setSelectedGameId(null);
+      setFimDeJogo(null);
       setTreasureStatus(null);
       setMonsterStatus(null);
       setGameActive(false);
@@ -446,19 +451,24 @@ export default function DisplayMain() {
         // setSelectedGameType(event.payload?.gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
         setSelectedGameId(event.payload?.gameId ? String(event.payload.gameId) : null);
+        setFimDeJogo(null);
         // Limpar status quando seleciona novo jogo (mas não mostra mapa ainda)
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
       } else if (event.type === 'TEAMS_DRAWN' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const equipes = Array.isArray(event.payload?.teams) ? event.payload.teams : [];
-        if (equipes.length > 0) setSorteioEquipes({ chave: Date.now(), mode: event.payload?.mode, teams: equipes });
+        if (equipes.length > 0) {
+          setFimDeJogo(null);
+          setSorteioEquipes({ chave: Date.now(), mode: event.payload?.mode, teams: equipes });
+        }
         // Os times e seus pontos mudaram com o sorteio
         const { loadTeams: reloadTeams, loadChildren: reloadChildren } = usePulynStore.getState();
         reloadTeams();
         reloadChildren();
       } else if (event.type === 'GAME_SELECTION_CLEARED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         // "Sem jogos": sai a tela de regras e volta o mapa livre
+        setFimDeJogo(null);
         setSelectedGameName(null);
         setSelectedGameId(null);
         setSelectedGameType(null);
@@ -512,6 +522,7 @@ export default function DisplayMain() {
         setGameActive(true);
         setGameStateLoaded(true);
         setSorteioEquipes(null);
+        setFimDeJogo(null);
         setSelectedGameType(gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
         
@@ -585,6 +596,16 @@ export default function DisplayMain() {
           setZoneConquestStatus(null);
         }
       } else if (event.type === 'GAME_STOPPED' && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
+        // Havia um jogo rodando: mostra a pontuação final com o Pulyn comemorando
+        if (gameActive) {
+          const tipoDoJogo = guideGames.find((g) => g.name === selectedGameName)?.type;
+          // O aviso de fim pode chegar duas vezes (geral e da sala): a segunda não reinicia a tela
+          setFimDeJogo((atual) => atual ?? {
+            chave: Date.now(),
+            nomeJogo: selectedGameName,
+            individual: String(tipoDoJogo || '').toLowerCase() === 'individual' || isIndividualMode,
+          });
+        }
         setGameActive(false);
         refreshGuideGames();
         setSelectedGameType(null);
@@ -1215,6 +1236,11 @@ export default function DisplayMain() {
             - com leituras: metade guia, metade placar. */}
         {!gameStateLoaded ? (
           <div className="flex-1" />
+        ) : !gameActive && fimDeJogo ? (
+          // Fim de jogo: pontuação final com o Pulyn comemorando
+          <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
+            <PontuacaoFinal key={fimDeJogo.chave} fim={fimDeJogo} onTerminar={encerrarFimDeJogo} />
+          </section>
         ) : !gameActive && sorteioEquipes ? (
           // Sorteio das equipes: a formação aparece no telão enquanto o recreacionista sorteia
           <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
