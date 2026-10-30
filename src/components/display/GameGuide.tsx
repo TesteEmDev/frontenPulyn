@@ -97,12 +97,17 @@ export default function GameGuide({
   games,
   highlightName,
   compact = false,
+  heading,
+  subheading,
 }: {
   games: GuideGame[];
   // Jogo já escolhido pelo Game Master e ainda não iniciado: abre nele e recebe a etiqueta "Próximo jogo"
   highlightName?: string | null;
   // Metade da tela (dividindo com o placar): uma coluna só, em vez do painel dividido ao meio
   compact?: boolean;
+  // Troca o título do painel (ex.: regras de um jogo só, antes dele começar) e esconde o "Jogo 1 de N"
+  heading?: string;
+  subheading?: string;
 }) {
   const [index, setIndex] = useState(() => {
     const found = highlightName ? games.findIndex((g) => g.name === highlightName) : -1;
@@ -179,8 +184,12 @@ export default function GameGuide({
               <Gamepad2 size={20} />
             </div>
             <div>
-              <h2 className="font-display text-[clamp(1.1rem,2.6vh,1.8rem)] font-bold text-white">Guia dos jogos</h2>
-              <p className="text-[clamp(0.65rem,1.4vh,0.9rem)] text-gray-500">Jogo {(index % count) + 1} de {count}{compact ? '' : ' · conheça as regras enquanto o próximo jogo não começa'}</p>
+              <h2 className="font-display text-[clamp(1.1rem,2.6vh,1.8rem)] font-bold text-white">{heading ?? 'Guia dos jogos'}</h2>
+              <p className="text-[clamp(0.65rem,1.4vh,0.9rem)] text-gray-500">
+                {heading
+                  ? subheading
+                  : <>Jogo {(index % count) + 1} de {count}{compact ? '' : ' · conheça as regras enquanto o próximo jogo não começa'}</>}
+              </p>
             </div>
           </div>
           {count > 1 && (

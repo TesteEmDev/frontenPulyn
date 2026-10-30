@@ -71,6 +71,8 @@ export default function DisplayMain() {
   const [ultimaLeituraPreJogo, setUltimaLeituraPreJogo] = useState<LeituraPreJogo | null>(null);
   const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
   const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
+  // Jogo escolhido pelo recreacionista e ainda não iniciado: o telão mostra as regras dele
+  const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [treasureStatus, setTreasureStatus] = useState<TreasureArenaStatus | null>(null);
   const [lastTreasureEvent, setLastTreasureEvent] = useState<TreasureArenaEvent | null>(null);
   const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
@@ -103,6 +105,14 @@ export default function DisplayMain() {
   const jogoDeZona = ['zone_conquest', 'zone', 'territory', 'territory_conquest'].includes(selectedGameType || '');
   const dominioEstado = useDominioEstado(selectedEventId || null, jogoDeZona && !isIndividualMode);
   const dominioAtivo = Boolean(dominioEstado?.ativo) && jogoDeZona && !isIndividualMode;
+
+  // O jogo escolhido, com descrição e regras cadastradas (acha pelo id; sem ele, pelo nome). Sem cadastro completo, mostra só o nome.
+  const jogoSelecionado: GuideGame = useMemo(() => {
+    const achado = guideGames.find((g) => selectedGameId && g.id.toLowerCase() === selectedGameId.toLowerCase())
+      ?? guideGames.find((g) => g.name.trim().toLowerCase() === String(selectedGameName || '').trim().toLowerCase());
+    const base: GuideGame = achado ?? { id: selectedGameId || String(selectedGameName || 'jogo'), name: String(selectedGameName || 'Jogo') };
+    return base.description || base.rules ? base : { ...base, description: 'O recreacionista vai explicar como jogar.' };
+  }, [guideGames, selectedGameId, selectedGameName]);
 
   const topParticipants = useMemo(() => [...children]
     .filter(child => child.status === 'active')
@@ -299,6 +309,7 @@ export default function DisplayMain() {
       setLastTreasureEvent(null);
       setSelectedGameType(null);
       setSelectedGameName(null);
+      setSelectedGameId(null);
       setTreasureStatus(null);
       setMonsterStatus(null);
       setGameActive(false);
@@ -319,6 +330,7 @@ export default function DisplayMain() {
           if (!disposed && gameState?.selected) {
             setSelectedGameType(gameState.gameType || null);
             setSelectedGameName(gameState.gameName || null);
+            setSelectedGameId(gameState.gameId ? String(gameState.gameId) : null);
           }
         } catch (stateError) {
           console.error('Erro ao restaurar seleção do jogo no telão:', stateError);
@@ -393,6 +405,7 @@ export default function DisplayMain() {
         // NÃO setar selectedGameType aqui - apenas quando GAME_STARTED
         // setSelectedGameType(event.payload?.gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
+        setSelectedGameId(event.payload?.gameId ? String(event.payload.gameId) : null);
         // Limpar status quando seleciona novo jogo (mas não mostra mapa ainda)
         setTreasureStatus(null);
         setLastTreasureEvent(null);
@@ -523,6 +536,7 @@ export default function DisplayMain() {
         refreshGuideGames();
         setSelectedGameType(null);
         setSelectedGameName(null);
+        setSelectedGameId(null);
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
@@ -1142,6 +1156,16 @@ export default function DisplayMain() {
             - com leituras: metade guia, metade placar. */}
         {!gameStateLoaded ? (
           <div className="flex-1" />
+        ) : !gameActive && selectedGameName ? (
+          // Jogo escolhido e ainda não iniciado: as regras dele ocupam a tela até o recreacionista iniciar
+          <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
+            <GameGuide
+              games={[jogoSelecionado]}
+              highlightName={jogoSelecionado.name}
+              heading="Regras do próximo jogo"
+              subheading="Leia com atenção: o jogo começa em instantes"
+            />
+          </section>
         ) : !gameActive ? (
           // Pré-jogo: o mapa com os checkpoints e o aviso de checkpoint lido. Depois de uma partida, o placar fica ao lado.
           hasReadings ? (
