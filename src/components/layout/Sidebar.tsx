@@ -4,7 +4,7 @@ import { ChevronDown, Loader2, LogOut } from 'lucide-react';
 import PulynLogo from '../ui/PulynLogo';
 import { useAuth, roleLabels } from '../../hooks/useAuth';
 import { useBuffetName, useBuffetNameStore, DEFAULT_BUFFET_TITLE } from '../../hooks/useBuffetName';
-import { ADMIN_NAV_ITEMS } from './AdminSidebar';
+import { itensDoAdmin } from './AdminSidebar';
 import { RECEPTION_NAV_ITEMS } from './ReceptionSidebar';
 import { GAME_MASTER_NAV_ITEMS } from './gameMasterNav';
 
@@ -21,9 +21,16 @@ const AREA_COR: Record<string, string> = {
   game_master: '#F59E0B',
 };
 
-// Menu de cada área. Conta com mais de uma área mostra as outras áreas abaixo do menu atual.
-const navegacaoDaArea = (role: string): SidebarItem[] => {
-  if (role === 'admin') return ADMIN_NAV_ITEMS;
+// Cor do destaque do menu da área principal da conta (a mesma que a tela de cada área usa).
+const AREA_DESTAQUE: Record<string, string> = {
+  admin: '#1E9BD7',
+  reception: '#F59E0B',
+  game_master: '#06B6D4',
+};
+
+// Menu de cada área. Conta com mais de uma área mostra o menu da área principal e, abaixo, as outras áreas.
+const navegacaoDaArea = (role: string, plan?: string): SidebarItem[] => {
+  if (role === 'admin') return itensDoAdmin(plan);
   if (role === 'reception') return RECEPTION_NAV_ITEMS;
   if (role === 'game_master') return GAME_MASTER_NAV_ITEMS;
   return [];
@@ -63,10 +70,16 @@ export default function Sidebar({
     };
   }, [papelAtual, atualizarAreas]);
 
-  // Áreas extras da conta: aparecem no menu. Clicar em um item troca de área e abre a tela.
-  const outrasAreas = (user?.papeis ?? [])
-    .filter((role) => role !== user?.role)
-    .map((role) => ({ role, items: navegacaoDaArea(role) }))
+  // Conta com mais de uma área: o menu é sempre o da área principal (a primeira da conta, ex.: recepção), em qualquer tela,
+  // e as outras áreas ficam abaixo, para abrir e fechar. Entrar numa tela de outra área não troca o menu.
+  const papeis = user?.papeis ?? [];
+  const variasAreas = papeis.length > 1;
+  const areaPrincipal = variasAreas ? papeis[0] : user?.role ?? '';
+  const itensPrincipais = variasAreas ? navegacaoDaArea(areaPrincipal, user?.plan) : items;
+  const destaque = variasAreas ? (AREA_DESTAQUE[areaPrincipal] ?? accentColor) : accentColor;
+  const outrasAreas = papeis
+    .filter((role) => role !== areaPrincipal)
+    .map((role) => ({ role, items: navegacaoDaArea(role, user?.plan) }))
     .filter((area) => area.items.length > 0);
 
   // Dropdown de cada área extra. Abre sozinha quando a tela atual é dela.
@@ -76,9 +89,13 @@ export default function Sidebar({
   const alternarArea = (role: string, items: SidebarItem[]) =>
     setAreasAbertas((prev) => ({ ...prev, [role]: !areaEstaAberta(role, items) }));
 
-  // Clicar em um item de outra área troca a área e abre a tela. Enquanto troca, o item mostra o carregamento.
+  // Abre uma tela de qualquer área da conta. Se ela é de outra área, antes pede o acesso dessa área (o menu continua o mesmo).
   const [trocando, setTrocando] = useState<string | null>(null);
   const irParaArea = async (role: string, path: string) => {
+    if (role === user?.role) {
+      navigate(path);
+      return;
+    }
     setTrocando(`${role}|${path}`);
     const resultado = await trocarArea(role);
     setTrocando(null);
@@ -90,7 +107,7 @@ export default function Sidebar({
   };
   // No admin, o nome exibido é o "Nome da unidade" do cadastro do buffet.
   const unitName = useBuffetName(user?.role === 'admin');
-  const displayName = user?.role === 'admin' && unitName !== DEFAULT_BUFFET_TITLE ? unitName : user?.name || '';
+  const displayName = user?.role === 'admin' && areaPrincipal === 'admin' && unitName !== DEFAULT_BUFFET_TITLE ? unitName : user?.name || '';
   const logoUrl = useBuffetNameStore(state => (user?.role === 'admin' && state.empresaId === user.empresaId ? state.logoUrl : ''));
 
   const handleLogout = () => {
@@ -129,26 +146,28 @@ export default function Sidebar({
           >
             <p className="text-sm font-medium text-white truncate" title={displayName}>{displayName}</p>
             <p className="text-xs truncate" style={{ color: '#6B8BA4' }}>
-              {roleLabels[user.role] || user.role}
+              {roleLabels[areaPrincipal] || areaPrincipal}
             </p>
           </div>
         </div>
       )}
 
       <nav aria-label="Navegação principal" className="flex-1 space-y-1 overflow-y-auto py-4">
-        {items.map((item) => {
+        {itensPrincipais.map((item) => {
           const isActive = activePath === item.path;
           return (
             <NavLink
               key={item.path}
               to={item.path}
+              // Estando numa tela de outra área, voltar a um item da principal pede o acesso dela antes de abrir
+              onClick={variasAreas && user?.role !== areaPrincipal ? (e) => { e.preventDefault(); irParaArea(areaPrincipal, item.path); } : undefined}
               title={collapsed ? item.label : undefined}
               className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60 ${
                 isActive
                   ? 'bg-primary-500/10 text-primary-300 shadow-[inset_3px_0_0_currentColor]'
                   : 'text-gray-400 hover:bg-white/[0.05] hover:text-white'
               }`}
-              style={{ color: isActive ? accentColor : undefined }}
+              style={{ color: isActive ? destaque : undefined }}
             >
               <span className="shrink-0">{item.icon}</span>
               <span
@@ -196,12 +215,15 @@ export default function Sidebar({
                   <div className="mt-1 ml-3 space-y-0.5 border-l-2 pl-2" style={{ borderColor: `${cor}40` }}>
                     {area.items.map((item) => {
                       const trocandoEste = trocando === `${area.role}|${item.path}`;
+                      const itemAtivo = activePath === item.path;
                       return (
                         <button
                           key={item.path}
                           onClick={() => irParaArea(area.role, item.path)}
                           disabled={trocando !== null}
-                          className="group w-full flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-gray-400 transition-all duration-200 hover:bg-white/[0.06] hover:text-white disabled:cursor-wait focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60"
+                          aria-current={itemAtivo ? 'page' : undefined}
+                          className={`group w-full flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-all duration-200 hover:bg-white/[0.06] hover:text-white disabled:cursor-wait focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60 ${itemAtivo ? 'bg-white/[0.06] text-white' : 'text-gray-400'}`}
+                          style={itemAtivo ? { color: cor } : undefined}
                         >
                           <span className="shrink-0 transition-transform duration-200 group-hover:scale-110">{item.icon}</span>
                           <span className="flex-1 whitespace-nowrap text-left">{item.label}</span>
