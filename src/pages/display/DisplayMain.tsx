@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { mensagemParaTela } from '../../services/api';
 import { Trophy, Medal, Star, Zap, Clock, MapPin, Users, ArrowLeft } from 'lucide-react';
 import { useGameWebSocket } from '../../hooks/useGameWebSocket';
@@ -20,6 +20,8 @@ import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from
 import RouletteOverlay, { type RouletteData } from '../../components/game-master/RouletteOverlay';
 import PreJogoMapa, { type LeituraPreJogo } from '../../components/display/PreJogoMapa';
 import SorteioEquipes, { type SorteioDasEquipes } from '../../components/display/SorteioEquipes';
+import UltimasLeituras, { type LeituraDoJogo } from '../../components/display/UltimasLeituras';
+import { numeroDoCheckpoint } from '../../utils/checkpoints';
 
 interface MonsterDisplayMonster {
   teamId: string;
@@ -147,6 +149,37 @@ export default function DisplayMain() {
     }))
     .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
     .slice(0, 10), [scoreLog]);
+
+  // Últimas leituras para a coluna do jogo: checkpoint (número), apelido de quem passou e pontos
+  const ultimasLeituras = useMemo<LeituraDoJogo[]>(() => scoreLog
+    .map((entry: any) => {
+      const checkpoint = checkpoints.find((cp) => String(cp.id).toLowerCase() === String(entry.checkpointId ?? '').toLowerCase());
+      return {
+        id: String(entry.id ?? `${entry.childId}-${entry.timestamp}`),
+        apelido: String(entry.child_apelido || entry.childName || 'Participante'),
+        checkpoint: checkpoint ? numeroDoCheckpoint(checkpoint) : '',
+        checkpointNome: String(checkpoint?.name ?? entry.checkpoint_nome ?? ''),
+        pontos: Number(entry.points || 0),
+        cor: String(entry.teamColor || entry.team_color || '#1E9BD7'),
+        quando: new Date(entry.timestamp || entry.created_at || 0).getTime(),
+      };
+    })
+    .sort((a, b) => b.quando - a.quando)
+    .slice(0, 8)
+    .map(({ id, apelido, checkpoint, checkpointNome, pontos, cor }) => ({ id, apelido, checkpoint, checkpointNome, pontos, cor })), [scoreLog, checkpoints]);
+
+  // Uma leitura chegou: relê o histórico logo depois (o servidor leva um instante para gravar), sem repetir a cada leitura em rajada
+  const recargaDasLeituras = useRef<number | null>(null);
+  const agendarRecargaDasLeituras = useCallback(() => {
+    if (recargaDasLeituras.current !== null) return;
+    recargaDasLeituras.current = window.setTimeout(() => {
+      recargaDasLeituras.current = null;
+      usePulynStore.getState().loadScoreLog().catch(() => undefined);
+    }, 800);
+  }, []);
+  useEffect(() => () => {
+    if (recargaDasLeituras.current !== null) window.clearTimeout(recargaDasLeituras.current);
+  }, []);
 
   const refreshTreasureStatus = useCallback(async () => {
     if (!selectedEventId) {
@@ -405,6 +438,9 @@ export default function DisplayMain() {
     selectedEventId || null,
     (event) => {
       // Processar eventos do WebSocket
+      if (['NFC_READING_DETECTED', 'SCORE_UPDATE', 'CHILD_CHECKPOINT_PASSED'].includes(event.type) && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        agendarRecargaDasLeituras();
+      }
       if (event.type === 'GAME_SELECTED' && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
         // NÃO setar selectedGameType aqui - apenas quando GAME_STARTED
         // setSelectedGameType(event.payload?.gameType || null);
@@ -1141,7 +1177,13 @@ export default function DisplayMain() {
             <p className="line-clamp-2 font-display text-[clamp(1.2rem,3.4vh,2.4rem)] font-bold leading-tight text-white">{latestMessage.text}</p>
           </div>
         )}
-        <div className="mt-2 min-h-0 flex-1">{stageContent}</div>
+        <div className="mt-2 flex min-h-0 flex-1 gap-2">
+          <div className="min-h-0 min-w-0 flex-1">{stageContent}</div>
+          {/* Últimas leituras: coluna ao lado do jogo (só em telas largas) */}
+          <div className="hidden w-[clamp(13rem,19vw,21rem)] shrink-0 lg:block">
+            <UltimasLeituras leituras={ultimasLeituras} />
+          </div>
+        </div>
       </div>
     );
   }
