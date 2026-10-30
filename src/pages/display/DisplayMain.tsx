@@ -19,6 +19,7 @@ import { useTypewriterCycle } from '../../hooks/useTypewriterCycle';
 import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from '../../components/display/TreasureArena';
 import RouletteOverlay, { type RouletteData } from '../../components/game-master/RouletteOverlay';
 import PreJogoMapa, { type LeituraPreJogo } from '../../components/display/PreJogoMapa';
+import SorteioEquipes, { type SorteioDasEquipes } from '../../components/display/SorteioEquipes';
 
 interface MonsterDisplayMonster {
   teamId: string;
@@ -69,6 +70,9 @@ export default function DisplayMain() {
   const [parallelRoulette, setParallelRoulette] = useState<RouletteData | null>(null);
   // Último checkpoint lido (qualquer pulseira): o pré-jogo mostra um aviso com ele
   const [ultimaLeituraPreJogo, setUltimaLeituraPreJogo] = useState<LeituraPreJogo | null>(null);
+  // Sorteio das equipes em andamento no telão (some sozinho depois de mostrar tudo)
+  const [sorteioEquipes, setSorteioEquipes] = useState<SorteioDasEquipes | null>(null);
+  const encerrarSorteio = useCallback(() => setSorteioEquipes(null), []);
   const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
   const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
   // Jogo escolhido pelo recreacionista e ainda não iniciado: o telão mostra as regras dele
@@ -410,6 +414,13 @@ export default function DisplayMain() {
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
+      } else if (event.type === 'TEAMS_DRAWN' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        const equipes = Array.isArray(event.payload?.teams) ? event.payload.teams : [];
+        if (equipes.length > 0) setSorteioEquipes({ chave: Date.now(), teams: equipes });
+        // Os times e seus pontos mudaram com o sorteio
+        const { loadTeams: reloadTeams, loadChildren: reloadChildren } = usePulynStore.getState();
+        reloadTeams();
+        reloadChildren();
       } else if (event.type === 'GAME_SELECTION_CLEARED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         // "Sem jogos": sai a tela de regras e volta o mapa livre
         setSelectedGameName(null);
@@ -464,6 +475,7 @@ export default function DisplayMain() {
         const gameType = event.payload?.gameType;
         setGameActive(true);
         setGameStateLoaded(true);
+        setSorteioEquipes(null);
         setSelectedGameType(gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
         
@@ -1161,6 +1173,11 @@ export default function DisplayMain() {
             - com leituras: metade guia, metade placar. */}
         {!gameStateLoaded ? (
           <div className="flex-1" />
+        ) : !gameActive && sorteioEquipes ? (
+          // Sorteio das equipes: a formação aparece no telão enquanto o recreacionista sorteia
+          <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
+            <SorteioEquipes key={sorteioEquipes.chave} sorteio={sorteioEquipes} onTerminar={encerrarSorteio} />
+          </section>
         ) : !gameActive && selectedGameName ? (
           // Jogo escolhido e ainda não iniciado: as regras dele ocupam a tela até o recreacionista iniciar
           <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">

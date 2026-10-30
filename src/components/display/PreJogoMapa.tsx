@@ -99,7 +99,7 @@ export default function PreJogoMapa({ leitura }: { leitura: LeituraPreJogo | nul
         <div
           role="status"
           aria-live="polite"
-          className="absolute right-3 top-3 z-20 flex max-w-[60%] items-center gap-2 rounded-xl border border-yellow-300/40 bg-dark-card/90 px-3 py-2 shadow-lg shadow-black/30 backdrop-blur animate-in fade-in slide-in-from-top-2"
+          className="absolute right-3 top-3 z-20 flex max-w-[60%] items-center gap-2 rounded-xl border border-yellow-300/40 bg-dark-card/90 px-3 py-2 shadow-lg shadow-black/30 backdrop-blur animate-fade-in"
         >
           <Radio size={16} className="shrink-0 text-yellow-300" />
           <div className="min-w-0 leading-tight">
