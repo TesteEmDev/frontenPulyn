@@ -18,6 +18,7 @@ import FitToBox from '../../components/display/FitToBox';
 import { useTypewriterCycle } from '../../hooks/useTypewriterCycle';
 import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from '../../components/display/TreasureArena';
 import RouletteOverlay, { type RouletteData } from '../../components/game-master/RouletteOverlay';
+import PreJogoMapa, { type LeituraPreJogo } from '../../components/display/PreJogoMapa';
 
 interface MonsterDisplayMonster {
   teamId: string;
@@ -66,6 +67,8 @@ export default function DisplayMain() {
   const [messageArrivedAt, setMessageArrivedAt] = useState(0);
   // Roleta da brincadeira paralela ("Ache o objeto"): gira no telão quando o recreacionista inicia.
   const [parallelRoulette, setParallelRoulette] = useState<RouletteData | null>(null);
+  // Último checkpoint lido (qualquer pulseira): o pré-jogo mostra um aviso com ele
+  const [ultimaLeituraPreJogo, setUltimaLeituraPreJogo] = useState<LeituraPreJogo | null>(null);
   const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
   const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
   const [treasureStatus, setTreasureStatus] = useState<TreasureArenaStatus | null>(null);
@@ -394,6 +397,13 @@ export default function DisplayMain() {
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
+      } else if (event.type === 'NFC_READING_DETECTED' && sameEventId(event.payload?.eventoId, selectedEventId)
+        && event.payload?.source !== 'reception' && event.payload?.checkpointId != null) {
+        setUltimaLeituraPreJogo({
+          checkpointId: String(event.payload.checkpointId),
+          braceletCode: String(event.payload.braceletCode ?? ''),
+          chegouEm: Date.now(),
+        });
       } else if (event.type === 'PARALLEL_GAME_STARTED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const roulette = event.payload?.roulette;
         if (roulette?.segments?.length) {
@@ -1132,6 +1142,22 @@ export default function DisplayMain() {
             - com leituras: metade guia, metade placar. */}
         {!gameStateLoaded ? (
           <div className="flex-1" />
+        ) : !gameActive ? (
+          // Pré-jogo: o mapa com os checkpoints e o aviso de checkpoint lido. Depois de uma partida, o placar fica ao lado.
+          hasReadings ? (
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[3fr_2fr]">
+              <section className="min-h-[360px] min-w-0 lg:min-h-0">
+                <PreJogoMapa leitura={ultimaLeituraPreJogo} />
+              </section>
+              <div className="min-h-[360px] min-w-0 lg:min-h-0">
+                {rankingPanel}
+              </div>
+            </div>
+          ) : (
+            <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
+              <PreJogoMapa leitura={ultimaLeituraPreJogo} />
+            </section>
+          )
         ) : guideGames.length > 0 ? (
           hasReadings ? (
             <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
