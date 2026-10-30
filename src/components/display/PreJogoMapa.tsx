@@ -21,7 +21,7 @@ const AVISO_MS = 6000;
 const soAlfanumerico = (valor: unknown) => String(valor ?? '').replace(/[^0-9a-z]/gi, '').toUpperCase();
 
 export default function PreJogoMapa({ leitura }: { leitura: LeituraPreJogo | null }) {
-  const checkpoints = usePulynStore((state) => state.checkpoints);
+  const todosCheckpoints = usePulynStore((state) => state.checkpoints);
   const children = usePulynStore((state) => state.children);
   const [floorPlan, setFloorPlan] = useState<string | null>(null);
   const [avisoVisivel, setAvisoVisivel] = useState(false);
@@ -43,13 +43,21 @@ export default function PreJogoMapa({ leitura }: { leitura: LeituraPreJogo | nul
   }, [leitura?.chegouEm]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const checkpointLido = leitura
-    ? checkpoints.find((cp) => String(cp.id).toLowerCase() === leitura.checkpointId.toLowerCase())
+    ? todosCheckpoints.find((cp) => String(cp.id).toLowerCase() === leitura.checkpointId.toLowerCase())
     : undefined;
   const codigoLido = soAlfanumerico(leitura?.braceletCode);
   const participante = codigoLido
     ? children.find((c) => soAlfanumerico(c.codigoPulseira ?? c.bracelet) === codigoLido)
     : undefined;
   const quem = participante ? (participante.nickname || participante.name) : 'Pulseira não cadastrada';
+
+  // O mapa mostra só os checkpoints ligados (o status vem do último heartbeat da placa). O que acabou de ser lido também
+  // aparece: a leitura prova que ele está ligado, mesmo que a lista ainda não tenha sido atualizada. A posição usa o índice
+  // da lista inteira, para um checkpoint sem posição salva não mudar de lugar quando outro liga ou desliga.
+  const ligados = todosCheckpoints
+    .map((checkpoint, indice) => ({ checkpoint, indice }))
+    .filter(({ checkpoint }) => String(checkpoint.status || '').toLowerCase() === 'online'
+      || (avisoVisivel && checkpoint.id === checkpointLido?.id));
 
   return (
     <div className="relative h-full overflow-hidden rounded-2xl border border-primary-400/20 bg-dark-card/40">
@@ -58,11 +66,10 @@ export default function PreJogoMapa({ leitura }: { leitura: LeituraPreJogo | nul
       )}
 
       <svg className="absolute inset-0 z-10 h-full w-full" viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`} preserveAspectRatio="xMidYMid meet">
-        {checkpoints.map((checkpoint, indice) => {
-          const { x, y } = posicaoNoMapa(checkpoint, indice, checkpoints.length);
-          const online = String(checkpoint.status || '').toLowerCase() === 'online';
+        {ligados.map(({ checkpoint, indice }) => {
+          const { x, y } = posicaoNoMapa(checkpoint, indice, todosCheckpoints.length);
           const lido = avisoVisivel && checkpointLido?.id === checkpoint.id;
-          const cor = lido ? '#FACC15' : online ? '#22C55E' : '#64748B';
+          const cor = lido ? '#FACC15' : '#22C55E';
           return (
             <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
               {lido && (
@@ -81,9 +88,9 @@ export default function PreJogoMapa({ leitura }: { leitura: LeituraPreJogo | nul
         })}
       </svg>
 
-      {checkpoints.length === 0 && (
+      {ligados.length === 0 && (
         <p className="absolute inset-0 z-10 flex items-center justify-center text-center text-gray-400">
-          Nenhum checkpoint neste evento ainda.
+          {todosCheckpoints.length === 0 ? 'Nenhum checkpoint neste evento ainda.' : 'Nenhum checkpoint ligado no momento.'}
         </p>
       )}
 

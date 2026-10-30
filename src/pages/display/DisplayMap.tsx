@@ -614,7 +614,8 @@ export default function DisplayMap({
           })}
 
           {/* Checkpoints em coordenadas de pixels (como AdminMap) */}
-          {checkpointPositions.map(({ checkpoint, x, y }) => {
+          {/* Só os checkpoints ligados aparecem no mapa (o status vem do último heartbeat da placa) */}
+          {checkpointPositions.filter(({ checkpoint }) => checkpoint.status === 'online').map(({ checkpoint, x, y }) => {
             const owner = checkpointOwnerById.get(String(checkpoint.id));
             const isOnline = checkpoint.status === 'online';
             const color = owner?.color || (isOnline ? '#22C55E' : '#EF4444');
