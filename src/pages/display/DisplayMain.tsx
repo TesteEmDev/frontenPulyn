@@ -410,6 +410,11 @@ export default function DisplayMain() {
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
+      } else if (event.type === 'GAME_SELECTION_CLEARED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        // "Sem jogos": sai a tela de regras e volta o mapa livre
+        setSelectedGameName(null);
+        setSelectedGameId(null);
+        setSelectedGameType(null);
       } else if (event.type === 'NFC_READING_DETECTED' && sameEventId(event.payload?.eventoId, selectedEventId)
         && event.payload?.source !== 'reception' && event.payload?.checkpointId != null) {
         setUltimaLeituraPreJogo({

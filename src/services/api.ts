@@ -1433,6 +1433,18 @@ export const api = {
     return data;
   },
 
+  // "Sem jogos": tira a escolha do jogo e deixa o mapa livre no telão (ver routes/gameSelection.js).
+  async clearGameSelection(eventoId: string) {
+    const res = await fetch(`${API_URL}/debug/clear-game-selection`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ eventoId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro ao tirar a seleção do jogo');
+    return data;
+  },
+
   // O modo equipe/individual do Zone Conquest não é mais enviado pelo
   // cliente: o backend deriva isso de brincadeiras.type (escolhido no
   // AdminGameForm ao criar o jogo), que é a fonte de verdade persistida.

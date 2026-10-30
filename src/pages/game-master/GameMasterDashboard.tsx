@@ -106,6 +106,9 @@ interface MonsterStatus {
   progress?: MonsterStatusMonster[];
 }
 
+// Valor da opção "Sem jogos" no seletor de jogo (não é o id de nenhum jogo)
+const SEM_JOGOS = '__sem_jogos__';
+
 export default function GameMasterDashboard() {
   const {
     children = [],
@@ -132,6 +135,8 @@ export default function GameMasterDashboard() {
   const [selectedEventId, setSelectedEventId] = useState<string>('');
   const [games, setGames] = useState<any[]>([]);
   const [selectedGameId, setSelectedGameId] = useState<string>('');
+  // "Sem jogos": nenhum jogo escolhido de propósito, o telão fica com o mapa livre
+  const [semJogos, setSemJogos] = useState(false);
   const [treasureStatus, setTreasureStatus] = useState<TreasureStatus>({ active: false, gameType: 'none' });
   const [monsterStatus, setMonsterStatus] = useState<MonsterStatus>({ active: false, gameType: 'none' });
   const [clockNow, setClockNow] = useState(() => Date.now());
@@ -801,6 +806,7 @@ export default function GameMasterDashboard() {
                     const eventId = e.target.value;
                     setSelectedEventId(eventId);
                     setEventoAtual(eventId);
+                    setSemJogos(false);
                   }}
                   className="flex-1 px-4 py-2 rounded-lg bg-dark-surface border border-dark-border text-white focus:outline-none focus:border-primary"
                 >
@@ -816,14 +822,26 @@ export default function GameMasterDashboard() {
               <div className="flex items-center gap-4">
                 <label className="text-sm font-semibold text-gray-300 whitespace-nowrap">Jogo:</label>
                 <select
-                  value={selectedGameId}
+                  value={semJogos ? SEM_JOGOS : selectedGameId}
                   onChange={(e) => {
                     const gameId = e.target.value;
+                    if (gameId === SEM_JOGOS) {
+                      if (!selectedEventId) return;
+                      api.clearGameSelection(selectedEventId)
+                        .then(() => {
+                          setSemJogos(true);
+                          setSelectedGameId('');
+                          setActiveGame(null);
+                        })
+                        .catch(error => alert(error instanceof Error ? error.message : 'Não foi possível deixar sem jogos'));
+                      return;
+                    }
                     const game = games.find(g => g.id === gameId);
                     if (!game) return;
 
                     const previousGameId = selectedGameId;
                     const previousGame = activeGame;
+                    setSemJogos(false);
                     setSelectedGameId(gameId);
                     setActiveGame(game);
                     setGameTimer((game.duration || 10) * 60);
@@ -838,6 +856,7 @@ export default function GameMasterDashboard() {
                   className="flex-1 px-4 py-2 rounded-lg bg-dark-surface border border-dark-border text-white focus:outline-none focus:border-primary"
                 >
                   <option value="">Selecionar jogo...</option>
+                  <option value={SEM_JOGOS} disabled={!selectedEventId || gameRunning}>SEM JOGOS (mapa livre no telão)</option>
                   {selectedEventId && games.length === 0 && (
                     <option value="" disabled>Nenhum jogo cadastrado para este evento</option>
                   )}
