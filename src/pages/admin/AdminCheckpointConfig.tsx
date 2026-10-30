@@ -117,7 +117,6 @@ export default function AdminCheckpointConfig() {
               >
                 <option value="NFC">NFC/RFID</option>
                 <option value="UHF">UHF Longa Distância</option>
-                <option value="QRCode">QR Code</option>
               </select>
             </div>
             <div>

@@ -389,7 +389,6 @@ export default function MasterCheckpoints() {
               <select id="mc-tipo" value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })} className={SELECT_CLASSES}>
                 <option value="NFC" style={OPTION_STYLE}>NFC/RFID</option>
                 <option value="UHF" style={OPTION_STYLE}>UHF longa distância</option>
-                <option value="QRCode" style={OPTION_STYLE}>QR Code</option>
               </select>
             </div>
             <div>
