@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  MapPin, Lightbulb, Volume2, Edit, Trash2
+  MapPin, Lightbulb, Volume2, Edit, Trash2, QrCode
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../../hooks/useAuth';
