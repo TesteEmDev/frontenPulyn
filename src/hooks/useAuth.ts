@@ -19,6 +19,8 @@ interface AuthStore {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   trocarArea: (role: string) => Promise<{ success: boolean; redirect?: string; error?: string }>;
+  // Busca as áreas atuais da conta no servidor (o token da sessão guarda as de quando ela entrou).
+  atualizarAreas: () => Promise<void>;
   logout: () => void;
 }
 
@@ -33,7 +35,7 @@ export const roleLabels: Record<string, string> = {
   score_kiosk: 'Consulta de pontuação',
 };
 
-export const useAuth = create<AuthStore>((set) => {
+export const useAuth = create<AuthStore>((set, get) => {
   // Helper para decodificar JWT (sem validação, apenas para recuperar dados)
   function decodeToken(token: string): any {
     try {
@@ -114,6 +116,22 @@ export const useAuth = create<AuthStore>((set) => {
         return { success: false, error: response.error || 'Não foi possível trocar de área' };
       } catch (err: any) {
         return { success: false, error: err.message || 'Não foi possível trocar de área' };
+      }
+    },
+
+    atualizarAreas: async () => {
+      const atual = get().user;
+      if (!atual) return;
+      try {
+        // Pede um token novo para a área em que a pessoa já está: ele já traz a lista de áreas de agora.
+        const response = await api.trocarPapel(atual.role);
+        if (!response.success || !response.token || !Array.isArray(response.user?.papeis)) return;
+        const novas: string[] = response.user.papeis;
+        localStorage.setItem('authToken', response.token);
+        const mudou = novas.join(',') !== (atual.papeis ?? []).join(',');
+        set((estado) => ({ token: response.token, user: estado.user && mudou ? { ...estado.user, papeis: novas } : estado.user }));
+      } catch {
+        // sem rede ou sessão vencida: o menu fica como está
       }
     },
 

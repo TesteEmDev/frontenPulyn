@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { ChevronDown, Loader2, LogOut } from 'lucide-react';
 import PulynLogo from '../ui/PulynLogo';
@@ -45,8 +45,23 @@ export default function Sidebar({
   onToggleCollapse,
   accentColor = '#1E9BD7',
 }: SidebarProps) {
-  const { user, logout, trocarArea } = useAuth();
+  const { user, logout, trocarArea, atualizarAreas } = useAuth();
   const navigate = useNavigate();
+
+  // Só a equipe acumula áreas. Quem ganhou uma área nova vê o menu mudar ao abrir a tela ou voltar para a aba,
+  // sem sair e entrar de novo.
+  const papelAtual = user?.role;
+  useEffect(() => {
+    if (papelAtual !== 'admin' && papelAtual !== 'reception' && papelAtual !== 'game_master') return;
+    atualizarAreas();
+    const aoVoltar = () => { if (document.visibilityState === 'visible') atualizarAreas(); };
+    document.addEventListener('visibilitychange', aoVoltar);
+    window.addEventListener('focus', aoVoltar);
+    return () => {
+      document.removeEventListener('visibilitychange', aoVoltar);
+      window.removeEventListener('focus', aoVoltar);
+    };
+  }, [papelAtual, atualizarAreas]);
 
   // Áreas extras da conta: aparecem no menu. Clicar em um item troca de área e abre a tela.
   const outrasAreas = (user?.papeis ?? [])
