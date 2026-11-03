@@ -1166,9 +1166,9 @@ export default function DisplayMain() {
             </span>
           </div>
         </div>
-        {/* Meio do cabeçalho (livre): objeto da brincadeira paralela */}
+        {/* Durante um jogo não há rodapé: o objeto da brincadeira paralela fica no meio (livre) do cabeçalho */}
         <div className="flex min-w-0 flex-1 justify-center">
-          {parallelObject && <RouletteResultBanner data={parallelObject} />}
+          {gameOnlyView && parallelObject && <RouletteResultBanner data={parallelObject} />}
         </div>
         <div className="flex min-w-0 items-center gap-2.5">
           <p className="truncate text-[clamp(0.9rem,2.3vh,1.5rem)] font-semibold text-gray-200">
@@ -1357,9 +1357,15 @@ export default function DisplayMain() {
       </main>
 
       {/* Rodapé: participantes (mini display) */}
-      <footer className="relative z-10 mt-3 flex shrink-0 items-center justify-between gap-4 lg:h-[6vh] lg:min-h-[44px]">
+      <footer className="relative z-10 mt-3 flex shrink-0 items-center justify-end gap-4 lg:min-h-[6vh]">
+        {/* Objeto da brincadeira paralela: à esquerda do número de participantes */}
+        {parallelObject && (
+          <div className="flex min-w-0 flex-1 justify-end">
+            <RouletteResultBanner data={parallelObject} />
+          </div>
+        )}
         <div
-          className="ml-auto flex items-center gap-3 rounded-2xl border border-white/10 bg-dark-card/85 px-4 py-1.5 shadow-lg shadow-black/20 backdrop-blur-xl"
+          className="flex shrink-0 items-center gap-3 rounded-2xl border border-white/10 bg-dark-card/85 px-4 py-1.5 shadow-lg shadow-black/20 backdrop-blur-xl"
           role="status"
           aria-label={`${activeParticipants} de ${totalParticipants} participantes ativos`}
         >
