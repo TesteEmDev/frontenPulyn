@@ -351,7 +351,7 @@ export default function ReceptionCheckin() {
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.8fr)]">
               <div className="space-y-4">
                 <Input label="Nome completo" placeholder="Ex: Pedro Almeida" value={form.name} onChange={handleChange('name')} />
-                <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
+                <div className="grid gap-4 sm:grid-cols-[1fr_190px]">
                   <Input label="Apelido" placeholder="Ex: Pedrinho" value={form.nickname} onChange={handleChange('nickname')} />
                   <Input label="Data de nascimento" type="date" max={hojeIso()} value={form.nascimento} onChange={handleChange('nascimento')} />
                 </div>
