@@ -17,7 +17,7 @@ import GameGuide, { type GuideGame } from '../../components/display/GameGuide';
 import FitToBox from '../../components/display/FitToBox';
 import { useTypewriterCycle } from '../../hooks/useTypewriterCycle';
 import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from '../../components/display/TreasureArena';
-import RouletteOverlay, { type RouletteData } from '../../components/game-master/RouletteOverlay';
+import RouletteOverlay, { RouletteResultBanner, type RouletteData } from '../../components/game-master/RouletteOverlay';
 import PreJogoMapa, { type LeituraPreJogo } from '../../components/display/PreJogoMapa';
 import SorteioEquipes, { type SorteioDasEquipes } from '../../components/display/SorteioEquipes';
 import UltimasLeituras, { type LeituraDoJogo } from '../../components/display/UltimasLeituras';
@@ -71,6 +71,8 @@ export default function DisplayMain() {
   const [messageArrivedAt, setMessageArrivedAt] = useState(0);
   // Roleta da brincadeira paralela ("Ache o objeto"): gira no telão quando o recreacionista inicia.
   const [parallelRoulette, setParallelRoulette] = useState<RouletteData | null>(null);
+  // Depois da roleta, o objeto sorteado fica um tempo no cabeçalho (lugar sem informação, não cobre o mapa)
+  const [parallelObject, setParallelObject] = useState<RouletteData | null>(null);
   // Último checkpoint lido (qualquer pulseira): o pré-jogo mostra um aviso com ele
   const [ultimaLeituraPreJogo, setUltimaLeituraPreJogo] = useState<LeituraPreJogo | null>(null);
   // Sorteio das equipes em andamento no telão (some sozinho depois de mostrar tudo)
@@ -439,7 +441,7 @@ export default function DisplayMain() {
   }, [zoneConquestGameStatus, isIndividualMode]);
 
   // WebSocket para eventos em tempo real
-  const { connectionStatus, lastMessageAt } = useGameWebSocket(
+  const { connectionStatus } = useGameWebSocket(
     selectedEventId || null,
     (event) => {
       // Processar eventos do WebSocket
@@ -479,9 +481,12 @@ export default function DisplayMain() {
           braceletCode: String(event.payload.braceletCode ?? ''),
           chegouEm: Date.now(),
         });
+      } else if (event.type === 'PARALLEL_GAME_FINISHED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        setParallelObject(null);
       } else if (event.type === 'PARALLEL_GAME_STARTED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const roulette = event.payload?.roulette;
         if (roulette?.segments?.length) {
+          setParallelObject(null);
           setParallelRoulette({
             segments: roulette.segments,
             winnerIndex: Number(roulette.winnerIndex) || 0,
@@ -763,20 +768,6 @@ export default function DisplayMain() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Formatar hora
-  const formattedTime = currentTime.toLocaleTimeString('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
-
-  const formattedDate = currentTime.toLocaleDateString('pt-BR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
-
   // Total de participantes ativos
   const activeParticipants = children.filter(c => c.status === 'active').length;
   const totalParticipants = children.length;
@@ -952,7 +943,11 @@ export default function DisplayMain() {
   const conquestOverlay = (
     <>
       {parallelRoulette && (
-        <RouletteOverlay data={parallelRoulette} onClose={() => setParallelRoulette(null)} autoCloseSeconds={14} />
+        <RouletteOverlay
+          data={parallelRoulette}
+          onClose={() => setParallelRoulette(null)}
+          onWheelGone={() => { setParallelObject(parallelRoulette); setParallelRoulette(null); }}
+        />
       )}
       {/* Notificação Animada de Conquista */}
       {showNotification && notificationData && (
@@ -1166,12 +1161,11 @@ export default function DisplayMain() {
                     ? 'Conectando'
                     : 'Desconectado'}
             </span>
-            {lastMessageAt && connectionStatus === 'connected' && (
-              <span className="hidden text-[11px] text-gray-500 xl:inline">
-                · {lastMessageAt.toLocaleTimeString('pt-BR')}
-              </span>
-            )}
           </div>
+        </div>
+        {/* Meio do cabeçalho (livre): objeto da brincadeira paralela */}
+        <div className="flex min-w-0 flex-1 justify-center">
+          {parallelObject && <RouletteResultBanner data={parallelObject} />}
         </div>
         <div className="flex min-w-0 items-center gap-2.5">
           <p className="truncate text-[clamp(0.9rem,2.3vh,1.5rem)] font-semibold text-gray-200">
@@ -1358,16 +1352,10 @@ export default function DisplayMain() {
         )}
       </main>
 
-      {/* Rodapé: relógio e participantes (mini display) */}
+      {/* Rodapé: participantes (mini display) */}
       <footer className="relative z-10 mt-3 flex shrink-0 items-center justify-between gap-4 lg:h-[6vh] lg:min-h-[44px]">
-        <div className="flex items-center gap-3">
-          <Clock size={18} className="text-primary-300" />
-          <p className="font-mono text-[clamp(1.1rem,3vh,2rem)] font-bold tracking-wide text-primary-300">{formattedTime}</p>
-          <span className="hidden h-4 w-px bg-white/10 sm:block" />
-          <p className="hidden text-[clamp(0.7rem,1.6vh,1rem)] capitalize text-gray-500 sm:block">{formattedDate}</p>
-        </div>
         <div
-          className="flex items-center gap-3 rounded-2xl border border-white/10 bg-dark-card/85 px-4 py-1.5 shadow-lg shadow-black/20 backdrop-blur-xl"
+          className="ml-auto flex items-center gap-3 rounded-2xl border border-white/10 bg-dark-card/85 px-4 py-1.5 shadow-lg shadow-black/20 backdrop-blur-xl"
           role="status"
           aria-label={`${activeParticipants} de ${totalParticipants} participantes ativos`}
         >
