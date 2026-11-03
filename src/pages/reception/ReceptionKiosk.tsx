@@ -9,7 +9,7 @@ import { useDeviceNFC } from '../../hooks/useDeviceNFC';
 import { api } from '../../services/api';
 import Avatar from '../../components/ui/Avatar';
 import AvatarSelector from '../../components/ui/AvatarSelector';
-import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
+import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID, primeiroAvatarLivre } from '../../avatar/adventurerAvatars';
 import StatusDot from '../../components/ui/StatusDot';
 import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
 import VirtualKeyboardOtimizado from '../../components/ui/VirtualKeyboardOtimizado';
@@ -120,6 +120,8 @@ export default function ReceptionKioskOtimizado() {
   const [message, setMessage] = useState('Encoste a pulseira no leitor abaixo da tela para começar');
   const [braceletCode, setBraceletCode] = useState('');
   const [form, setForm] = useState({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID });
+  // Avatares que os outros participantes do evento já usam: ficam indisponíveis e o cadastro começa num livre
+  const [avataresEmUso, setAvataresEmUso] = useState<string[]>([]);
   const [successData, setSuccessData] = useState<{ name: string; avatar: string; returning: boolean } | null>(null);
   const [mode, setMode] = useState<KioskMode>('choose');
   const [newStep, setNewStep] = useState<NewStep>('avatar');
@@ -183,6 +185,23 @@ export default function ReceptionKioskOtimizado() {
       window.removeEventListener('offline', updateOnlineState);
     };
   }, []);
+
+  const carregarAvatares = useCallback(async () => {
+    if (!selectedEventId) {
+      setAvataresEmUso([]);
+      return;
+    }
+    try {
+      setAvataresEmUso(await api.getKioskAvatarsInUse(selectedEventId));
+    } catch (error) {
+      console.error('Erro ao carregar os avatares em uso:', error);
+    }
+  }, [selectedEventId]);
+  useEffect(() => { carregarAvatares(); }, [carregarAvatares]);
+  useEffect(() => {
+    // O avatar do formulário é de outro participante do evento (a lista mudou, o evento mudou ou o formulário foi zerado): troca por um livre
+    if (avataresEmUso.includes(form.avatar)) setForm(prev => ({ ...prev, avatar: primeiroAvatarLivre(avataresEmUso) }));
+  }, [avataresEmUso, form.avatar]);
 
   // RESET KIOSK OTIMIZADO
   const resetKiosk = useCallback(() => {
@@ -373,14 +392,16 @@ export default function ReceptionKioskOtimizado() {
       
       kioskStateRef.current = 'success';
       setState('success');
+      carregarAvatares();
       setMessage(returning ? 'Cadastro encontrado!' : 'Personagem criado!');
       successTimerRef.current = setTimeout(resetKiosk, 4000); // Reduzido de 5000
     } catch (error) {
       kioskStateRef.current = 'error';
       setState('error');
       setMessage(getErrorMessage(error));
+      carregarAvatares();
     }
-  }, [braceletCode, form, mode, newFormValid, ageNumber, resetKiosk, selectedEventId, selectedProfile, state]);
+  }, [braceletCode, carregarAvatares, form, mode, newFormValid, ageNumber, resetKiosk, selectedEventId, selectedProfile, state]);
 
   useEffect(() => () => {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
@@ -1013,7 +1034,8 @@ export default function ReceptionKioskOtimizado() {
                                     type="button"
                                     onClick={() => {
                                       setSelectedProfile(profile);
-                                      setForm(prev => ({ ...prev, avatar: profileAvatar(profile.avatar) }));
+                                      // Se outro participante já usa o avatar do cadastro, a criança começa com um livre
+                                      setForm(prev => ({ ...prev, avatar: avataresEmUso.includes(profileAvatar(profile.avatar)) ? primeiroAvatarLivre(avataresEmUso) : profileAvatar(profile.avatar) }));
                                     }}
                                     disabled={!canInteract}
                                     className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-[#120a27]/70 p-2.5 text-left transition hover:border-fuchsia-300/50 hover:bg-fuchsia-300/10 active:scale-[0.99]"

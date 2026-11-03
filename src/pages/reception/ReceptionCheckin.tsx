@@ -11,7 +11,7 @@ import Input from '../../components/ui/Input';
 import StatusDot from '../../components/ui/StatusDot';
 import Avatar from '../../components/ui/Avatar';
 import AvatarSelector from '../../components/ui/AvatarSelector';
-import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
+import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID, primeiroAvatarLivre } from '../../avatar/adventurerAvatars';
 
 const normalizeUid = (value: string) => value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
 
@@ -151,6 +151,25 @@ export default function ReceptionCheckin() {
     loadData();
   }, [eventoAtualId, loadEventos, setEventoAtual]);
 
+  // Avatares que os outros participantes do evento já usam: ficam indisponíveis e o cadastro começa num livre
+  const [avataresEmUso, setAvataresEmUso] = useState<string[]>([]);
+  const carregarAvatares = useCallback(async () => {
+    if (!selectedEventId) {
+      setAvataresEmUso([]);
+      return;
+    }
+    try {
+      setAvataresEmUso(await api.getAvataresEmUso(selectedEventId));
+    } catch (error) {
+      console.error('Erro ao carregar os avatares em uso:', error);
+    }
+  }, [selectedEventId]);
+  useEffect(() => { carregarAvatares(); }, [carregarAvatares]);
+  useEffect(() => {
+    // O avatar do formulário é de outro participante do evento (a lista mudou, o evento mudou ou o formulário foi zerado): troca por um livre
+    if (avataresEmUso.includes(form.avatar)) setForm(previous => ({ ...previous, avatar: primeiroAvatarLivre(avataresEmUso) }));
+  }, [avataresEmUso, form.avatar]);
+
   useEffect(() => {
     if (!selectedEventId) {
       setSelectedTeam(null);
@@ -217,14 +236,16 @@ export default function ReceptionCheckin() {
       setForm({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID });
       setSelectedTeam(null);
       clearBracelet();
+      carregarAvatares();
     } catch (error: unknown) {
+      carregarAvatares();
       console.error('Erro ao cadastrar participante:', error);
       const message = error instanceof Error ? error.message : 'Não foi possível cadastrar o participante.';
       showToast(message, 'error');
     } finally {
       setSaving(false);
     }
-  }, [braceletCode, clearBracelet, form, loadChildren, loadTeams, saving, selectedEventId, selectedTeam, showToast, teams]);
+  }, [braceletCode, carregarAvatares, clearBracelet, form, loadChildren, loadTeams, saving, selectedEventId, selectedTeam, showToast, teams]);
 
   if (loading) {
     return (
@@ -350,7 +371,7 @@ export default function ReceptionCheckin() {
                     <p className="text-xs text-gray-400">Avatar do participante</p>
                   </div>
                 </div>
-                <AvatarSelector value={form.avatar} onChange={avatar => setForm(previous => ({ ...previous, avatar }))} compact />
+                <AvatarSelector value={form.avatar} onChange={avatar => setForm(previous => ({ ...previous, avatar }))} compact indisponiveis={avataresEmUso} />
               </div>
             </div>
 

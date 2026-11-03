@@ -1151,6 +1151,21 @@ export const api = {
     return response;
   },
 
+  // Avatares que os participantes do evento já usam (o kiosk e a recepção os mostram indisponíveis)
+  async getKioskAvatarsInUse(eventId: string): Promise<string[]> {
+    const res = await fetch(`${API_URL}/kiosk/events/${encodeURIComponent(eventId)}/avatars-in-use`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar os avatares (${res.status})`);
+    return Array.isArray(data.avatares) ? data.avatares : [];
+  },
+
+  async getAvataresEmUso(eventoId: string): Promise<string[]> {
+    const res = await fetch(`${API_URL}/criancas/evento/${encodeURIComponent(eventoId)}/avatares-em-uso`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar os avatares (${res.status})`);
+    return Array.isArray(data.avatares) ? data.avatares : [];
+  },
+
   async createKioskParticipant(eventId: string, data: any) {
     const res = await fetch(`${API_URL}/kiosk/participants`, {
       method: 'POST',
