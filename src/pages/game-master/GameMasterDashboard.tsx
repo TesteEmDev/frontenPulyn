@@ -137,6 +137,9 @@ export default function GameMasterDashboard() {
   const [selectedGameId, setSelectedGameId] = useState<string>('');
   // "Sem jogos": nenhum jogo escolhido de propósito, o telão fica com o mapa livre
   const [semJogos, setSemJogos] = useState(false);
+  // Caça ao Tesouro: quantos checkpoints usar na partida (vazio = todos) e quantos o jogo tem online
+  const [qtdCheckpoints, setQtdCheckpoints] = useState('');
+  const [checkpointsDoJogo, setCheckpointsDoJogo] = useState<{ total: number; minimo: number } | null>(null);
   const [treasureStatus, setTreasureStatus] = useState<TreasureStatus>({ active: false, gameType: 'none' });
   const [monsterStatus, setMonsterStatus] = useState<MonsterStatus>({ active: false, gameType: 'none' });
   const [clockNow, setClockNow] = useState(() => Date.now());
@@ -568,7 +571,17 @@ export default function GameMasterDashboard() {
       // de brincadeiras.type, definido no AdminGameForm ao criar o jogo — não
       // é mais adivinhado a partir do nome do jogo.
       const gameName = activeGame?.name || 'Jogo';
-      const data = await api.startGame(selectedGameId, gameName, selectedEventId);
+      let quantidade: number | null = null;
+      if (activeGame?.type === 'treasure_hunt' && qtdCheckpoints.trim() !== '') {
+        quantidade = Number(qtdCheckpoints);
+        const maximo = checkpointsDoJogo?.total ?? quantidade;
+        const minimo = checkpointsDoJogo?.minimo ?? 2;
+        if (!Number.isInteger(quantidade) || quantidade < minimo || quantidade > maximo) {
+          alert(`Escolha de ${minimo} a ${maximo} checkpoints para o Caça ao Tesouro (ou deixe em branco para usar todos).`);
+          return;
+        }
+      }
+      const data = await api.startGame(selectedGameId, gameName, selectedEventId, quantidade);
       console.log('✅ Jogo iniciado:', data);
       resetGameTimer();
       setGameRunning(true);
@@ -581,6 +594,18 @@ export default function GameMasterDashboard() {
       setActionLoading(null);
     }
   };
+
+  // Quantos checkpoints o Caça ao Tesouro pode usar: o máximo da escolha do recreacionista
+  useEffect(() => {
+    setQtdCheckpoints('');
+    setCheckpointsDoJogo(null);
+    if (activeGame?.type !== 'treasure_hunt' || !selectedEventId || !selectedGameId) return undefined;
+    let vivo = true;
+    api.getTreasureAvailableCheckpoints(selectedEventId, selectedGameId)
+      .then((contagem) => { if (vivo) setCheckpointsDoJogo(contagem); })
+      .catch(() => { if (vivo) setCheckpointsDoJogo(null); });
+    return () => { vivo = false; };
+  }, [activeGame?.type, selectedEventId, selectedGameId, gameRunning]);
 
   const handlePausar = () => {
     setGameRunning(false);
@@ -887,6 +912,25 @@ export default function GameMasterDashboard() {
                 </div>
                 {activeGame && (
                   <p className="text-sm text-gray-400">{activeGame.description}</p>
+                )}
+                {activeGame?.type === 'treasure_hunt' && !gameRunning && checkpointsDoJogo && (
+                  <label className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-300">
+                    Checkpoints no jogo:
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={checkpointsDoJogo.minimo}
+                      max={checkpointsDoJogo.total}
+                      value={qtdCheckpoints}
+                      onChange={(e) => setQtdCheckpoints(e.target.value)}
+                      placeholder={String(checkpointsDoJogo.total)}
+                      aria-label="Quantidade de checkpoints do Caça ao Tesouro"
+                      className="w-20 rounded-lg border border-dark-border bg-dark-surface px-2 py-1 text-white focus:border-primary focus:outline-none"
+                    />
+                    <span className="text-xs text-gray-500">
+                      de {checkpointsDoJogo.total} online ({checkpointsDoJogo.minimo} no mínimo; em branco = todos). Os checkpoints usados são sorteados ao iniciar.
+                    </span>
+                  </label>
                 )}
               </div>
               <div className="flex items-center gap-4 rounded-xl border border-primary/20 bg-dark-surface/60 px-4 py-3">

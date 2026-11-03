@@ -118,6 +118,8 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
     (status.checkpointOwnership || []).map((item) => [String(item.checkpointId), item.teamId || null]),
   ), [status.checkpointOwnership]);
   const completedIds = useMemo(() => new Set((status.completedCheckpointIds || []).map(String)), [status.completedCheckpointIds]);
+  // Só os checkpoints da partida aparecem no mapa (o recreacionista pode ter escolhido usar só alguns)
+  const emJogo = status.checkpointOwnership?.length ? new Set(status.checkpointOwnership.map((c) => String(c.checkpointId))) : null;
   const targetCheckpoint = checkpoints.find((checkpoint) => String(checkpoint.id) === String(status.targetCheckpointId));
   const currentTeam = status.turnTeamId
     ? teamById.get(String(status.turnTeamId).toLowerCase())
@@ -177,7 +179,7 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
             preserveAspectRatio="xMidYMid meet"
           >
             {/* Checkpoints em coordenadas de pixels */}
-            {checkpoints.map((checkpoint) => {
+            {checkpoints.filter((checkpoint) => emJogo === null || emJogo.has(String(checkpoint.id))).map((checkpoint) => {
               const storedX = Number(checkpoint.mapaX ?? checkpoint.mapX);
               const storedY = Number(checkpoint.mapaY ?? checkpoint.mapY);
               const x = Number.isFinite(storedX) && Number.isFinite(storedY) ? storedX : (MAP_WIDTH / 2);
