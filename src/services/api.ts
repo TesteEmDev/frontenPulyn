@@ -767,8 +767,10 @@ export const api = {
     return res.json();
   },
 
-  async getScoreHistory(eventoId: string, limit = 100, sessionId?: string) {
+  // todosOsJogos: inclui também as leituras dos jogos novos (Tesouro, Monstro, Conquista...), não só a pontuação do jogo de zona antigo.
+  async getScoreHistory(eventoId: string, limit = 100, sessionId?: string, todosOsJogos = false) {
     let url = `${API_URL}/leituras/evento/${encodeURIComponent(eventoId)}/historico?limit=${limit}`;
+    if (todosOsJogos) url += '&allGames=1';
 
     // 🆕 Adicionar sessionId como query param se fornecido — o backend filtra
     // leituras.sessaoId por esse valor (routes/leituras.js), não por
