@@ -50,9 +50,36 @@ export default function AdminCheckpoints() {
   const [editingCheckpoint, setEditingCheckpoint] = useState<any>(null);
   const [instalando, setInstalando] = useState<any>(null);
 
-  // Link que abre a página /config do checkpoint (rede própria dele, 192.168.4.1) já com ID e servidor preenchidos.
-  const linkInstalacao = (cp: any) =>
-    `http://192.168.4.1/config?id=${encodeURIComponent(cp.id)}&servidor=${encodeURIComponent(window.location.origin)}`;
+  // Endereço do servidor na rede local, coletado do próprio servidor: o admin costuma abrir o sistema por "localhost",
+  // que o checkpoint não alcança.
+  const [servidorLocal, setServidorLocal] = useState<string | null>(null);
+  useEffect(() => {
+    if (!instalando) return;
+    let cancelado = false;
+    api.getEnderecoInstalacao()
+      .then((r) => { if (!cancelado) setServidorLocal(r.servidor); })
+      .catch(() => { if (!cancelado) setServidorLocal(null); });
+    return () => { cancelado = true; };
+  }, [instalando]);
+
+  // Link que abre a página /config do checkpoint (rede própria dele, 192.168.4.1) já preenchida: o servidor e, quando o
+  // sistema já conhece o IP dele (o checkpoint informa no heartbeat), o IP fixo com máscara e gateway deduzidos dele.
+  const linkInstalacao = (cp: any) => {
+    const host = window.location.hostname;
+    const abertoPorLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+    const servidor = abertoPorLocalhost && servidorLocal ? servidorLocal : window.location.origin;
+    const params = new URLSearchParams({ servidor });
+    const ip = String(cp.ip || '').trim();
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
+      const gateway = `${ip.split('.').slice(0, 3).join('.')}.1`;
+      params.set('ipfixo', '1');
+      params.set('ip', ip);
+      params.set('mascara', '255.255.255.0');
+      params.set('gateway', gateway);
+      params.set('dns1', gateway);
+    }
+    return `http://192.168.4.1/config?${params.toString()}`;
+  };
 
   const [formData, setFormData] = useState({
     id: '',
@@ -489,7 +516,7 @@ export default function AdminCheckpoints() {
             <ol className="text-sm text-gray-300 list-decimal pl-5 space-y-1">
               <li>Ligue o checkpoint sem configuração, ou segure o botão BOOT por 3 s.</li>
               <li>Conecte o celular ao Wi-Fi <span className="font-mono">Pulyn-CP-…</span> (em placa nova o nome termina no MAC, não no ID).</li>
-              <li>Escaneie o QR code e confira o ID e o servidor, depois preencha a rede e salve.</li>
+              <li>Escaneie o QR code: o servidor e o IP já vêm preenchidos. Confira, preencha o nome e a senha do Wi-Fi e salve.</li>
             </ol>
             <p className="text-xs text-gray-500 break-all font-mono">{linkInstalacao(instalando)}</p>
           </div>

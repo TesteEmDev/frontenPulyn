@@ -1795,6 +1795,14 @@ export const api = {
 
   // ==================== CHECKPOINTS ====================
   // Contagem de checkpoints por evento (cadastrados e online) de todos os eventos do buffet
+  // Endereço do servidor na rede local (para o QR code de instalação do checkpoint)
+  async getEnderecoInstalacao(): Promise<{ servidor: string | null; ips: string[] }> {
+    const res = await fetch(`${API_URL}/pontoVerificacao/instalacao`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao obter o endereço do servidor (${res.status})`);
+    return { servidor: data.servidor ?? null, ips: Array.isArray(data.ips) ? data.ips : [] };
+  },
+
   async getCheckpointsSummary() {
     const res = await fetch(`${API_URL}/pontoVerificacao/resumo`, { headers: getAuthHeaders() });
     const data = await res.json().catch(() => ({}));
