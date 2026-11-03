@@ -94,7 +94,7 @@ export interface CheckpointRecebido {
   proposito?: string;
   macAddress: string | null;
   numCheck: string | null;
-  statusTransferencia?: 'estoque' | 'pendente' | 'aceito';
+  statusTransferencia?: 'estoque' | 'aceito';
   eventoId?: string | null;
   eventoNome?: string | null;
   transferidoEm?: string | null;
@@ -113,7 +113,7 @@ export interface CheckpointMaster {
   proposito: string | null;
   status: string | null;
   ultimoVisto: string | null;
-  statusTransferencia: 'estoque' | 'pendente' | 'aceito';
+  statusTransferencia: 'estoque' | 'aceito';
   empresaId: string | null;
   empresaNome: string | null;
   empresaDestinoId: string | null;
@@ -1788,38 +1788,30 @@ export const api = {
     return pedirMasterCheckpoints<CheckpointMaster>(`/${id}/transferir`, { method: 'POST', body: JSON.stringify({ empresaId }) });
   },
 
-  masterCancelarTransferencia(id: number) {
-    return pedirMasterCheckpoints<CheckpointMaster>(`/${id}/cancelar-transferencia`, { method: 'POST' });
-  },
-
   masterExcluirCheckpoint(id: number) {
     return pedirMasterCheckpoints<{ success: boolean }>(`/${id}`, { method: 'DELETE' });
   },
 
-  // ---- Checkpoints transferidos pelo super admin: o buffet aceita, define o número e o evento ----
-  getCheckpointsPendentes() {
-    return pedirRecebimento<CheckpointRecebido[]>('/pendentes');
+  // ---- Checkpoints recebidos do super admin: o buffet define o número e o evento, sem aceite ----
+  getCheckpointsSemNumero() {
+    return pedirRecebimento<CheckpointRecebido[]>('/sem-numero');
   },
 
   getCheckpointsSemEvento() {
     return pedirRecebimento<CheckpointRecebido[]>('/sem-evento');
   },
 
-  aceitarCheckpoint(checkpointId: string, numCheck: string, eventoId?: string | null) {
-    return pedirRecebimento<CheckpointRecebido>(`/${encodeURIComponent(checkpointId)}/aceitar`, {
-      method: 'POST',
-      body: JSON.stringify({ numCheck, eventoId: eventoId || null }),
-    });
-  },
-
-  recusarCheckpoint(checkpointId: string) {
-    return pedirRecebimento<{ success: boolean }>(`/${encodeURIComponent(checkpointId)}/recusar`, { method: 'POST' });
-  },
-
   alterarNumeroCheckpoint(checkpointId: string, numCheck: string) {
     return pedirRecebimento<CheckpointRecebido>(`/${encodeURIComponent(checkpointId)}/numero`, {
       method: 'PATCH',
       body: JSON.stringify({ numCheck }),
+    });
+  },
+
+  alterarEventoCheckpoint(checkpointId: string, eventoId: string | null) {
+    return pedirRecebimento<CheckpointRecebido>(`/${encodeURIComponent(checkpointId)}/evento`, {
+      method: 'PATCH',
+      body: JSON.stringify({ eventoId: eventoId || null }),
     });
   },
 

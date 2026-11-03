@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   LayoutDashboard, Users, CreditCard, Activity, ScrollText, LifeBuoy, BarChart3,
-  Cpu, Plus, Send, Undo2, Pencil, Trash2,
+  Cpu, Plus, Send, Pencil, Trash2,
 } from 'lucide-react';
 import { api, type BuffetOpcao, type CheckpointMaster } from '../../services/api';
 import Sidebar from '../../components/layout/Sidebar';
@@ -32,7 +32,6 @@ type Filtro = 'todos' | Situacao;
 const FILTROS: { valor: Filtro; rotulo: string }[] = [
   { valor: 'todos', rotulo: 'Todos' },
   { valor: 'estoque', rotulo: 'Em estoque' },
-  { valor: 'pendente', rotulo: 'Aguardando aceite' },
   { valor: 'aceito', rotulo: 'Aceitos' },
 ];
 
@@ -59,13 +58,11 @@ interface Formulario {
 
 const FORM_VAZIO: Formulario = { macAddress: '', nome: '', tipo: 'NFC', proposito: 'game' };
 
-// Buffet a que o checkpoint pertence: quem aceitou ou, enquanto aguarda o aceite, o destino da transferência.
-const buffetIdDe = (cp: CheckpointMaster) =>
-  cp.statusTransferencia === 'aceito' ? cp.empresaId : cp.statusTransferencia === 'pendente' ? cp.empresaDestinoId : null;
+// Buffet a que o checkpoint pertence (o que recebeu a transferência).
+const buffetIdDe = (cp: CheckpointMaster) => (cp.statusTransferencia === 'aceito' ? cp.empresaId : null);
 
 function BadgeSituacao({ situacao }: { situacao: Situacao }) {
   if (situacao === 'aceito') return <Badge variant="success">Aceito</Badge>;
-  if (situacao === 'pendente') return <Badge variant="warning">Aguardando aceite</Badge>;
   return <Badge variant="muted">Em estoque</Badge>;
 }
 
@@ -118,7 +115,6 @@ export default function MasterCheckpoints() {
 
   const contagem = useMemo(() => ({
     estoque: doBuffet.filter((c) => c.statusTransferencia === 'estoque').length,
-    pendente: doBuffet.filter((c) => c.statusTransferencia === 'pendente').length,
     aceito: doBuffet.filter((c) => c.statusTransferencia === 'aceito').length,
   }), [doBuffet]);
 
@@ -187,13 +183,8 @@ export default function MasterCheckpoints() {
 
   const transferir = async () => {
     if (!transferindo || !destino) return;
-    const feito = await executar(() => api.masterTransferirCheckpoint(transferindo.id, destino), 'Transferido: o buffet precisa aceitar');
+    const feito = await executar(() => api.masterTransferirCheckpoint(transferindo.id, destino), 'Transferido: já está no buffet, que define o número');
     if (feito) setTransferindo(null);
-  };
-
-  const cancelar = (cp: CheckpointMaster) => {
-    if (!confirm(`Cancelar a transferência de "${cp.nome}"? Ele volta para o estoque.`)) return;
-    void executar(() => api.masterCancelarTransferencia(cp.id), 'Transferência cancelada');
   };
 
   const excluir = (cp: CheckpointMaster) => {
@@ -202,7 +193,7 @@ export default function MasterCheckpoints() {
   };
 
   const buffetDe = (cp: CheckpointMaster) =>
-    (cp.statusTransferencia === 'aceito' ? cp.empresaNome : cp.statusTransferencia === 'pendente' ? cp.empresaDestinoNome : null) || '—';
+    (cp.statusTransferencia === 'aceito' ? cp.empresaNome : null) || '—';
 
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">
@@ -319,15 +310,6 @@ export default function MasterCheckpoints() {
                               title="Transferir para um buffet" aria-label={`Transferir ${cp.nome}`}
                             >
                               <Send size={16} />
-                            </button>
-                          )}
-                          {cp.statusTransferencia === 'pendente' && (
-                            <button
-                              onClick={() => cancelar(cp)}
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-warning hover:bg-surface transition-colors"
-                              title="Cancelar a transferência" aria-label={`Cancelar transferência de ${cp.nome}`}
-                            >
-                              <Undo2 size={16} />
                             </button>
                           )}
                           <button
