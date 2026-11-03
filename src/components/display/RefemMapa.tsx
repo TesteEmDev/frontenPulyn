@@ -79,13 +79,13 @@ export default function RefemMapa({ eventoId, floorPlan }: { eventoId: string; f
           return (
             <g key={p.checkpointId} transform={`translate(${p.x} ${p.y})`}>
               {atual && (
-                <circle r={13} fill="none" stroke="#EF4444" strokeWidth={2}>
+                <circle r={10} fill="none" stroke="#EF4444" strokeWidth={2}>
                   <animate attributeName="r" values="12;24;12" dur="1s" repeatCount="indefinite" />
                   <animate attributeName="stroke-opacity" values="0.9;0;0.9" dur="1s" repeatCount="indefinite" />
                 </circle>
               )}
               {proximo && (
-                <circle r={13} fill="none" stroke="#FACC15" strokeWidth={2}>
+                <circle r={10} fill="none" stroke="#FACC15" strokeWidth={2}>
                   <animate attributeName="stroke-opacity" values="1;0.2;1" dur="0.8s" repeatCount="indefinite" />
                 </circle>
               )}
@@ -94,7 +94,7 @@ export default function RefemMapa({ eventoId, floorPlan }: { eventoId: string; f
                   {proximo ? 'OBJETIVO' : 'DEPOIS'}
                 </text>
               )}
-              <circle r={11} fill={cor} fillOpacity={atual ? 0.4 : 0.22} stroke={cor} strokeWidth={2.5} />
+              <circle r={9} fill={cor} fillOpacity={atual ? 0.4 : 0.22} stroke={cor} strokeWidth={2.5} />
               <text y={1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize={13} fontWeight={800}>{p.ordem}</text>
               <text y={22} textAnchor="middle" fill="#E5E7EB" fontSize={6} fontWeight={600}>{nomeNoMapa(p.nome)}</text>
             </g>

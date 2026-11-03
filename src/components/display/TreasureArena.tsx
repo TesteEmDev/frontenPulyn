@@ -193,7 +193,7 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
               
               return (
                 <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
-                  <circle r={11} fill={markerColor} fillOpacity={0.18} stroke={markerColor} strokeWidth={2} />
+                  <circle r={9} fill={markerColor} fillOpacity={0.18} stroke={markerColor} strokeWidth={2} />
                   <circle r={5} fill={markerColor} />
                   <text y={-16} textAnchor="middle" fill="#FFFFFF" fontSize={10} fontWeight={600}>
                     {numeroDoCheckpoint(checkpoint)}

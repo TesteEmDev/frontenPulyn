@@ -625,7 +625,7 @@ export default function DisplayMap({
             return (
               <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
                 <circle
-                  r={17}
+                  r={13}
                   fill={color}
                   fillOpacity={0.18}
                   stroke={color}

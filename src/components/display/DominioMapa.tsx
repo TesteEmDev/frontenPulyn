@@ -31,17 +31,17 @@ export default function DominioMapa({ eventoId, estado, floorPlan }: { eventoId:
           return (
             <g key={ponto.checkpointId} transform={`translate(${ponto.x} ${ponto.y})`}>
               <circle
-                r={15}
+                r={12}
                 fill={cor}
                 fillOpacity={ponto.dono ? 0.45 : 0.15}
                 stroke={cor}
                 strokeWidth={3}
                 style={{ transition: 'fill 400ms ease, stroke 400ms ease, fill-opacity 400ms ease' }}
               />
-              <text y={1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize={12} fontWeight={800}>{ponto.codigo}</text>
-              <text y={25} textAnchor="middle" fill="#E5E7EB" fontSize={6} fontWeight={600}>{nomeNoMapa(ponto.nome)}</text>
+              <text y={1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize={10} fontWeight={800}>{ponto.codigo}</text>
+              <text y={22} textAnchor="middle" fill="#E5E7EB" fontSize={6} fontWeight={600}>{nomeNoMapa(ponto.nome)}</text>
               {ponto.dono && (
-                <text y={32} textAnchor="middle" fill={cor} fontSize={6.5} fontWeight={700}>{ponto.dono.nome}</text>
+                <text y={29} textAnchor="middle" fill={cor} fontSize={6.5} fontWeight={700}>{ponto.dono.nome}</text>
               )}
             </g>
           );

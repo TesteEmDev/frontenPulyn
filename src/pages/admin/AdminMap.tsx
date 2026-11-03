@@ -942,7 +942,7 @@ export default function AdminMap() {
                       : storedPosition;
                     const isSelected = selectedCheckpointId === checkpoint.checkpointId;
                     const color = checkpoint.status === 'online' ? '#22C55E' : '#EF4444';
-                    const circleRadius = isSelected ? 17 : 14;
+                    const circleRadius = isSelected ? 13 : 11;
                     return (
                       <g
                         key={checkpoint.checkpointId}

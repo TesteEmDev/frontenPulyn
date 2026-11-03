@@ -73,16 +73,16 @@ export default function PreJogoMapa({ leitura }: { leitura: LeituraPreJogo | nul
           return (
             <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
               {lido && (
-                <circle r={15} fill="none" stroke={cor} strokeWidth={2}>
+                <circle r={12} fill="none" stroke={cor} strokeWidth={2}>
                   <animate attributeName="r" values="15;34" dur="1.1s" repeatCount="indefinite" />
                   <animate attributeName="opacity" values="0.9;0" dur="1.1s" repeatCount="indefinite" />
                 </circle>
               )}
-              <circle r={15} fill={cor} fillOpacity={lido ? 0.45 : 0.18} stroke={cor} strokeWidth={3} />
-              <text y={1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize={12} fontWeight={800}>
+              <circle r={12} fill={cor} fillOpacity={lido ? 0.45 : 0.18} stroke={cor} strokeWidth={3} />
+              <text y={1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize={10} fontWeight={800}>
                 {numeroDoCheckpoint(checkpoint)}
               </text>
-              <text y={25} textAnchor="middle" fill="#E5E7EB" fontSize={6} fontWeight={600}>{nomeNoMapa(checkpoint.name)}</text>
+              <text y={22} textAnchor="middle" fill="#E5E7EB" fontSize={6} fontWeight={600}>{nomeNoMapa(checkpoint.name)}</text>
             </g>
           );
         })}
