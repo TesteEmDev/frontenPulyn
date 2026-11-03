@@ -3,6 +3,7 @@
 import type { DominioEstado } from '../../services/api';
 import { usePulynStore } from '../../store/mockData';
 import { MAP_HEIGHT, MAP_WIDTH, posicaoNoMapa } from './posicaoNoMapa';
+import { nomeNoMapa } from '../../utils/checkpoints';
 import ZonaDominioPlacar from './ZonaDominioPlacar';
 
 const COR_LIVRE = '#64748B';
@@ -38,9 +39,9 @@ export default function DominioMapa({ eventoId, estado, floorPlan }: { eventoId:
                 style={{ transition: 'fill 400ms ease, stroke 400ms ease, fill-opacity 400ms ease' }}
               />
               <text y={1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize={12} fontWeight={800}>{ponto.codigo}</text>
-              <text y={27} textAnchor="middle" fill="#E5E7EB" fontSize={8.5} fontWeight={600}>{ponto.nome}</text>
+              <text y={25} textAnchor="middle" fill="#E5E7EB" fontSize={6} fontWeight={600}>{nomeNoMapa(ponto.nome)}</text>
               {ponto.dono && (
-                <text y={37} textAnchor="middle" fill={cor} fontSize={7.5} fontWeight={700}>{ponto.dono.nome}</text>
+                <text y={32} textAnchor="middle" fill={cor} fontSize={6.5} fontWeight={700}>{ponto.dono.nome}</text>
               )}
             </g>
           );

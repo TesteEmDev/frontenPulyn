@@ -3,7 +3,7 @@ import Avatar from '../../components/ui/Avatar';
 import { DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
 import type { Checkpoint, Team } from '../../store/mockData';
 import { usePulynStore } from '../../store/mockData';
-import { numeroDoCheckpoint } from '../../utils/checkpoints';
+import { numeroDoCheckpoint, nomeNoMapa } from '../../utils/checkpoints';
 import { api } from '../../services/api';
 import { CheckpointProtectionIndicator } from '../../components/display/CheckpointProtectionIndicator';
 import type { ZoneState, CheckpointState } from '../../hooks/useZoneConquestGame';
@@ -636,8 +636,8 @@ export default function DisplayMap({
                 <text y={-22} textAnchor="middle" fill="#FFFFFF" fontSize={10} fontWeight={600}>
                   {numeroDoCheckpoint(checkpoint)}
                 </text>
-                <text y={30} textAnchor="middle" fill="#D1D5DB" fontSize={9}>
-                  {checkpoint.name}
+                <text y={28} textAnchor="middle" fill="#D1D5DB" fontSize={6}>
+                  {nomeNoMapa(checkpoint.name)}
                 </text>
               </g>
             );

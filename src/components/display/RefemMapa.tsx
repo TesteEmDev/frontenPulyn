@@ -5,6 +5,7 @@ import { usePulynStore } from '../../store/mockData';
 import { formatarTempo } from '../../hooks/useBombaEstado';
 import { useRefemEstado } from '../../hooks/useRefemEstado';
 import { MAP_HEIGHT, MAP_WIDTH, posicaoNoMapa } from './posicaoNoMapa';
+import { nomeNoMapa } from '../../utils/checkpoints';
 
 const MOTIVOS: Record<string, string> = {
   resgatado: 'O refém foi resgatado!',
@@ -95,7 +96,7 @@ export default function RefemMapa({ eventoId, floorPlan }: { eventoId: string; f
               )}
               <circle r={11} fill={cor} fillOpacity={atual ? 0.4 : 0.22} stroke={cor} strokeWidth={2.5} />
               <text y={1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize={13} fontWeight={800}>{p.ordem}</text>
-              <text y={23} textAnchor="middle" fill="#E5E7EB" fontSize={8.5} fontWeight={600}>{p.nome}</text>
+              <text y={22} textAnchor="middle" fill="#E5E7EB" fontSize={6} fontWeight={600}>{nomeNoMapa(p.nome)}</text>
             </g>
           );
         })}

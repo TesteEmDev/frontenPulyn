@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Radio } from 'lucide-react';
 import { api } from '../../services/api';
 import { usePulynStore } from '../../store/mockData';
-import { numeroDoCheckpoint } from '../../utils/checkpoints';
+import { numeroDoCheckpoint, nomeNoMapa } from '../../utils/checkpoints';
 import { MAP_HEIGHT, MAP_WIDTH, posicaoNoMapa } from './posicaoNoMapa';
 
 export interface LeituraPreJogo {
@@ -82,7 +82,7 @@ export default function PreJogoMapa({ leitura }: { leitura: LeituraPreJogo | nul
               <text y={1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize={12} fontWeight={800}>
                 {numeroDoCheckpoint(checkpoint)}
               </text>
-              <text y={27} textAnchor="middle" fill="#E5E7EB" fontSize={8.5} fontWeight={600}>{checkpoint.name}</text>
+              <text y={25} textAnchor="middle" fill="#E5E7EB" fontSize={6} fontWeight={600}>{nomeNoMapa(checkpoint.name)}</text>
             </g>
           );
         })}

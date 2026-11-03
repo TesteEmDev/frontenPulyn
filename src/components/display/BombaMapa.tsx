@@ -4,6 +4,7 @@ import type { BombaLocal, BombaTime } from '../../services/api';
 import { usePulynStore } from '../../store/mockData';
 import { formatarTempo, useBombaEstado } from '../../hooks/useBombaEstado';
 import { MAP_HEIGHT, MAP_WIDTH, posicaoNoMapa } from './posicaoNoMapa';
+import { nomeNoMapa } from '../../utils/checkpoints';
 
 const MOTIVOS: Record<string, string> = {
   explodiu: 'A bomba explodiu!',
@@ -90,8 +91,8 @@ export default function BombaMapa({ eventoId, floorPlan }: { eventoId: string; f
               <text y={1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize={15} fontWeight={800}>
                 {local.letra}
               </text>
-              <text y={25} textAnchor="middle" fill="#E5E7EB" fontSize={9} fontWeight={600}>
-                {local.nome}
+              <text y={23} textAnchor="middle" fill="#E5E7EB" fontSize={6.5} fontWeight={600}>
+                {nomeNoMapa(local.nome)}
               </text>
             </g>
           );

@@ -9,6 +9,15 @@ interface ComNumero {
   id?: string | number | null;
 }
 
+// Nome do checkpoint para o rótulo do mapa: o texto fica menor e nomes longos são cortados com reticências
+// (o nome inteiro continua na lista e no painel do checkpoint).
+export const NOME_NO_MAPA_MAX = 14;
+
+export function nomeNoMapa(nome: string | null | undefined, max = NOME_NO_MAPA_MAX): string {
+  const limpo = String(nome ?? '').trim();
+  return limpo.length > max ? `${limpo.slice(0, max - 1).trimEnd()}…` : limpo;
+}
+
 export function numeroDoCheckpoint(checkpoint: ComNumero | null | undefined): string {
   if (!checkpoint) return '';
   return String(checkpoint.numCheck ?? checkpoint.codigo ?? checkpoint.checkpointId ?? checkpoint.id ?? '');

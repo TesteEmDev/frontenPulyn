@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MapPin, Map, RefreshCw, Upload, Pencil, Trash2, Plus, Save, Loader2 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
-import { numeroDoCheckpoint } from '../../utils/checkpoints';
+import { numeroDoCheckpoint, nomeNoMapa } from '../../utils/checkpoints';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -954,7 +954,7 @@ export default function AdminMap() {
                         <circle r={circleRadius} fill={color} fillOpacity={0.18} stroke={isSelected ? '#FFFFFF' : color} strokeWidth={isSelected ? 3 : 2} />
                         <circle r="5" fill={color} />
                         <text y="-22" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="600">{numeroDoCheckpoint(checkpoint)}</text>
-                        <text y="30" textAnchor="middle" fill="#D1D5DB" fontSize="9">{checkpoint.nome}</text>
+                        <text y="28" textAnchor="middle" fill="#D1D5DB" fontSize="6">{nomeNoMapa(checkpoint.nome)}</text>
                       </g>
                     );
                   })}
