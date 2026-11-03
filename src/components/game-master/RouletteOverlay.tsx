@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import RouletteWheel from './RouletteWheel';
 
 export interface RouletteData {
@@ -42,22 +42,27 @@ export function RouletteResultBanner({ data }: { data: RouletteData }) {
 export default function RouletteOverlay({ data, onClose, autoCloseSeconds, onWheelGone, title = 'Sorteando o objeto...' }: RouletteOverlayProps) {
   const [done, setDone] = useState(false);
   const [rodaVisivel, setRodaVisivel] = useState(true);
+  // O telão se redesenha a cada segundo e passa funções novas; guardá-las numa ref impede que os temporizadores reiniciem
+  const onWheelGoneRef = useRef(onWheelGone);
+  const onCloseRef = useRef(onClose);
+  onWheelGoneRef.current = onWheelGone;
+  onCloseRef.current = onClose;
 
   // Item selecionado: a roleta some depois de 1,5 s, sobrando só o objeto a ser achado
   useEffect(() => {
     if (!done) return undefined;
     const timer = setTimeout(() => {
       setRodaVisivel(false);
-      onWheelGone?.();
+      onWheelGoneRef.current?.();
     }, RODA_SOME_APOS_MS);
     return () => clearTimeout(timer);
-  }, [done, onWheelGone]);
+  }, [done]);
 
   useEffect(() => {
     if (!done || !autoCloseSeconds) return undefined;
-    const timer = setTimeout(onClose, autoCloseSeconds * 1000);
+    const timer = setTimeout(() => onCloseRef.current(), autoCloseSeconds * 1000);
     return () => clearTimeout(timer);
-  }, [done, autoCloseSeconds, onClose]);
+  }, [done, autoCloseSeconds]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
