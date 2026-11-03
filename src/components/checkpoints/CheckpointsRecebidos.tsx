@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Check, Inbox, X } from 'lucide-react';
+import { Check, Inbox } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api, type CheckpointRecebido } from '../../services/api';
 import Card from '../ui/Card';
@@ -14,9 +14,9 @@ interface EventoOpcao {
 
 interface Props {
   events: EventoOpcao[];
-  /** Evento que a tela está mostrando: já vem escolhido ao aceitar, para o checkpoint cair na lista que você vê. */
+  /** Evento que a tela está mostrando: já vem escolhido, para o checkpoint cair na lista que você vê. */
   eventoPadrao?: string | null;
-  /** Chamado depois de aceitar, para a lista de checkpoints da tela recarregar. */
+  /** Chamado depois de salvar, para a lista de checkpoints da tela recarregar. */
   onChange: () => void;
 }
 
@@ -29,22 +29,22 @@ const SELECT_CLASSES =
   'w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white font-body text-sm cursor-pointer';
 
 /**
- * Checkpoints que o super admin transferiu para este buffet e que esperam o aceite.
- * O admin define o número, escolhe (se quiser) o evento e aceita ou recusa. Depois de aceito o checkpoint sai daqui e
- * passa a aparecer na lista de checkpoints da tela. Some quando não há nada a aceitar.
+ * Checkpoints que o super admin enviou para este buffet e que ainda não têm número. O admin define o número (e, se
+ * quiser, o evento) e salva. Não há aceite: o checkpoint já é do buffet e funciona offline. Depois de salvo ele sai
+ * daqui e passa a aparecer na lista de checkpoints da tela. Some quando não há nada sem número.
  */
 export default function CheckpointsRecebidos({ events, eventoPadrao, onChange }: Props) {
-  const [pendentes, setPendentes] = useState<CheckpointRecebido[]>([]);
+  const [semNumero, setSemNumero] = useState<CheckpointRecebido[]>([]);
   const [rascunhos, setRascunhos] = useState<Record<string, Rascunho>>({});
   const [ocupado, setOcupado] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     try {
-      setPendentes(await api.getCheckpointsPendentes());
+      setSemNumero(await api.getCheckpointsSemNumero());
     } catch (err) {
       // Backend sem as rotas novas ou sem permissão: a tela segue sem este cartão.
       console.warn('Checkpoints recebidos indisponíveis:', err);
-      setPendentes([]);
+      setSemNumero([]);
     }
   }, []);
 
@@ -59,7 +59,7 @@ export default function CheckpointsRecebidos({ events, eventoPadrao, onChange }:
   const editar = (cp: CheckpointRecebido, parte: Partial<Rascunho>) =>
     setRascunhos((atual) => ({ ...atual, [cp.checkpointId]: { ...rascunhoDe(cp), ...parte } }));
 
-  const aceitar = async (cp: CheckpointRecebido) => {
+  const salvar = async (cp: CheckpointRecebido) => {
     const { numCheck, eventoId } = rascunhoDe(cp);
     const numero = numCheck.trim();
     if (!numero) {
@@ -68,48 +68,35 @@ export default function CheckpointsRecebidos({ events, eventoPadrao, onChange }:
     }
     setOcupado(cp.checkpointId);
     try {
-      await api.aceitarCheckpoint(cp.checkpointId, numero, eventoId || null);
+      await api.alterarNumeroCheckpoint(cp.checkpointId, numero);
+      if (eventoId) await api.alterarEventoCheckpoint(cp.checkpointId, eventoId);
       toast.success(eventoId
-        ? `Checkpoint ${numero} aceito e colocado no evento`
-        : `Checkpoint ${numero} aceito. Está na lista em "Todos os eventos", sem evento ainda`);
+        ? `Checkpoint ${numero} salvo e colocado no evento`
+        : `Checkpoint ${numero} salvo. Está na lista em "Todos os eventos", sem evento ainda`);
       await carregar();
       onChange();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Não foi possível aceitar');
+      toast.error(err instanceof Error ? err.message : 'Não foi possível salvar');
     } finally {
       setOcupado(null);
     }
   };
 
-  const recusar = async (cp: CheckpointRecebido) => {
-    if (!confirm(`Recusar o checkpoint "${cp.nome}"? Ele volta para o super admin.`)) return;
-    setOcupado(cp.checkpointId);
-    try {
-      await api.recusarCheckpoint(cp.checkpointId);
-      toast.success('Checkpoint devolvido');
-      await carregar();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Não foi possível recusar');
-    } finally {
-      setOcupado(null);
-    }
-  };
-
-  if (pendentes.length === 0) return null;
+  if (semNumero.length === 0) return null;
 
   return (
     <Card variant="glow">
       <div className="flex items-center gap-3 mb-4">
         <Inbox size={20} className="text-primary-400" />
         <h2 className="text-lg font-display font-semibold text-white">Checkpoints recebidos</h2>
-        <Badge variant="warning">{pendentes.length} para aceitar</Badge>
+        <Badge variant="warning">{semNumero.length} sem número</Badge>
       </div>
 
       <div className="space-y-3">
         <p className="text-sm text-gray-400">
-          O super admin enviou estes checkpoints para o seu buffet. Defina o número de cada um e aceite: ele entra na lista de checkpoints abaixo.
+          O super admin enviou estes checkpoints para o seu buffet. Defina o número de cada um e salve: ele entra na lista de checkpoints abaixo.
         </p>
-        {pendentes.map((cp) => {
+        {semNumero.map((cp) => {
           const rascunho = rascunhoDe(cp);
           const travado = ocupado === cp.checkpointId;
           return (
@@ -145,13 +132,9 @@ export default function CheckpointsRecebidos({ events, eventoPadrao, onChange }:
                 </select>
               </div>
               <div className="flex gap-2">
-                <Button variant="primary" size="sm" onClick={() => void aceitar(cp)} disabled={travado}>
+                <Button variant="primary" size="sm" onClick={() => void salvar(cp)} disabled={travado}>
                   <Check size={14} className="mr-1" />
-                  Aceitar
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => void recusar(cp)} disabled={travado} aria-label={`Recusar ${cp.nome}`}>
-                  <X size={14} className="mr-1" />
-                  Recusar
+                  Salvar
                 </Button>
               </div>
             </div>
