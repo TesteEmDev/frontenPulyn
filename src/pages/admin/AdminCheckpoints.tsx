@@ -62,15 +62,22 @@ export default function AdminCheckpoints() {
     return () => { cancelado = true; };
   }, [instalando]);
 
-  // Link que abre a página /config do checkpoint (rede própria dele, 192.168.4.1) já preenchida: o servidor e, quando o
-  // sistema já conhece o IP dele (o checkpoint informa no heartbeat), o IP fixo com máscara e gateway deduzidos dele.
+  // Link que abre a página /config do checkpoint já preenchida com o servidor.
+  //  - Checkpoint que já está na rede (o sistema conhece o IP dele, informado no heartbeat): abre direto nesse IP.
+  //  - Checkpoint sem rede: abre no Wi-Fi próprio dele (192.168.4.1), com esse IP, máscara e gateway já como IP fixo.
+  const ipConhecido = (cp: any) => {
+    const ip = String(cp.ip || '').trim();
+    return /^(\d{1,3}\.){3}\d{1,3}$/.test(ip) ? ip : null;
+  };
+  const naRede = (cp: any) => cp.status === 'online' && ipConhecido(cp) !== null;
   const linkInstalacao = (cp: any) => {
     const host = window.location.hostname;
     const abertoPorLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
     const servidor = abertoPorLocalhost && servidorLocal ? servidorLocal : window.location.origin;
     const params = new URLSearchParams({ servidor });
-    const ip = String(cp.ip || '').trim();
-    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
+    const ip = ipConhecido(cp);
+    if (ip && naRede(cp)) return `http://${ip}/config?${params.toString()}`;
+    if (ip) {
       const gateway = `${ip.split('.').slice(0, 3).join('.')}.1`;
       params.set('ipfixo', '1');
       params.set('ip', ip);
@@ -514,9 +521,18 @@ export default function AdminCheckpoints() {
               <QRCodeSVG value={linkInstalacao(instalando)} size={220} />
             </div>
             <ol className="text-sm text-gray-300 list-decimal pl-5 space-y-1">
-              <li>Ligue o checkpoint sem configuração, ou segure o botão BOOT por 3 s.</li>
-              <li>Conecte o celular ao Wi-Fi <span className="font-mono">Pulyn-CP-…</span> (em placa nova o nome termina no MAC, não no ID).</li>
-              <li>Escaneie o QR code: o servidor e o IP já vêm preenchidos. Confira, preencha o nome e a senha do Wi-Fi e salve.</li>
+              {naRede(instalando) ? (
+                <>
+                  <li>Conecte o celular à mesma rede Wi-Fi do checkpoint (ele está online em <span className="font-mono">{ipConhecido(instalando)}</span>).</li>
+                  <li>Escaneie o QR code: abre a configuração do checkpoint já com o servidor preenchido. Confira e salve.</li>
+                </>
+              ) : (
+                <>
+                  <li>Ligue o checkpoint sem configuração, ou segure o botão BOOT por 3 s.</li>
+                  <li>Conecte o celular ao Wi-Fi <span className="font-mono">Pulyn-CP-…</span> (em placa nova o nome termina no MAC, não no ID).</li>
+                  <li>Escaneie o QR code: o servidor {ipConhecido(instalando) ? 'e o último IP conhecido ' : ''}já vêm preenchidos. Preencha o nome e a senha do Wi-Fi e salve.</li>
+                </>
+              )}
             </ol>
             <p className="text-xs text-gray-500 break-all font-mono">{linkInstalacao(instalando)}</p>
           </div>
