@@ -8,6 +8,9 @@ export interface RouletteData {
   checkpointName?: string;
 }
 
+// A roleta some este tempo depois de o item ser selecionado; o objeto sorteado continua na tela.
+export const RODA_SOME_APOS_MS = 1500;
+
 interface RouletteOverlayProps {
   data: RouletteData;
   onClose: () => void;
@@ -19,6 +22,14 @@ interface RouletteOverlayProps {
 // Tela cheia com a roleta girando e, ao parar, o objeto que as crianças precisam achar.
 export default function RouletteOverlay({ data, onClose, autoCloseSeconds, title = 'Sorteando o objeto...' }: RouletteOverlayProps) {
   const [done, setDone] = useState(false);
+  const [rodaVisivel, setRodaVisivel] = useState(true);
+
+  // Item selecionado: a roleta some depois de 1,5 s, sobrando só o objeto a ser achado
+  useEffect(() => {
+    if (!done) return undefined;
+    const timer = setTimeout(() => setRodaVisivel(false), RODA_SOME_APOS_MS);
+    return () => clearTimeout(timer);
+  }, [done]);
 
   useEffect(() => {
     if (!done || !autoCloseSeconds) return undefined;
@@ -36,7 +47,7 @@ export default function RouletteOverlay({ data, onClose, autoCloseSeconds, title
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Roleta da brincadeira paralela">
       <div className="flex w-full max-w-xl flex-col items-center gap-6 text-center">
         <h2 className="font-display text-2xl font-bold text-white sm:text-3xl">{done ? 'Achem este objeto!' : title}</h2>
-        <RouletteWheel segments={data.segments} winnerIndex={data.winnerIndex} onDone={() => setDone(true)} />
+        {rodaVisivel && <RouletteWheel segments={data.segments} winnerIndex={data.winnerIndex} onDone={() => setDone(true)} />}
         <div className="min-h-[7.5rem]">
           {done && (
             <div className="animate-in fade-in zoom-in duration-500">
