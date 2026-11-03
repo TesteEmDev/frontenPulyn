@@ -326,10 +326,11 @@ export interface PerfilCrianca {
   eventos: { criancaId: string; eventoId: string; eventoNome: string; eventoData: string; pontos: number }[];
 }
 
-// Uma zona do evento com o que os checkpoints dela realmente registraram.
-export interface ZoneEngagement {
-  zona: string;
-  checkpoints: number;
+// Um checkpoint do evento com o que ele realmente registrou.
+export interface CheckpointEngagement {
+  checkpointId: string;
+  nome: string;
+  zona: string | null;
   leituras: number;
   participantes: number;
   pontos: number;
@@ -1996,11 +1997,11 @@ export const api = {
     return body as GeneralReportData;
   },
 
-  // Engajamento por zona de um evento, calculado das leituras reais dos checkpoints.
-  async getZoneEngagement(eventoId: string): Promise<ZoneEngagement[]> {
-    const res = await fetch(`${API_URL}/reports/evento/${encodeURIComponent(eventoId)}/zonas`, { headers: getAuthHeaders() });
+  // Engajamento por checkpoint de um evento, calculado das leituras reais.
+  async getCheckpointEngagement(eventoId: string): Promise<CheckpointEngagement[]> {
+    const res = await fetch(`${API_URL}/reports/evento/${encodeURIComponent(eventoId)}/checkpoints`, { headers: getAuthHeaders() });
     const body = await res.json().catch(() => ([]));
-    if (!res.ok) throw new Error((body as any)?.error || `Erro ao carregar o engajamento por zona (${res.status})`);
+    if (!res.ok) throw new Error((body as any)?.error || `Erro ao carregar o engajamento por checkpoint (${res.status})`);
     return Array.isArray(body) ? body : [];
   },
 
