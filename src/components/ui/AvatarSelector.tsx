@@ -61,11 +61,14 @@ function AvatarSelector({
                   selected
                     ? 'border-primary bg-primary/20 shadow-[0_0_22px_rgba(139,92,246,0.3)] ring-2 ring-primary/40'
                     : emUso
-                      ? 'border-white/5 bg-black/20 opacity-40 grayscale'
+                      ? 'border-white/5 bg-black/20 grayscale'
                       : 'border-white/10 bg-black/10 hover:border-primary/60 hover:bg-primary/10'
                 }`}
               >
                 <Avatar emoji={option.id} size="xl" shape="square" loading="lazy" decorative />
+                {emUso && (
+                  <span className="pointer-events-none absolute inset-0 rounded-2xl bg-gray-500/60 backdrop-grayscale" aria-hidden="true" />
+                )}
                 {emUso && (
                   <span className="absolute inset-x-2 bottom-2 rounded-full bg-black/70 px-2 py-0.5 text-center text-xs font-semibold text-gray-200">Em uso</span>
                 )}

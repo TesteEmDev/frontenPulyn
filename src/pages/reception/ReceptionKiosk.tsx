@@ -9,6 +9,8 @@ import { useDeviceNFC } from '../../hooks/useDeviceNFC';
 import { api } from '../../services/api';
 import Avatar from '../../components/ui/Avatar';
 import AvatarSelector from '../../components/ui/AvatarSelector';
+import CorSelector from '../../components/ui/CorSelector';
+import { primeiraCorLivre } from '../../utils/coresParticipante';
 import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID, primeiroAvatarLivre } from '../../avatar/adventurerAvatars';
 import StatusDot from '../../components/ui/StatusDot';
 import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
@@ -119,9 +121,10 @@ export default function ReceptionKioskOtimizado() {
   const [state, setState] = useState<KioskState>('waiting');
   const [message, setMessage] = useState('Encoste a pulseira no leitor abaixo da tela para começar');
   const [braceletCode, setBraceletCode] = useState('');
-  const [form, setForm] = useState({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID });
+  const [form, setForm] = useState({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID, cor: primeiraCorLivre([]) });
   // Avatares que os outros participantes do evento já usam: ficam indisponíveis e o cadastro começa num livre
   const [avataresEmUso, setAvataresEmUso] = useState<string[]>([]);
+  const [coresEmUso, setCoresEmUso] = useState<string[]>([]);
   const [successData, setSuccessData] = useState<{ name: string; avatar: string; returning: boolean } | null>(null);
   const [mode, setMode] = useState<KioskMode>('choose');
   const [newStep, setNewStep] = useState<NewStep>('avatar');
@@ -189,19 +192,32 @@ export default function ReceptionKioskOtimizado() {
   const carregarAvatares = useCallback(async () => {
     if (!selectedEventId) {
       setAvataresEmUso([]);
+      setCoresEmUso([]);
       return;
     }
     try {
-      setAvataresEmUso(await api.getKioskAvatarsInUse(selectedEventId));
+      const emUso = await api.getKioskAvatarsInUse(selectedEventId);
+      setAvataresEmUso(emUso.avatares);
+      setCoresEmUso(emUso.cores);
     } catch (error) {
       console.error('Erro ao carregar os avatares em uso:', error);
     }
   }, [selectedEventId]);
   useEffect(() => { carregarAvatares(); }, [carregarAvatares]);
+  // Outro kiosk ou a recepção pode cadastrar alguém nesse meio tempo: relê de tempos em tempos para não oferecer o que já foi escolhido
+  useEffect(() => {
+    if (!selectedEventId) return undefined;
+    const timer = window.setInterval(carregarAvatares, 8000);
+    return () => window.clearInterval(timer);
+  }, [selectedEventId, carregarAvatares]);
   useEffect(() => {
     // O avatar do formulário é de outro participante do evento (a lista mudou, o evento mudou ou o formulário foi zerado): troca por um livre
     if (avataresEmUso.includes(form.avatar)) setForm(prev => ({ ...prev, avatar: primeiroAvatarLivre(avataresEmUso) }));
   }, [avataresEmUso, form.avatar]);
+  useEffect(() => {
+    // Mesma regra para a cor
+    if (coresEmUso.some(cor => cor.toUpperCase() === form.cor.toUpperCase())) setForm(prev => ({ ...prev, cor: primeiraCorLivre(coresEmUso) }));
+  }, [coresEmUso, form.cor]);
 
   // RESET KIOSK OTIMIZADO
   const resetKiosk = useCallback(() => {
@@ -209,7 +225,7 @@ export default function ReceptionKioskOtimizado() {
     lastReadRef.current = null;
     kioskStateRef.current = 'waiting';
     setBraceletCode('');
-    setForm({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID });
+    setForm({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID, cor: primeiraCorLivre([]) });
     setMode('choose');
     setNewStep('avatar');
     setFocusField('name');
@@ -371,6 +387,7 @@ export default function ReceptionKioskOtimizado() {
             perfilCriancaId: selectedProfile!.perfilCriancaId,
             apelido: selectedProfile!.apelido,
             avatar,
+            cor: form.cor,
             braceletCode,
           }
         : {
@@ -378,6 +395,7 @@ export default function ReceptionKioskOtimizado() {
             apelido: nickname,
             idade: ageNumber,
             avatar,
+            cor: form.cor,
             braceletCode,
           });
 
@@ -410,6 +428,10 @@ export default function ReceptionKioskOtimizado() {
   const canInteract = Boolean(selectedEventId && state === 'ready');
 
   // HANDLERS OTIMIZADOS
+  const handleCorChange = useCallback((cor: string) => {
+    setForm(prev => ({ ...prev, cor }));
+  }, []);
+
   const handleAvatarChange = useCallback((avatar: string) => {
     setForm(prev => ({ ...prev, avatar }));
   }, []);
@@ -808,7 +830,12 @@ export default function ReceptionKioskOtimizado() {
                           onChange={handleAvatarChange}
                           disabled={!canInteract}
                           wide
+                          indisponiveis={avataresEmUso}
                         />
+                        <div className="mt-4 border-t border-cyan-300/10 pt-4">
+                          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">Escolha a sua cor</p>
+                          <CorSelector value={form.cor} onChange={handleCorChange} disabled={!canInteract} indisponiveis={coresEmUso} />
+                        </div>
                       </section>
                     ) : (
                       /* ETAPA 2: NOME COMPLETO, APELIDO E IDADE */
@@ -1010,7 +1037,10 @@ export default function ReceptionKioskOtimizado() {
                               onChange={handleAvatarChange}
                               disabled={!canInteract || state === 'saving'}
                               wide
+                              indisponiveis={avataresEmUso}
                             />
+                            <p className="mb-2 mt-4 text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">E a sua cor?</p>
+                            <CorSelector value={form.cor} onChange={handleCorChange} disabled={!canInteract || state === 'saving'} indisponiveis={coresEmUso} />
                           </div>
                           <button
                             type="button"

@@ -18,6 +18,7 @@ import DisplayStandby from './pages/display/DisplayStandby';
 import TelaoEntrada from './pages/display/TelaoEntrada';
 import DisplayDemoPontuacao from './pages/display/DisplayDemoPontuacao';
 import DisplayDemoRegras from './pages/display/DisplayDemoRegras';
+import DemoCadastroAparencia from './pages/reception/DemoCadastroAparencia';
 import ReceptionDashboard from './pages/reception/ReceptionDashboard';
 import ReceptionCheckin from './pages/reception/ReceptionCheckin';
 import ReceptionKiosk from './pages/reception/ReceptionKiosk';
@@ -229,6 +230,7 @@ function App() {
           {/* Prévia da tela de pontuação final com dados de exemplo (não lê nem grava nada do evento) */}
           <Route path="/demo/pontuacao-final" element={<DisplayDemoPontuacao />} />
           <Route path="/demo/regras" element={<DisplayDemoRegras />} />
+          <Route path="/demo/cadastro-aparencia" element={<DemoCadastroAparencia />} />
           <Route path="/telao/:codigo" element={<TelaoEntrada />} />
           <Route path="/display" element={<ProtectedRoute allowedRoles={['display']}><DisplayMain /></ProtectedRoute>} />
           <Route path="/display/ranking" element={<ProtectedRoute allowedRoles={['display']}><DisplayRanking /></ProtectedRoute>} />
