@@ -48,6 +48,16 @@
     background: #2A4A66;
   }
 
+  /* Ícone do calendário/relógio dos campos de data e hora: o navegador o desenha preto; no tema escuro fica branco */
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  input[type="month"]::-webkit-calendar-picker-indicator,
+  input[type="week"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+  }
+
   body {
     min-height: 100vh;
     color: var(--text-primary);
