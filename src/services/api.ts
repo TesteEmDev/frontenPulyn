@@ -1,4 +1,5 @@
 // src/services/api.ts
+import { lerToken } from '../utils/sessao';
 import { useAuth } from '../hooks/useAuth';
 
 const LOCAL_API_URL = `${window.location.protocol === 'https:' ? 'https' : 'http'}://${window.location.hostname}:3001/api`;
@@ -71,7 +72,7 @@ export const API_URL = (configuredForProduction || fallbackApiUrl).replace(/\/+$
 // Helper para obter headers com autenticação
 function getAuthHeaders() {
   try {
-    const token = localStorage.getItem('authToken') || useAuth.getState().token;
+    const token = lerToken() || useAuth.getState().token;
     if (!token) {
       throw new Error('Sessão expirada. Faça login novamente.');
     }
@@ -325,10 +326,11 @@ export interface PerfilCrianca {
   eventos: { criancaId: string; eventoId: string; eventoNome: string; eventoData: string; pontos: number }[];
 }
 
-// Uma zona do evento com o que os checkpoints dela realmente registraram.
-export interface ZoneEngagement {
-  zona: string;
-  checkpoints: number;
+// Um checkpoint do evento com o que ele realmente registrou.
+export interface CheckpointEngagement {
+  checkpointId: string;
+  nome: string;
+  zona: string | null;
   leituras: number;
   participantes: number;
   pontos: number;
@@ -395,6 +397,46 @@ export const api = {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erro ao trocar de área (${res.status})`);
     return data;
+  },
+
+  // Telão sem login: troca o código do link (/telao/<código>) por uma sessão do perfil display (ver routes/auth.js).
+  async entrarTelao(codigo: string): Promise<any> {
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}/auth/telao`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo }),
+      });
+    } catch {
+      throw Object.assign(new Error('Sem conexão com o servidor'), { semConexao: true });
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao abrir o telão (${res.status})`);
+    return data;
+  },
+
+  // Telão aberto pela equipe logada: pede a sessão de telão do próprio buffet (ver routes/auth.js).
+  async abrirTelaoDaEquipe(): Promise<any> {
+    const res = await fetch(`${API_URL}/auth/telao-da-equipe`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao abrir o telão (${res.status})`);
+    return data;
+  },
+
+  // Código do link do telão deste buffet (o admin vê e pode trocar; ver routes/telao.js).
+  async getCodigoTelao(): Promise<string> {
+    const res = await fetch(`${API_URL}/telao/codigo`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao buscar o link do telão (${res.status})`);
+    return data.codigo;
+  },
+
+  async renovarCodigoTelao(): Promise<string> {
+    const res = await fetch(`${API_URL}/telao/codigo/renovar`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao gerar um novo link do telão (${res.status})`);
+    return data.codigo;
   },
 
   // Define as áreas extras de uma conta da equipe (ver routes/logins.js, montado em /acessos).
@@ -726,8 +768,10 @@ export const api = {
     return res.json();
   },
 
-  async getScoreHistory(eventoId: string, limit = 100, sessionId?: string) {
+  // todosOsJogos: inclui também as leituras dos jogos novos (Tesouro, Monstro, Conquista...), não só a pontuação do jogo de zona antigo.
+  async getScoreHistory(eventoId: string, limit = 100, sessionId?: string, todosOsJogos = false) {
     let url = `${API_URL}/leituras/evento/${encodeURIComponent(eventoId)}/historico?limit=${limit}`;
+    if (todosOsJogos) url += '&allGames=1';
 
     // 🆕 Adicionar sessionId como query param se fornecido — o backend filtra
     // leituras.sessaoId por esse valor (routes/leituras.js), não por
@@ -1110,6 +1154,21 @@ export const api = {
     return response;
   },
 
+  // Avatares que os participantes do evento já usam (o kiosk e a recepção os mostram indisponíveis)
+  async getKioskAvatarsInUse(eventId: string): Promise<{ avatares: string[]; cores: string[] }> {
+    const res = await fetch(`${API_URL}/kiosk/events/${encodeURIComponent(eventId)}/avatars-in-use`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar os avatares (${res.status})`);
+    return { avatares: Array.isArray(data.avatares) ? data.avatares : [], cores: Array.isArray(data.cores) ? data.cores : [] };
+  },
+
+  async getAvataresEmUso(eventoId: string): Promise<{ avatares: string[]; cores: string[] }> {
+    const res = await fetch(`${API_URL}/criancas/evento/${encodeURIComponent(eventoId)}/avatares-em-uso`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar os avatares (${res.status})`);
+    return { avatares: Array.isArray(data.avatares) ? data.avatares : [], cores: Array.isArray(data.cores) ? data.cores : [] };
+  },
+
   async createKioskParticipant(eventId: string, data: any) {
     const res = await fetch(`${API_URL}/kiosk/participants`, {
       method: 'POST',
@@ -1392,18 +1451,39 @@ export const api = {
     return data;
   },
 
+  // "Sem jogos": tira a escolha do jogo e deixa o mapa livre no telão (ver routes/gameSelection.js).
+  async clearGameSelection(eventoId: string) {
+    const res = await fetch(`${API_URL}/debug/clear-game-selection`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ eventoId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro ao tirar a seleção do jogo');
+    return data;
+  },
+
   // O modo equipe/individual do Zone Conquest não é mais enviado pelo
   // cliente: o backend deriva isso de brincadeiras.type (escolhido no
   // AdminGameForm ao criar o jogo), que é a fonte de verdade persistida.
-  async startGame(gameId: string, gameName: string, eventoId: string) {
+  // quantidadeCheckpoints: só o Caça ao Tesouro usa (quantos checkpoints entram na partida; vazio = todos)
+  async startGame(gameId: string, gameName: string, eventoId: string, quantidadeCheckpoints?: number | null) {
     const res = await fetch(`${API_URL}/debug/start-game`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ gameId, gameName, eventoId }),
+      body: JSON.stringify({ gameId, gameName, eventoId, ...(quantidadeCheckpoints ? { quantidadeCheckpoints } : {}) }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao iniciar jogo');
     return data;
+  },
+
+  // Quantos checkpoints o Caça ao Tesouro pode usar neste evento (os do jogo que estão online): o máximo da escolha
+  async getTreasureAvailableCheckpoints(eventoId: string, brincadeiraId: string): Promise<{ total: number; minimo: number }> {
+    const res = await fetch(`${API_URL}/treasure/evento/${encodeURIComponent(eventoId)}/checkpoints-disponiveis?brincadeiraId=${encodeURIComponent(brincadeiraId)}`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro ao contar os checkpoints do jogo');
+    return { total: Number(data.total) || 0, minimo: Number(data.minimo) || 2 };
   },
 
   async stopGame(eventoId: string) {
@@ -1534,7 +1614,10 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    // Antes um erro do servidor passava como se tivesse salvo
+    if (!res.ok) throw new Error(body.error || `Erro ao atualizar o time (${res.status})`);
+    return body;
   },
 
   async deleteTime(id: string) {
@@ -1712,6 +1795,14 @@ export const api = {
 
   // ==================== CHECKPOINTS ====================
   // Contagem de checkpoints por evento (cadastrados e online) de todos os eventos do buffet
+  // Endereço do servidor na rede local (para o QR code de instalação do checkpoint)
+  async getEnderecoInstalacao(): Promise<{ servidor: string | null; ips: string[] }> {
+    const res = await fetch(`${API_URL}/pontoVerificacao/instalacao`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao obter o endereço do servidor (${res.status})`);
+    return { servidor: data.servidor ?? null, ips: Array.isArray(data.ips) ? data.ips : [] };
+  },
+
   async getCheckpointsSummary() {
     const res = await fetch(`${API_URL}/pontoVerificacao/resumo`, { headers: getAuthHeaders() });
     const data = await res.json().catch(() => ({}));
@@ -1906,11 +1997,11 @@ export const api = {
     return body as GeneralReportData;
   },
 
-  // Engajamento por zona de um evento, calculado das leituras reais dos checkpoints.
-  async getZoneEngagement(eventoId: string): Promise<ZoneEngagement[]> {
-    const res = await fetch(`${API_URL}/reports/evento/${encodeURIComponent(eventoId)}/zonas`, { headers: getAuthHeaders() });
+  // Engajamento por checkpoint de um evento, calculado das leituras reais.
+  async getCheckpointEngagement(eventoId: string): Promise<CheckpointEngagement[]> {
+    const res = await fetch(`${API_URL}/reports/evento/${encodeURIComponent(eventoId)}/checkpoints`, { headers: getAuthHeaders() });
     const body = await res.json().catch(() => ([]));
-    if (!res.ok) throw new Error((body as any)?.error || `Erro ao carregar o engajamento por zona (${res.status})`);
+    if (!res.ok) throw new Error((body as any)?.error || `Erro ao carregar o engajamento por checkpoint (${res.status})`);
     return Array.isArray(body) ? body : [];
   },
 

@@ -17,7 +17,7 @@ import Badge from '../../components/ui/Badge';
 import StatusDot from '../../components/ui/StatusDot';
 import Select from '../../components/ui/Select';
 import ProgressBar from '../../components/ui/ProgressBar';
-import { getEventActiveWindow, buildTimeBuckets, getBucketMinutes, formatClock } from '../../utils/eventWindow';
+import { getEventActiveWindow, buildTimeBuckets, getBucketMinutes, formatClock, formatClockDay, formatInterval } from '../../utils/eventWindow';
 
 const STATUS_LABELS: Record<string, { label: string; variant: 'success' | 'warning' | 'muted' }> = {
   active: { label: 'Ativo', variant: 'success' },
@@ -163,7 +163,7 @@ export default function AdminDashboard() {
           api.getCriancas(selectedEventId).catch(() => []),
           api.getCheckpoints(selectedEventId).catch(() => []),
           api.getBrincadeiras(selectedEventId).catch(() => []),
-          api.getScoreHistory(selectedEventId, 200).catch(() => []),
+          api.getScoreHistory(selectedEventId, 200, undefined, true).catch(() => []),
           api.getTimes(selectedEventId).catch(() => []),
         ]);
         if (disposed) return;
@@ -262,7 +262,7 @@ export default function AdminDashboard() {
       if (document.hidden) return;
       setNow(new Date());
       try {
-        const history = await api.getScoreHistory(selectedEventId, 200);
+        const history = await api.getScoreHistory(selectedEventId, 200, undefined, true);
         if (!disposed && Array.isArray(history)) setScoreLog(history);
       } catch {
         // mantém os dados atuais até a próxima tentativa
@@ -419,11 +419,15 @@ export default function AdminDashboard() {
 
   // Engajamento em intervalos de tempo, só dentro do período em que o evento
   // esteve ativo (do início real até o encerramento). O intervalo é escolhido
-  // pela duração para o gráfico ter de 5 a 10 pontos. Com o evento em andamento
+  // pela duração para o gráfico ter de 2 a 8 pontos. Com o evento em andamento
   // o eixo já cobre o evento inteiro e os intervalos futuros ficam sem ponto.
   const engagement = useMemo(() => {
     const times = safeScoreLog
-      .map((entry) => (entry?.created_at ? new Date(entry.created_at) : null))
+      // A API devolve o horário em criadoEm (created_at é o nome antigo)
+      .map((entry) => {
+        const quando = entry?.criadoEm ?? entry?.created_at;
+        return quando ? new Date(quando) : null;
+      })
       .filter((date): date is Date => date !== null && !Number.isNaN(date.getTime()));
     const window = getEventActiveWindow(selectedEvent, times, now);
     const bucketMinutes = window ? getBucketMinutes(selectedEvent?.duracao, window) : 0;
@@ -620,16 +624,16 @@ export default function AdminDashboard() {
                   {engagementWindow && (
                     <p className="mt-1 mb-4 text-xs text-gray-500">
                       {(isSelectedEventActive
-                        ? `Evento ativo desde ${formatClock(engagementWindow.start)}`
+                        ? `Evento ativo desde ${formatClockDay(engagementWindow.start)}`
                         : engagementWindow.source === 'readings'
-                          ? `Período com atividade: ${formatClock(engagementWindow.start)} às ${formatClock(engagementWindow.end)}`
-                          : `Evento ativo das ${formatClock(engagementWindow.start)} às ${formatClock(engagementWindow.end)}`)
-                        + ` · a cada ${engagementBucketMinutes} min`}
+                          ? `Período com atividade: ${formatClockDay(engagementWindow.start)} às ${formatClockDay(engagementWindow.end)}`
+                          : `Evento ativo das ${formatClockDay(engagementWindow.start)} às ${formatClockDay(engagementWindow.end)}`)
+                        + ` · a cada ${formatInterval(engagementBucketMinutes)}`}
                     </p>
                   )}
                   {engagementOverTimeData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={250}>
-                    <LineChart data={engagementOverTimeData} margin={{ top: 5, right: 28, left: 0, bottom: 5 }}>
+                    <LineChart data={engagementOverTimeData} margin={{ top: 5, right: 44, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                       <XAxis dataKey="hora" interval={0} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
                       <YAxis allowDecimals={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} />

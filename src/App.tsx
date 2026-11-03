@@ -1,3 +1,4 @@
+import { lerToken, sessaoSoDestaAba } from './utils/sessao';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useEffect, useCallback } from 'react';
@@ -14,6 +15,11 @@ import DisplayMain from './pages/display/DisplayMain';
 import DisplayRanking from './pages/display/DisplayRanking';
 import DisplayMap from './pages/display/DisplayMap';
 import DisplayStandby from './pages/display/DisplayStandby';
+import TelaoEntrada from './pages/display/TelaoEntrada';
+import DisplayDemoPontuacao from './pages/display/DisplayDemoPontuacao';
+import DisplayDemoRegras from './pages/display/DisplayDemoRegras';
+import DemoCadastroAparencia from './pages/reception/DemoCadastroAparencia';
+import DemoRoleta from './pages/game-master/DemoRoleta';
 import ReceptionDashboard from './pages/reception/ReceptionDashboard';
 import ReceptionCheckin from './pages/reception/ReceptionCheckin';
 import ReceptionKiosk from './pages/reception/ReceptionKiosk';
@@ -64,6 +70,20 @@ import FamilyProfile from './pages/family/FamilyProfile';
 import FamilyNotifications from './pages/family/FamilyNotifications';
 import FamilyInviteRegister from './pages/family/FamilyInviteRegister';
 import ReceptionFamilyLinks from './pages/reception/ReceptionFamilyLinks';
+
+// Telão aberto por link (/telao/<código>): renova a sessão a cada 6 h para a TV não cair no meio do evento.
+function TelaoSessao() {
+  const papel = useAuth((state) => state.user?.role);
+  const entrarComoTelao = useAuth((state) => state.entrarComoTelao);
+  useEffect(() => {
+    const codigo = localStorage.getItem('telaoCodigo');
+    // Telão aberto pela equipe (sessão só desta aba) não renova por código: ele escreveria na sessão da recepção
+    if (papel !== 'display' || !codigo || sessaoSoDestaAba()) return;
+    const renovar = setInterval(() => { entrarComoTelao(codigo); }, 6 * 60 * 60 * 1000);
+    return () => clearInterval(renovar);
+  }, [papel, entrarComoTelao]);
+  return null;
+}
 
 // Perfis que podem consultar /event-control/active (o da família, por exemplo, não pode).
 const EVENT_CONTROL_ROLES = ['admin', 'reception', 'game_master', 'display', 'master', 'kiosk', 'score_kiosk'];
@@ -128,7 +148,7 @@ function App() {
 
   // Restaurar sessão ao iniciar a app
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
+    const token = lerToken();
     if (token && !isAuthenticated) {
       // Token existe mas não está no state - pode ser um reload
       // O useAuth já tenta recuperar, então apenas continua
@@ -188,6 +208,7 @@ function App() {
           pollMs={user && ['kiosk', 'score_kiosk', 'display'].includes(user.role) ? 8000 : 0}
         />
         <DisplayRealtimeBridge enabled={isAuthenticated && user?.role === 'display'} />
+        <TelaoSessao />
         <Toaster
           position="top-right"
           toastOptions={{
@@ -206,6 +227,13 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
 
           {/* Telão */}
+          <Route path="/telao" element={<TelaoEntrada />} />
+          {/* Prévia da tela de pontuação final com dados de exemplo (não lê nem grava nada do evento) */}
+          <Route path="/demo/pontuacao-final" element={<DisplayDemoPontuacao />} />
+          <Route path="/demo/regras" element={<DisplayDemoRegras />} />
+          <Route path="/demo/cadastro-aparencia" element={<DemoCadastroAparencia />} />
+          <Route path="/demo/roleta" element={<DemoRoleta />} />
+          <Route path="/telao/:codigo" element={<TelaoEntrada />} />
           <Route path="/display" element={<ProtectedRoute allowedRoles={['display']}><DisplayMain /></ProtectedRoute>} />
           <Route path="/display/ranking" element={<ProtectedRoute allowedRoles={['display']}><DisplayRanking /></ProtectedRoute>} />
           <Route path="/display/map" element={<ProtectedRoute allowedRoles={['display']}><DisplayMap /></ProtectedRoute>} />

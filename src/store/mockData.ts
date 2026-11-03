@@ -21,6 +21,8 @@ export interface Child {
   codigoPulseira?: string;
   bracelet?: string | null;
   eventoId?: string;
+  // Cadastro permanente da criança (vale para todos os eventos)
+  perfilCriancaId?: string;
 }
 
 export interface Team {
@@ -502,7 +504,8 @@ export const usePulynStore = create<PulynStore>((set, get) => ({
 
   updateTeam: async (id, data) => {
     try {
-      await api.updateTime(id, data);
+      // O servidor espera `nome` (o modelo das telas usa `name`)
+      await api.updateTime(id, { nome: data.name, color: data.color });
       await get().loadTeams();
     } catch (error) {
       console.error('❌ Erro ao atualizar time:', error);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { mensagemParaTela } from '../../services/api';
 import { Trophy, Medal, Star, Zap, Clock, MapPin, Users, ArrowLeft } from 'lucide-react';
 import { useGameWebSocket } from '../../hooks/useGameWebSocket';
@@ -17,7 +17,12 @@ import GameGuide, { type GuideGame } from '../../components/display/GameGuide';
 import FitToBox from '../../components/display/FitToBox';
 import { useTypewriterCycle } from '../../hooks/useTypewriterCycle';
 import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from '../../components/display/TreasureArena';
-import RouletteOverlay, { type RouletteData } from '../../components/game-master/RouletteOverlay';
+import RouletteOverlay, { RouletteResultBanner, type RouletteData } from '../../components/game-master/RouletteOverlay';
+import PreJogoMapa, { type LeituraPreJogo } from '../../components/display/PreJogoMapa';
+import SorteioEquipes, { type SorteioDasEquipes } from '../../components/display/SorteioEquipes';
+import UltimasLeituras, { type LeituraDoJogo } from '../../components/display/UltimasLeituras';
+import PontuacaoFinal, { type FimDeJogo } from '../../components/display/PontuacaoFinal';
+import { numeroDoCheckpoint } from '../../utils/checkpoints';
 
 interface MonsterDisplayMonster {
   teamId: string;
@@ -50,6 +55,9 @@ const sameEventId = (left: unknown, right: unknown) => (
   String(left || '').trim().toLowerCase() === String(right || '').trim().toLowerCase()
 );
 
+// Quanto tempo uma mensagem do recreacionista fica no telão
+const MENSAGEM_VISIVEL_MS = 8000;
+
 export default function DisplayMain() {
 
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -66,8 +74,20 @@ export default function DisplayMain() {
   const [messageArrivedAt, setMessageArrivedAt] = useState(0);
   // Roleta da brincadeira paralela ("Ache o objeto"): gira no telão quando o recreacionista inicia.
   const [parallelRoulette, setParallelRoulette] = useState<RouletteData | null>(null);
+  // Depois da roleta, o objeto sorteado fica um tempo no cabeçalho (lugar sem informação, não cobre o mapa)
+  const [parallelObject, setParallelObject] = useState<RouletteData | null>(null);
+  // Último checkpoint lido (qualquer pulseira): o pré-jogo mostra um aviso com ele
+  const [ultimaLeituraPreJogo, setUltimaLeituraPreJogo] = useState<LeituraPreJogo | null>(null);
+  // Sorteio das equipes em andamento no telão (some sozinho depois de mostrar tudo)
+  const [sorteioEquipes, setSorteioEquipes] = useState<SorteioDasEquipes | null>(null);
+  const encerrarSorteio = useCallback(() => setSorteioEquipes(null), []);
+  // Fim de um jogo: pontuação final com o Pulyn comemorando (some sozinha)
+  const [fimDeJogo, setFimDeJogo] = useState<FimDeJogo | null>(null);
+  const encerrarFimDeJogo = useCallback(() => setFimDeJogo(null), []);
   const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
   const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
+  // Jogo escolhido pelo recreacionista e ainda não iniciado: o telão mostra as regras dele
+  const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [treasureStatus, setTreasureStatus] = useState<TreasureArenaStatus | null>(null);
   const [lastTreasureEvent, setLastTreasureEvent] = useState<TreasureArenaEvent | null>(null);
   const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
@@ -101,6 +121,14 @@ export default function DisplayMain() {
   const dominioEstado = useDominioEstado(selectedEventId || null, jogoDeZona && !isIndividualMode);
   const dominioAtivo = Boolean(dominioEstado?.ativo) && jogoDeZona && !isIndividualMode;
 
+  // O jogo escolhido, com descrição e regras cadastradas (acha pelo id; sem ele, pelo nome). Sem cadastro completo, mostra só o nome.
+  const jogoSelecionado: GuideGame = useMemo(() => {
+    const achado = guideGames.find((g) => selectedGameId && g.id.toLowerCase() === selectedGameId.toLowerCase())
+      ?? guideGames.find((g) => g.name.trim().toLowerCase() === String(selectedGameName || '').trim().toLowerCase());
+    const base: GuideGame = achado ?? { id: selectedGameId || String(selectedGameName || 'jogo'), name: String(selectedGameName || 'Jogo') };
+    return base.description || base.rules ? base : { ...base, description: 'O recreacionista vai explicar como jogar.' };
+  }, [guideGames, selectedGameId, selectedGameName]);
+
   const topParticipants = useMemo(() => [...children]
     .filter(child => child.status === 'active')
     .sort((a, b) => Number(b.scores || 0) - Number(a.scores || 0))
@@ -130,6 +158,37 @@ export default function DisplayMain() {
     }))
     .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
     .slice(0, 10), [scoreLog]);
+
+  // Últimas leituras para a coluna do jogo: checkpoint (número), apelido de quem passou e pontos
+  const ultimasLeituras = useMemo<LeituraDoJogo[]>(() => scoreLog
+    .map((entry: any) => {
+      const checkpoint = checkpoints.find((cp) => String(cp.id).toLowerCase() === String(entry.checkpointId ?? '').toLowerCase());
+      return {
+        id: String(entry.id ?? `${entry.childId}-${entry.timestamp}`),
+        apelido: String(entry.child_apelido || entry.childName || 'Participante'),
+        checkpoint: checkpoint ? numeroDoCheckpoint(checkpoint) : '',
+        checkpointNome: String(checkpoint?.name ?? entry.checkpoint_nome ?? ''),
+        pontos: Number(entry.points || 0),
+        cor: String(entry.teamColor || entry.team_color || '#1E9BD7'),
+        quando: new Date(entry.timestamp || entry.created_at || 0).getTime(),
+      };
+    })
+    .sort((a, b) => b.quando - a.quando)
+    .slice(0, 8)
+    .map(({ id, apelido, checkpoint, checkpointNome, pontos, cor }) => ({ id, apelido, checkpoint, checkpointNome, pontos, cor })), [scoreLog, checkpoints]);
+
+  // Uma leitura chegou: relê o histórico logo depois (o servidor leva um instante para gravar), sem repetir a cada leitura em rajada
+  const recargaDasLeituras = useRef<number | null>(null);
+  const agendarRecargaDasLeituras = useCallback(() => {
+    if (recargaDasLeituras.current !== null) return;
+    recargaDasLeituras.current = window.setTimeout(() => {
+      recargaDasLeituras.current = null;
+      usePulynStore.getState().loadScoreLog().catch(() => undefined);
+    }, 800);
+  }, []);
+  useEffect(() => () => {
+    if (recargaDasLeituras.current !== null) window.clearTimeout(recargaDasLeituras.current);
+  }, []);
 
   const refreshTreasureStatus = useCallback(async () => {
     if (!selectedEventId) {
@@ -296,6 +355,8 @@ export default function DisplayMain() {
       setLastTreasureEvent(null);
       setSelectedGameType(null);
       setSelectedGameName(null);
+      setSelectedGameId(null);
+      setFimDeJogo(null);
       setTreasureStatus(null);
       setMonsterStatus(null);
       setGameActive(false);
@@ -316,6 +377,7 @@ export default function DisplayMain() {
           if (!disposed && gameState?.selected) {
             setSelectedGameType(gameState.gameType || null);
             setSelectedGameName(gameState.gameName || null);
+            setSelectedGameId(gameState.gameId ? String(gameState.gameId) : null);
           }
         } catch (stateError) {
           console.error('Erro ao restaurar seleção do jogo no telão:', stateError);
@@ -382,21 +444,52 @@ export default function DisplayMain() {
   }, [zoneConquestGameStatus, isIndividualMode]);
 
   // WebSocket para eventos em tempo real
-  const { connectionStatus, lastMessageAt } = useGameWebSocket(
+  const { connectionStatus } = useGameWebSocket(
     selectedEventId || null,
     (event) => {
       // Processar eventos do WebSocket
+      if (['NFC_READING_DETECTED', 'SCORE_UPDATE', 'CHILD_CHECKPOINT_PASSED'].includes(event.type) && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        agendarRecargaDasLeituras();
+      }
       if (event.type === 'GAME_SELECTED' && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
         // NÃO setar selectedGameType aqui - apenas quando GAME_STARTED
         // setSelectedGameType(event.payload?.gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
+        setSelectedGameId(event.payload?.gameId ? String(event.payload.gameId) : null);
+        setFimDeJogo(null);
         // Limpar status quando seleciona novo jogo (mas não mostra mapa ainda)
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
+      } else if (event.type === 'TEAMS_DRAWN' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        const equipes = Array.isArray(event.payload?.teams) ? event.payload.teams : [];
+        if (equipes.length > 0) {
+          setFimDeJogo(null);
+          setSorteioEquipes({ chave: Date.now(), mode: event.payload?.mode, teams: equipes });
+        }
+        // Os times e seus pontos mudaram com o sorteio
+        const { loadTeams: reloadTeams, loadChildren: reloadChildren } = usePulynStore.getState();
+        reloadTeams();
+        reloadChildren();
+      } else if (event.type === 'GAME_SELECTION_CLEARED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        // "Sem jogos": sai a tela de regras e volta o mapa livre
+        setFimDeJogo(null);
+        setSelectedGameName(null);
+        setSelectedGameId(null);
+        setSelectedGameType(null);
+      } else if (event.type === 'NFC_READING_DETECTED' && sameEventId(event.payload?.eventoId, selectedEventId)
+        && event.payload?.source !== 'reception' && event.payload?.checkpointId != null) {
+        setUltimaLeituraPreJogo({
+          checkpointId: String(event.payload.checkpointId),
+          braceletCode: String(event.payload.braceletCode ?? ''),
+          chegouEm: Date.now(),
+        });
+      } else if (event.type === 'PARALLEL_GAME_FINISHED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        setParallelObject(null);
       } else if (event.type === 'PARALLEL_GAME_STARTED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const roulette = event.payload?.roulette;
         if (roulette?.segments?.length) {
+          setParallelObject(null);
           setParallelRoulette({
             segments: roulette.segments,
             winnerIndex: Number(roulette.winnerIndex) || 0,
@@ -436,6 +529,8 @@ export default function DisplayMain() {
         const gameType = event.payload?.gameType;
         setGameActive(true);
         setGameStateLoaded(true);
+        setSorteioEquipes(null);
+        setFimDeJogo(null);
         setSelectedGameType(gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
         
@@ -509,10 +604,21 @@ export default function DisplayMain() {
           setZoneConquestStatus(null);
         }
       } else if (event.type === 'GAME_STOPPED' && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
+        // Havia um jogo rodando: mostra a pontuação final com o Pulyn comemorando
+        if (gameActive) {
+          const tipoDoJogo = guideGames.find((g) => g.name === selectedGameName)?.type;
+          // O aviso de fim pode chegar duas vezes (geral e da sala): a segunda não reinicia a tela
+          setFimDeJogo((atual) => atual ?? {
+            chave: Date.now(),
+            nomeJogo: selectedGameName,
+            individual: String(tipoDoJogo || '').toLowerCase() === 'individual' || isIndividualMode,
+          });
+        }
         setGameActive(false);
         refreshGuideGames();
         setSelectedGameType(null);
         setSelectedGameName(null);
+        setSelectedGameId(null);
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
@@ -664,20 +770,6 @@ export default function DisplayMain() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-
-  // Formatar hora
-  const formattedTime = currentTime.toLocaleTimeString('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
-
-  const formattedDate = currentTime.toLocaleDateString('pt-BR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
 
   // Total de participantes ativos
   const activeParticipants = children.filter(c => c.status === 'active').length;
@@ -854,7 +946,11 @@ export default function DisplayMain() {
   const conquestOverlay = (
     <>
       {parallelRoulette && (
-        <RouletteOverlay data={parallelRoulette} onClose={() => setParallelRoulette(null)} autoCloseSeconds={14} />
+        <RouletteOverlay
+          data={parallelRoulette}
+          onClose={() => setParallelRoulette(null)}
+          onWheelGone={() => { setParallelObject(parallelRoulette); setParallelRoulette(null); }}
+        />
       )}
       {/* Notificação Animada de Conquista */}
       {showNotification && notificationData && (
@@ -1068,12 +1164,11 @@ export default function DisplayMain() {
                     ? 'Conectando'
                     : 'Desconectado'}
             </span>
-            {lastMessageAt && connectionStatus === 'connected' && (
-              <span className="hidden text-[11px] text-gray-500 xl:inline">
-                · {lastMessageAt.toLocaleTimeString('pt-BR')}
-              </span>
-            )}
           </div>
+        </div>
+        {/* Durante um jogo não há rodapé: o objeto da brincadeira paralela fica no meio (livre) do cabeçalho */}
+        <div className="flex min-w-0 flex-1 justify-center">
+          {gameOnlyView && parallelObject && <RouletteResultBanner data={parallelObject} />}
         </div>
         <div className="flex min-w-0 items-center gap-2.5">
           <p className="truncate text-[clamp(0.9rem,2.3vh,1.5rem)] font-semibold text-gray-200">
@@ -1086,21 +1181,28 @@ export default function DisplayMain() {
       </header>
   );
 
+  // Mensagem do recreacionista: fica na tela só por um tempo e some sozinha (o relógio de 1 s reavalia)
+  const latestMessage = displayMessages[0];
+  const showMessage = Boolean(latestMessage) && messageArrivedAt > 0 && currentTime.getTime() - messageArrivedAt < MENSAGEM_VISIVEL_MS;
+
   if (gameOnlyView) {
-    // Mensagem do recreacionista: aparece por cima do jogo só por um tempo e some sozinha
-    const latestMessage = displayMessages[0];
-    const showMessageOverGame = Boolean(latestMessage) && messageArrivedAt > 0 && currentTime.getTime() - messageArrivedAt < 20000;
     return (
       <div className="relative flex h-screen flex-col overflow-hidden bg-[#08111f] p-2 text-white">
         {conquestOverlay}
         {headerBar}
-        {showMessageOverGame && (
+        {showMessage && (
           <div className="absolute inset-x-6 top-[max(5.5rem,11vh)] z-30 flex items-center gap-3 rounded-2xl border border-accent/50 bg-black/70 px-5 py-3 shadow-2xl backdrop-blur animate-in fade-in slide-in-from-top-2" role="status" aria-label="Mensagem do recreacionista">
             <Zap size={26} className="shrink-0 text-accent" />
             <p className="line-clamp-2 font-display text-[clamp(1.2rem,3.4vh,2.4rem)] font-bold leading-tight text-white">{latestMessage.text}</p>
           </div>
         )}
-        <div className="mt-2 min-h-0 flex-1">{stageContent}</div>
+        <div className="mt-2 flex min-h-0 flex-1 gap-2">
+          <div className="min-h-0 min-w-0 flex-1">{stageContent}</div>
+          {/* Últimas leituras: coluna ao lado do jogo (só em telas largas) */}
+          <div className="hidden w-[clamp(13rem,19vw,21rem)] shrink-0 lg:block">
+            <UltimasLeituras leituras={ultimasLeituras} />
+          </div>
+        </div>
       </div>
     );
   }
@@ -1116,14 +1218,14 @@ export default function DisplayMain() {
 
       <main className="relative z-10 mt-3 flex min-h-0 flex-1 flex-col gap-3">
         {/* Mensagem do recreacionista */}
-        {displayMessages.length > 0 && (
+        {showMessage && (
           <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-2" role="status" aria-label="Mensagem do recreacionista">
             <Zap size={22} className="shrink-0 text-accent" />
             <div className="min-w-0 flex-1">
               <p className="text-[clamp(0.6rem,1.3vh,0.8rem)] font-bold uppercase tracking-[0.25em] text-accent">Mensagem do recreacionista</p>
-              <p className="line-clamp-2 font-display text-[clamp(1.1rem,3vh,2.2rem)] font-bold leading-tight text-white">{displayMessages[0].text}</p>
+              <p className="line-clamp-2 font-display text-[clamp(1.1rem,3vh,2.2rem)] font-bold leading-tight text-white">{latestMessage.text}</p>
             </div>
-            <p className="shrink-0 text-xs text-gray-400">{displayMessages[0].timestamp ? new Date(displayMessages[0].timestamp).toLocaleTimeString('pt-BR') : ''}</p>
+            <p className="shrink-0 text-xs text-gray-400">{latestMessage.timestamp ? new Date(latestMessage.timestamp).toLocaleTimeString('pt-BR') : ''}</p>
           </div>
         )}
 
@@ -1132,6 +1234,42 @@ export default function DisplayMain() {
             - com leituras: metade guia, metade placar. */}
         {!gameStateLoaded ? (
           <div className="flex-1" />
+        ) : !gameActive && fimDeJogo ? (
+          // Fim de jogo: pontuação final com o Pulyn comemorando
+          <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
+            <PontuacaoFinal key={fimDeJogo.chave} fim={fimDeJogo} onTerminar={encerrarFimDeJogo} />
+          </section>
+        ) : !gameActive && sorteioEquipes ? (
+          // Sorteio das equipes: a formação aparece no telão enquanto o recreacionista sorteia
+          <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
+            <SorteioEquipes key={sorteioEquipes.chave} sorteio={sorteioEquipes} onTerminar={encerrarSorteio} />
+          </section>
+        ) : !gameActive && selectedGameName ? (
+          // Jogo escolhido e ainda não iniciado: as regras dele ocupam a tela até o recreacionista iniciar
+          <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
+            <GameGuide
+              games={[jogoSelecionado]}
+              highlightName={jogoSelecionado.name}
+              heading="Regras do próximo jogo"
+              subheading="Leia com atenção: o jogo começa em instantes"
+            />
+          </section>
+        ) : !gameActive ? (
+          // Pré-jogo: o mapa com os checkpoints e o aviso de checkpoint lido. Depois de uma partida, o placar fica ao lado.
+          hasReadings ? (
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[3fr_2fr]">
+              <section className="min-h-[360px] min-w-0 lg:min-h-0">
+                <PreJogoMapa leitura={ultimaLeituraPreJogo} />
+              </section>
+              <div className="min-h-[360px] min-w-0 lg:min-h-0">
+                {rankingPanel}
+              </div>
+            </div>
+          ) : (
+            <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
+              <PreJogoMapa leitura={ultimaLeituraPreJogo} />
+            </section>
+          )
         ) : guideGames.length > 0 ? (
           hasReadings ? (
             <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
@@ -1218,16 +1356,16 @@ export default function DisplayMain() {
         )}
       </main>
 
-      {/* Rodapé: relógio e participantes (mini display) */}
-      <footer className="relative z-10 mt-3 flex shrink-0 items-center justify-between gap-4 lg:h-[6vh] lg:min-h-[44px]">
-        <div className="flex items-center gap-3">
-          <Clock size={18} className="text-primary-300" />
-          <p className="font-mono text-[clamp(1.1rem,3vh,2rem)] font-bold tracking-wide text-primary-300">{formattedTime}</p>
-          <span className="hidden h-4 w-px bg-white/10 sm:block" />
-          <p className="hidden text-[clamp(0.7rem,1.6vh,1rem)] capitalize text-gray-500 sm:block">{formattedDate}</p>
-        </div>
+      {/* Rodapé: participantes (mini display) */}
+      <footer className="relative z-10 mt-3 flex shrink-0 items-center justify-end gap-4 lg:min-h-[6vh]">
+        {/* Objeto da brincadeira paralela: à esquerda do número de participantes */}
+        {parallelObject && (
+          <div className="flex min-w-0 flex-1 justify-end">
+            <RouletteResultBanner data={parallelObject} />
+          </div>
+        )}
         <div
-          className="flex items-center gap-3 rounded-2xl border border-white/10 bg-dark-card/85 px-4 py-1.5 shadow-lg shadow-black/20 backdrop-blur-xl"
+          className="flex shrink-0 items-center gap-3 rounded-2xl border border-white/10 bg-dark-card/85 px-4 py-1.5 shadow-lg shadow-black/20 backdrop-blur-xl"
           role="status"
           aria-label={`${activeParticipants} de ${totalParticipants} participantes ativos`}
         >

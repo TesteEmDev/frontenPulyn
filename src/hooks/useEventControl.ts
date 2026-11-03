@@ -1,3 +1,4 @@
+import { lerToken } from '../utils/sessao';
 import { useEffect, useRef } from 'react';
 import { API_URL } from '../services/api';
 import { createAuthenticatedWebSocket, getWebSocketServerUrl } from '../services/websocket';
@@ -35,7 +36,7 @@ export function useEventControl(
     };
 
     const loadCurrentEvent = async () => {
-      const token = localStorage.getItem('authToken');
+      const token = lerToken();
       if (!token || disposed) return;
       try {
         const response = await fetch(`${API_URL}/event-control/active`, {
@@ -57,7 +58,7 @@ export function useEventControl(
 
     const connect = () => {
       if (disposed) return;
-      const token = localStorage.getItem('authToken');
+      const token = lerToken();
       if (!token) return;
 
       const query = new URLSearchParams({ scope: 'company' });

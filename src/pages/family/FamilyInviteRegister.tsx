@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { CheckCircle, KeyRound, Loader2, Mail, UserRound, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle, KeyRound, Loader2, Mail, Phone, UserRound, Plus, Trash2 } from 'lucide-react';
 import { api } from '../../services/api';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
+import { maskPhone, validatePhone, countPhoneDigits } from '../../utils/phone';
+import { erroNascimento, hojeIso } from '../../utils/nascimento';
 
 interface InviteData {
   event: { name: string; date: string };
@@ -16,10 +18,10 @@ interface InviteData {
 interface ChildForm {
   name: string;
   nickname: string;
-  age: string;
+  nascimento: string;   // AAAA-MM-DD
 }
 
-const emptyChild = (): ChildForm => ({ name: '', nickname: '', age: '' });
+const emptyChild = (): ChildForm => ({ name: '', nickname: '', nascimento: '' });
 
 export default function FamilyInviteRegister() {
   const { token = '' } = useParams();
@@ -29,7 +31,7 @@ export default function FamilyInviteRegister() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ parentName: '', email: '', password: '', confirmPassword: '' });
+  const [form, setForm] = useState({ parentName: '', phone: '', email: '', password: '', confirmPassword: '' });
   const [children, setChildren] = useState<ChildForm[]>([emptyChild()]);
 
   useEffect(() => {
@@ -53,7 +55,8 @@ export default function FamilyInviteRegister() {
   }, [token]);
 
   const update = (field: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) => {
-    setForm((current) => ({ ...current, [field]: event.target.value }));
+    const valor = field === 'phone' ? maskPhone(event.target.value) : event.target.value;
+    setForm((current) => ({ ...current, [field]: valor }));
     setError('');
   };
 
@@ -79,19 +82,28 @@ export default function FamilyInviteRegister() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (form.password !== form.confirmPassword) return setError('As senhas não conferem.');
+    // Telefone do responsável: obrigatório, para a equipe poder falar com a família
+    if (countPhoneDigits(form.phone) === 0) return setError('Informe o telefone do responsável.');
+    const erroDoTelefone = validatePhone(form.phone);
+    if (erroDoTelefone) return setError(erroDoTelefone);
     if (!invite?.child) {
       if (children.some((child) => !child.name.trim())) return setError('Informe o nome de todas as crianças.');
+      for (const [indice, child] of children.entries()) {
+        const erroDaData = erroNascimento(child.nascimento || null);
+        if (erroDaData) return setError(`Criança ${indice + 1}: ${erroDaData}`);
+      }
     }
     setSaving(true);
     try {
       await api.registerFamily(token, {
         parentNome: form.parentName,
+        telefone: form.phone,
         email: form.email,
         senha: form.password,
         children: invite?.child ? undefined : children.map((child) => ({
           name: child.name.trim(),
           nickname: child.nickname.trim(),
-          age: child.age,
+          dataNascimento: child.nascimento,
         })),
       });
       setSuccess(true);
@@ -130,6 +142,7 @@ export default function FamilyInviteRegister() {
           <form onSubmit={submit} className="space-y-4">
             {error && <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-red-300">{error}</div>}
             <Input label="Nome do responsável" value={form.parentName} onChange={update('parentName')} required icon={<UserRound size={16} />} />
+            <Input label="Telefone do responsável" type="tel" inputMode="tel" placeholder="(11) 91234-5678" value={form.phone} onChange={update('phone')} required icon={<Phone size={16} />} />
             <Input label="E-mail" type="email" value={form.email} onChange={update('email')} required icon={<Mail size={16} />} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="Senha" type="password" value={form.password} onChange={update('password')} minLength={6} required icon={<KeyRound size={16} />} />
@@ -159,7 +172,7 @@ export default function FamilyInviteRegister() {
                     <Input label="Nome da criança" value={child.name} onChange={updateChild(index, 'name')} required />
                     <div className="grid grid-cols-2 gap-4">
                       <Input label="Apelido (opcional)" value={child.nickname} onChange={updateChild(index, 'nickname')} />
-                      <Input label="Idade (opcional)" type="number" min={0} max={18} value={child.age} onChange={updateChild(index, 'age')} />
+                      <Input label="Data de nascimento" type="date" max={hojeIso()} value={child.nascimento} onChange={updateChild(index, 'nascimento')} required />
                     </div>
                   </div>
                 ))}

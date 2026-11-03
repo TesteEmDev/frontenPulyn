@@ -29,6 +29,11 @@ export const ADMIN_NAV_ITEMS = [
 // Clientes do plano PulynBall têm uma tela própria para as regras dos jogos de paintball.
 const PULYNBALL_NAV_ITEM = { icon: <Crosshair size={20} />, label: 'PulynBall', path: '/admin/pulynball' };
 
+// Itens do menu do admin conforme o plano (usado aqui e pelo menu de contas com mais de uma área).
+export const itensDoAdmin = (plan?: string) => (plan === 'pulynball'
+  ? [ADMIN_NAV_ITEMS[0], PULYNBALL_NAV_ITEM, ...ADMIN_NAV_ITEMS.slice(1)]
+  : ADMIN_NAV_ITEMS);
+
 interface AdminSidebarProps {
   // Só precisa ser passado quando a rota da página não bate com o pathname
   // atual (ex.: uma tela de edição em "/admin/games/:id" que deve destacar
@@ -40,9 +45,7 @@ export default function AdminSidebar({ activePath }: AdminSidebarProps) {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const { user } = useAuth();
-  const items = user?.plan === 'pulynball'
-    ? [ADMIN_NAV_ITEMS[0], PULYNBALL_NAV_ITEM, ...ADMIN_NAV_ITEMS.slice(1)]
-    : ADMIN_NAV_ITEMS;
+  const items = itensDoAdmin(user?.plan);
 
   return (
     <Sidebar

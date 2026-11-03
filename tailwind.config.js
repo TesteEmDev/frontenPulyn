@@ -164,8 +164,28 @@ export default {
         'confetti': 'confetti 1s ease-out forwards',
         'shimmer': 'shimmer 2s linear infinite',
         'particle': 'particle 4s linear infinite',
-        'kiosk-register': 'kioskRegister 0.65s cubic-bezier(0.22, 1, 0.36, 1) both',      },
+        'kiosk-register': 'kioskRegister 0.65s cubic-bezier(0.22, 1, 0.36, 1) both',
+        // Pulyn comemorando (movimento da animação "feliz" do mascote) e confete caindo
+        'pulyn-feliz': 'pulynFeliz 1.6s ease-in-out infinite',
+        'confeti-cai': 'confetiCai 4s linear infinite',
+      },
       keyframes: {
+        // Trilhas de mascote/Lumi2D/animacoes.json ("feliz"): pula, achata e estica, balança. Pivô na base do corpo.
+        pulynFeliz: {
+          '0%, 100%': { transform: 'translateY(0) scale(1, 1) rotate(0deg)' },
+          '7.5%': { transform: 'translateY(1%) scale(1.08, 0.92) rotate(-1.1deg)' },
+          '28%': { transform: 'translateY(-15%) scale(0.96, 1.06) rotate(-4deg)' },
+          '48.75%': { transform: 'translateY(0) scale(1.09, 0.91) rotate(0deg)' },
+          '56.25%': { transform: 'translateY(0.8%) scale(1.05, 0.95) rotate(1.1deg)' },
+          '70%': { transform: 'translateY(-6%) scale(0.99, 1.02) rotate(3deg)' },
+          '87.5%': { transform: 'translateY(0) scale(1.03, 0.97) rotate(1.25deg)' },
+        },
+        confetiCai: {
+          '0%': { transform: 'translateY(-10vh) rotate(0deg)', opacity: '0' },
+          '10%': { opacity: '1' },
+          '90%': { opacity: '1' },
+          '100%': { transform: 'translateY(110vh) rotate(540deg)', opacity: '0' },
+        },
         glow: {
           '0%': { boxShadow: '0 0 5px rgba(30, 155, 215, 0.3), 0 0 10px rgba(30, 155, 215, 0.1)' },
           '100%': { boxShadow: '0 0 10px rgba(30, 155, 215, 0.5), 0 0 20px rgba(30, 155, 215, 0.2)' },

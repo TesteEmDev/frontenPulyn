@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, type ChangeEvent } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  MapPin, Lightbulb, Volume2, Edit, Trash2
+  MapPin, Lightbulb, Volume2, Edit, Trash2, QrCode
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../../hooks/useAuth';
@@ -50,85 +50,49 @@ export default function AdminCheckpoints() {
   const [editingCheckpoint, setEditingCheckpoint] = useState<any>(null);
   const [instalando, setInstalando] = useState<any>(null);
 
-  // Link que abre a página /config do checkpoint (rede própria dele, 192.168.4.1) já com ID e servidor preenchidos.
-  const linkInstalacao = (cp: any) =>
-    `http://192.168.4.1/config?id=${encodeURIComponent(cp.id)}&servidor=${encodeURIComponent(window.location.origin)}`;
+  // Endereço do servidor na rede local, coletado do próprio servidor: o admin costuma abrir o sistema por "localhost",
+  // que o checkpoint não alcança.
+  const [servidorLocal, setServidorLocal] = useState<string | null>(null);
+  useEffect(() => {
+    if (!instalando) return;
+    let cancelado = false;
+    api.getEnderecoInstalacao()
+      .then((r) => { if (!cancelado) setServidorLocal(r.servidor); })
+      .catch(() => { if (!cancelado) setServidorLocal(null); });
+    return () => { cancelado = true; };
+  }, [instalando]);
 
-  // Exporta a lista do evento para importar em outro buffet (ver importarLista).
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importando, setImportando] = useState(false);
-
-  const exportarLista = () => {
-    const evento = events.find(e => e.eventoId === selectedEventId);
-    const arquivo = {
-      formato: 'pulyn-checkpoints',
-      versao: 1,
-      evento: evento?.nome ?? null,
-      checkpoints: checkpointsList.map(cp => ({
-        id: cp.codigo ?? cp.id,
-        nome: cp.name,
-        tipo: cp.type,
-        zona: cp.zone || '',
-        pontos: cp.points || 10,
-      })),
-    };
-    const url = URL.createObjectURL(new Blob([JSON.stringify(arquivo, null, 2)], { type: 'application/json' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `checkpoints-${(evento?.nome || 'evento').replace(/[^\w-]+/g, '-')}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+  // Link que abre a página /config do checkpoint já preenchida com o servidor.
+  //  - Checkpoint que já está na rede (o sistema conhece o IP dele, informado no heartbeat): abre direto nesse IP.
+  //  - Checkpoint sem rede: abre no Wi-Fi próprio dele (192.168.4.1), com esse IP, máscara e gateway já como IP fixo.
+  const ipConhecido = (cp: any) => {
+    const ip = String(cp.ip || '').trim();
+    return /^(\d{1,3}\.){3}\d{1,3}$/.test(ip) ? ip : null;
+  };
+  const naRede = (cp: any) => cp.status === 'online' && ipConhecido(cp) !== null;
+  const linkInstalacao = (cp: any) => {
+    const host = window.location.hostname;
+    const abertoPorLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+    const servidor = abertoPorLocalhost && servidorLocal ? servidorLocal : window.location.origin;
+    const params = new URLSearchParams({ servidor });
+    const ip = ipConhecido(cp);
+    if (ip && naRede(cp)) return `http://${ip}/config?${params.toString()}`;
+    if (ip) {
+      const gateway = `${ip.split('.').slice(0, 3).join('.')}.1`;
+      params.set('ipfixo', '1');
+      params.set('ip', ip);
+      params.set('mascara', '255.255.255.0');
+      params.set('gateway', gateway);
+      params.set('dns1', gateway);
+    }
+    return `http://192.168.4.1/config?${params.toString()}`;
   };
 
-  // Cria cada checkpoint do arquivo no evento selecionado. Se o ID já existir em outro buffet, o backend
-  // grava com o prefixo do buffet: a lista mostra o ID que o ESP32 precisa.
-  const importarLista = async (e: ChangeEvent<HTMLInputElement>) => {
-    const arquivo = e.target.files?.[0];
-    e.target.value = '';
-    if (!arquivo || !selectedEventId || selectedEventId === ALL_EVENTS) return;
-
-    let lista: any[];
-    try {
-      const dados = JSON.parse(await arquivo.text());
-      if (dados?.formato !== 'pulyn-checkpoints' || !Array.isArray(dados.checkpoints)) throw new Error('formato');
-      lista = dados.checkpoints;
-    } catch {
-      alert('Arquivo inválido. Use um arquivo gerado por "Exportar lista".');
-      return;
-    }
-    if (!window.confirm(`Importar ${lista.length} checkpoint(s) para este evento?`)) return;
-
-    setImportando(true);
-    let criados = 0;
-    let prefixados = 0;
-    const erros: string[] = [];
-    for (const cp of lista) {
-      try {
-        const criado = await api.createCheckpoint(selectedEventId, {
-          id: cp.id,
-          nome: cp.nome,
-          tipo: cp.tipo,
-          zone: cp.zona,
-          points: cp.pontos,
-        });
-        criados++;
-        if (criado?.prefixado) prefixados++;
-      } catch (err: any) {
-        erros.push(`${cp.id}: ${err.message}`);
-      }
-    }
-    setCheckpointsList(await api.getCheckpoints(selectedEventId));
-    setImportando(false);
-
-    const linhas = [`${criados} checkpoint(s) importado(s).`];
-    if (prefixados > 0) linhas.push(`${prefixados} com ID repetido em outro buffet: use o ID mostrado na lista ao gravar o ESP32.`);
-    if (erros.length > 0) linhas.push(`Não importados:\n${erros.join('\n')}`);
-    alert(linhas.join('\n\n'));
-  };
   const [formData, setFormData] = useState({
     id: '',
     name: '',
     type: 'NFC',
+    ip: '',
     zone: '',
     ledColor: '#00FF00',
     points: 10,
@@ -298,6 +262,7 @@ export default function AdminCheckpoints() {
       await api.saveCheckpointConfig(editingCheckpoint.id, {
         nome: formData.name,
         tipo: formData.type,
+        ip: formData.ip,
         zone: formData.zone,
         points: formData.points,
       }, editingCheckpoint.eventoId);
@@ -556,9 +521,18 @@ export default function AdminCheckpoints() {
               <QRCodeSVG value={linkInstalacao(instalando)} size={220} />
             </div>
             <ol className="text-sm text-gray-300 list-decimal pl-5 space-y-1">
-              <li>Ligue o checkpoint sem configuração, ou segure o botão BOOT por 3 s.</li>
-              <li>Conecte o celular ao Wi-Fi <span className="font-mono">Pulyn-CP-…</span> (em placa nova o nome termina no MAC, não no ID).</li>
-              <li>Escaneie o QR code e confira o ID e o servidor, depois preencha a rede e salve.</li>
+              {naRede(instalando) ? (
+                <>
+                  <li>Conecte o celular à mesma rede Wi-Fi do checkpoint (ele está online em <span className="font-mono">{ipConhecido(instalando)}</span>).</li>
+                  <li>Escaneie o QR code: abre a configuração do checkpoint já com o servidor preenchido. Confira e salve.</li>
+                </>
+              ) : (
+                <>
+                  <li>Ligue o checkpoint sem configuração, ou segure o botão BOOT por 3 s.</li>
+                  <li>Conecte o celular ao Wi-Fi <span className="font-mono">Pulyn-CP-…</span> (em placa nova o nome termina no MAC, não no ID).</li>
+                  <li>Escaneie o QR code: o servidor {ipConhecido(instalando) ? 'e o último IP conhecido ' : ''}já vêm preenchidos. Preencha o nome e a senha do Wi-Fi e salve.</li>
+                </>
+              )}
             </ol>
             <p className="text-xs text-gray-500 break-all font-mono">{linkInstalacao(instalando)}</p>
           </div>
@@ -608,7 +582,6 @@ export default function AdminCheckpoints() {
               >
                 <option value="NFC">NFC/RFID</option>
                 <option value="UHF">UHF Longa Distância</option>
-                <option value="QRCode">QR Code</option>
               </select>
             </div>
             <Input

@@ -11,7 +11,10 @@ import Input from '../../components/ui/Input';
 import StatusDot from '../../components/ui/StatusDot';
 import Avatar from '../../components/ui/Avatar';
 import AvatarSelector from '../../components/ui/AvatarSelector';
-import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
+import CorSelector from '../../components/ui/CorSelector';
+import { primeiraCorLivre } from '../../utils/coresParticipante';
+import { erroNascimento, hojeIso } from '../../utils/nascimento';
+import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID, primeiroAvatarLivre } from '../../avatar/adventurerAvatars';
 
 const normalizeUid = (value: string) => value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
 
@@ -41,8 +44,9 @@ export default function ReceptionCheckin() {
   const [form, setForm] = useState({
     name: '',
     nickname: '',
-    age: '',
+    nascimento: '',   // AAAA-MM-DD
     avatar: DEFAULT_AVATAR_ID,
+    cor: primeiraCorLivre([]),
   });
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [braceletCode, setBraceletCode] = useState('');
@@ -151,6 +155,39 @@ export default function ReceptionCheckin() {
     loadData();
   }, [eventoAtualId, loadEventos, setEventoAtual]);
 
+  // Avatares que os outros participantes do evento já usam: ficam indisponíveis e o cadastro começa num livre
+  const [avataresEmUso, setAvataresEmUso] = useState<string[]>([]);
+  const [coresEmUso, setCoresEmUso] = useState<string[]>([]);
+  const carregarAvatares = useCallback(async () => {
+    if (!selectedEventId) {
+      setAvataresEmUso([]);
+      setCoresEmUso([]);
+      return;
+    }
+    try {
+      const emUso = await api.getAvataresEmUso(selectedEventId);
+      setAvataresEmUso(emUso.avatares);
+      setCoresEmUso(emUso.cores);
+    } catch (error) {
+      console.error('Erro ao carregar os avatares em uso:', error);
+    }
+  }, [selectedEventId]);
+  useEffect(() => { carregarAvatares(); }, [carregarAvatares]);
+  // Outro cadastro (kiosk ou outra recepção) pode acontecer nesse meio tempo: relê de tempos em tempos
+  useEffect(() => {
+    if (!selectedEventId) return undefined;
+    const timer = window.setInterval(carregarAvatares, 8000);
+    return () => window.clearInterval(timer);
+  }, [selectedEventId, carregarAvatares]);
+  useEffect(() => {
+    // O avatar do formulário é de outro participante do evento (a lista mudou, o evento mudou ou o formulário foi zerado): troca por um livre
+    if (avataresEmUso.includes(form.avatar)) setForm(previous => ({ ...previous, avatar: primeiroAvatarLivre(avataresEmUso) }));
+  }, [avataresEmUso, form.avatar]);
+  useEffect(() => {
+    // Mesma regra para a cor
+    if (coresEmUso.some(cor => cor.toUpperCase() === form.cor.toUpperCase())) setForm(previous => ({ ...previous, cor: primeiraCorLivre(coresEmUso) }));
+  }, [coresEmUso, form.cor]);
+
   useEffect(() => {
     if (!selectedEventId) {
       setSelectedTeam(null);
@@ -162,7 +199,7 @@ export default function ReceptionCheckin() {
     });
   }, [selectedEventId, loadTeams, showToast]);
 
-  const handleChange = useCallback((field: 'name' | 'nickname' | 'age') => (
+  const handleChange = useCallback((field: 'name' | 'nickname' | 'nascimento') => (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     setForm(previous => ({ ...previous, [field]: event.target.value }));
@@ -175,6 +212,11 @@ export default function ReceptionCheckin() {
     }
     if (!form.name.trim()) {
       showToast('Preencha o nome da criança.', 'error');
+      return;
+    }
+    const erroDaData = erroNascimento(form.nascimento || null);
+    if (erroDaData) {
+      showToast(erroDaData, 'error');
       return;
     }
     if (!selectedTeam) {
@@ -205,8 +247,9 @@ export default function ReceptionCheckin() {
       await api.createCrianca(selectedEventId, {
         nome: form.name.trim(),
         apelido: form.nickname.trim() || form.name.trim().split(/\s+/)[0],
-        age: Number.parseInt(form.age, 10) || 5,
+        dataNascimento: form.nascimento,
         avatar: form.avatar,
+        cor: form.cor,
         braceletCode: normalizedCode,
         timeId: selectedTeam,
       });
@@ -214,17 +257,19 @@ export default function ReceptionCheckin() {
 
       const teamName = teams.find(team => String(team.id) === String(selectedTeam))?.name || 'time selecionado';
       showToast(`${form.name.trim()} foi cadastrado(a) no ${teamName} e a pulseira foi vinculada.`);
-      setForm({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID });
+      setForm({ name: '', nickname: '', nascimento: '', avatar: DEFAULT_AVATAR_ID, cor: primeiraCorLivre([]) });
       setSelectedTeam(null);
       clearBracelet();
+      carregarAvatares();
     } catch (error: unknown) {
+      carregarAvatares();
       console.error('Erro ao cadastrar participante:', error);
       const message = error instanceof Error ? error.message : 'Não foi possível cadastrar o participante.';
       showToast(message, 'error');
     } finally {
       setSaving(false);
     }
-  }, [braceletCode, clearBracelet, form, loadChildren, loadTeams, saving, selectedEventId, selectedTeam, showToast, teams]);
+  }, [braceletCode, carregarAvatares, clearBracelet, form, loadChildren, loadTeams, saving, selectedEventId, selectedTeam, showToast, teams]);
 
   if (loading) {
     return (
@@ -306,9 +351,9 @@ export default function ReceptionCheckin() {
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.8fr)]">
               <div className="space-y-4">
                 <Input label="Nome completo" placeholder="Ex: Pedro Almeida" value={form.name} onChange={handleChange('name')} />
-                <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
+                <div className="grid gap-4 sm:grid-cols-[1fr_190px]">
                   <Input label="Apelido" placeholder="Ex: Pedrinho" value={form.nickname} onChange={handleChange('nickname')} />
-                  <Input label="Idade" type="number" min="0" max="18" placeholder="Ex: 7" value={form.age} onChange={handleChange('age')} />
+                  <Input label="Data de nascimento" type="date" max={hojeIso()} value={form.nascimento} onChange={handleChange('nascimento')} />
                 </div>
 
                 <div>
@@ -350,7 +395,9 @@ export default function ReceptionCheckin() {
                     <p className="text-xs text-gray-400">Avatar do participante</p>
                   </div>
                 </div>
-                <AvatarSelector value={form.avatar} onChange={avatar => setForm(previous => ({ ...previous, avatar }))} compact />
+                <AvatarSelector value={form.avatar} onChange={avatar => setForm(previous => ({ ...previous, avatar }))} compact indisponiveis={avataresEmUso} />
+                <h3 className="mb-2 mt-4 text-sm font-semibold text-gray-200">Escolha a cor do participante</h3>
+                <CorSelector value={form.cor} onChange={cor => setForm(previous => ({ ...previous, cor }))} indisponiveis={coresEmUso} />
               </div>
             </div>
 
@@ -358,7 +405,7 @@ export default function ReceptionCheckin() {
               variant="primary"
               size="lg"
               onClick={handleSubmit}
-              disabled={!selectedEventId || !form.name.trim() || !selectedTeam || !braceletCode || braceletStatus === 'registered' || saving}
+              disabled={!selectedEventId || !form.name.trim() || Boolean(erroNascimento(form.nascimento || null)) || !selectedTeam || !braceletCode || braceletStatus === 'registered' || saving}
               className="w-full"
             >
               {saving ? 'Cadastrando participante...' : 'Cadastrar participante e vincular pulseira'}
@@ -442,7 +489,7 @@ export default function ReceptionCheckin() {
           </div>
 
           <p className="text-center text-xs text-gray-500">
-            O cadastro também pode ser realizado no Kiosk. Nesta tela, a recepção pode cadastrar nome, avatar, idade, time e pulseira.
+            O cadastro também pode ser realizado no Kiosk. Nesta tela, a recepção pode cadastrar nome, avatar, data de nascimento, time e pulseira.
           </p>
 
           {toast && (

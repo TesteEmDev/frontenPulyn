@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import { useEffect, useState, useCallback } from 'react';
 import { Play, Pause, Square, RotateCcw, Gamepad2, Trophy, MapPin, MessageSquare, Users, Clock, Shield } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
@@ -106,6 +107,9 @@ interface MonsterStatus {
   progress?: MonsterStatusMonster[];
 }
 
+// Valor da opção "Sem jogos" no seletor de jogo (não é o id de nenhum jogo)
+const SEM_JOGOS = '__sem_jogos__';
+
 export default function GameMasterDashboard() {
   const {
     children = [],
@@ -132,6 +136,11 @@ export default function GameMasterDashboard() {
   const [selectedEventId, setSelectedEventId] = useState<string>('');
   const [games, setGames] = useState<any[]>([]);
   const [selectedGameId, setSelectedGameId] = useState<string>('');
+  // "Sem jogos": nenhum jogo escolhido de propósito, o telão fica com o mapa livre
+  const [semJogos, setSemJogos] = useState(false);
+  // Caça ao Tesouro: quantos checkpoints usar na partida (vazio = todos) e quantos o jogo tem online
+  const [qtdCheckpoints, setQtdCheckpoints] = useState('');
+  const [checkpointsDoJogo, setCheckpointsDoJogo] = useState<{ total: number; minimo: number } | null>(null);
   const [treasureStatus, setTreasureStatus] = useState<TreasureStatus>({ active: false, gameType: 'none' });
   const [monsterStatus, setMonsterStatus] = useState<MonsterStatus>({ active: false, gameType: 'none' });
   const [clockNow, setClockNow] = useState(() => Date.now());
@@ -563,7 +572,17 @@ export default function GameMasterDashboard() {
       // de brincadeiras.type, definido no AdminGameForm ao criar o jogo — não
       // é mais adivinhado a partir do nome do jogo.
       const gameName = activeGame?.name || 'Jogo';
-      const data = await api.startGame(selectedGameId, gameName, selectedEventId);
+      let quantidade: number | null = null;
+      if (activeGame?.type === 'treasure_hunt' && qtdCheckpoints.trim() !== '') {
+        quantidade = Number(qtdCheckpoints);
+        const maximo = checkpointsDoJogo?.total ?? quantidade;
+        const minimo = checkpointsDoJogo?.minimo ?? 2;
+        if (!Number.isInteger(quantidade) || quantidade < minimo || quantidade > maximo) {
+          alert(`Escolha de ${minimo} a ${maximo} checkpoints para o Caça ao Tesouro (ou deixe em branco para usar todos).`);
+          return;
+        }
+      }
+      const data = await api.startGame(selectedGameId, gameName, selectedEventId, quantidade);
       console.log('✅ Jogo iniciado:', data);
       resetGameTimer();
       setGameRunning(true);
@@ -576,6 +595,18 @@ export default function GameMasterDashboard() {
       setActionLoading(null);
     }
   };
+
+  // Quantos checkpoints o Caça ao Tesouro pode usar: o máximo da escolha do recreacionista
+  useEffect(() => {
+    setQtdCheckpoints('');
+    setCheckpointsDoJogo(null);
+    if (activeGame?.type !== 'treasure_hunt' || !selectedEventId || !selectedGameId) return undefined;
+    let vivo = true;
+    api.getTreasureAvailableCheckpoints(selectedEventId, selectedGameId)
+      .then((contagem) => { if (vivo) setCheckpointsDoJogo(contagem); })
+      .catch(() => { if (vivo) setCheckpointsDoJogo(null); });
+    return () => { vivo = false; };
+  }, [activeGame?.type, selectedEventId, selectedGameId, gameRunning]);
 
   const handlePausar = () => {
     setGameRunning(false);
@@ -591,6 +622,9 @@ export default function GameMasterDashboard() {
     try {
       const data = await api.stopGame(selectedEventId);
       console.log('✅ Jogo finalizado:', data);
+      if (data?.bonus) {
+        toast.success(`${data.bonus.teamName} ganhou ${data.bonus.pointsPerMember} pontos por participante (${data.bonus.membersAwarded} participantes).`, { duration: 8000 });
+      }
       setGameRunning(false);
       resetGameTimer();
       setTreasureStatus({ active: false, gameType: 'none' });
@@ -801,6 +835,7 @@ export default function GameMasterDashboard() {
                     const eventId = e.target.value;
                     setSelectedEventId(eventId);
                     setEventoAtual(eventId);
+                    setSemJogos(false);
                   }}
                   className="flex-1 px-4 py-2 rounded-lg bg-dark-surface border border-dark-border text-white focus:outline-none focus:border-primary"
                 >
@@ -816,14 +851,26 @@ export default function GameMasterDashboard() {
               <div className="flex items-center gap-4">
                 <label className="text-sm font-semibold text-gray-300 whitespace-nowrap">Jogo:</label>
                 <select
-                  value={selectedGameId}
+                  value={semJogos ? SEM_JOGOS : selectedGameId}
                   onChange={(e) => {
                     const gameId = e.target.value;
+                    if (gameId === SEM_JOGOS) {
+                      if (!selectedEventId) return;
+                      api.clearGameSelection(selectedEventId)
+                        .then(() => {
+                          setSemJogos(true);
+                          setSelectedGameId('');
+                          setActiveGame(null);
+                        })
+                        .catch(error => alert(error instanceof Error ? error.message : 'Não foi possível deixar sem jogos'));
+                      return;
+                    }
                     const game = games.find(g => g.id === gameId);
                     if (!game) return;
 
                     const previousGameId = selectedGameId;
                     const previousGame = activeGame;
+                    setSemJogos(false);
                     setSelectedGameId(gameId);
                     setActiveGame(game);
                     setGameTimer((game.duration || 10) * 60);
@@ -838,6 +885,7 @@ export default function GameMasterDashboard() {
                   className="flex-1 px-4 py-2 rounded-lg bg-dark-surface border border-dark-border text-white focus:outline-none focus:border-primary"
                 >
                   <option value="">Selecionar jogo...</option>
+                  <option value={SEM_JOGOS} disabled={!selectedEventId || gameRunning}>SEM JOGOS (mapa livre no telão)</option>
                   {selectedEventId && games.length === 0 && (
                     <option value="" disabled>Nenhum jogo cadastrado para este evento</option>
                   )}
@@ -868,6 +916,25 @@ export default function GameMasterDashboard() {
                 </div>
                 {activeGame && (
                   <p className="text-sm text-gray-400">{activeGame.description}</p>
+                )}
+                {activeGame?.type === 'treasure_hunt' && !gameRunning && checkpointsDoJogo && (
+                  <label className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-300">
+                    Checkpoints no jogo:
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={checkpointsDoJogo.minimo}
+                      max={checkpointsDoJogo.total}
+                      value={qtdCheckpoints}
+                      onChange={(e) => setQtdCheckpoints(e.target.value)}
+                      placeholder={String(checkpointsDoJogo.total)}
+                      aria-label="Quantidade de checkpoints do Caça ao Tesouro"
+                      className="w-20 rounded-lg border border-dark-border bg-dark-surface px-2 py-1 text-white focus:border-primary focus:outline-none"
+                    />
+                    <span className="text-xs text-gray-500">
+                      de {checkpointsDoJogo.total} online ({checkpointsDoJogo.minimo} no mínimo; em branco = todos). Os checkpoints usados são sorteados ao iniciar.
+                    </span>
+                  </label>
                 )}
               </div>
               <div className="flex items-center gap-4 rounded-xl border border-primary/20 bg-dark-surface/60 px-4 py-3">

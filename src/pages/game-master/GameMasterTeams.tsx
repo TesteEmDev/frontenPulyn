@@ -25,7 +25,7 @@ const sidebarItems = [
 
 export default function GameMasterTeams() {
   const location = useLocation();
-  const { teams = [], children = [], updateTeam, deleteTeam, loadTeams, loadChildren, setEventoAtual, eventoAtualId } = usePulynStore();
+  const { teams = [], children = [], deleteTeam, loadTeams, loadChildren, setEventoAtual, eventoAtualId } = usePulynStore();
   
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [editingTeam, setEditingTeam] = useState<string | null>(null);
@@ -111,9 +111,19 @@ export default function GameMasterTeams() {
   };
 
   const handleSaveEdit = async (teamId: string) => {
-    await updateTeam(teamId, editForm);
-    await loadTeams();
-    setEditingTeam(null);
+    const nome = editForm.name.trim();
+    if (!nome) {
+      alert('Informe o nome do time.');
+      return;
+    }
+    try {
+      // O servidor espera `nome` (antes ia `name` e o nome nunca era salvo)
+      await api.updateTime(teamId, { nome, color: editForm.color });
+      await loadTeams();
+      setEditingTeam(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Não foi possível salvar o time.');
+    }
   };
 
   const handleDeleteTeam = async (teamId: string) => {
