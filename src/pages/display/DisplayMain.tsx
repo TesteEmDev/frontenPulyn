@@ -55,6 +55,9 @@ const sameEventId = (left: unknown, right: unknown) => (
   String(left || '').trim().toLowerCase() === String(right || '').trim().toLowerCase()
 );
 
+// Quanto tempo uma mensagem do recreacionista fica no telão
+const MENSAGEM_VISIVEL_MS = 8000;
+
 export default function DisplayMain() {
 
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -1178,15 +1181,16 @@ export default function DisplayMain() {
       </header>
   );
 
+  // Mensagem do recreacionista: fica na tela só por um tempo e some sozinha (o relógio de 1 s reavalia)
+  const latestMessage = displayMessages[0];
+  const showMessage = Boolean(latestMessage) && messageArrivedAt > 0 && currentTime.getTime() - messageArrivedAt < MENSAGEM_VISIVEL_MS;
+
   if (gameOnlyView) {
-    // Mensagem do recreacionista: aparece por cima do jogo só por um tempo e some sozinha
-    const latestMessage = displayMessages[0];
-    const showMessageOverGame = Boolean(latestMessage) && messageArrivedAt > 0 && currentTime.getTime() - messageArrivedAt < 20000;
     return (
       <div className="relative flex h-screen flex-col overflow-hidden bg-[#08111f] p-2 text-white">
         {conquestOverlay}
         {headerBar}
-        {showMessageOverGame && (
+        {showMessage && (
           <div className="absolute inset-x-6 top-[max(5.5rem,11vh)] z-30 flex items-center gap-3 rounded-2xl border border-accent/50 bg-black/70 px-5 py-3 shadow-2xl backdrop-blur animate-in fade-in slide-in-from-top-2" role="status" aria-label="Mensagem do recreacionista">
             <Zap size={26} className="shrink-0 text-accent" />
             <p className="line-clamp-2 font-display text-[clamp(1.2rem,3.4vh,2.4rem)] font-bold leading-tight text-white">{latestMessage.text}</p>
@@ -1214,14 +1218,14 @@ export default function DisplayMain() {
 
       <main className="relative z-10 mt-3 flex min-h-0 flex-1 flex-col gap-3">
         {/* Mensagem do recreacionista */}
-        {displayMessages.length > 0 && (
+        {showMessage && (
           <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-2" role="status" aria-label="Mensagem do recreacionista">
             <Zap size={22} className="shrink-0 text-accent" />
             <div className="min-w-0 flex-1">
               <p className="text-[clamp(0.6rem,1.3vh,0.8rem)] font-bold uppercase tracking-[0.25em] text-accent">Mensagem do recreacionista</p>
-              <p className="line-clamp-2 font-display text-[clamp(1.1rem,3vh,2.2rem)] font-bold leading-tight text-white">{displayMessages[0].text}</p>
+              <p className="line-clamp-2 font-display text-[clamp(1.1rem,3vh,2.2rem)] font-bold leading-tight text-white">{latestMessage.text}</p>
             </div>
-            <p className="shrink-0 text-xs text-gray-400">{displayMessages[0].timestamp ? new Date(displayMessages[0].timestamp).toLocaleTimeString('pt-BR') : ''}</p>
+            <p className="shrink-0 text-xs text-gray-400">{latestMessage.timestamp ? new Date(latestMessage.timestamp).toLocaleTimeString('pt-BR') : ''}</p>
           </div>
         )}
 
