@@ -13,6 +13,7 @@ import Avatar from '../../components/ui/Avatar';
 import AvatarSelector from '../../components/ui/AvatarSelector';
 import CorSelector from '../../components/ui/CorSelector';
 import { primeiraCorLivre } from '../../utils/coresParticipante';
+import { erroNascimento, hojeIso } from '../../utils/nascimento';
 import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID, primeiroAvatarLivre } from '../../avatar/adventurerAvatars';
 
 const normalizeUid = (value: string) => value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
@@ -43,7 +44,7 @@ export default function ReceptionCheckin() {
   const [form, setForm] = useState({
     name: '',
     nickname: '',
-    age: '',
+    nascimento: '',   // AAAA-MM-DD
     avatar: DEFAULT_AVATAR_ID,
     cor: primeiraCorLivre([]),
   });
@@ -198,7 +199,7 @@ export default function ReceptionCheckin() {
     });
   }, [selectedEventId, loadTeams, showToast]);
 
-  const handleChange = useCallback((field: 'name' | 'nickname' | 'age') => (
+  const handleChange = useCallback((field: 'name' | 'nickname' | 'nascimento') => (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     setForm(previous => ({ ...previous, [field]: event.target.value }));
@@ -211,6 +212,11 @@ export default function ReceptionCheckin() {
     }
     if (!form.name.trim()) {
       showToast('Preencha o nome da criança.', 'error');
+      return;
+    }
+    const erroDaData = erroNascimento(form.nascimento || null);
+    if (erroDaData) {
+      showToast(erroDaData, 'error');
       return;
     }
     if (!selectedTeam) {
@@ -241,7 +247,7 @@ export default function ReceptionCheckin() {
       await api.createCrianca(selectedEventId, {
         nome: form.name.trim(),
         apelido: form.nickname.trim() || form.name.trim().split(/\s+/)[0],
-        age: Number.parseInt(form.age, 10) || 5,
+        dataNascimento: form.nascimento,
         avatar: form.avatar,
         cor: form.cor,
         braceletCode: normalizedCode,
@@ -251,7 +257,7 @@ export default function ReceptionCheckin() {
 
       const teamName = teams.find(team => String(team.id) === String(selectedTeam))?.name || 'time selecionado';
       showToast(`${form.name.trim()} foi cadastrado(a) no ${teamName} e a pulseira foi vinculada.`);
-      setForm({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID, cor: primeiraCorLivre([]) });
+      setForm({ name: '', nickname: '', nascimento: '', avatar: DEFAULT_AVATAR_ID, cor: primeiraCorLivre([]) });
       setSelectedTeam(null);
       clearBracelet();
       carregarAvatares();
@@ -347,7 +353,7 @@ export default function ReceptionCheckin() {
                 <Input label="Nome completo" placeholder="Ex: Pedro Almeida" value={form.name} onChange={handleChange('name')} />
                 <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
                   <Input label="Apelido" placeholder="Ex: Pedrinho" value={form.nickname} onChange={handleChange('nickname')} />
-                  <Input label="Idade" type="number" min="0" max="18" placeholder="Ex: 7" value={form.age} onChange={handleChange('age')} />
+                  <Input label="Data de nascimento" type="date" max={hojeIso()} value={form.nascimento} onChange={handleChange('nascimento')} />
                 </div>
 
                 <div>
@@ -399,7 +405,7 @@ export default function ReceptionCheckin() {
               variant="primary"
               size="lg"
               onClick={handleSubmit}
-              disabled={!selectedEventId || !form.name.trim() || !selectedTeam || !braceletCode || braceletStatus === 'registered' || saving}
+              disabled={!selectedEventId || !form.name.trim() || Boolean(erroNascimento(form.nascimento || null)) || !selectedTeam || !braceletCode || braceletStatus === 'registered' || saving}
               className="w-full"
             >
               {saving ? 'Cadastrando participante...' : 'Cadastrar participante e vincular pulseira'}
@@ -483,7 +489,7 @@ export default function ReceptionCheckin() {
           </div>
 
           <p className="text-center text-xs text-gray-500">
-            O cadastro também pode ser realizado no Kiosk. Nesta tela, a recepção pode cadastrar nome, avatar, idade, time e pulseira.
+            O cadastro também pode ser realizado no Kiosk. Nesta tela, a recepção pode cadastrar nome, avatar, data de nascimento, time e pulseira.
           </p>
 
           {toast && (

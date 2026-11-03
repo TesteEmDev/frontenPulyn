@@ -11,6 +11,7 @@ import Avatar from '../../components/ui/Avatar';
 import AvatarSelector from '../../components/ui/AvatarSelector';
 import CorSelector from '../../components/ui/CorSelector';
 import { primeiraCorLivre } from '../../utils/coresParticipante';
+import { mascaraData, dataDeDigitos, erroNascimento, idadeDeNascimento } from '../../utils/nascimento';
 import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID, primeiroAvatarLivre } from '../../avatar/adventurerAvatars';
 import StatusDot from '../../components/ui/StatusDot';
 import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
@@ -68,7 +69,7 @@ const BraceletReaderIllustration = memo(({ active = false }: { active?: boolean 
 });
 BraceletReaderIllustration.displayName = 'BraceletReaderIllustration';
 
-// Teclado numérico da idade (o teclado de letras do Kiosk não tem dígitos).
+// Teclado numérico da data de nascimento (o teclado de letras do Kiosk não tem dígitos).
 const KioskNumberPad = memo(({ onKeyPress, disabled }: { onKeyPress: (key: string) => void; disabled: boolean }) => (
   <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/[0.06] bg-black/15 p-2 sm:p-3">
     {['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0'].map(key => (
@@ -121,7 +122,8 @@ export default function ReceptionKioskOtimizado() {
   const [state, setState] = useState<KioskState>('waiting');
   const [message, setMessage] = useState('Encoste a pulseira no leitor abaixo da tela para começar');
   const [braceletCode, setBraceletCode] = useState('');
-  const [form, setForm] = useState({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID, cor: primeiraCorLivre([]) });
+  // nascimento: os dígitos da data (DDMMAAAA); aparece como dd/mm/aaaa
+  const [form, setForm] = useState({ name: '', nickname: '', nascimento: '', avatar: DEFAULT_AVATAR_ID, cor: primeiraCorLivre([]) });
   // Avatares que os outros participantes do evento já usam: ficam indisponíveis e o cadastro começa num livre
   const [avataresEmUso, setAvataresEmUso] = useState<string[]>([]);
   const [coresEmUso, setCoresEmUso] = useState<string[]>([]);
@@ -150,8 +152,10 @@ export default function ReceptionKioskOtimizado() {
   // DEBOUNCE para evitar renders rápidos
   const debouncedProfileSearch = useDebounce(profileSearch, 300);
 
-  const ageNumber = parseInt(form.age, 10);
-  const newFormValid = form.name.trim().length >= 2 && ageNumber >= 1;
+  const nascimentoIso = dataDeDigitos(form.nascimento);
+  const erroDoNascimento = form.nascimento.length === 8 ? erroNascimento(nascimentoIso) : '';
+  const idadeCalculada = nascimentoIso && !erroDoNascimento ? idadeDeNascimento(nascimentoIso) : null;
+  const newFormValid = form.name.trim().length >= 2 && Boolean(nascimentoIso) && !erroDoNascimento;
 
   useEffect(() => {
     kioskStateRef.current = state;
@@ -225,7 +229,7 @@ export default function ReceptionKioskOtimizado() {
     lastReadRef.current = null;
     kioskStateRef.current = 'waiting';
     setBraceletCode('');
-    setForm({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID, cor: primeiraCorLivre([]) });
+    setForm({ name: '', nickname: '', nascimento: '', avatar: DEFAULT_AVATAR_ID, cor: primeiraCorLivre([]) });
     setMode('choose');
     setNewStep('avatar');
     setFocusField('name');
@@ -370,7 +374,7 @@ export default function ReceptionKioskOtimizado() {
     if (!braceletCode) return setMessage('Aproxime uma pulseira primeiro.');
     const returning = mode === 'existing';
     if (returning && !selectedProfile) return setMessage('Escolha o seu cadastro na lista.');
-    if (!returning && !newFormValid) return setMessage('Preencha o nome completo e a idade da criança.');
+    if (!returning && !newFormValid) return setMessage('Preencha o nome completo e a data de nascimento da criança.');
     if (state === 'saving') return;
 
     kioskStateRef.current = 'saving';
@@ -393,7 +397,7 @@ export default function ReceptionKioskOtimizado() {
         : {
             nome: form.name.trim(),
             apelido: nickname,
-            idade: ageNumber,
+            dataNascimento: nascimentoIso,
             avatar,
             cor: form.cor,
             braceletCode,
@@ -419,7 +423,7 @@ export default function ReceptionKioskOtimizado() {
       setMessage(getErrorMessage(error));
       carregarAvatares();
     }
-  }, [braceletCode, carregarAvatares, form, mode, newFormValid, ageNumber, resetKiosk, selectedEventId, selectedProfile, state]);
+  }, [braceletCode, carregarAvatares, form, mode, newFormValid, nascimentoIso, resetKiosk, selectedEventId, selectedProfile, state]);
 
   useEffect(() => () => {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
@@ -436,13 +440,13 @@ export default function ReceptionKioskOtimizado() {
     setForm(prev => ({ ...prev, avatar }));
   }, []);
 
-  // Campos digitados pelo teclado do aparelho/físico. A idade aceita só dígitos, sem limite máximo.
+  // Campos digitados pelo teclado do aparelho/físico. A data de nascimento aceita só dígitos (até 8: dia, mês e ano).
   const handleTextChange = useCallback((field: 'name' | 'nickname', value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
   }, []);
 
-  const handleAgeChange = useCallback((value: string) => {
-    setForm(prev => ({ ...prev, age: value.replace(/\D/g, '').replace(/^0+/, '').slice(0, 3) }));
+  const handleNascimentoChange = useCallback((value: string) => {
+    setForm(prev => ({ ...prev, nascimento: value.replace(/\D/g, '').slice(0, 8) }));
   }, []);
 
   const handleSearchChange = useCallback((value: string) => {
@@ -468,9 +472,9 @@ export default function ReceptionKioskOtimizado() {
   const handleNumberKey = useCallback((key: string) => {
     if (!canInteract || state === 'saving') return;
     setForm(prev => {
-      if (key === '⌫') return { ...prev, age: prev.age.slice(0, -1) };
-      if (prev.age.length >= 3 || (key === '0' && !prev.age)) return prev;
-      return { ...prev, age: `${prev.age}${key}` };
+      if (key === '⌫') return { ...prev, nascimento: prev.nascimento.slice(0, -1) };
+      if (prev.nascimento.length >= 8) return prev;
+      return { ...prev, nascimento: `${prev.nascimento}${key}` };
     });
   }, [canInteract, state]);
 
@@ -896,20 +900,25 @@ export default function ReceptionKioskOtimizado() {
                             />
                           </label>
                           <label className="block min-w-0">
-                            <span className={KIOSK_LABEL_CLASS}>Idade</span>
+                            <span className={KIOSK_LABEL_CLASS}>Data de nascimento</span>
                             <input
                               type="text"
                               inputMode={screenKeyboard ? 'none' : 'numeric'}
-                              pattern="[0-9]*"
-                              value={form.age}
-                              onChange={event => handleAgeChange(event.target.value)}
+                              pattern="[0-9/]*"
+                              value={mascaraData(form.nascimento)}
+                              onChange={event => handleNascimentoChange(event.target.value)}
                               onFocus={() => setFocusField('age')}
-                              placeholder="Anos"
+                              placeholder="dd/mm/aaaa"
                               autoComplete="off"
                               enterKeyHint="done"
                               disabled={!canInteract || state === 'saving'}
                               className={kioskInputClass(focusField === 'age')}
                             />
+                            {erroDoNascimento ? (
+                              <span className="mt-1 block text-xs text-danger">{erroDoNascimento}</span>
+                            ) : idadeCalculada !== null ? (
+                              <span className="mt-1 block text-xs text-gray-400">{idadeCalculada} {idadeCalculada === 1 ? 'ano' : 'anos'}</span>
+                            ) : null}
                           </label>
                         </form>
 
@@ -968,7 +977,7 @@ export default function ReceptionKioskOtimizado() {
                       </div>
                       {newStep === 'identity' && !newFormValid && form.name.trim() && (
                         <p className="mt-2 text-right text-xs text-gray-500">
-                          Falta {!form.age ? 'a idade' : 'completar o nome'} para criar o personagem.
+                          Falta {!nascimentoIso || erroDoNascimento ? 'a data de nascimento' : 'completar o nome'} para criar o personagem.
                         </p>
                       )}
                     </section>
