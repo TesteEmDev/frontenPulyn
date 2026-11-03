@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import { useEffect, useState, useCallback } from 'react';
 import { Play, Pause, Square, RotateCcw, Gamepad2, Trophy, MapPin, MessageSquare, Users, Clock, Shield } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
@@ -621,6 +622,9 @@ export default function GameMasterDashboard() {
     try {
       const data = await api.stopGame(selectedEventId);
       console.log('✅ Jogo finalizado:', data);
+      if (data?.bonus) {
+        toast.success(`${data.bonus.teamName} ganhou ${data.bonus.pointsPerMember} pontos por participante (${data.bonus.membersAwarded} participantes).`, { duration: 8000 });
+      }
       setGameRunning(false);
       resetGameTimer();
       setTreasureStatus({ active: false, gameType: 'none' });
