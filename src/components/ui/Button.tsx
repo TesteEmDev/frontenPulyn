@@ -21,9 +21,9 @@ const variantClasses: Record<ButtonVariant, string> = {
   ghost:
     'bg-transparent text-primary-500 hover:bg-dark-surface hover:text-white',
   accent:
-    'bg-accent-500 text-dark hover:bg-accent-600 hover:shadow-[0_0_20px_rgba(245,166,35,0.4)]',
+    'bg-accent-500 text-white hover:bg-accent-600 hover:shadow-[0_0_20px_rgba(245,166,35,0.4)]',
   warning:
-    'bg-warning-500 text-dark hover:bg-warning-600 hover:shadow-[0_0_20px_rgba(245,166,35,0.4)]',
+    'bg-warning-500 text-white hover:bg-warning-600 hover:shadow-[0_0_20px_rgba(245,166,35,0.4)]',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
