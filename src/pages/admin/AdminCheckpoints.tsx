@@ -227,11 +227,11 @@ export default function AdminCheckpoints() {
     if (!editingCheckpoint) return;
     const numeroNovo = formData.id.trim();
     if (!numeroNovo) {
-      alert('O número do checkpoint é obrigatório');
+      toast.error('O número do checkpoint é obrigatório');
       return;
     }
     if (!formData.name.trim()) {
-      alert('O nome do checkpoint é obrigatório');
+      toast.error('O nome do checkpoint é obrigatório');
       return;
     }
     const numeroMudou = numeroNovo !== numeroDoCheckpoint(editingCheckpoint);
@@ -334,42 +334,34 @@ export default function AdminCheckpoints() {
     };
   }, [menu]);
 
-  // Checkpoint aceito que ainda não está em evento: a devolução não passa pelo evento.
-  const devolverSemEvento = async (checkpoint: any) => {
-    const rotulo = `${numeroDoCheckpoint(checkpoint)}${checkpoint.name ? ` (${checkpoint.name})` : ''}`;
-    if (!confirm(`Devolver o checkpoint ${rotulo} ao super admin? Ele sai do seu buffet.`)) return;
-    try {
-      await api.devolverCheckpoint(checkpoint.id);
-      setCheckpointsList(prev => prev.filter(cp => cp.id !== checkpoint.id));
-      toast.success('Checkpoint devolvido ao super admin');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Não foi possível devolver');
-    }
-  };
+  // Devolver/excluir passam por um modal de confirmação (nada de confirm/alert do navegador).
+  const [confirmar, setConfirmar] = useState<{ cp: any; acao: 'devolver' | 'excluir'; enviando: boolean } | null>(null);
 
-  const handleDelete = async (checkpoint: any) => {
-    const id = checkpoint.id;
+  // Aparelho cadastrado pelo super admin (tem MAC): não é apagado, volta para o estoque dele.
+  const devolverSemEvento = (checkpoint: any) => setConfirmar({ cp: checkpoint, acao: 'devolver', enviando: false });
+  const handleDelete = (checkpoint: any) => {
     const eventId = checkpoint.eventoId || selectedEventId;
     if (!eventId || eventId === ALL_EVENTS) {
-      alert('Selecione um evento primeiro');
+      toast.error('Selecione um evento primeiro');
       return;
     }
-    
-    // Aparelho cadastrado pelo super admin (tem MAC): não é apagado, volta para o estoque dele.
-    const devolver = Boolean(checkpoint.macAddress);
-    const rotulo = `${numeroDoCheckpoint(checkpoint)}${checkpoint.name ? ` (${checkpoint.name})` : ''}`;
-    const pergunta = devolver
-      ? `Devolver o checkpoint ${rotulo} ao super admin? Ele sai do seu buffet e do evento, e as leituras e pontos dele neste buffet são apagados.`
-      : `Tem certeza que deseja excluir o checkpoint ${rotulo}?`;
-    if (confirm(pergunta)) {
-      try {
-        await api.deleteCheckpoint(eventId, id);
-        setCheckpointsList(prev => prev.filter(cp => cp.id !== id));
-        alert(devolver ? 'Checkpoint devolvido ao super admin!' : 'Checkpoint excluído com sucesso!');
-      } catch (error: any) {
-        console.error('Erro ao excluir:', error);
-        alert(`Erro ao excluir checkpoint: ${error.message || 'Tente novamente'}`);
-      }
+    setConfirmar({ cp: checkpoint, acao: checkpoint.macAddress ? 'devolver' : 'excluir', enviando: false });
+  };
+
+  const executarConfirmacao = async () => {
+    if (!confirmar) return;
+    const { cp, acao } = confirmar;
+    setConfirmar({ ...confirmar, enviando: true });
+    try {
+      if (cp.eventoId) await api.deleteCheckpoint(cp.eventoId, cp.id);
+      else await api.devolverCheckpoint(cp.id);
+      setCheckpointsList(prev => prev.filter(item => item.id !== cp.id));
+      toast.success(acao === 'devolver' ? 'Checkpoint devolvido ao super admin' : 'Checkpoint excluído');
+      setConfirmar(null);
+    } catch (err) {
+      console.error('Erro ao confirmar a ação do checkpoint:', err);
+      toast.error(err instanceof Error ? err.message : 'Não foi possível concluir, tente novamente');
+      setConfirmar(atual => (atual ? { ...atual, enviando: false } : atual));
     }
   };
 
@@ -592,6 +584,48 @@ export default function AdminCheckpoints() {
         </div>,
         document.body
       )}
+
+      {/* Confirmação de devolver/excluir */}
+      <Modal
+        isOpen={Boolean(confirmar)}
+        onClose={() => { if (!confirmar?.enviando) setConfirmar(null); }}
+        title={confirmar?.acao === 'devolver' ? 'Devolver checkpoint' : 'Excluir checkpoint'}
+        size="md"
+      >
+        {confirmar && (() => {
+          const { cp, acao, enviando } = confirmar;
+          const rotulo = `${numeroDoCheckpoint(cp)}${cp.name ? ` (${cp.name})` : ''}`;
+          return (
+            <div className="space-y-4">
+              {acao === 'devolver' ? (
+                <>
+                  <p className="text-base text-gray-200">
+                    Devolver o checkpoint <strong className="text-white">{rotulo}</strong> ao super admin?
+                  </p>
+                  <ul className="list-disc space-y-1 pl-6 text-sm text-gray-300">
+                    <li>Ele sai do seu buffet{cp.eventoId ? ' e do evento' : ''} e volta para o estoque do super admin.</li>
+                    {cp.eventoId && <li>As leituras e os pontos dele neste buffet são apagados.</li>}
+                    <li>Para usá-lo de novo, o super admin precisa transferi-lo outra vez.</li>
+                  </ul>
+                </>
+              ) : (
+                <>
+                  <p className="text-base text-gray-200">
+                    Excluir o checkpoint <strong className="text-white">{rotulo}</strong>?
+                  </p>
+                  <p className="text-sm text-gray-300">Essa ação não pode ser desfeita.</p>
+                </>
+              )}
+              <div className="flex justify-end gap-3 pt-2">
+                <Button variant="ghost" disabled={enviando} onClick={() => setConfirmar(null)}>Cancelar</Button>
+                <Button variant={acao === 'devolver' ? 'warning' : 'danger'} disabled={enviando} onClick={() => void executarConfirmacao()}>
+                  {enviando ? 'Aguarde...' : acao === 'devolver' ? 'Devolver' : 'Excluir'}
+                </Button>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
 
       {/* Modal de instalação: QR code que abre a página /config do checkpoint já preenchida */}
       <Modal
