@@ -12,7 +12,6 @@ import {
   Plus,
   ShieldBan,
   ShieldCheck,
-  MoreHorizontal,
   Building2,
   MapPin,
   Loader2,
@@ -31,6 +30,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import Modal from '../../components/ui/Modal';
+import RowActionsMenu from '../../components/ui/RowActionsMenu';
 import ClientDetailsModal from './ClientDetailsModal';
 
 import { api, type ResumoExclusaoCliente } from '../../services/api';
@@ -82,7 +82,6 @@ export default function MasterClients() {
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   // Cliente com o modal de detalhes aberto (o objeto vem da lista, então o status acompanha as alterações)
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   // Loading and error states
   const [loading, setLoading] = useState(true);
@@ -162,12 +161,10 @@ export default function MasterClients() {
       console.error('Erro ao alterar status:', err);
       setError('Erro de conexão ao alterar status');
     }
-    setOpenMenuId(null);
   };
 
   const handleViewDetails = (client: Client) => {
     setSelectedClientId(client.id);
-    setOpenMenuId(null);
   };
 
   const handleNewClient = async () => {
@@ -240,7 +237,6 @@ export default function MasterClients() {
 
   const handleDeleteClient = async (clientId: string) => {
     const client = clients.find(c => c.id === clientId);
-    setOpenMenuId(null);
     if (!client) return;
     setExcluindo({ client, resumo: null, etapa: 1, digitado: '', enviando: false });
     try {
@@ -422,19 +418,13 @@ export default function MasterClients() {
                           <td className="py-3 px-4 text-right font-mono text-gray-300">{client.eventsDone}</td>
                           <td className="py-3 px-4 text-gray-400 text-xs">{client.lastAccess}</td>
                           <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                            <div className="relative inline-block">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setOpenMenuId(openMenuId === client.id ? null : client.id)}
-                              >
-                                <MoreHorizontal size={16} />
-                              </Button>
-                              {openMenuId === client.id && (
-                                <div className="absolute right-0 top-8 z-10 w-48 rounded-lg border border-border bg-card shadow-xl py-1">
+                            <RowActionsMenu label={`Ações de ${client.name}`}>
+                              {(fechar) => (
+                                <>
                                   <button
+                                    role="menuitem"
                                     className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-300 hover:bg-surface hover:text-white transition-colors"
-                                    onClick={() => handleToggleStatus(client.id)}
+                                    onClick={() => { fechar(); handleToggleStatus(client.id); }}
                                   >
                                     {client.status === 'blocked' ? (
                                       <><ShieldCheck size={14} className="text-success" /> Ativar</>
@@ -443,15 +433,16 @@ export default function MasterClients() {
                                     )}
                                   </button>
                                   <button
+                                    role="menuitem"
                                     className="flex items-center gap-2 w-full px-4 py-2 text-sm text-danger hover:bg-surface hover:text-danger transition-colors"
-                                    onClick={() => handleDeleteClient(client.id)}
+                                    onClick={() => { fechar(); handleDeleteClient(client.id); }}
                                   >
                                     <AlertCircle size={14} />
                                     Excluir
                                   </button>
-                                </div>
+                                </>
                               )}
-                            </div>
+                            </RowActionsMenu>
                           </td>
                         </tr>
                       ))}
