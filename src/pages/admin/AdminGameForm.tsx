@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Save, Check, MessageSquare
+  Save, Check
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useEvento } from '../../contexts/EventoContext';
@@ -19,11 +19,6 @@ interface CheckpointConfig {
   points: number;
   cooldown: number;
   special?: boolean;
-}
-
-interface AutoMessage {
-  trigger: string;
-  message: string;
 }
 
 // Nome dos tipos que um jogo antigo pode ter (o plano atual pode não criá-los mais).
@@ -208,12 +203,6 @@ export default function AdminGameForm() {
     }
   }, [checkpoints, existingGame, checkpointsInitialized]);
 
-  const [autoMessages, setAutoMessages] = useState<AutoMessage[]>([
-    { trigger: 'on_start', message: 'O jogo começou! Vamos nos divertir!' },
-    { trigger: 'on_score', message: 'Parabéns! +{points} pontos!' },
-    { trigger: 'on_end', message: 'O jogo terminou. Confira o ranking!' },
-  ]);
-
   // O evento mostrado no campo precisa ser o evento guardado. O <select> mostra a primeira opção quando o valor
   // está vazio, então a tela parecia ter um evento escolhido e o salvar dizia "Selecione um evento".
   // Jogo novo: usa o evento em uso (o da recepção) ou, na falta dele, o primeiro da lista. Também acerta
@@ -271,12 +260,6 @@ export default function AdminGameForm() {
       prev.map(cp =>
         cp.id === cpId ? { ...cp, [field]: value } : cp
       )
-    );
-  };
-
-  const updateAutoMessage = (index: number, field: 'trigger' | 'message', value: string) => {
-    setAutoMessages(prev =>
-      prev.map((msg, i) => i === index ? { ...msg, [field]: value } : msg)
     );
   };
 
@@ -554,38 +537,6 @@ export default function AdminGameForm() {
                   </div>
                 </>
               )}
-            </Card>
-
-            {/* Auto Messages */}
-            <Card>
-              <div className="flex items-center gap-2 mb-4">
-                <MessageSquare size={20} className="text-secondary" />
-                <h2 className="font-display text-lg text-white">Mensagens Automáticas</h2>
-              </div>
-              <div className="space-y-3">
-                {autoMessages.map((msg, index) => (
-                  <div key={index} className="p-3 rounded-lg bg-surface/50">
-                    <Select
-                      label="Gatilho"
-                      options={[
-                        { value: 'on_start', label: 'Ao iniciar' },
-                        { value: 'on_score', label: 'Ao pontuar' },
-                        { value: 'on_end', label: 'Ao encerrar' },
-                        { value: 'on_cooldown', label: 'Ao entrar em cooldown' },
-                      ]}
-                      value={msg.trigger}
-                      onChange={e => updateAutoMessage(index, 'trigger', e.target.value)}
-                    />
-                    <Input
-                      label="Mensagem"
-                      placeholder="Mensagem automática..."
-                      value={msg.message}
-                      onChange={e => updateAutoMessage(index, 'message', e.target.value)}
-                      className="mt-2"
-                    />
-                  </div>
-                ))}
-              </div>
             </Card>
 
             {/* Save */}
