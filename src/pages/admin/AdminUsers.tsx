@@ -3,6 +3,7 @@ import {
   Users, Settings, X, UserPlus, Loader2, Eye, EyeOff
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { useAuth } from '../../hooks/useAuth';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
@@ -105,29 +106,36 @@ export default function AdminUsers() {
   };
 
   // Carregar usuários
-  const loadUsers = async () => {
+  // `silencioso`: atualização automática, sem o carregando e sem avisos de erro
+  const loadUsers = async (silencioso = false) => {
     if (!user?.empresaId) {
-      setError('Empresa não identificada');
-      setLoading(false);
+      if (!silencioso) {
+        setError('Empresa não identificada');
+        setLoading(false);
+      }
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    if (!silencioso) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const data = await api.getUsers(user.empresaId);
       setUsers(data);
     } catch (err) {
       console.error('❌ Erro ao carregar usuários:', err);
-      setError('Não foi possível carregar os usuários');
+      if (!silencioso) setError('Não foi possível carregar os usuários');
     } finally {
-      setLoading(false);
+      if (!silencioso) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadUsers();
   }, [user]);
+
+  useAutoRefresh(() => loadUsers(true), { intervaloMs: 30_000, pausado: showAddModal });
 
   useEffect(() => {
     let active = true;

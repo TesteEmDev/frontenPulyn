@@ -20,6 +20,7 @@ import CheckpointsRecebidos from '../../components/checkpoints/CheckpointsRecebi
 import AtribuirEvento from '../../components/checkpoints/AtribuirEvento';
 import toast from 'react-hot-toast';
 import { numeroDoCheckpoint } from '../../utils/checkpoints';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 
 // Valor do seletor para listar os checkpoints de todos os eventos
 const ALL_EVENTS = 'all';
@@ -126,9 +127,16 @@ export default function AdminCheckpoints() {
     loadEvents();
   }, []);
 
+  // Atualização automática: o contador faz o efeito abaixo recarregar a lista sem o "carregando" (sem piscar)
+  const [tickAuto, setTickAuto] = useState(0);
+  const cargaDoEvento = useRef<string | null>(null);
+
   // Carregar checkpoints da API quando evento muda (ou de todos os eventos)
   useEffect(() => {
     let disposed = false;
+    // Mesma lista de antes (só atualizando): sem carregando e sem apagar a lista se a atualização falhar
+    const silencioso = cargaDoEvento.current === selectedEventId;
+    cargaDoEvento.current = selectedEventId;
     const loadData = async () => {
       if (!selectedEventId) {
         setLoading(false);
@@ -136,7 +144,7 @@ export default function AdminCheckpoints() {
         return;
       }
 
-      setLoading(true);
+      if (!silencioso) setLoading(true);
       try {
         let data: any[];
         if (selectedEventId === ALL_EVENTS) {
@@ -182,7 +190,7 @@ export default function AdminCheckpoints() {
       } catch (err) {
         if (disposed) return;
         console.error('❌ Erro ao carregar checkpoints:', err);
-        setCheckpointsList([]);
+        if (!silencioso) setCheckpointsList([]);
       } finally {
         if (!disposed) setLoading(false);
       }
@@ -190,7 +198,7 @@ export default function AdminCheckpoints() {
 
     loadData();
     return () => { disposed = true; };
-  }, [selectedEventId, events, recarregar]);
+  }, [selectedEventId, events, recarregar, tickAuto]);
 
   const isAllEvents = selectedEventId === ALL_EVENTS;
   // Ainda fora de um evento: só o número pode mudar por enquanto.
@@ -333,6 +341,9 @@ export default function AdminCheckpoints() {
       window.removeEventListener('resize', fecha);
     };
   }, [menu]);
+
+  // Online/offline e pontos dos checkpoints se atualizam sozinhos; pausa com menu, modal ou instalação abertos
+  useAutoRefresh(() => setTickAuto((n) => n + 1), { intervaloMs: 15_000, pausado: Boolean(menu) || modalOpen || Boolean(instalando) });
 
   // Devolver/excluir passam por um modal de confirmação (nada de confirm/alert do navegador).
   const [confirmar, setConfirmar] = useState<{ cp: any; acao: 'devolver' | 'excluir'; enviando: boolean } | null>(null);

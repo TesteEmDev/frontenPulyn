@@ -3,6 +3,7 @@ import {
   Users, Plus, Loader2, Edit2, Trash2, Download, Bookmark, CalendarDays, Check
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { useAuth } from '../../hooks/useAuth';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
@@ -128,16 +129,19 @@ export default function AdminTeams() {
     }
   }, [selectedEventId]);
 
-  const loadTeams = async () => {
+  const loadTeams = async (silencioso = false) => {
     if (!selectedEventId) return;
     try {
       const timesData = await api.getTimes(selectedEventId);
       setTeamsList(timesData || []);
     } catch (err) {
       console.error('❌ Erro ao carregar times:', err);
-      setError('Erro ao carregar times');
+      if (!silencioso) setError('Erro ao carregar times');
     }
   };
+
+  // Os times (e a contagem de participantes) se atualizam sozinhos, menos com o formulário aberto
+  useAutoRefresh(() => loadTeams(true), { intervaloMs: 15_000, pausado: showAddModal || editingId !== null || applying });
 
   const handleAddTeam = async () => {
     const name = newTeam.name.trim();

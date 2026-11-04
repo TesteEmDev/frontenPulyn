@@ -6,6 +6,7 @@ import {
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
 import { isGameActive } from '../../utils/games';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -43,6 +44,9 @@ export default function AdminGames() {
     };
     loadGames();
   }, [loadBrincadeiras]);
+
+  // A lista (duração, status, checkpoints) se atualiza sozinha; não mexe enquanto um botão está salvando
+  useAutoRefresh(() => loadBrincadeiras(), { intervaloMs: 20_000, pausado: togglingGameId !== null });
 
   // Atualizar localGames quando brincadeiras mudar
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, Plus, Search, ChevronRight
@@ -6,6 +6,7 @@ import {
 import { usePulynStore } from '../../store/mockData';
 import { useEvento } from '../../contexts/EventoContext';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -77,19 +78,29 @@ export default function AdminChildren() {
     else setSelection(ALL_EVENTS);
   }, [loadingEvents, selection, safeEvents, eventoAtualId]);
 
+  // Atualização automática: o contador faz o efeito abaixo recarregar a lista sem o "carregando" (sem piscar)
+  const [tickAuto, setTickAuto] = useState(0);
+  const cargaDaSelecao = useRef<string | null>(null);
+  useAutoRefresh(() => setTickAuto((n) => n + 1), { intervaloMs: 15_000 });
+
   // Carrega as crianças do evento escolhido (ou de todos)
   useEffect(() => {
     if (selection === null) return undefined;
     let disposed = false;
+    // Mesma seleção de antes (só atualizando): sem carregando e sem apagar a lista se a atualização falhar
+    const silencioso = cargaDaSelecao.current === selection;
+    cargaDaSelecao.current = selection;
     const load = async () => {
-      setLoadingChildren(true);
-      setLoadError('');
+      if (!silencioso) {
+        setLoadingChildren(true);
+        setLoadError('');
+      }
       try {
         const data = selection === ALL_EVENTS ? await api.getAllCriancas() : await api.getCriancas(selection);
         if (disposed) return;
         setChildren((Array.isArray(data) ? data : []).map(normalizeChild));
       } catch (error) {
-        if (disposed) return;
+        if (disposed || silencioso) return;
         setChildren([]);
         setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar as crianças.');
       } finally {
@@ -98,7 +109,7 @@ export default function AdminChildren() {
     };
     load();
     return () => { disposed = true; };
-  }, [selection]);
+  }, [selection, tickAuto]);
 
   const handleSelectEvent = (value: string) => {
     setSelection(value);
