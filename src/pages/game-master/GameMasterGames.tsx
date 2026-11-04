@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ListChecks, Gamepad2, Users, MessageSquare } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import { PARALLEL_NAV_ITEM, GAMES_NAV_ITEM } from '../../components/layout/gameMasterNav';
@@ -48,9 +49,11 @@ export default function GameMasterGames() {
     if (!eventoAtualId && events[0]?.eventoId) setEventoAtual(events[0].eventoId);
   }, [eventoAtualId, events, setEventoAtual]);
 
-  const loadData = useCallback(async (eventId: string, keepSelection = false) => {
-    setLoading(true);
-    setError('');
+  const loadData = useCallback(async (eventId: string, keepSelection = false, silencioso = false) => {
+    if (!silencioso) {
+      setLoading(true);
+      setError('');
+    }
     try {
       const [gameList, checkpointList, state] = await Promise.all([
         api.getBrincadeiras(eventId),
@@ -63,11 +66,14 @@ export default function GameMasterGames() {
       setRunningGameId(state?.active && state?.gameId ? String(state.gameId) : null);
       setSelectedGameId(previous => (keepSelection && list.some(game => game.id === previous) ? previous : ''));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível carregar os jogos.');
+      if (!silencioso) setError(err instanceof Error ? err.message : 'Não foi possível carregar os jogos.');
     } finally {
-      setLoading(false);
+      if (!silencioso) setLoading(false);
     }
   }, []);
+
+  // Jogo em andamento e checkpoints se atualizam sozinhos, mantendo o jogo escolhido na tela
+  useAutoRefresh(() => (eventoAtualId ? loadData(eventoAtualId, true, true) : undefined), { intervaloMs: 10_000 });
 
   useEffect(() => {
     if (!eventoAtualId) {

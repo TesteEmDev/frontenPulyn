@@ -4,6 +4,7 @@ import { useNFCReader } from '../../hooks/useNFCReader';
 import { useDeviceNFC } from '../../hooks/useDeviceNFC';
 import { usePulynStore } from '../../store/mockData';
 import { api, API_URL } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import Avatar from '../../components/ui/Avatar';
 import StatusDot from '../../components/ui/StatusDot';
 import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
@@ -111,22 +112,23 @@ export default function ScoreKiosk() {
     };
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    api.getScoreKioskEvents()
-      .then(data => {
-        if (!active) return;
-        const openEvents = (Array.isArray(data) ? data : []).filter(isOpenEvent);
-        setEvents(openEvents);
-      })
-      .catch(error => {
-        if (active) setMessage(getErrorMessage(error));
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => { active = false; };
+  const loadEvents = useCallback(async (silencioso = false) => {
+    try {
+      const data = await api.getScoreKioskEvents();
+      setEvents((Array.isArray(data) ? data : []).filter(isOpenEvent));
+    } catch (error) {
+      if (!silencioso) setMessage(getErrorMessage(error));
+    } finally {
+      if (!silencioso) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadEvents();
+  }, [loadEvents]);
+
+  // Eventos que abrem ou encerram aparecem sozinhos na lista do totem; não mexe enquanto alguém consulta os pontos
+  useAutoRefresh(() => loadEvents(true), { intervaloMs: 20_000, pausado: state === 'reading' || state === 'displaying' });
 
   useEffect(() => {
     resetScreen();

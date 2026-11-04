@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Gamepad2, Users, MessageSquare, MapPin, Radio, Plus, Edit2, Trash2, Save } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import Sidebar from '../../components/layout/Sidebar';
 import { PARALLEL_NAV_ITEM, GAMES_NAV_ITEM } from '../../components/layout/gameMasterNav';
 import TopBar from '../../components/layout/TopBar';
@@ -83,6 +84,11 @@ export default function GameMasterCheckpoints() {
     loadEvents();
   }, [setEventoAtual]);
 
+  // Atualização automática: o contador faz o efeito abaixo recarregar a lista sem o "carregando" (sem piscar)
+  const [tickAuto, setTickAuto] = useState(0);
+  const cargaDoEvento = useRef<string | null>(null);
+  useAutoRefresh(() => setTickAuto((n) => n + 1), { intervaloMs: 10_000, pausado: showNewCheckpointModal });
+
   // Carregar checkpoints quando evento mudar
   useEffect(() => {
     if (!selectedEventId) {
@@ -90,21 +96,25 @@ export default function GameMasterCheckpoints() {
       return;
     }
 
+    // Mesmo evento de antes (só atualizando): sem carregando e sem apagar a lista se falhar
+    const silencioso = cargaDoEvento.current === selectedEventId;
+    cargaDoEvento.current = selectedEventId;
+
     const loadCheckpoints = async () => {
       try {
-        setLoading(true);
+        if (!silencioso) setLoading(true);
         const data = await api.getCheckpoints(selectedEventId);
         setCheckpoints(data || []);
       } catch (err) {
         console.error('❌ Erro ao carregar checkpoints:', err);
-        setCheckpoints([]);
+        if (!silencioso) setCheckpoints([]);
       } finally {
         setLoading(false);
       }
     };
 
     loadCheckpoints();
-  }, [selectedEventId]);
+  }, [selectedEventId, tickAuto]);
 
   // Abrir modal para criar novo checkpoint
   const handleNewCheckpoint = () => {
