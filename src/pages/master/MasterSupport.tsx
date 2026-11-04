@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -16,6 +16,7 @@ import {
   Cpu,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
@@ -91,23 +92,26 @@ export default function MasterSupport() {
   const [newDescription, setNewDescription] = useState('');
   const [newAssignee, setNewAssignee] = useState('');
 
-  useEffect(() => {
-    const loadTickets = async () => {
-      try {
-        const [ticketsData, clientsData] = await Promise.all([
-          api.getTickets(),
-          api.getMasterClients(),
-        ]);
-        setTickets(Array.isArray(ticketsData) ? ticketsData : []);
-        setClients(Array.isArray(clientsData) ? clientsData : []);
-      } catch (error) {
-        console.error('Erro ao buscar tickets:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadTickets();
+  const loadTickets = useCallback(async () => {
+    try {
+      const [ticketsData, clientsData] = await Promise.all([
+        api.getTickets(),
+        api.getMasterClients(),
+      ]);
+      setTickets(Array.isArray(ticketsData) ? ticketsData : []);
+      setClients(Array.isArray(clientsData) ? clientsData : []);
+    } catch (error) {
+      console.error('Erro ao buscar tickets:', error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadTickets();
+  }, [loadTickets]);
+
+  useAutoRefresh(loadTickets, { intervaloMs: 15_000 });
 
   const filteredTickets = tickets.filter(ticket => {
     const matchSearch = ticket.subject.toLowerCase().includes(search.toLowerCase()) ||

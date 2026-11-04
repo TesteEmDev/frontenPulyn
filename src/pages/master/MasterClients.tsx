@@ -34,6 +34,7 @@ import RowActionsMenu from '../../components/ui/RowActionsMenu';
 import ClientDetailsModal from './ClientDetailsModal';
 
 import { api, type ResumoExclusaoCliente } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 
 const masterNavItems = [
   { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/master' },
@@ -99,28 +100,33 @@ export default function MasterClients() {
   const [submitting, setSubmitting] = useState(false);
 
   // Fetch clients from API
-  const fetchClients = async () => {
-    setLoading(true);
-    setError(null);
+  // `silencioso`: atualização automática, sem o carregando e sem avisos de erro
+  const fetchClients = async (silencioso = false) => {
+    if (!silencioso) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const data = await api.getClientes();
 
       if (Array.isArray(data)) {
         setClients(data);
-      } else {
+      } else if (!silencioso) {
         setError('Erro ao carregar clientes');
       }
     } catch (err) {
       console.error('Erro ao buscar clientes:', err);
-      setError('Não foi possível conectar ao servidor. Verifique se a API está rodando.');
+      if (!silencioso) setError('Não foi possível conectar ao servidor. Verifique se a API está rodando.');
     } finally {
-      setLoading(false);
+      if (!silencioso) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchClients();
   }, []);
+
+  useAutoRefresh(() => fetchClients(true));
 
   // Auto-dismiss success message
   useEffect(() => {

@@ -25,6 +25,7 @@ import { planoBadge, planoRotulo } from '../../utils/planos';
 import type { PlanoId } from '../../utils/planos';
 import StatusDot from '../../components/ui/StatusDot';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { BRAZIL_STATES, type BrazilStateShape } from './brazilMapData';
 import { findCityPosition, type CityData } from './brazilCities';
 
@@ -807,7 +808,11 @@ export default function MasterDashboard() {
 
   useEffect(() => {
     loadDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Números, alertas e eventos se atualizam sozinhos
+  useAutoRefresh(() => loadDashboardData(), { intervaloMs: 30_000 });
 
   const loadDashboardData = async () => {
     try {

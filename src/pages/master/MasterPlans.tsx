@@ -19,6 +19,7 @@ import {
   Cpu,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
@@ -44,21 +45,24 @@ export default function MasterPlans() {
   const [plans, setPlans] = useState<any[]>([]);
   const [planClients, setPlanClients] = useState<any[]>([]);
 
-  React.useEffect(() => {
-    const loadData = async () => {
-      try {
-        const plansData = await api.getPlanos();
-        setPlans(Array.isArray(plansData) ? plansData : []);
-        const clientsByPlan = await Promise.all(
-          (Array.isArray(plansData) ? plansData : []).map((plan) => api.getClientesByPlano(plan.id))
-        );
-        setPlanClients(clientsByPlan.flat().filter(Boolean));
-      } catch (error) {
-        console.error('Erro ao buscar dados de planos:', error);
-      }
-    };
-    loadData();
+  const loadData = React.useCallback(async () => {
+    try {
+      const plansData = await api.getPlanos();
+      setPlans(Array.isArray(plansData) ? plansData : []);
+      const clientsByPlan = await Promise.all(
+        (Array.isArray(plansData) ? plansData : []).map((plan) => api.getClientesByPlano(plan.id))
+      );
+      setPlanClients(clientsByPlan.flat().filter(Boolean));
+    } catch (error) {
+      console.error('Erro ao buscar dados de planos:', error);
+    }
   }, []);
+
+  React.useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useAutoRefresh(loadData, { intervaloMs: 30_000 });
 
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">

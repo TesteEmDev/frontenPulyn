@@ -6,6 +6,7 @@ import {
   Cpu, Plus, Send, Undo2, Pencil, Trash2,
 } from 'lucide-react';
 import { api, type BuffetOpcao, type CheckpointMaster } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
@@ -97,19 +98,21 @@ export default function MasterCheckpoints() {
   const [transferindo, setTransferindo] = useState<CheckpointMaster | null>(null);
   const [destino, setDestino] = useState('');
 
-  const carregar = useCallback(async () => {
+  const carregar = useCallback(async (silencioso = false) => {
     try {
       const [checkpoints, destinos] = await Promise.all([api.masterGetCheckpoints(), api.masterGetBuffets()]);
       setLista(checkpoints);
       setBuffets(destinos);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Não foi possível carregar os checkpoints');
+      if (!silencioso) toast.error(err instanceof Error ? err.message : 'Não foi possível carregar os checkpoints');
     } finally {
       setCarregando(false);
     }
   }, []);
 
   useEffect(() => { void carregar(); }, [carregar]);
+  // Com o formulário ou a transferência aberta não atualiza (a lista mexendo atrapalha quem está digitando)
+  useAutoRefresh(() => carregar(true), { pausado: formAberto || Boolean(transferindo) });
 
   const totalPorBuffet = useMemo(() => {
     const total = new Map<string, number>();
