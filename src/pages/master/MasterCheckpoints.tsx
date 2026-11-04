@@ -57,12 +57,13 @@ const estaOnline = (cp: CheckpointMaster) =>
 
 interface Formulario {
   macAddress: string;
+  epc: string;
   nome: string;
   tipo: string;
   proposito: string;
 }
 
-const FORM_VAZIO: Formulario = { macAddress: '', nome: '', tipo: 'NFC', proposito: 'game' };
+const FORM_VAZIO: Formulario = { macAddress: '', epc: '', nome: '', tipo: 'NFC', proposito: 'game' };
 
 // Buffet a que o checkpoint pertence: quem aceitou ou, enquanto aguarda o aceite, o destino da transferência.
 const buffetIdDe = (cp: CheckpointMaster) =>
@@ -163,6 +164,7 @@ export default function MasterCheckpoints() {
     setEditando(cp);
     setForm({
       macAddress: cp.macAddress ?? '',
+      epc: cp.epc ?? '',
       nome: cp.nome,
       tipo: cp.tipo || 'NFC',
       proposito: cp.proposito || 'game',
@@ -180,6 +182,7 @@ export default function MasterCheckpoints() {
           // Só manda o que mudou. O número do checkpoint não é do master: o admin do buffet o define ao aceitar.
           const dados: Parameters<typeof api.masterEditarCheckpoint>[1] = {};
           if (form.macAddress.trim().toUpperCase() !== (editando.macAddress ?? '')) dados.macAddress = form.macAddress.trim();
+          if (form.epc.trim().toUpperCase() !== (editando.epc ?? '')) dados.epc = form.epc.trim();
           if (form.nome.trim() !== editando.nome) dados.nome = form.nome.trim();
           if (form.tipo !== editando.tipo) dados.tipo = form.tipo;
           if (form.proposito !== (editando.proposito || 'game')) dados.proposito = form.proposito;
@@ -188,6 +191,7 @@ export default function MasterCheckpoints() {
         }, 'Checkpoint atualizado')
       : await executar(() => api.masterCriarCheckpoint({
           macAddress: form.macAddress.trim(),
+          epc: form.epc.trim() || undefined,
           nome: form.nome.trim() || undefined,
           tipo: form.tipo,
           proposito: form.proposito,
@@ -308,6 +312,7 @@ export default function MasterCheckpoints() {
                         <p className="text-sm font-semibold text-white">{cp.nome}</p>
                         <p className="text-xs text-gray-400">
                           <span className="font-mono">{cp.macAddress ?? 'sem MAC'}</span>
+                          {cp.epc && <>{' · EPC '}<span className="font-mono" title="Só o super admin vê o EPC">{cp.epc}</span></>}
                           {' · '}{cp.tipo}{cp.proposito === 'reception' ? ' · recepção' : ''}
                         </p>
                       </td>
@@ -395,6 +400,15 @@ export default function MasterCheckpoints() {
           />
           <p className="-mt-2 text-xs text-gray-500">
             Aparece no Serial Monitor ao ligar a placa e na página /config dela. Aceita com dois-pontos, hífen ou sem separador.
+          </p>
+          <Input
+            label="EPC (opcional)"
+            placeholder="Ex: E2801160600002054A3B1C2D"
+            value={form.epc}
+            onChange={(e) => setForm({ ...form, epc: e.target.value.toUpperCase() })}
+          />
+          <p className="-mt-2 text-xs text-gray-500">
+            Código da tag que identifica o checkpoint. Só o super admin vê este dado: os buffets não o recebem. Aceita de 4 a 32 caracteres hexadecimais (0-9 e A-F).
           </p>
           <Input
             label="Nome (opcional)"

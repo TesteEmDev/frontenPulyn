@@ -126,6 +126,8 @@ export interface CheckpointMaster {
   devolvidoEm: string | null;
   devolvidoMotivo: 'devolvido' | 'recusado' | 'cliente_excluido' | null;
   devolvidoPorNome: string | null;
+  // Só o master recebe este dado (as rotas dos buffets não o devolvem)
+  epc: string | null;
 }
 
 export interface BuffetOpcao {
@@ -1886,11 +1888,11 @@ export const api = {
     return pedirMasterCheckpoints<BuffetOpcao[]>('/buffets');
   },
 
-  masterCriarCheckpoint(dados: { macAddress: string; nome?: string; tipo?: string; proposito?: string }) {
+  masterCriarCheckpoint(dados: { macAddress: string; nome?: string; tipo?: string; proposito?: string; epc?: string }) {
     return pedirMasterCheckpoints<CheckpointMaster>('', { method: 'POST', body: JSON.stringify(dados) });
   },
 
-  masterEditarCheckpoint(id: number, dados: { macAddress?: string; nome?: string; tipo?: string; proposito?: string }) {
+  masterEditarCheckpoint(id: number, dados: { macAddress?: string; nome?: string; tipo?: string; proposito?: string; epc?: string }) {
     return pedirMasterCheckpoints<CheckpointMaster>(`/${id}`, { method: 'PATCH', body: JSON.stringify(dados) });
   },
 
