@@ -703,6 +703,12 @@ export default function AdminMap() {
   };
 
   const selectedEvent = events.find((event) => event.eventoId === selectedEventId);
+  // No SVG quem é desenhado depois fica por cima e recebe o clique. Ordem de desenho: zonas maiores embaixo (as menores
+  // continuam clicáveis) e a zona em edição por último, para o canto de redimensionar nunca ficar coberto por outra zona.
+  const zonasParaDesenhar = [...zones].sort((a, b) => {
+    if ((a.id === editingZoneId) !== (b.id === editingZoneId)) return a.id === editingZoneId ? 1 : -1;
+    return b.width * b.height - a.width * a.height;
+  });
   const selectedCheckpoint = checkpoints.find((checkpoint) => checkpoint.checkpointId === selectedCheckpointId);
   const checkpointsWithoutPosition = checkpoints.filter((checkpoint) => {
     const x = Number(checkpoint.mapaX ?? checkpoint.mapX);
@@ -837,7 +843,7 @@ export default function AdminMap() {
                 >
                   {/* Grid removido - agora igual ao DisplayMap */}
 
-                  {zones.map((zone) => (
+                  {zonasParaDesenhar.map((zone) => (
                     <g key={zone.id} onClick={() => startEditingZone(zone.id)} className="cursor-pointer">
                       <rect
                         x={zone.x}
@@ -871,7 +877,7 @@ export default function AdminMap() {
                       {editingZoneId === zone.id && (
                         <>
                           {/* Handles nos cantos */}
-                          <circle cx={zone.x + zone.width} cy={zone.y + zone.height} r={5} fill="#FFFFFF" stroke={zone.color} strokeWidth={2} className="cursor-nwse-resize" onPointerDown={(e) => startResizingZone(e, zone.id)} />
+                          <circle cx={zone.x + zone.width} cy={zone.y + zone.height} r={7} fill="#FFFFFF" stroke={zone.color} strokeWidth={2} className="cursor-nwse-resize" onPointerDown={(e) => startResizingZone(e, zone.id)} />
                         </>
                       )}
                     </g>
