@@ -17,6 +17,7 @@ import StatusDot from '../../components/ui/StatusDot';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
 import CheckpointsRecebidos from '../../components/checkpoints/CheckpointsRecebidos';
+import SolicitarCheckpoints from '../../components/checkpoints/SolicitarCheckpoints';
 import AtribuirEvento from '../../components/checkpoints/AtribuirEvento';
 import toast from 'react-hot-toast';
 import { numeroDoCheckpoint } from '../../utils/checkpoints';
@@ -402,6 +403,7 @@ export default function AdminCheckpoints() {
             title="Checkpoints"
             description="Os checkpoints são cadastrados pelo super admin. Aceite os que chegarem e defina o número de cada um"
             icon={<MapPin size={28} />}
+            action={<SolicitarCheckpoints />}
           />
 
           {/* Checkpoints que o super admin transferiu para este buffet */}

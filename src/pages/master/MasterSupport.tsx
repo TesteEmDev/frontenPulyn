@@ -14,6 +14,7 @@ import {
   Clock,
   User,
   Cpu,
+  PackagePlus,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
@@ -49,7 +50,11 @@ interface Ticket {
   date: string;
   assignee: string;
   description: string;
+  tipoChamado?: 'chamado' | 'checkpoint';
+  itens?: Array<{ tipo: string; quantidade: number }>;
 }
+
+const tipoCheckpointLabel: Record<string, string> = { NFC: 'NFC/RFID', UHF: 'UHF longa distância' };
 
 const statusBadgeVariant: Record<TicketStatus, 'accent' | 'secondary' | 'success'> = {
   aberto: 'accent',
@@ -82,6 +87,7 @@ export default function MasterSupport() {
   const [clients, setClients] = useState<Array<{ name: string }>>([]);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterTipo, setFilterTipo] = useState<'all' | 'checkpoint'>('all');
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -118,9 +124,11 @@ export default function MasterSupport() {
       ticket.client.toLowerCase().includes(search.toLowerCase()) ||
       ticket.id.toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'all' || ticket.status === filterStatus;
-    return matchSearch && matchStatus;
+    const matchTipo = filterTipo === 'all' || ticket.tipoChamado === 'checkpoint';
+    return matchSearch && matchStatus && matchTipo;
   });
 
+  const pedidosAbertos = tickets.filter(t => t.tipoChamado === 'checkpoint' && t.status !== 'resolvido').length;
   const openCount = tickets.filter(t => t.status === 'aberto').length;
   const inProgressCount = tickets.filter(t => t.status === 'em_andamento').length;
   const resolvedCount = tickets.filter(t => t.status === 'resolvido').length;
@@ -241,6 +249,14 @@ export default function MasterSupport() {
                 >
                   Resolvidos
                 </Button>
+                <Button
+                  variant={filterTipo === 'checkpoint' ? 'primary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setFilterTipo(filterTipo === 'checkpoint' ? 'all' : 'checkpoint')}
+                >
+                  <PackagePlus size={14} className="mr-1" />
+                  Pedidos de checkpoint{pedidosAbertos > 0 ? ` (${pedidosAbertos})` : ''}
+                </Button>
               </div>
             </div>
           </Card>
@@ -273,7 +289,24 @@ export default function MasterSupport() {
                     <tr key={ticket.id} className="border-b border-border/50 hover:bg-surface/30 transition-colors">
                       <td className="py-3 px-4 font-mono text-xs text-primary">{ticket.id}</td>
                       <td className="py-3 px-4 text-gray-300">{ticket.client}</td>
-                      <td className="py-3 px-4 text-white font-semibold">{ticket.subject}</td>
+                      <td className="py-3 px-4 text-white font-semibold">
+                        {ticket.tipoChamado === 'checkpoint' ? (
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <PackagePlus size={14} className="text-primary" />
+                              <span>Pedido de checkpoints</span>
+                            </div>
+                            <div className="mt-1 flex flex-wrap gap-1.5">
+                              {(ticket.itens || []).map((item) => (
+                                <Badge key={item.tipo} variant="secondary">{item.quantidade} × {tipoCheckpointLabel[item.tipo] || item.tipo}</Badge>
+                              ))}
+                            </div>
+                            {ticket.description && <p className="mt-1 text-xs font-normal text-gray-400">{ticket.description}</p>}
+                          </div>
+                        ) : (
+                          ticket.subject
+                        )}
+                      </td>
                       <td className="py-3 px-4">
                         <Badge variant={statusBadgeVariant[ticket.status]}>
                           {statusLabel[ticket.status]}
