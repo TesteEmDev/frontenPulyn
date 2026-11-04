@@ -52,6 +52,9 @@ const ONLINE_ATE_MS = 3 * 60 * 1000;
 // Em estoque com o aviso de que um buffet devolveu (ou recusou) o checkpoint
 const foiDevolvido = (cp: CheckpointMaster) => cp.statusTransferencia === 'estoque' && Boolean(cp.devolvidoEm);
 
+// O EPC do checkpoint guarda só os 6 últimos dígitos (colar o EPC inteiro também funciona)
+const ultimos6 = (epc: string) => epc.replace(/[\s:-]/g, '').toUpperCase().slice(-6);
+
 const estaOnline = (cp: CheckpointMaster) =>
   Boolean(cp.ultimoVisto) && Date.now() - new Date(cp.ultimoVisto as string).getTime() < ONLINE_ATE_MS;
 
@@ -182,7 +185,7 @@ export default function MasterCheckpoints() {
           // Só manda o que mudou. O número do checkpoint não é do master: o admin do buffet o define ao aceitar.
           const dados: Parameters<typeof api.masterEditarCheckpoint>[1] = {};
           if (form.macAddress.trim().toUpperCase() !== (editando.macAddress ?? '')) dados.macAddress = form.macAddress.trim();
-          if (form.epc.trim().toUpperCase() !== (editando.epc ?? '')) dados.epc = form.epc.trim();
+          if (ultimos6(form.epc) !== (editando.epc ?? '')) dados.epc = ultimos6(form.epc);
           if (form.nome.trim() !== editando.nome) dados.nome = form.nome.trim();
           if (form.tipo !== editando.tipo) dados.tipo = form.tipo;
           if (form.proposito !== (editando.proposito || 'game')) dados.proposito = form.proposito;
@@ -191,7 +194,7 @@ export default function MasterCheckpoints() {
         }, 'Checkpoint atualizado')
       : await executar(() => api.masterCriarCheckpoint({
           macAddress: form.macAddress.trim(),
-          epc: form.epc.trim() || undefined,
+          epc: ultimos6(form.epc) || undefined,
           nome: form.nome.trim() || undefined,
           tipo: form.tipo,
           proposito: form.proposito,
@@ -402,13 +405,14 @@ export default function MasterCheckpoints() {
             Aparece no Serial Monitor ao ligar a placa e na página /config dela. Aceita com dois-pontos, hífen ou sem separador.
           </p>
           <Input
-            label="EPC (opcional)"
-            placeholder="Ex: E2801160600002054A3B1C2D"
+            label="EPC - últimos 6 dígitos (opcional)"
+            placeholder="Ex: 3B1C2D"
             value={form.epc}
             onChange={(e) => setForm({ ...form, epc: e.target.value.toUpperCase() })}
+            onBlur={() => setForm((f) => ({ ...f, epc: ultimos6(f.epc) }))}
           />
           <p className="-mt-2 text-xs text-gray-500">
-            Código da tag que identifica o checkpoint. Só o super admin vê este dado: os buffets não o recebem. Aceita de 4 a 32 caracteres hexadecimais (0-9 e A-F).
+            Informe só os 6 últimos dígitos do EPC da tag que identifica o checkpoint (0-9 e A-F). Se colar o EPC inteiro, ficam só os 6 últimos. Só o super admin vê este dado: os buffets não o recebem.
           </p>
           <Input
             label="Nome (opcional)"
