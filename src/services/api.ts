@@ -40,7 +40,11 @@ function normalizeApiUrl(value: string | undefined | null) {
   if (!rawValue) return null;
 
   try {
-    const parsed = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(rawValue) ? rawValue : `https://${rawValue}`);
+    // "/api" (API no mesmo endereco do site, como no IIS): resolve contra o endereco da pagina. Sem isso o "https:///api"
+    // viraria o servidor "api".
+    const parsed = rawValue.startsWith('/') && !rawValue.startsWith('//')
+      ? new URL(rawValue, window.location.origin)
+      : new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(rawValue) ? rawValue : `https://${rawValue}`);
     if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname || hasRepeatedHost(parsed.hostname)) {
       return null;
     }
