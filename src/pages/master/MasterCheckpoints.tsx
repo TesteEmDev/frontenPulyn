@@ -27,13 +27,15 @@ const masterNavItems = [
 ];
 
 type Situacao = CheckpointMaster['statusTransferencia'];
-type Filtro = 'todos' | Situacao;
+// 'devolvido': em estoque e com o aviso de devolução/recusa de um buffet
+type Filtro = 'todos' | Situacao | 'devolvido';
 
 const FILTROS: { valor: Filtro; rotulo: string }[] = [
   { valor: 'todos', rotulo: 'Todos' },
   { valor: 'estoque', rotulo: 'Em estoque' },
   { valor: 'pendente', rotulo: 'Aguardando aceite' },
   { valor: 'aceito', rotulo: 'Aceitos' },
+  { valor: 'devolvido', rotulo: 'Devolvidos' },
 ];
 
 // Valores do seletor de buffet que não são o id de um buffet.
@@ -46,6 +48,9 @@ const OPTION_STYLE = { backgroundColor: '#1a1a2e', color: '#fff' };
 
 // O heartbeat chega a cada 60 s; sem sinal há mais de 3 minutos o aparelho está offline.
 const ONLINE_ATE_MS = 3 * 60 * 1000;
+
+// Em estoque com o aviso de que um buffet devolveu (ou recusou) o checkpoint
+const foiDevolvido = (cp: CheckpointMaster) => cp.statusTransferencia === 'estoque' && Boolean(cp.devolvidoEm);
 
 const estaOnline = (cp: CheckpointMaster) =>
   Boolean(cp.ultimoVisto) && Date.now() - new Date(cp.ultimoVisto as string).getTime() < ONLINE_ATE_MS;
@@ -120,10 +125,15 @@ export default function MasterCheckpoints() {
     estoque: doBuffet.filter((c) => c.statusTransferencia === 'estoque').length,
     pendente: doBuffet.filter((c) => c.statusTransferencia === 'pendente').length,
     aceito: doBuffet.filter((c) => c.statusTransferencia === 'aceito').length,
+    devolvido: doBuffet.filter(foiDevolvido).length,
   }), [doBuffet]);
 
   const visiveis = useMemo(
-    () => (filtro === 'todos' ? doBuffet : doBuffet.filter((c) => c.statusTransferencia === filtro)),
+    () => {
+      if (filtro === 'todos') return doBuffet;
+      if (filtro === 'devolvido') return doBuffet.filter(foiDevolvido);
+      return doBuffet.filter((c) => c.statusTransferencia === filtro);
+    },
     [doBuffet, filtro]
   );
 
@@ -304,7 +314,7 @@ export default function MasterCheckpoints() {
                       <td className="py-3 pr-4 text-sm font-mono text-gray-300">{cp.numCheck ?? '—'}</td>
                       <td className="py-3 pr-4">
                         <BadgeSituacao situacao={cp.statusTransferencia} />
-                        {cp.statusTransferencia === 'estoque' && cp.devolvidoEm && (
+                        {foiDevolvido(cp) && cp.devolvidoEm && (
                           <div className="mt-1.5">
                             <Badge variant="warning">{cp.devolvidoMotivo === 'recusado' ? 'Recusado' : 'Devolvido'}</Badge>
                             <p className="mt-1 text-xs text-gray-400">
