@@ -916,7 +916,7 @@ export default function MasterDashboard() {
           </Card>
 
           {/* Alertas do sistema: abaixo do mapa, em largura total */}
-          <Card className="mt-6">
+          <Card className="mt-6 secao-diferida">
             <div className="flex items-center gap-2 mb-4">
               <AlertTriangle size={20} className="text-danger" />
               <h3 className="font-display text-lg text-white">Alertas do Sistema</h3>
@@ -950,7 +950,7 @@ export default function MasterDashboard() {
           </Card>
 
           {/* Active Events */}
-          <Card variant="secondary" className="mt-6">
+          <Card variant="secondary" className="mt-6 secao-diferida">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Zap size={20} className="text-secondary" />
@@ -1011,7 +1011,7 @@ export default function MasterDashboard() {
           </Card>
 
           {/* Resumo dos checkpoints e do painel */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6 secao-diferida">
             <Card className="text-center">
               <Cpu size={24} className="text-primary mx-auto mb-2" />
               <p className="font-display text-2xl text-primary font-bold">{cps.comBuffets}</p>

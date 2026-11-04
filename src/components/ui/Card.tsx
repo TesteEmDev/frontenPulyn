@@ -35,7 +35,8 @@ const Card: React.FC<CardProps> = ({
       role={interactive ? 'button' : undefined}
       tabIndex={interactive ? 0 : undefined}
       className={`
-        rounded-2xl border p-5 backdrop-blur-sm transition-all duration-200
+        rounded-2xl border p-5
+        ${interactive ? 'transition-all duration-200' : ''}
         ${variantClasses[variant]}
         ${interactive ? 'cursor-pointer hover:-translate-y-0.5 hover:border-primary-400/60 hover:shadow-[0_16px_40px_rgba(30,155,215,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60' : ''}
         ${className}

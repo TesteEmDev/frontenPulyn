@@ -273,3 +273,6 @@ select option {
 /* Mapa do painel master: realce ao passar o mouse sem re-renderizar o React */
 .estado-mapa:hover { fill: rgba(30, 155, 215, 0.30); }
 .estado-mapa[aria-pressed='true']:hover { fill: rgba(30, 155, 215, 0.38); }
+
+/* Seção longa abaixo da dobra: o navegador pula o desenho dela até ela se aproximar da tela */
+.secao-diferida { content-visibility: auto; contain-intrinsic-size: auto 320px; }
