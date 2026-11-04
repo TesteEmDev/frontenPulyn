@@ -19,6 +19,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
@@ -112,12 +113,9 @@ export default function MasterMonitoring() {
     }
   }, []);
 
-  // Os sinais das placas mudam o tempo todo: atualiza sozinho, sem piscar a tela
-  useEffect(() => {
-    void carregar();
-    const intervalo = setInterval(() => { if (!document.hidden) void carregar(); }, ATUALIZA_A_CADA_MS);
-    return () => clearInterval(intervalo);
-  }, [carregar]);
+  // Os sinais das placas mudam o tempo todo: atualiza na hora (tempo real), sem piscar a tela
+  useEffect(() => { void carregar(); }, [carregar]);
+  useAutoRefresh(carregar, { topicos: ['checkpoints', 'eventos', 'clientes'], intervaloMs: ATUALIZA_A_CADA_MS });
 
   // Quem tem mais alertas aparece primeiro na escolha e na lista
   const ordenadas = useMemo(

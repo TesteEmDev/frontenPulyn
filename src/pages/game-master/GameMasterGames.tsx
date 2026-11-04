@@ -73,7 +73,7 @@ export default function GameMasterGames() {
   }, []);
 
   // Jogo em andamento e checkpoints se atualizam sozinhos, mantendo o jogo escolhido na tela
-  useAutoRefresh(() => (eventoAtualId ? loadData(eventoAtualId, true, true) : undefined), { intervaloMs: 10_000 });
+  useAutoRefresh(() => (eventoAtualId ? loadData(eventoAtualId, true, true) : undefined), { topicos: ['jogos', 'checkpoints', 'eventos'], intervaloMs: 10_000 });
 
   useEffect(() => {
     if (!eventoAtualId) {

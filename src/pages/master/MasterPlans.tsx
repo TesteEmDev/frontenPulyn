@@ -62,7 +62,7 @@ export default function MasterPlans() {
     loadData();
   }, [loadData]);
 
-  useAutoRefresh(loadData, { intervaloMs: 30_000 });
+  useAutoRefresh(loadData, { topicos: ['planos', 'clientes'], intervaloMs: 30_000 });
 
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">

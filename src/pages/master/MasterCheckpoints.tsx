@@ -112,7 +112,7 @@ export default function MasterCheckpoints() {
 
   useEffect(() => { void carregar(); }, [carregar]);
   // Com o formulário ou a transferência aberta não atualiza (a lista mexendo atrapalha quem está digitando)
-  useAutoRefresh(() => carregar(true), { pausado: formAberto || Boolean(transferindo) });
+  useAutoRefresh(() => carregar(true), { topicos: ['checkpoints'], pausado: formAberto || Boolean(transferindo) });
 
   const totalPorBuffet = useMemo(() => {
     const total = new Map<string, number>();

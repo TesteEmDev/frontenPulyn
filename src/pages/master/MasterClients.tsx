@@ -126,7 +126,7 @@ export default function MasterClients() {
     fetchClients();
   }, []);
 
-  useAutoRefresh(() => fetchClients(true));
+  useAutoRefresh(() => fetchClients(true), { topicos: ['clientes'] });
 
   // Auto-dismiss success message
   useEffect(() => {

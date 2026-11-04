@@ -161,7 +161,7 @@ export default function MasterAnalytics() {
     loadAnalyticsData();
   }, [loadAnalyticsData]);
 
-  useAutoRefresh(() => loadAnalyticsData(true), { intervaloMs: 60_000 });
+  useAutoRefresh(() => loadAnalyticsData(true), { topicos: ['clientes', 'eventos', 'checkpoints'], intervaloMs: 60_000 });
 
   if (loading && !metrics) {
     return (

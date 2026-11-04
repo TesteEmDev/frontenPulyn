@@ -109,7 +109,7 @@ export default function ReceptionFamilyLinks() {
   }, []);
 
   // As vinculações se atualizam sozinhas (sem F5)
-  useAutoRefresh(() => loadLinks(eventId, true), { intervaloMs: 10_000 });
+  useAutoRefresh(() => loadLinks(eventId, true), { topicos: ['familias', 'criancas'], intervaloMs: 10_000 });
 
   // Começa no evento ativo (se houver); senão, mostra todos os eventos.
   useEffect(() => {

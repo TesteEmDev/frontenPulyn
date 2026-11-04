@@ -343,7 +343,7 @@ export default function AdminCheckpoints() {
   }, [menu]);
 
   // Online/offline e pontos dos checkpoints se atualizam sozinhos; pausa com menu, modal ou instalação abertos
-  useAutoRefresh(() => setTickAuto((n) => n + 1), { intervaloMs: 15_000, pausado: Boolean(menu) || modalOpen || Boolean(instalando) });
+  useAutoRefresh(() => setTickAuto((n) => n + 1), { topicos: ['checkpoints', 'eventos'], intervaloMs: 15_000, pausado: Boolean(menu) || modalOpen || Boolean(instalando) });
 
   // Devolver/excluir passam por um modal de confirmação (nada de confirm/alert do navegador).
   const [confirmar, setConfirmar] = useState<{ cp: any; acao: 'devolver' | 'excluir'; enviando: boolean } | null>(null);

@@ -812,7 +812,7 @@ export default function MasterDashboard() {
   }, []);
 
   // Números, alertas e eventos se atualizam sozinhos
-  useAutoRefresh(() => loadDashboardData(), { intervaloMs: 30_000 });
+  useAutoRefresh(() => loadDashboardData(), { topicos: ['clientes', 'eventos', 'checkpoints', 'criancas', 'suporte'], intervaloMs: 30_000 });
 
   const loadDashboardData = async () => {
     try {

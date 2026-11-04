@@ -81,7 +81,7 @@ export default function AdminChildren() {
   // Atualização automática: o contador faz o efeito abaixo recarregar a lista sem o "carregando" (sem piscar)
   const [tickAuto, setTickAuto] = useState(0);
   const cargaDaSelecao = useRef<string | null>(null);
-  useAutoRefresh(() => setTickAuto((n) => n + 1), { intervaloMs: 15_000 });
+  useAutoRefresh(() => setTickAuto((n) => n + 1), { topicos: ['criancas', 'pulseiras', 'times', 'leituras'], intervaloMs: 15_000 });
 
   // Carrega as crianças do evento escolhido (ou de todos)
   useEffect(() => {

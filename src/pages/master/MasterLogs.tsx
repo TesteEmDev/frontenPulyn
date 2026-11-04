@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
@@ -163,11 +164,9 @@ export default function MasterLogs() {
     }
   }, []);
 
-  useEffect(() => {
-    void carregar();
-    const intervalo = setInterval(() => { if (!document.hidden) void carregar(); }, ATUALIZA_A_CADA_MS);
-    return () => clearInterval(intervalo);
-  }, [carregar]);
+  // Qualquer mudança no sistema vira um registro novo: a lista acompanha em tempo real
+  useEffect(() => { void carregar(); }, [carregar]);
+  useAutoRefresh(carregar, { topicos: ['*'], intervaloMs: ATUALIZA_A_CADA_MS });
 
   const clientOptions = useMemo(() => [
     { value: 'all', label: 'Todos os clientes' },

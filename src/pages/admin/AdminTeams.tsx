@@ -141,7 +141,7 @@ export default function AdminTeams() {
   };
 
   // Os times (e a contagem de participantes) se atualizam sozinhos, menos com o formulário aberto
-  useAutoRefresh(() => loadTeams(true), { intervaloMs: 15_000, pausado: showAddModal || editingId !== null || applying });
+  useAutoRefresh(() => loadTeams(true), { topicos: ['times', 'criancas'], intervaloMs: 15_000, pausado: showAddModal || editingId !== null || applying });
 
   const handleAddTeam = async () => {
     const name = newTeam.name.trim();

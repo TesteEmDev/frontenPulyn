@@ -111,7 +111,7 @@ export default function MasterSupport() {
     loadTickets();
   }, [loadTickets]);
 
-  useAutoRefresh(loadTickets, { intervaloMs: 15_000 });
+  useAutoRefresh(loadTickets, { topicos: ['suporte', 'clientes'], intervaloMs: 15_000 });
 
   const filteredTickets = tickets.filter(ticket => {
     const matchSearch = ticket.subject.toLowerCase().includes(search.toLowerCase()) ||

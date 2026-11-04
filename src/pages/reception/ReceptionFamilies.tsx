@@ -44,7 +44,7 @@ export default function ReceptionFamilies() {
   };
 
   // Pedidos de família chegam sozinhos na lista (sem F5)
-  useAutoRefresh(() => loadFamilyData(eventId, true), { intervaloMs: 8_000 });
+  useAutoRefresh(() => loadFamilyData(eventId, true), { topicos: ['familias', 'criancas'], intervaloMs: 8_000 });
 
   // Código fixo do evento: nasce na primeira consulta, então basta pedir
   const loadEventCode = async (selectedEvent: string) => {

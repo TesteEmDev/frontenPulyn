@@ -135,7 +135,7 @@ export default function AdminUsers() {
     loadUsers();
   }, [user]);
 
-  useAutoRefresh(() => loadUsers(true), { intervaloMs: 30_000, pausado: showAddModal });
+  useAutoRefresh(() => loadUsers(true), { topicos: ['usuarios'], intervaloMs: 30_000, pausado: showAddModal });
 
   useEffect(() => {
     let active = true;

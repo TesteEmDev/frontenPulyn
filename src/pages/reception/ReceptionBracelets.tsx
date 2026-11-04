@@ -111,7 +111,7 @@ export default function ReceptionBracelets() {
   }, [loadBracelets, loadChildren]);
 
   // Pulseiras (em uso, disponíveis...) se atualizam sozinhas, menos com a confirmação aberta
-  useAutoRefresh(() => { void loadBracelets(true); return loadChildren(); }, { intervaloMs: 8_000, pausado: modalOpen });
+  useAutoRefresh(() => { void loadBracelets(true); return loadChildren(); }, { topicos: ['pulseiras', 'criancas'], intervaloMs: 8_000, pausado: modalOpen });
 
   // Counts
   const statusCounts = useMemo(() => {

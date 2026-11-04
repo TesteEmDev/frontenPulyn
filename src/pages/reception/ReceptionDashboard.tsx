@@ -23,7 +23,7 @@ export default function ReceptionDashboard() {
   // Atualização automática: o contador faz o efeito abaixo recarregar os números sem o "carregando" (sem piscar)
   const [tickAuto, setTickAuto] = useState(0);
   const cargaDoEvento = useRef<string | null>(null);
-  useAutoRefresh(() => setTickAuto((n) => n + 1), { intervaloMs: 10_000 });
+  useAutoRefresh(() => setTickAuto((n) => n + 1), { topicos: ['criancas', 'pulseiras', 'times', 'leituras'], intervaloMs: 10_000 });
 
   // Carregar dados quando evento muda
   useEffect(() => {

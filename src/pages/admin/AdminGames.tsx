@@ -46,7 +46,7 @@ export default function AdminGames() {
   }, [loadBrincadeiras]);
 
   // A lista (duração, status, checkpoints) se atualiza sozinha; não mexe enquanto um botão está salvando
-  useAutoRefresh(() => loadBrincadeiras(), { intervaloMs: 20_000, pausado: togglingGameId !== null });
+  useAutoRefresh(() => loadBrincadeiras(), { topicos: ['jogos'], intervaloMs: 20_000, pausado: togglingGameId !== null });
 
   // Atualizar localGames quando brincadeiras mudar
   useEffect(() => {
