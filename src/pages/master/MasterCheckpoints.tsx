@@ -97,6 +97,7 @@ export default function MasterCheckpoints() {
   // Transferência
   const [transferindo, setTransferindo] = useState<CheckpointMaster | null>(null);
   const [destino, setDestino] = useState('');
+  const [buscaDestino, setBuscaDestino] = useState('');
 
   const carregar = useCallback(async (silencioso = false) => {
     try {
@@ -204,6 +205,16 @@ export default function MasterCheckpoints() {
         }), 'Checkpoint cadastrado no estoque');
     if (feito) setFormAberto(false);
   };
+
+  const buffetsFiltrados = useMemo(() => {
+    const limpar = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const termos = limpar(buscaDestino).split(/\s+/).filter(Boolean);
+    if (termos.length === 0) return buffets;
+    return buffets.filter((b) => {
+      const alvo = limpar(`${b.nome} ${b.cidade || ''} ${b.estado || ''}`);
+      return termos.every((t) => alvo.includes(t));
+    });
+  }, [buffets, buscaDestino]);
 
   const transferir = async () => {
     if (!transferindo || !destino) return;
@@ -347,7 +358,7 @@ export default function MasterCheckpoints() {
                         <div className="flex items-center gap-1">
                           {cp.statusTransferencia === 'estoque' && (
                             <button
-                              onClick={() => { setTransferindo(cp); setDestino(''); }}
+                              onClick={() => { setTransferindo(cp); setDestino(''); setBuscaDestino(''); }}
                               className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-surface transition-colors"
                               title="Transferir para um buffet" aria-label={`Transferir ${cp.nome}`}
                             >
@@ -463,14 +474,43 @@ export default function MasterCheckpoints() {
           </p>
           <div>
             <label htmlFor="mc-destino" className="mb-1.5 block text-sm font-body font-semibold text-gray-300">Buffet</label>
-            <select id="mc-destino" value={destino} onChange={(e) => setDestino(e.target.value)} className={SELECT_CLASSES}>
-              <option value="" style={OPTION_STYLE}>Escolha o buffet</option>
-              {buffets.map((b) => (
-                <option key={b.empresaId} value={b.empresaId} style={OPTION_STYLE}>
-                  {b.nome}{b.cidade ? ` — ${b.cidade}${b.estado ? `/${b.estado}` : ''}` : ''}
-                </option>
-              ))}
-            </select>
+            <Input
+              id="mc-destino"
+              autoFocus
+              autoComplete="off"
+              placeholder="Digite o nome ou a cidade do buffet"
+              value={buscaDestino}
+              onChange={(e) => setBuscaDestino(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && buffetsFiltrados.length > 0) {
+                  e.preventDefault();
+                  setDestino(buffetsFiltrados[0].empresaId);
+                }
+              }}
+            />
+            <ul role="listbox" aria-label="Buffets" className="mt-2 max-h-60 overflow-y-auto rounded-lg border border-white/10 bg-dark-card/60">
+              {buffetsFiltrados.map((b) => {
+                const escolhido = b.empresaId === destino;
+                return (
+                  <li key={b.empresaId} role="option" aria-selected={escolhido}>
+                    <button
+                      type="button"
+                      onClick={() => setDestino(b.empresaId)}
+                      className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition-colors ${escolhido ? 'bg-primary/20 text-white' : 'text-gray-300 hover:bg-white/5'}`}
+                    >
+                      <span className="truncate font-semibold">{b.nome}</span>
+                      <span className="shrink-0 text-xs text-gray-500">{b.cidade ? `${b.cidade}${b.estado ? `/${b.estado}` : ''}` : ''}</span>
+                    </button>
+                  </li>
+                );
+              })}
+              {buffetsFiltrados.length === 0 && <li className="px-3 py-4 text-center text-sm text-gray-500">Nenhum buffet encontrado</li>}
+            </ul>
+            {destino && (
+              <p className="mt-2 text-xs text-gray-400">
+                Enviar para: <strong className="text-white">{buffets.find((b) => b.empresaId === destino)?.nome}</strong>
+              </p>
+            )}
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="ghost" onClick={() => setTransferindo(null)}>Cancelar</Button>
