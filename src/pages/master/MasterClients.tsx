@@ -33,7 +33,7 @@ import Select from '../../components/ui/Select';
 import Modal from '../../components/ui/Modal';
 import ClientDetailsModal from './ClientDetailsModal';
 
-import { api } from '../../services/api';
+import { api, type ResumoExclusaoCliente } from '../../services/api';
 
 const masterNavItems = [
   { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/master' },
@@ -83,12 +83,12 @@ export default function MasterClients() {
   // Cliente com o modal de detalhes aberto (o objeto vem da lista, então o status acompanha as alterações)
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  
+
   // Loading and error states
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  
+
   // New client form state
   const [newName, setNewName] = useState('');
   const [newCity, setNewCity] = useState('');
@@ -105,7 +105,7 @@ export default function MasterClients() {
     setError(null);
     try {
       const data = await api.getClientes();
-      
+
       if (Array.isArray(data)) {
         setClients(data);
       } else {
@@ -144,12 +144,12 @@ export default function MasterClients() {
   const handleToggleStatus = async (clientId: string) => {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
-    
+
     const newStatus = client.status === 'blocked' ? 'active' : 'blocked';
-    
+
     try {
       const data = await api.updateCliente(clientId, { status: newStatus });
-      
+
       if (data) {
         setClients(prev => prev.map(c => 
           c.id === clientId ? { ...c, status: newStatus as any } : c
@@ -180,10 +180,10 @@ export default function MasterClients() {
       setError('A senha deve ter pelo menos 6 caracteres');
       return;
     }
-    
+
     setSubmitting(true);
     setError(null);
-    
+
     try {
       const data = await api.createCliente({
         nome: newName,
@@ -194,12 +194,12 @@ export default function MasterClients() {
         senha: newPassword,
         telefone: newPhone
       });
-      
+
       if (data) {
         setClients(prev => [data, ...prev]);
         setShowNewClientModal(false);
         setSuccessMessage(`Cliente ${newName} criado com sucesso! Acesso: ${newEmail}`);
-        
+
         // Reset form
         setNewName('');
         setNewCity('');
@@ -222,7 +222,7 @@ export default function MasterClients() {
   const handleUpdatePlan = async (clientId: string, newPlan: string) => {
     try {
       const data = await api.updateCliente(clientId, { plan: newPlan });
-      
+
       if (data) {
         setClients(prev => prev.map(c => 
           c.id === clientId ? { ...c, plan: newPlan as any } : c
@@ -235,12 +235,31 @@ export default function MasterClients() {
     }
   };
 
+  // Exclusão em duas confirmações: 1) o que será apagado; 2) digitar o nome do cliente.
+  const [excluindo, setExcluindo] = useState<{ client: Client; resumo: ResumoExclusaoCliente | null; etapa: 1 | 2; digitado: string; enviando: boolean } | null>(null);
+
   const handleDeleteClient = async (clientId: string) => {
-    if (!window.confirm('Tem certeza que deseja excluir este cliente?')) return;
-    
+    const client = clients.find(c => c.id === clientId);
+    setOpenMenuId(null);
+    if (!client) return;
+    setExcluindo({ client, resumo: null, etapa: 1, digitado: '', enviando: false });
+    try {
+      const resumo = await api.getResumoExclusaoCliente(clientId);
+      setExcluindo(atual => (atual && atual.client.id === clientId ? { ...atual, resumo } : atual));
+    } catch (err) {
+      setExcluindo(null);
+      setError(err instanceof Error ? err.message : 'Não foi possível consultar o que será apagado');
+    }
+  };
+
+  const confirmarExclusao = async () => {
+    if (!excluindo) return;
+    const clientId = excluindo.client.id;
+    setExcluindo({ ...excluindo, enviando: true });
     try {
       const resposta = await api.deleteCliente(clientId);
-      
+      setExcluindo(null);
+
       setClients(prev => prev.filter(c => c.id !== clientId));
       setSuccessMessage(resposta.message || 'Cliente excluído com sucesso!');
       if (selectedClientId === clientId) {
@@ -249,14 +268,14 @@ export default function MasterClients() {
     } catch (err) {
       console.error('Erro ao excluir cliente:', err);
       setError(err instanceof Error ? err.message : 'Erro de conexão ao excluir cliente');
+      setExcluindo(atual => (atual ? { ...atual, enviando: false } : atual));
     }
-    setOpenMenuId(null);
   };
 
   // Mensagem de sucesso/erro
   const renderToast = () => {
     if (!successMessage && !error) return null;
-    
+
     return (
       <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-right-5 duration-300">
         {successMessage && (
@@ -456,6 +475,85 @@ export default function MasterClients() {
             )}
           </Card>
 
+          {/* Excluir cliente: duas confirmações, o que será apagado e o nome do cliente */}
+          <Modal
+            isOpen={Boolean(excluindo)}
+            onClose={() => { if (!excluindo?.enviando) setExcluindo(null); }}
+            title={excluindo?.etapa === 2 ? 'Última confirmação' : 'Excluir cliente'}
+            size="lg"
+          >
+            {excluindo && (() => {
+              const { client, resumo, etapa, digitado, enviando } = excluindo;
+              const linhas: [number, string][] = resumo ? ([
+                [resumo.eventos, resumo.eventosEmAndamento ? `evento(s), sendo ${resumo.eventosEmAndamento} em andamento (será encerrado antes)` : 'evento(s)'],
+                [resumo.participantes, 'participante(s) e o que eles fizeram (pontos, leituras, conquistas)'],
+                [resumo.times, 'time(s)'],
+                [resumo.pulseiras, 'pulseira(s) cadastrada(s)'],
+                [resumo.brincadeiras, 'brincadeira(s) cadastrada(s)'],
+                [resumo.leituras + resumo.pontuacoes, 'registro(s) de leituras e pontos'],
+                [resumo.checkpointsApagados, 'checkpoint(s) antigo(s), sem MAC'],
+                [resumo.usuarios, 'usuário(s) de acesso (logins)'],
+              ] as [number, string][]).filter(([n]) => n > 0) : [];
+              const nomeConfere = digitado.trim().toLowerCase() === client.name.trim().toLowerCase();
+              return (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3 rounded-xl border border-danger/40 bg-danger/10 p-4">
+                    <AlertCircle size={22} className="mt-0.5 shrink-0 text-danger" />
+                    <p className="text-base text-white">
+                      Você vai excluir <strong>{client.name}</strong> definitivamente. <strong>Não tem volta</strong>: nem o cliente nem os dados dele podem ser recuperados.
+                    </p>
+                  </div>
+
+                  {etapa === 1 && (
+                    <>
+                      {!resumo ? (
+                        <p className="text-gray-400">Verificando o que será apagado...</p>
+                      ) : (
+                        <>
+                          <div>
+                            <p className="mb-2 font-semibold text-white">Será apagado:</p>
+                            <ul className="list-disc space-y-1 pl-6 text-gray-200">
+                              <li>O cadastro do cliente e a conta dele</li>
+                              {linhas.map(([n, texto]) => <li key={texto}><strong>{n}</strong> {texto}</li>)}
+                            </ul>
+                          </div>
+                          {resumo.checkpointsParaEstoque > 0 && (
+                            <p className="rounded-xl border border-success/40 bg-success/10 p-3 text-gray-200">
+                              <strong>{resumo.checkpointsParaEstoque}</strong> checkpoint(s) <strong>não</strong> são apagados: voltam para o estoque do master, sem buffet, evento e número (as leituras e pontos deles neste cliente são apagados).
+                            </p>
+                          )}
+                        </>
+                      )}
+                      <div className="flex justify-end gap-3 pt-2">
+                        <Button variant="ghost" onClick={() => setExcluindo(null)}>Cancelar</Button>
+                        <Button variant="danger" disabled={!resumo} onClick={() => setExcluindo({ ...excluindo, etapa: 2 })}>Entendi, continuar</Button>
+                      </div>
+                    </>
+                  )}
+
+                  {etapa === 2 && (
+                    <>
+                      <p className="text-gray-300">Para confirmar, digite o nome do cliente exatamente como aparece abaixo:</p>
+                      <p className="rounded-lg bg-white/5 px-3 py-2 font-mono text-white">{client.name}</p>
+                      <Input
+                        value={digitado}
+                        onChange={e => setExcluindo({ ...excluindo, digitado: e.target.value })}
+                        placeholder="Nome do cliente"
+                        autoFocus
+                      />
+                      <div className="flex justify-end gap-3 pt-2">
+                        <Button variant="ghost" disabled={enviando} onClick={() => setExcluindo({ ...excluindo, etapa: 1, digitado: '' })}>Voltar</Button>
+                        <Button variant="danger" disabled={!nomeConfere || enviando} onClick={() => void confirmarExclusao()}>
+                          {enviando ? 'Excluindo...' : 'Excluir definitivamente'}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+          </Modal>
+
           {/* New Client Modal */}
           <Modal isOpen={showNewClientModal} onClose={() => setShowNewClientModal(false)} title="Novo Cliente">
             <div className="space-y-4">
@@ -527,7 +625,7 @@ export default function MasterClients() {
           />
         </div>
       </main>
-      
+
       {renderToast()}
     </div>
   );

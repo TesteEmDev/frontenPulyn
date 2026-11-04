@@ -376,6 +376,12 @@ export interface EmpresaProfile {
   emailDomain: string | null;
 }
 
+export interface ResumoExclusaoCliente {
+  eventos: number; eventosEmAndamento: number; participantes: number; times: number; pulseiras: number;
+  brincadeiras: number; leituras: number; pontuacoes: number; checkpointsParaEstoque: number; checkpointsApagados: number;
+  usuarios: number;
+}
+
 export const api = {
   // ==================== AUTENTICAÇÃO ====================
   async login(email: string, password: string) {
@@ -637,6 +643,13 @@ export const api = {
       console.error('Erro ao atualizar cliente:', error);
       throw error;
     }
+  },
+
+  // O que será apagado junto com o cliente (aviso antes de confirmar a exclusão)
+  async getResumoExclusaoCliente(id: string) {
+    const res = await fetch(`${API_URL}/clientes/${encodeURIComponent(id)}/resumo-exclusao`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(`Não foi possível consultar o que será apagado (erro ${res.status})`);
+    return res.json() as Promise<ResumoExclusaoCliente>;
   },
 
   async deleteCliente(id: string) {
