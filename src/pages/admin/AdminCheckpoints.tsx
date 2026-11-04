@@ -216,7 +216,7 @@ export default function AdminCheckpoints() {
     }
   };
 
-  // Os checkpoints são cadastrados pelo super admin e chegam aqui para aceitar: o buffet só edita o que já recebeu.
+  // Os checkpoints são cadastrados pelo super admin e chegam direto ao buffet: o buffet só edita o que já recebeu.
   // `id` do formulário é o NÚMERO do checkpoint, o único valor que o admin do buffet define.
   const handleOpenModal = (checkpoint: any) => {
     setEditingCheckpoint(checkpoint);
@@ -401,7 +401,7 @@ export default function AdminCheckpoints() {
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Checkpoints"
-            description="Os checkpoints são cadastrados pelo super admin. Aceite os que chegarem e defina o número de cada um"
+            description="Os checkpoints são cadastrados pelo super admin e chegam direto para você. Defina o número de cada um"
             icon={<MapPin size={28} />}
             action={<SolicitarCheckpoints />}
           />
@@ -551,7 +551,7 @@ export default function AdminCheckpoints() {
                       <td colSpan={isAllEvents ? 8 : 7} className="py-8 text-center text-gray-500">
                         {isAllEvents
                           ? 'Nenhum checkpoint em nenhum evento.'
-                          : 'Nenhum checkpoint neste evento. Os checkpoints chegam do super admin para você aceitar e colocar no evento.'}
+                          : 'Nenhum checkpoint neste evento. Os checkpoints chegam do super admin e você os coloca no evento.'}
                       </td>
                     </tr>
                   )}

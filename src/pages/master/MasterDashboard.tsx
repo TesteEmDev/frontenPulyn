@@ -64,11 +64,11 @@ interface ResumoCheckpoints {
   online: number;
   offline: number;
   emEstoque: number;
-  aguardandoAceite: number;
+  semNumero: number;
   comBuffets: number;
   offlineComBuffets: number;
 }
-const SEM_CHECKPOINTS: ResumoCheckpoints = { total: 0, online: 0, offline: 0, emEstoque: 0, aguardandoAceite: 0, comBuffets: 0, offlineComBuffets: 0 };
+const SEM_CHECKPOINTS: ResumoCheckpoints = { total: 0, online: 0, offline: 0, emEstoque: 0, semNumero: 0, comBuffets: 0, offlineComBuffets: 0 };
 
 const normalizeText = (value: string) =>
   value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
@@ -1029,8 +1029,8 @@ export default function MasterDashboard() {
             </Card>
             <Card className="text-center">
               <Clock size={24} className="text-warning mx-auto mb-2" />
-              <p className="font-display text-2xl text-warning font-bold">{cps.aguardandoAceite}</p>
-              <p className="text-sm text-gray-400">Aguardando aceite do buffet</p>
+              <p className="font-display text-2xl text-warning font-bold">{cps.semNumero}</p>
+              <p className="text-sm text-gray-400">Nos buffets, sem número</p>
             </Card>
             <Card className="text-center">
               <Bell size={24} className="text-accent mx-auto mb-2" />

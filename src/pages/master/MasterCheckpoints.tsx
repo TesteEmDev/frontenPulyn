@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   LayoutDashboard, Users, CreditCard, Activity, ScrollText, LifeBuoy, BarChart3,
-  Cpu, Plus, Send, Undo2, Pencil, Trash2,
+  Cpu, Plus, Send, Pencil, Trash2,
 } from 'lucide-react';
 import { api, type BuffetOpcao, type CheckpointMaster } from '../../services/api';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
@@ -35,8 +35,7 @@ type Filtro = 'todos' | Situacao | 'devolvido';
 const FILTROS: { valor: Filtro; rotulo: string }[] = [
   { valor: 'todos', rotulo: 'Todos' },
   { valor: 'estoque', rotulo: 'Em estoque' },
-  { valor: 'pendente', rotulo: 'Aguardando aceite' },
-  { valor: 'aceito', rotulo: 'Aceitos' },
+  { valor: 'aceito', rotulo: 'Com buffets' },
   { valor: 'devolvido', rotulo: 'Devolvidos' },
 ];
 
@@ -70,13 +69,11 @@ interface Formulario {
 
 const FORM_VAZIO: Formulario = { macAddress: '', epc: '', nome: '', tipo: 'NFC', proposito: 'game' };
 
-// Buffet a que o checkpoint pertence: quem aceitou ou, enquanto aguarda o aceite, o destino da transferência.
-const buffetIdDe = (cp: CheckpointMaster) =>
-  cp.statusTransferencia === 'aceito' ? cp.empresaId : cp.statusTransferencia === 'pendente' ? cp.empresaDestinoId : null;
+// Buffet a que o checkpoint pertence (só os transferidos têm um).
+const buffetIdDe = (cp: CheckpointMaster) => (cp.statusTransferencia === 'aceito' ? cp.empresaId : null);
 
 function BadgeSituacao({ situacao }: { situacao: Situacao }) {
-  if (situacao === 'aceito') return <Badge variant="success">Aceito</Badge>;
-  if (situacao === 'pendente') return <Badge variant="warning">Aguardando aceite</Badge>;
+  if (situacao === 'aceito') return <Badge variant="success">Com o buffet</Badge>;
   return <Badge variant="muted">Em estoque</Badge>;
 }
 
@@ -132,7 +129,6 @@ export default function MasterCheckpoints() {
 
   const contagem = useMemo(() => ({
     estoque: doBuffet.filter((c) => c.statusTransferencia === 'estoque').length,
-    pendente: doBuffet.filter((c) => c.statusTransferencia === 'pendente').length,
     aceito: doBuffet.filter((c) => c.statusTransferencia === 'aceito').length,
     devolvido: doBuffet.filter(foiDevolvido).length,
   }), [doBuffet]);
@@ -191,7 +187,7 @@ export default function MasterCheckpoints() {
     }
     const feito = editando
       ? await executar(() => {
-          // Só manda o que mudou. O número do checkpoint não é do master: o admin do buffet o define ao aceitar.
+          // Só manda o que mudou. O número do checkpoint não é do master: o admin do buffet o define depois de receber.
           const dados: Parameters<typeof api.masterEditarCheckpoint>[1] = {};
           if (form.macAddress.trim().toUpperCase() !== (editando.macAddress ?? '')) dados.macAddress = form.macAddress.trim();
           if (ultimos6(form.epc) !== (editando.epc ?? '')) dados.epc = ultimos6(form.epc);
@@ -223,13 +219,8 @@ export default function MasterCheckpoints() {
 
   const transferir = async () => {
     if (!transferindo || !destino) return;
-    const feito = await executar(() => api.masterTransferirCheckpoint(transferindo.id, destino), 'Transferido: o buffet precisa aceitar');
+    const feito = await executar(() => api.masterTransferirCheckpoint(transferindo.id, destino), 'Transferido para o buffet');
     if (feito) setTransferindo(null);
-  };
-
-  const cancelar = (cp: CheckpointMaster) => {
-    if (!confirm(`Cancelar a transferência de "${cp.nome}"? Ele volta para o estoque.`)) return;
-    void executar(() => api.masterCancelarTransferencia(cp.id), 'Transferência cancelada');
   };
 
   const excluir = (cp: CheckpointMaster) => {
@@ -238,7 +229,7 @@ export default function MasterCheckpoints() {
   };
 
   const buffetDe = (cp: CheckpointMaster) =>
-    (cp.statusTransferencia === 'aceito' ? cp.empresaNome : cp.statusTransferencia === 'pendente' ? cp.empresaDestinoNome : null) || '—';
+    (cp.statusTransferencia === 'aceito' ? cp.empresaNome : null) || '—';
 
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">
@@ -370,15 +361,6 @@ export default function MasterCheckpoints() {
                               <Send size={16} />
                             </button>
                           )}
-                          {cp.statusTransferencia === 'pendente' && (
-                            <button
-                              onClick={() => cancelar(cp)}
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-warning hover:bg-surface transition-colors"
-                              title="Cancelar a transferência" aria-label={`Cancelar transferência de ${cp.nome}`}
-                            >
-                              <Undo2 size={16} />
-                            </button>
-                          )}
                           <button
                             onClick={() => abrirEdicao(cp)}
                             className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-surface transition-colors"
@@ -453,7 +435,7 @@ export default function MasterCheckpoints() {
             onChange={(e) => setForm({ ...form, nome: e.target.value })}
           />
           <p className="-mt-2 text-xs text-gray-500">
-            O ID é gerado automaticamente. O número do checkpoint é definido pelo admin do buffet, ao aceitar.
+            O ID é gerado automaticamente. O número do checkpoint é definido pelo admin do buffet, depois de receber.
           </p>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -488,7 +470,7 @@ export default function MasterCheckpoints() {
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-400">
-            O checkpoint aparece para o admin do buffet escolhido, que precisa aceitá-lo e definir o número e o evento.
+            O checkpoint passa a ser do buffet escolhido na hora. O admin do buffet define o número e o evento depois.
           </p>
           <div>
             <label htmlFor="mc-destino" className="mb-1.5 block text-sm font-body font-semibold text-gray-300">Buffet</label>
