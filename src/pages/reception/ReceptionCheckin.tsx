@@ -219,10 +219,6 @@ export default function ReceptionCheckin() {
       showToast(erroDaData, 'error');
       return;
     }
-    if (!selectedTeam) {
-      showToast('Selecione um time.', 'error');
-      return;
-    }
     if (saving) return;
 
     setSaving(true);
@@ -251,12 +247,12 @@ export default function ReceptionCheckin() {
         avatar: form.avatar,
         cor: form.cor,
         ...(normalizedCode ? { braceletCode: normalizedCode } : {}),
-        timeId: selectedTeam,
+        ...(selectedTeam ? { timeId: selectedTeam } : {}),
       });
       await Promise.all([loadTeams(), loadChildren()]);
 
-      const teamName = teams.find(team => String(team.id) === String(selectedTeam))?.name || 'time selecionado';
-      showToast(`${form.name.trim()} foi cadastrado(a) no ${teamName}${normalizedCode ? ' e a pulseira foi vinculada' : ' (sem pulseira por enquanto)'}.`);
+      const teamName = selectedTeam ? teams.find(team => String(team.id) === String(selectedTeam))?.name || 'time selecionado' : null;
+      showToast(`${form.name.trim()} foi cadastrado(a)${teamName ? ` no ${teamName}` : ' sem time'}${normalizedCode ? ' e a pulseira foi vinculada' : ' (sem pulseira por enquanto)'}.`);
       setForm({ name: '', nickname: '', nascimento: '', avatar: DEFAULT_AVATAR_ID, cor: primeiraCorLivre([]) });
       setSelectedTeam(null);
       clearBracelet();
@@ -357,7 +353,7 @@ export default function ReceptionCheckin() {
                 </div>
 
                 <div>
-                  <h3 className="mb-3 text-sm font-semibold text-gray-200">Escolha o time</h3>
+                  <h3 className="mb-3 text-sm font-semibold text-gray-200">Escolha o time <span className="font-normal text-gray-400">(opcional: clique de novo para tirar)</span></h3>
                   {teams.length > 0 ? (
                     <div className="grid grid-cols-2 gap-3">
                       {teams.map(team => {
@@ -366,7 +362,7 @@ export default function ReceptionCheckin() {
                           <button
                             key={team.id}
                             type="button"
-                            onClick={() => setSelectedTeam(team.id)}
+                            onClick={() => setSelectedTeam(isSelected ? null : team.id)}
                             className={`rounded-xl border px-4 py-3 text-left transition ${isSelected ? 'ring-2 ring-primary/70' : 'border-white/10 hover:border-primary/60'}`}
                             style={{ borderColor: isSelected ? team.color : undefined, backgroundColor: isSelected ? `${team.color || '#8b5cf6'}22` : undefined }}
                           >
@@ -377,7 +373,7 @@ export default function ReceptionCheckin() {
                       })}
                     </div>
                   ) : (
-                    <p className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">Nenhum time cadastrado para este evento.</p>
+                    <p className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">Nenhum time cadastrado para este evento. Você pode cadastrar o participante mesmo assim.</p>
                   )}
                 </div>
               </div>
@@ -405,7 +401,7 @@ export default function ReceptionCheckin() {
               variant="primary"
               size="lg"
               onClick={handleSubmit}
-              disabled={!selectedEventId || !form.name.trim() || Boolean(erroNascimentoSemLimite(form.nascimento || null)) || !selectedTeam || (Boolean(braceletCode) && braceletStatus === 'registered') || saving}
+              disabled={!selectedEventId || !form.name.trim() || Boolean(erroNascimentoSemLimite(form.nascimento || null)) || (Boolean(braceletCode) && braceletStatus === 'registered') || saving}
               className="w-full"
             >
               {saving ? 'Cadastrando participante...' : braceletCode ? 'Cadastrar participante e vincular pulseira' : 'Cadastrar participante sem pulseira'}
