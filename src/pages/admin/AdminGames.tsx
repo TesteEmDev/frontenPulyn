@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Gamepad2, Plus, ToggleLeft, ToggleRight, Trash2
+  Gamepad2, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
@@ -11,7 +11,6 @@ import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
-import Button from '../../components/ui/Button';
 
 const typeBadge: Record<string, { variant: 'primary' | 'secondary' | 'accent'; label: string }> = {
   team: { variant: 'primary', label: 'Equipe' },
@@ -30,7 +29,6 @@ export default function AdminGames() {
 
   const [localGames, setLocalGames] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deletingGameId, setDeletingGameId] = useState<string | null>(null);
   const [togglingGameId, setTogglingGameId] = useState<string | null>(null);
   // Trava síncrona: o estado só vale depois da próxima renderização, e um duplo clique rápido passaria.
   const togglingRef = useRef(false);
@@ -93,34 +91,6 @@ export default function AdminGames() {
     }
   };
 
-  const handleDeleteGame = async (game: any) => {
-    const confirmed = window.confirm(
-      `Arquivar o jogo "${game.name}"? Ele sairá da lista, mas o histórico de leituras e pontuações será preservado.`
-    );
-    if (!confirmed) return;
-
-    setDeletingGameId(game.id);
-    setFeedback(null);
-    try {
-      await api.deleteBrincadeira(game.id);
-      await loadBrincadeiras();
-      setFeedback({ type: 'success', message: `Jogo "${game.name}" arquivado com sucesso.` });
-    } catch (error) {
-      const status = typeof error === 'object' && error !== null && 'status' in error
-        ? Number((error as { status?: number }).status)
-        : 0;
-      const message = error instanceof Error ? error.message : 'Não foi possível arquivar o jogo.';
-      setFeedback({
-        type: 'error',
-        message: status === 409
-          ? message
-          : message || 'Não foi possível arquivar o jogo.',
-      });
-    } finally {
-      setDeletingGameId(null);
-    }
-  };
-
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">
       <AdminSidebar />
@@ -131,14 +101,8 @@ export default function AdminGames() {
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Jogos"
-            description="Gerencie os jogos disponíveis no sistema"
+            description="Os jogos do seu plano já vêm cadastrados. Você pode alterar a duração (vale para todos os eventos) e configurar os checkpoints e pontos de cada jogo"
             icon={<Gamepad2 size={28} />}
-            action={
-              <Button variant="primary" onClick={() => navigate('/admin/games/new')}>
-                <Plus size={16} className="mr-1.5" />
-                Criar Jogo
-              </Button>
-            }
           />
 
           {feedback && (
@@ -200,19 +164,6 @@ export default function AdminGames() {
                             <ToggleLeft size={28} className="text-gray-500" />
                           )}
                         </button>
-                        <button
-                          type="button"
-                          onClick={e => {
-                            e.stopPropagation();
-                            void handleDeleteGame(game);
-                          }}
-                          disabled={deletingGameId === game.id}
-                          className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-danger/10 hover:text-danger disabled:cursor-wait disabled:opacity-50"
-                          title="Arquivar jogo"
-                          aria-label={`Arquivar jogo ${game.name}`}
-                        >
-                          <Trash2 size={19} />
-                        </button>
                       </div>
                     </div>
 
@@ -238,7 +189,7 @@ export default function AdminGames() {
               })
             ) : (
               <div className="col-span-full text-center py-12 text-gray-400">
-                Nenhum jogo cadastrado ainda. Crie seu primeiro jogo!
+                Nenhum jogo no seu plano ainda. Fale com o suporte para liberar os jogos.
               </div>
             )}
           </div>

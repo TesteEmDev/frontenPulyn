@@ -138,7 +138,7 @@ function App() {
     loadClientes,
     eventoAtualId
   } = usePulynStore();
-  
+
   const { isAuthenticated, user } = useAuth();
 
   // Log todas as mudanças de rota
@@ -158,7 +158,7 @@ function App() {
   // Carregar dados gerais quando autenticado (não depende de evento)
   useEffect(() => {
     if (!isAuthenticated || !user) return;
-    
+
     // Clientes são dados administrativos e a API permite acesso somente ao master.
     if (user.role === 'master') {
       loadClientes().catch(err => console.error('❌ Erro ao carregar clientes:', err));
@@ -176,7 +176,7 @@ function App() {
     if (!eventoAtualId || user?.role === 'kiosk' || user?.role === 'score_kiosk') {
       return; // Não sincroniza sem evento ou no visor de autoatendimento
     }
-    
+
     // Sincronizar dados específicos do evento
     const syncEventData = async () => {
       try {
@@ -185,9 +185,9 @@ function App() {
         console.error('❌ Erro ao sincronizar:', error);
       }
     };
-    
+
     syncEventData();
-    
+
     // Polling a cada 10 segundos (apenas se houver evento)
     const interval = setInterval(() => {
       loadTeams();
@@ -196,7 +196,7 @@ function App() {
       loadReadings();
       loadScoreLog();
     }, 10000);
-    
+
     return () => clearInterval(interval);
   }, [eventoAtualId, user?.role]);
 
@@ -271,7 +271,7 @@ function App() {
           <Route path="/admin/children/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminChildProfile /></ProtectedRoute>} />
           <Route path="/admin/pulynball" element={<ProtectedRoute allowedRoles={['admin']}><AdminPulynBall /></ProtectedRoute>} />
           <Route path="/admin/games" element={<ProtectedRoute allowedRoles={['admin']}><AdminGames /></ProtectedRoute>} />
-          <Route path="/admin/games/new" element={<ProtectedRoute allowedRoles={['admin']}><AdminGameForm /></ProtectedRoute>} />
+          <Route path="/admin/games/new" element={<Navigate to="/admin/games" replace />} />
           <Route path="/admin/games/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminGameForm /></ProtectedRoute>} />
           <Route path="/admin/checkpoints" element={<ProtectedRoute allowedRoles={['admin']}><AdminCheckpoints /></ProtectedRoute>} />
           <Route path="/admin/checkpoints/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminCheckpointConfig /></ProtectedRoute>} />
