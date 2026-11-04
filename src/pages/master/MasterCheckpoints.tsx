@@ -302,7 +302,19 @@ export default function MasterCheckpoints() {
                         </p>
                       </td>
                       <td className="py-3 pr-4 text-sm font-mono text-gray-300">{cp.numCheck ?? '—'}</td>
-                      <td className="py-3 pr-4"><BadgeSituacao situacao={cp.statusTransferencia} /></td>
+                      <td className="py-3 pr-4">
+                        <BadgeSituacao situacao={cp.statusTransferencia} />
+                        {cp.statusTransferencia === 'estoque' && cp.devolvidoEm && (
+                          <div className="mt-1.5">
+                            <Badge variant="warning">{cp.devolvidoMotivo === 'recusado' ? 'Recusado' : 'Devolvido'}</Badge>
+                            <p className="mt-1 text-xs text-gray-400">
+                              {cp.devolvidoMotivo === 'recusado' ? 'Recusado' : 'Devolvido'} por {cp.devolvidoPorNome ?? 'um buffet'}
+                              {cp.devolvidoMotivo === 'cliente_excluido' ? ' (cliente excluído)' : ''}
+                              {' · '}{new Date(cp.devolvidoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        )}
+                      </td>
                       <td className="py-3 pr-4 text-sm text-gray-300">{buffetDe(cp)}</td>
                       <td className="py-3 pr-4">
                         <div className="flex items-center gap-2">

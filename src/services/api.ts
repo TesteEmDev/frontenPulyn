@@ -122,6 +122,10 @@ export interface CheckpointMaster {
   eventoId: string | null;
   transferidoEm: string | null;
   criadoEm: string | null;
+  // Aviso de devolução: preenchido quando o buffet devolve/recusa e some quando o master transfere de novo
+  devolvidoEm: string | null;
+  devolvidoMotivo: 'devolvido' | 'recusado' | 'cliente_excluido' | null;
+  devolvidoPorNome: string | null;
 }
 
 export interface BuffetOpcao {
