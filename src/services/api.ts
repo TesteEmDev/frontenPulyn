@@ -1907,6 +1907,10 @@ export const api = {
     return pedirRecebimento<{ success: boolean }>(`/${encodeURIComponent(checkpointId)}/recusar`, { method: 'POST' });
   },
 
+  devolverCheckpoint(checkpointId: string) {
+    return pedirRecebimento<{ success: boolean }>(`/${encodeURIComponent(checkpointId)}/devolver`, { method: 'POST' });
+  },
+
   alterarNumeroCheckpoint(checkpointId: string, numCheck: string) {
     return pedirRecebimento<CheckpointRecebido>(`/${encodeURIComponent(checkpointId)}/numero`, {
       method: 'PATCH',

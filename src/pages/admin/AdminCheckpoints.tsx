@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  MapPin, Lightbulb, Volume2, Edit, Trash2, QrCode
+  MapPin, Lightbulb, Volume2, Edit, Trash2, QrCode, MoreVertical, Undo2
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../../hooks/useAuth';
@@ -298,6 +298,41 @@ export default function AdminCheckpoints() {
     }
   };
 
+  // Menu "Mais opções" da linha: um só aberto por vez, fecha ao clicar fora ou com Esc.
+  const [menuAberto, setMenuAberto] = useState<string | null>(null);
+  // Posição do menu na tela (fixa, para a rolagem da tabela não cortar)
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!menuAberto) return;
+    const fora = (e: MouseEvent) => { if (!menuRef.current?.contains(e.target as Node)) setMenuAberto(null); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuAberto(null); };
+    const fecha = () => setMenuAberto(null);
+    document.addEventListener('mousedown', fora);
+    document.addEventListener('keydown', esc);
+    window.addEventListener('scroll', fecha, true);
+    window.addEventListener('resize', fecha);
+    return () => {
+      document.removeEventListener('mousedown', fora);
+      document.removeEventListener('keydown', esc);
+      window.removeEventListener('scroll', fecha, true);
+      window.removeEventListener('resize', fecha);
+    };
+  }, [menuAberto]);
+
+  // Checkpoint aceito que ainda não está em evento: a devolução não passa pelo evento.
+  const devolverSemEvento = async (checkpoint: any) => {
+    const rotulo = `${numeroDoCheckpoint(checkpoint)}${checkpoint.name ? ` (${checkpoint.name})` : ''}`;
+    if (!confirm(`Devolver o checkpoint ${rotulo} ao super admin? Ele sai do seu buffet.`)) return;
+    try {
+      await api.devolverCheckpoint(checkpoint.id);
+      setCheckpointsList(prev => prev.filter(cp => cp.id !== checkpoint.id));
+      toast.success('Checkpoint devolvido ao super admin');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível devolver');
+    }
+  };
+
   const handleDelete = async (checkpoint: any) => {
     const id = checkpoint.id;
     const eventId = checkpoint.eventoId || selectedEventId;
@@ -448,28 +483,12 @@ export default function AdminCheckpoints() {
                         <td className="py-3">
                           <div className="flex items-center gap-1">
                             <button
-                              onClick={() => setInstalando(cp)}
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-surface transition-colors"
-                              title="Instalar (QR code)"
-                            >
-                              <QrCode size={16} />
-                            </button>
-                            <button
                               onClick={() => handleOpenModal(cp)}
                               className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-surface transition-colors"
                               title="Editar"
                             >
                               <Edit size={16} />
                             </button>
-                            {cp.eventoId && (
-                              <button
-                                onClick={() => handleDelete(cp)}
-                                className="p-1.5 rounded-lg text-gray-400 hover:text-danger hover:bg-surface transition-colors"
-                                title={cp.macAddress ? 'Devolver ao super admin' : 'Excluir'}
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
                             <button
                               onClick={() => testar(cp, 'led')}
                               disabled={!podeTestar(cp) || testando === `${cp.id}-led`}
@@ -488,6 +507,52 @@ export default function AdminCheckpoints() {
                             >
                               <Volume2 size={16} />
                             </button>
+                            {/* Mais opções: QR code de instalação e devolução ao super admin */}
+                            <div className="relative" ref={menuAberto === cp.id ? menuRef : undefined}>
+                              <button
+                                onClick={(e) => {
+                                  const r = e.currentTarget.getBoundingClientRect();
+                                  setMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+                                  setMenuAberto(menuAberto === cp.id ? null : cp.id);
+                                }}
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-surface transition-colors"
+                                title="Mais opções"
+                                aria-label={`Mais opções do checkpoint ${numeroDoCheckpoint(cp)}`}
+                                aria-haspopup="menu"
+                                aria-expanded={menuAberto === cp.id}
+                              >
+                                <MoreVertical size={16} />
+                              </button>
+                              {menuAberto === cp.id && (
+                                <div role="menu" style={{ top: menuPos?.top, right: menuPos?.right }} className="fixed z-50 w-60 rounded-xl border border-border bg-dark p-1 shadow-xl">
+                                  <button
+                                    role="menuitem"
+                                    onClick={() => { setMenuAberto(null); setInstalando(cp); }}
+                                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-white hover:bg-surface"
+                                  >
+                                    <QrCode size={16} className="text-primary" /> QR code de instalação
+                                  </button>
+                                  {cp.macAddress && (
+                                    <button
+                                      role="menuitem"
+                                      onClick={() => { setMenuAberto(null); void (cp.eventoId ? handleDelete(cp) : devolverSemEvento(cp)); }}
+                                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-white hover:bg-surface"
+                                    >
+                                      <Undo2 size={16} className="text-warning" /> Devolver ao super admin
+                                    </button>
+                                  )}
+                                  {!cp.macAddress && cp.eventoId && (
+                                    <button
+                                      role="menuitem"
+                                      onClick={() => { setMenuAberto(null); void handleDelete(cp); }}
+                                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-danger hover:bg-surface"
+                                    >
+                                      <Trash2 size={16} /> Excluir
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>
