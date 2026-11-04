@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { api, type BuffetOpcao, type CheckpointMaster } from '../../services/api';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
+import { digitarEpc, epcCompleto, macCompleto, mascaraEpc, mascaraMac } from '../../utils/mascaras';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
@@ -54,7 +55,7 @@ const ONLINE_ATE_MS = 3 * 60 * 1000;
 const foiDevolvido = (cp: CheckpointMaster) => cp.statusTransferencia === 'estoque' && Boolean(cp.devolvidoEm);
 
 // O EPC do checkpoint guarda só os 6 últimos dígitos (colar o EPC inteiro também funciona)
-const ultimos6 = (epc: string) => epc.replace(/[\s:-]/g, '').toUpperCase().slice(-6);
+const ultimos6 = mascaraEpc;
 
 const estaOnline = (cp: CheckpointMaster) =>
   Boolean(cp.ultimoVisto) && Date.now() - new Date(cp.ultimoVisto as string).getTime() < ONLINE_ATE_MS;
@@ -180,8 +181,12 @@ export default function MasterCheckpoints() {
   };
 
   const salvar = async () => {
-    if (!form.macAddress.trim()) {
-      toast.error('Informe o MAC do aparelho (aparece no Serial Monitor e na página /config da placa)');
+    if (!macCompleto(form.macAddress)) {
+      toast.error('Informe o MAC completo do aparelho: 12 dígitos (aparece no Serial Monitor e na página /config da placa)');
+      return;
+    }
+    if (form.epc && !epcCompleto(form.epc)) {
+      toast.error('O EPC precisa ter os 6 últimos dígitos (0-9 e A-F)');
       return;
     }
     const feito = editando
@@ -412,18 +417,31 @@ export default function MasterCheckpoints() {
             label="MAC do aparelho"
             placeholder="AA:BB:CC:DD:EE:FF"
             value={form.macAddress}
-            onChange={(e) => setForm({ ...form, macAddress: e.target.value.toUpperCase() })}
+            onChange={(e) => setForm({ ...form, macAddress: mascaraMac(e.target.value) })}
+            maxLength={17}
+            autoComplete="off"
+            spellCheck={false}
+            className="font-mono"
+            error={form.macAddress && !macCompleto(form.macAddress) ? 'Faltam dígitos: o MAC tem 12 (6 pares)' : undefined}
             required
           />
           <p className="-mt-2 text-xs text-gray-500">
-            Aparece no Serial Monitor ao ligar a placa e na página /config dela. Aceita com dois-pontos, hífen ou sem separador.
+            Aparece no Serial Monitor ao ligar a placa e na página /config dela. Digite só 0-9 e A-F: os dois-pontos entram sozinhos. Pode colar com dois-pontos, hífen ou sem separador.
           </p>
           <Input
             label="EPC - últimos 6 dígitos (opcional)"
             placeholder="Ex: 3B1C2D"
             value={form.epc}
-            onChange={(e) => setForm({ ...form, epc: e.target.value.toUpperCase() })}
-            onBlur={() => setForm((f) => ({ ...f, epc: ultimos6(f.epc) }))}
+            onChange={(e) => setForm({ ...form, epc: digitarEpc(e.target.value) })}
+            onPaste={(e) => {
+              e.preventDefault();
+              setForm({ ...form, epc: mascaraEpc(e.clipboardData.getData('text')) });
+            }}
+            maxLength={6}
+            autoComplete="off"
+            spellCheck={false}
+            className="font-mono"
+            error={form.epc && !epcCompleto(form.epc) ? 'Faltam dígitos: são 6' : undefined}
           />
           <p className="-mt-2 text-xs text-gray-500">
             Informe só os 6 últimos dígitos do EPC da tag que identifica o checkpoint (0-9 e A-F). Se colar o EPC inteiro, ficam só os 6 últimos. Só o super admin vê este dado: os buffets não o recebem.

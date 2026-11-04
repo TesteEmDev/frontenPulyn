@@ -6,6 +6,7 @@ import Card from '../ui/Card';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
+import { mascaraNumeroCheckpoint, NUMERO_CHECKPOINT_MAX } from '../../utils/mascaras';
 
 interface EventoOpcao {
   eventoId: string;
@@ -125,7 +126,9 @@ export default function CheckpointsRecebidos({ events, eventoPadrao, onChange }:
                 label="Número"
                 placeholder="Ex: 12"
                 value={rascunho.numCheck}
-                onChange={(e) => editar(cp, { numCheck: e.target.value.toUpperCase() })}
+                onChange={(e) => editar(cp, { numCheck: mascaraNumeroCheckpoint(e.target.value) })}
+                maxLength={NUMERO_CHECKPOINT_MAX}
+                autoComplete="off"
                 disabled={travado}
               />
               <div>
