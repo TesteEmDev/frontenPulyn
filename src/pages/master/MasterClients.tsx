@@ -239,16 +239,16 @@ export default function MasterClients() {
     if (!window.confirm('Tem certeza que deseja excluir este cliente?')) return;
     
     try {
-      await api.deleteCliente(clientId);
+      const resposta = await api.deleteCliente(clientId);
       
       setClients(prev => prev.filter(c => c.id !== clientId));
-      setSuccessMessage('Cliente excluído com sucesso!');
+      setSuccessMessage(resposta.message || 'Cliente excluído com sucesso!');
       if (selectedClientId === clientId) {
         setSelectedClientId(null);
       }
     } catch (err) {
       console.error('Erro ao excluir cliente:', err);
-      setError('Erro de conexão ao excluir cliente');
+      setError(err instanceof Error ? err.message : 'Erro de conexão ao excluir cliente');
     }
     setOpenMenuId(null);
   };

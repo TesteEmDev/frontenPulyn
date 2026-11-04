@@ -649,10 +649,12 @@ export const api = {
       if (!res.ok) {
         const errorText = await res.text();
         console.error('Resposta do servidor:', errorText);
-        throw new Error(`Erro ${res.status}: ${errorText}`);
+        let mensagem = `Erro ${res.status}: ${errorText}`;
+        try { mensagem = JSON.parse(errorText).error || mensagem; } catch { /* resposta que não é JSON */ }
+        throw new Error(mensagem);
       }
       
-      return res.json();
+      return res.json() as Promise<{ deleted: boolean; message?: string; checkpointsDevolvidos?: number }>;
     } catch (error) {
       console.error('Erro ao deletar cliente:', error);
       throw error;
