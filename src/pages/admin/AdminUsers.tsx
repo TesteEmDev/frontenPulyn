@@ -53,6 +53,8 @@ const sanitizeUsername = (value: string) =>
 export default function AdminUsers() {
   const { user } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
+  // Remover conta: pede a confirmação num modal (nada de confirm do navegador)
+  const [removendo, setRemovendo] = useState<{ user: User; enviando: boolean; erro: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -135,7 +137,7 @@ export default function AdminUsers() {
     loadUsers();
   }, [user]);
 
-  useAutoRefresh(() => loadUsers(true), { topicos: ['usuarios'], intervaloMs: 30_000, pausado: showAddModal });
+  useAutoRefresh(() => loadUsers(true), { topicos: ['usuarios'], intervaloMs: 30_000, pausado: showAddModal || removendo !== null });
 
   useEffect(() => {
     let active = true;
@@ -198,15 +200,22 @@ export default function AdminUsers() {
     }
   };
 
-  const handleDeleteUser = async (id: string) => {
-    if (!window.confirm('Tem certeza que deseja remover este usuário? Esta ação não pode ser desfeita!')) return;
+  const handleDeleteUser = (id: string) => {
+    const alvo = users.find(u => u.loginId === id);
+    if (alvo) setRemovendo({ user: alvo, enviando: false, erro: null });
+  };
 
+  const confirmarRemocao = async () => {
+    if (!removendo) return;
+    const { user: alvo } = removendo;
+    setRemovendo({ ...removendo, enviando: true, erro: null });
     try {
-      await api.deleteUser(id);
-      setUsers(prev => prev.filter(u => u.loginId !== id));
+      await api.deleteUser(alvo.loginId);
+      setUsers(prev => prev.filter(u => u.loginId !== alvo.loginId));
+      setRemovendo(null);
     } catch (err) {
       console.error('❌ Erro ao remover usuário:', err);
-      setError('Erro ao remover usuário');
+      setRemovendo(atual => (atual ? { ...atual, enviando: false, erro: err instanceof Error && err.message ? err.message : 'Não foi possível remover o usuário. Tente novamente.' } : atual));
     }
   };
 
@@ -382,6 +391,36 @@ export default function AdminUsers() {
                   <Button variant="ghost" onClick={() => setAreasDe(null)}>Cancelar</Button>
                   <Button variant="primary" onClick={salvarAreas} disabled={salvandoAreas}>
                     {salvandoAreas ? 'Salvando...' : 'Salvar'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Modal>
+
+          {/* Remover conta: confirmação */}
+          <Modal
+            isOpen={removendo !== null}
+            onClose={() => { if (!removendo?.enviando) setRemovendo(null); }}
+            title="Remover conta"
+            size="md"
+          >
+            {removendo && (
+              <div className="space-y-4">
+                <p className="text-base text-gray-200">
+                  Remover a conta <strong className="text-white">{removendo.user.email}</strong>
+                  {roleConfig[removendo.user.perfil] ? ` (${roleConfig[removendo.user.perfil].label})` : ''}?
+                </p>
+                <ul className="list-disc space-y-1 pl-6 text-sm text-gray-300">
+                  <li>Quem usa essa conta perde o acesso na hora.</li>
+                  <li>Esta ação não pode ser desfeita: para voltar, é preciso criar a conta de novo.</li>
+                </ul>
+                {removendo.erro && (
+                  <p role="alert" className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{removendo.erro}</p>
+                )}
+                <div className="flex justify-end gap-3 pt-2">
+                  <Button variant="ghost" disabled={removendo.enviando} onClick={() => setRemovendo(null)}>Cancelar</Button>
+                  <Button variant="danger" disabled={removendo.enviando} onClick={() => void confirmarRemocao()}>
+                    {removendo.enviando ? 'Removendo...' : 'Remover conta'}
                   </Button>
                 </div>
               </div>
