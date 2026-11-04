@@ -12,14 +12,23 @@ const TIPOS = [
   { value: 'UHF', label: 'UHF longa distância' },
 ];
 
+const FINALIDADES = [
+  { value: 'jogo', label: 'Jogo' },
+  { value: 'pontuacao', label: 'Pontuação' },
+  { value: 'recepcao', label: 'Recepção' },
+];
+
+const MAX_LINHAS = 12;
+
 interface Linha {
   chave: number;
   tipo: string;
+  finalidade: string;
   quantidade: string;
 }
 
 let proximaChave = 1;
-const novaLinha = (tipo = 'NFC'): Linha => ({ chave: proximaChave++, tipo, quantidade: '1' });
+const novaLinha = (): Linha => ({ chave: proximaChave++, tipo: 'NFC', finalidade: 'jogo', quantidade: '1' });
 
 /** Botão "Solicitar checkpoints" do admin: abre um modal com tipo e quantidade e envia o pedido para o suporte do master. */
 export default function SolicitarCheckpoints() {
@@ -41,11 +50,8 @@ export default function SolicitarCheckpoints() {
   const mudar = (chave: number, campos: Partial<Linha>) =>
     setLinhas((atual) => atual.map((l) => (l.chave === chave ? { ...l, ...campos } : l)));
 
-  // Tipos que ainda não têm linha: o botão de adicionar só aparece enquanto sobrar algum
-  const livres = TIPOS.filter((t) => !linhas.some((l) => l.tipo === t.value));
-
   const enviar = async () => {
-    const itens = linhas.map((l) => ({ tipo: l.tipo, quantidade: Number(l.quantidade) }));
+    const itens = linhas.map((l) => ({ tipo: l.tipo, finalidade: l.finalidade, quantidade: Number(l.quantidade) }));
     if (itens.some((i) => !Number.isInteger(i.quantidade) || i.quantidade < 1)) {
       setErro('Informe uma quantidade de 1 ou mais em cada linha.');
       return;
@@ -70,24 +76,32 @@ export default function SolicitarCheckpoints() {
         Solicitar checkpoints
       </Button>
 
-      <Modal isOpen={aberto} onClose={fechar} title="Solicitar checkpoints" size="md">
+      <Modal isOpen={aberto} onClose={fechar} title="Solicitar checkpoints" size="lg">
         <div className="space-y-4">
           <p className="text-sm text-gray-400">
-            Diga quantos checkpoints de cada tipo você precisa. O pedido vai para o suporte, que envia os checkpoints para a sua conta.
+            Diga quantos checkpoints você precisa, de que tipo e para que serão usados (jogo, pontuação ou recepção). O pedido vai para o suporte, que envia os checkpoints para a sua conta.
           </p>
 
           <div className="space-y-3">
             {linhas.map((linha) => (
-              <div key={linha.chave} className="flex items-end gap-3">
-                <div className="flex-1">
+              <div key={linha.chave} className="flex flex-wrap items-end gap-3 sm:flex-nowrap">
+                <div className="min-w-[8rem] flex-1">
                   <Select
                     label="Tipo"
-                    options={TIPOS.filter((t) => t.value === linha.tipo || !linhas.some((l) => l.tipo === t.value))}
+                    options={TIPOS}
                     value={linha.tipo}
                     onChange={(e) => mudar(linha.chave, { tipo: e.target.value })}
                   />
                 </div>
-                <div className="w-28">
+                <div className="min-w-[8rem] flex-1">
+                  <Select
+                    label="Finalidade"
+                    options={FINALIDADES}
+                    value={linha.finalidade}
+                    onChange={(e) => mudar(linha.chave, { finalidade: e.target.value })}
+                  />
+                </div>
+                <div className="w-24">
                   <Input
                     label="Quantidade"
                     type="number"
@@ -111,10 +125,10 @@ export default function SolicitarCheckpoints() {
             ))}
           </div>
 
-          {livres.length > 0 && (
-            <Button variant="ghost" size="sm" onClick={() => setLinhas((atual) => [...atual, novaLinha(livres[0].value)])}>
+          {linhas.length < MAX_LINHAS && (
+            <Button variant="ghost" size="sm" onClick={() => setLinhas((atual) => [...atual, novaLinha()])}>
               <Plus size={16} className="mr-1" />
-              Adicionar outro tipo
+              Adicionar outra linha
             </Button>
           )}
 

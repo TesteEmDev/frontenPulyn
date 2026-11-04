@@ -864,7 +864,7 @@ export const api = {
   },
 
   // Admin do buffet pede checkpoints ao master (aparece na central de suporte dele)
-  async solicitarCheckpoints(itens: Array<{ tipo: string; quantidade: number }>, observacao: string) {
+  async solicitarCheckpoints(itens: Array<{ tipo: string; finalidade: string; quantidade: number }>, observacao: string) {
     const res = await fetch(`${API_URL}/support/solicitar-checkpoints`, {
       method: 'POST',
       headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
