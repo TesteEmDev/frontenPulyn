@@ -13,7 +13,7 @@ import Avatar from '../../components/ui/Avatar';
 import AvatarSelector from '../../components/ui/AvatarSelector';
 import CorSelector from '../../components/ui/CorSelector';
 import { primeiraCorLivre } from '../../utils/coresParticipante';
-import { erroNascimento, hojeIso } from '../../utils/nascimento';
+import { erroNascimentoSemLimite, hojeIso } from '../../utils/nascimento';
 import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID, primeiroAvatarLivre } from '../../avatar/adventurerAvatars';
 
 const normalizeUid = (value: string) => value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
@@ -214,7 +214,7 @@ export default function ReceptionCheckin() {
       showToast('Preencha o nome da criança.', 'error');
       return;
     }
-    const erroDaData = erroNascimento(form.nascimento || null);
+    const erroDaData = erroNascimentoSemLimite(form.nascimento || null);
     if (erroDaData) {
       showToast(erroDaData, 'error');
       return;
@@ -223,25 +223,25 @@ export default function ReceptionCheckin() {
       showToast('Selecione um time.', 'error');
       return;
     }
-    if (!braceletCode) {
-      showToast('Aproxime uma pulseira antes de cadastrar.', 'error');
-      return;
-    }
     if (saving) return;
 
     setSaving(true);
     try {
-      const normalizedCode = normalizeUid(braceletCode);
-      const pulseiras = await api.getPulseiras();
-      let pulseira = pulseiras.find(item => normalizeUid(String(item.codigo || '')) === normalizedCode);
+      // A pulseira é opcional: sem ela o participante é cadastrado e a pulseira pode ser vinculada depois
+      let normalizedCode: string | null = null;
+      if (braceletCode) {
+        normalizedCode = normalizeUid(braceletCode);
+        const pulseiras = await api.getPulseiras();
+        let pulseira = pulseiras.find(item => normalizeUid(String(item.codigo || '')) === normalizedCode);
 
-      if (!pulseira) {
-        pulseira = await api.createPulseira(normalizedCode);
-      }
-      if (pulseira.status !== 'disponivel') {
-        showToast('Esta pulseira já está vinculada ou indisponível.', 'error');
-        setBraceletStatus('registered');
-        return;
+        if (!pulseira) {
+          pulseira = await api.createPulseira(normalizedCode);
+        }
+        if (pulseira.status !== 'disponivel') {
+          showToast('Esta pulseira já está vinculada ou indisponível.', 'error');
+          setBraceletStatus('registered');
+          return;
+        }
       }
 
       await api.createCrianca(selectedEventId, {
@@ -250,13 +250,13 @@ export default function ReceptionCheckin() {
         dataNascimento: form.nascimento,
         avatar: form.avatar,
         cor: form.cor,
-        braceletCode: normalizedCode,
+        ...(normalizedCode ? { braceletCode: normalizedCode } : {}),
         timeId: selectedTeam,
       });
       await Promise.all([loadTeams(), loadChildren()]);
 
       const teamName = teams.find(team => String(team.id) === String(selectedTeam))?.name || 'time selecionado';
-      showToast(`${form.name.trim()} foi cadastrado(a) no ${teamName} e a pulseira foi vinculada.`);
+      showToast(`${form.name.trim()} foi cadastrado(a) no ${teamName}${normalizedCode ? ' e a pulseira foi vinculada' : ' (sem pulseira por enquanto)'}.`);
       setForm({ name: '', nickname: '', nascimento: '', avatar: DEFAULT_AVATAR_ID, cor: primeiraCorLivre([]) });
       setSelectedTeam(null);
       clearBracelet();
@@ -344,8 +344,8 @@ export default function ReceptionCheckin() {
           <Card className="space-y-5">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Novo participante</p>
-              <h2 className="mt-1 font-display text-2xl text-white">Cadastre a criança e vincule a pulseira</h2>
-              <p className="mt-1 text-sm text-gray-400">A recepção também pode concluir o cadastro por este Check-in.</p>
+              <h2 className="mt-1 font-display text-2xl text-white">Cadastre a criança</h2>
+              <p className="mt-1 text-sm text-gray-400">A pulseira é opcional: aproxime uma para já vincular, ou cadastre sem ela e vincule depois.</p>
             </div>
 
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.8fr)]">
@@ -405,10 +405,10 @@ export default function ReceptionCheckin() {
               variant="primary"
               size="lg"
               onClick={handleSubmit}
-              disabled={!selectedEventId || !form.name.trim() || Boolean(erroNascimento(form.nascimento || null)) || !selectedTeam || !braceletCode || braceletStatus === 'registered' || saving}
+              disabled={!selectedEventId || !form.name.trim() || Boolean(erroNascimentoSemLimite(form.nascimento || null)) || !selectedTeam || (Boolean(braceletCode) && braceletStatus === 'registered') || saving}
               className="w-full"
             >
-              {saving ? 'Cadastrando participante...' : 'Cadastrar participante e vincular pulseira'}
+              {saving ? 'Cadastrando participante...' : braceletCode ? 'Cadastrar participante e vincular pulseira' : 'Cadastrar participante sem pulseira'}
             </Button>
           </Card>
 

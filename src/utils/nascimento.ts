@@ -43,6 +43,14 @@ export function erroNascimento(iso: string | null, hoje: Date = new Date()): str
   return '';
 }
 
+// Igual a erroNascimento, mas sem o limite de idade (check-in da recepção e autoatendimento aceitam qualquer idade):
+// só recusa data inválida ou no futuro.
+export function erroNascimentoSemLimite(iso: string | null, hoje: Date = new Date()): string {
+  if (!iso) return 'Informe uma data de nascimento válida.';
+  if (idadeDeNascimento(iso, hoje) === null) return 'Informe uma data de nascimento válida.';
+  return iso > hojeIso(hoje) ? 'A data de nascimento não pode ser no futuro.' : '';
+}
+
 // Hoje como 'AAAA-MM-DD' (para o atributo max de <input type="date">)
 export function hojeIso(hoje: Date = new Date()): string {
   const dois = (n: number) => String(n).padStart(2, '0');

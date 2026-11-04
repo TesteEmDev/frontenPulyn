@@ -11,7 +11,7 @@ import Avatar from '../../components/ui/Avatar';
 import AvatarSelector from '../../components/ui/AvatarSelector';
 import CorSelector from '../../components/ui/CorSelector';
 import { primeiraCorLivre } from '../../utils/coresParticipante';
-import { mascaraData, dataDeDigitos, erroNascimento, idadeDeNascimento } from '../../utils/nascimento';
+import { mascaraData, dataDeDigitos, erroNascimentoSemLimite, idadeDeNascimento } from '../../utils/nascimento';
 import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID, primeiroAvatarLivre } from '../../avatar/adventurerAvatars';
 import StatusDot from '../../components/ui/StatusDot';
 import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
@@ -153,7 +153,7 @@ export default function ReceptionKioskOtimizado() {
   const debouncedProfileSearch = useDebounce(profileSearch, 300);
 
   const nascimentoIso = dataDeDigitos(form.nascimento);
-  const erroDoNascimento = form.nascimento.length === 8 ? erroNascimento(nascimentoIso) : '';
+  const erroDoNascimento = form.nascimento.length === 8 ? erroNascimentoSemLimite(nascimentoIso) : '';
   const idadeCalculada = nascimentoIso && !erroDoNascimento ? idadeDeNascimento(nascimentoIso) : null;
   const newFormValid = form.name.trim().length >= 2 && Boolean(nascimentoIso) && !erroDoNascimento;
 
