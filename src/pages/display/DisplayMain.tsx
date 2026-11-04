@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { mensagemParaTela } from '../../services/api';
-import { Trophy, Medal, Star, Zap, Clock, MapPin, Users, ArrowLeft } from 'lucide-react';
+import { Trophy, Medal, Star, Zap, Clock, MapPin, Users, Maximize, Minimize } from 'lucide-react';
 import { useGameWebSocket } from '../../hooks/useGameWebSocket';
 import { useZoneConquestGame, type ZoneConquestStatus } from '../../hooks/useZoneConquestGame';
 import { ZoneConquestIndividualRanking } from '../../components/display/ZoneConquestIndividualRanking';
@@ -61,6 +61,7 @@ const MENSAGEM_VISIVEL_MS = 8000;
 export default function DisplayMain() {
 
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
   const [notificationData, setNotificationData] = useState<{
     name: string;
@@ -759,6 +760,23 @@ export default function DisplayMain() {
     return () => clearInterval(interval);
   }, []);
 
+  // Tela cheia: o botão do cabeçalho entra/sai; o estado acompanha também a saída pelo ESC do navegador
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch (error) {
+      console.warn('Não foi possível alternar a tela cheia:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    const sincronizar = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', sincronizar);
+    sincronizar();
+    return () => document.removeEventListener('fullscreenchange', sincronizar);
+  }, []);
+
   // ✨ NOVO: ESC key para sair do telão
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1138,12 +1156,14 @@ export default function DisplayMain() {
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-300/70 to-transparent" />
         <div className="flex min-w-0 items-center gap-3">
           <button
-            onClick={() => window.history.back()}
+            type="button"
+            onClick={() => void toggleFullscreen()}
+            aria-pressed={isFullscreen}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-dark-card/80 px-3 py-1.5 text-sm font-semibold text-gray-300 transition-colors duration-200 hover:border-primary-400/40 hover:bg-dark-surface hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
-            title="Voltar (ESC)"
+            title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
           >
-            <ArrowLeft size={16} />
-            <span className="hidden sm:inline">Sair</span>
+            {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+            <span className="hidden sm:inline">{isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}</span>
           </button>
           <div className="flex h-[clamp(2rem,4.6vh,3rem)] w-[clamp(2rem,4.6vh,3rem)] shrink-0 items-center justify-center rounded-xl border border-primary-300/20 bg-primary-500/10 text-xl">⚡</div>
           <h1 className="truncate font-display text-[clamp(1.4rem,4vh,3rem)] font-bold leading-none tracking-tight text-white">Pulyn Arena</h1>
