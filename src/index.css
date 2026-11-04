@@ -269,3 +269,7 @@ select option {
   background-color: #132338;
   color: #FFFFFF;
 }
+
+/* Mapa do painel master: realce ao passar o mouse sem re-renderizar o React */
+.estado-mapa:hover { fill: rgba(30, 155, 215, 0.30); }
+.estado-mapa[aria-pressed='true']:hover { fill: rgba(30, 155, 215, 0.38); }

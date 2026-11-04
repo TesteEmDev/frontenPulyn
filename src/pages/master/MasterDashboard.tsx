@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, memo, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -201,7 +201,7 @@ const formatEventWhen = (event: MasterEvent) => {
   return `agendado para ${day}`;
 };
 
-function BrazilMap({
+const BrazilMap = memo(function BrazilMap({
   clients,
   events,
   focus,
@@ -212,7 +212,6 @@ function BrazilMap({
   focus: MapFocus;
   onFocusChange: (focus: MapFocus) => void;
 }) {
-  const [hoveredUf, setHoveredUf] = useState<string | null>(null);
   const [view, setView] = useState(FULL_VIEW);
   const viewRef = useRef(FULL_VIEW);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -434,8 +433,54 @@ function BrazilMap({
       clientId: group.clients.length === 1 ? group.clients[0].id : null,
     });
 
-  const selectState = (uf: string) =>
-    onFocusChange(focus.uf === uf && !focus.cityKey ? NO_FOCUS : { uf, cityKey: null, clientId: null });
+  const focusUf = focus.uf;
+  const focusCityKey = focus.cityKey;
+  const selectState = useCallback(
+    (uf: string) =>
+      onFocusChange(focusUf === uf && !focusCityKey ? NO_FOCUS : { uf, cityKey: null, clientId: null }),
+    [focusUf, focusCityKey, onFocusChange],
+  );
+
+  // Os 27 estados (caminhos SVG grandes) só se redesenham quando muda o foco ou quem tem clientes: durante o zoom
+  // animado (um quadro por vez) e a cada passada do mouse eles ficam como estão. A espessura da borda não escala com
+  // o zoom (non-scaling-stroke: é a mesma que antes, em pixels da tela) e o realce do mouse é feito pelo CSS.
+  const ufsComClientes = Array.from(statesWithClients).sort().join(',');
+  const estadosDoMapa = useMemo(() => {
+    const comClientes = new Set(ufsComClientes ? ufsComClientes.split(',') : []);
+    return BRAZIL_STATES.map((state) => {
+      const hasClients = comClientes.has(state.uf);
+      const isSelected = state.uf === focusUf;
+      return (
+        <path
+          key={state.uf}
+          className="estado-mapa"
+          d={state.path}
+          fill={isSelected ? 'rgba(30,155,215,0.38)' : hasClients ? 'rgba(30,155,215,0.24)' : 'rgba(30,155,215,0.07)'}
+          stroke={isSelected ? 'rgba(30,155,215,1)' : 'rgba(30,155,215,0.55)'}
+          strokeWidth={isSelected ? 2 : 1}
+          vectorEffect="non-scaling-stroke"
+          strokeLinejoin="round"
+          style={{ cursor: 'pointer', transition: 'fill 150ms' }}
+          tabIndex={0}
+          role="button"
+          aria-label={`${state.name}${hasClients ? ' (com clientes)' : ''}`}
+          aria-pressed={isSelected}
+          onClick={(e) => {
+            e.stopPropagation();
+            selectState(state.uf);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              selectState(state.uf);
+            }
+          }}
+        >
+          <title>{state.name}</title>
+        </path>
+      );
+    });
+  }, [ufsComClientes, focusUf, selectState]);
 
   const listGroups = focusGroup ? [focusGroup] : scopeGroups;
   const listClients = listGroups.flatMap((g) => g.clients.map((client) => ({ client, group: g })));
@@ -510,47 +555,7 @@ function BrazilMap({
         onPointerCancel={onPanEnd}
         onMouseDown={(event) => { if (event.button === 1) event.preventDefault(); }}
       >
-        {BRAZIL_STATES.map((state) => {
-          const hasClients = statesWithClients.has(state.uf);
-          const isSelected = state.uf === focus.uf;
-          const isHovered = state.uf === hoveredUf;
-          const fill = isSelected
-            ? 'rgba(30,155,215,0.38)'
-            : isHovered
-              ? 'rgba(30,155,215,0.30)'
-              : hasClients
-                ? 'rgba(30,155,215,0.24)'
-                : 'rgba(30,155,215,0.07)';
-          return (
-            <path
-              key={state.uf}
-              d={state.path}
-              fill={fill}
-              stroke={isSelected ? 'rgba(30,155,215,1)' : 'rgba(30,155,215,0.55)'}
-              strokeWidth={(isSelected ? 2 : 1) * k}
-              strokeLinejoin="round"
-              style={{ cursor: 'pointer', transition: 'fill 150ms' }}
-              tabIndex={0}
-              role="button"
-              aria-label={`${state.name}${hasClients ? ' (com clientes)' : ''}`}
-              aria-pressed={isSelected}
-              onMouseEnter={() => setHoveredUf(state.uf)}
-              onMouseLeave={() => setHoveredUf(null)}
-              onClick={(e) => {
-                e.stopPropagation();
-                selectState(state.uf);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  selectState(state.uf);
-                }
-              }}
-            >
-              <title>{state.name}</title>
-            </path>
-          );
-        })}
+        {estadosDoMapa}
 
         {groups.map((group) => {
           const isFocusedCity = focusGroup?.key === group.key;
@@ -761,6 +766,16 @@ function BrazilMap({
       )}
     </div>
   );
+});
+
+// O relógio tem o próprio estado: se ficasse na página, ela (e o mapa) se redesenharia a cada segundo.
+function RelogioPainel() {
+  const [agora, setAgora] = useState(() => new Date());
+  useEffect(() => {
+    const intervalo = setInterval(() => setAgora(new Date()), 1000);
+    return () => clearInterval(intervalo);
+  }, []);
+  return <span className="text-sm text-gray-400 font-mono">{agora.toLocaleTimeString('pt-BR')}</span>;
 }
 
 export default function MasterDashboard() {
@@ -789,15 +804,9 @@ export default function MasterDashboard() {
     mapCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   const [alerts, setAlerts] = useState<MasterAlert[]>([]);
-  const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
     loadDashboardData();
-  }, []);
-
-  useEffect(() => {
-    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadDashboardData = async () => {
@@ -859,9 +868,7 @@ export default function MasterDashboard() {
                 {cps.offlineComBuffets > 0
                   ? <Badge variant="warning">{cps.offlineComBuffets} {cps.offlineComBuffets === 1 ? 'checkpoint offline' : 'checkpoints offline'} em buffets</Badge>
                   : <Badge variant="success">Todos os sistemas operacionais</Badge>}
-                <span className="text-sm text-gray-400 font-mono">
-                  {currentTime.toLocaleTimeString('pt-BR')}
-                </span>
+                <RelogioPainel />
               </div>
             }
           />
