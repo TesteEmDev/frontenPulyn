@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Copy, Link as LinkIcon, Check, Users, UserCheck, UserX, QrCode, Share2, Download } from 'lucide-react';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import ReceptionSidebar from '../../components/layout/ReceptionSidebar';
 import ReceptionTopBar from '../../components/layout/ReceptionTopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -26,9 +27,9 @@ export default function ReceptionFamilies() {
   const [error, setError] = useState('');
   const [showQRModal, setShowQRModal] = useState(false);
 
-  const loadFamilyData = async (selectedEvent = eventId) => {
+  const loadFamilyData = async (selectedEvent = eventId, silencioso = false) => {
     try {
-      setLoading(true);
+      if (!silencioso) setLoading(true);
       const [pendingData, approvedData] = await Promise.all([
         api.getPendingFamilyLinks(selectedEvent || undefined),
         api.getApprovedFamilyLinks(selectedEvent || undefined),
@@ -36,11 +37,14 @@ export default function ReceptionFamilies() {
       setPending(pendingData || []);
       setApproved(approvedData || []);
     } catch (err: any) {
-      setError(err.message || 'Não foi possível carregar as famílias.');
+      if (!silencioso) setError(err.message || 'Não foi possível carregar as famílias.');
     } finally {
-      setLoading(false);
+      if (!silencioso) setLoading(false);
     }
   };
+
+  // Pedidos de família chegam sozinhos na lista (sem F5)
+  useAutoRefresh(() => loadFamilyData(eventId, true), { intervaloMs: 8_000 });
 
   // Código fixo do evento: nasce na primeira consulta, então basta pedir
   const loadEventCode = async (selectedEvent: string) => {

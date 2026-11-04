@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { useNFCReader } from '../../hooks/useNFCReader';
 import ReceptionSidebar from '../../components/layout/ReceptionSidebar';
 import ReceptionTopBar from '../../components/layout/ReceptionTopBar';
@@ -84,9 +85,9 @@ export default function ReceptionBracelets() {
   }, [isConnected]);
 
   // Carregar pulseiras da API (CORRIGIDO: usa getPulseiras)
-  const loadBracelets = useCallback(async () => {
+  const loadBracelets = useCallback(async (silencioso = false) => {
     try {
-      setLoading(true);
+      if (!silencioso) setLoading(true);
       const data = await loadPulseiras();// Mapear para o formato esperado
       const mapped = Array.isArray(data) ? data.map(p => ({
         code: p.codigo,
@@ -97,7 +98,7 @@ export default function ReceptionBracelets() {
       })) : [];setBracelets(mapped);
     } catch (error) {
       console.error('❌ Erro ao carregar pulseiras:', error);
-      setBracelets([]);
+      if (!silencioso) setBracelets([]);
     } finally {
       setLoading(false);
     }
@@ -108,6 +109,9 @@ export default function ReceptionBracelets() {
     loadBracelets();
     loadChildren();
   }, [loadBracelets, loadChildren]);
+
+  // Pulseiras (em uso, disponíveis...) se atualizam sozinhas, menos com a confirmação aberta
+  useAutoRefresh(() => { void loadBracelets(true); return loadChildren(); }, { intervaloMs: 8_000, pausado: modalOpen });
 
   // Counts
   const statusCounts = useMemo(() => {

@@ -1,8 +1,9 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { QrCode, Edit, RotateCw, Unlink } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useNFCReader } from '../../hooks/useNFCReader';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import ReceptionSidebar from '../../components/layout/ReceptionSidebar';
 import ReceptionTopBar from '../../components/layout/ReceptionTopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -119,6 +120,11 @@ export default function ReceptionParticipants() {
     loadEvents();
   }, [eventoAtualId, setEventoAtual]);
 
+  // Atualização automática: o contador faz o efeito abaixo recarregar a lista sem o "carregando" (sem piscar)
+  const [tickAuto, setTickAuto] = useState(0);
+  const cargaDoEvento = useRef<string | null>(null);
+  useAutoRefresh(() => setTickAuto((n) => n + 1), { intervaloMs: 8_000, pausado: modalOpen || qrCodeModalOpen || saving });
+
   // Carregar crianças e times quando evento muda
   useEffect(() => {
     if (!selectedEventId) {
@@ -126,33 +132,42 @@ export default function ReceptionParticipants() {
       return;
     }
 
+    // Mesmo evento de antes (só atualizando): sem carregando, sem apagar a lista se falhar e sem desfazer o que
+    // a pessoa já escolheu nas listas de time
+    const silencioso = cargaDoEvento.current === selectedEventId;
+    cargaDoEvento.current = selectedEventId;
+
     const loadData = async () => {
       try {
-        setLoading(true);
+        if (!silencioso) setLoading(true);
         const [criancasData, timesData] = await Promise.all([
           api.getCriancas(selectedEventId),
           api.getTimes(selectedEventId),
         ]);
         setChildren(criancasData || []);
-        setTeamSelections(Object.fromEntries(
+        const doServidor = Object.fromEntries(
           (criancasData || []).map((child: Child) => [child.criancaId, child.timeId || ''])
-        ));
+        );
+        // Atualizando: crianças novas entram com o time do servidor; as que já estavam mantêm a escolha atual
+        setTeamSelections(silencioso ? (anterior) => ({ ...doServidor, ...anterior }) : doServidor);
         setTeamsData(timesData || []);
-        if (timesData?.length > 0) {
+        if (!silencioso && timesData?.length > 0) {
           setSelectedTeam(timesData[0].id);
         }
       } catch (err) {
         console.error('❌ Erro ao carregar dados:', err);
-        setChildren([]);
-        setTeamsData([]);
-        setTeamSelections({});
+        if (!silencioso) {
+          setChildren([]);
+          setTeamsData([]);
+          setTeamSelections({});
+        }
       } finally {
         setLoading(false);
       }
     };
 
     loadData();
-  }, [selectedEventId]);
+  }, [selectedEventId, tickAuto]);
 
   const tabs: { key: FilterTab; label: string }[] = [
     { key: 'all', label: 'Todos' },
