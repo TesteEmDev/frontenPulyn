@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   MapPin, Lightbulb, Volume2, Edit, Trash2, QrCode, MoreVertical, Undo2
@@ -298,16 +299,29 @@ export default function AdminCheckpoints() {
     }
   };
 
-  // Menu "Mais opções" da linha: um só aberto por vez, fecha ao clicar fora ou com Esc.
-  const [menuAberto, setMenuAberto] = useState<string | null>(null);
-  // Posição do menu na tela (fixa, para a rolagem da tabela não cortar)
-  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  // Menu "Mais opções" da linha. Fica num portal no <body> (a tabela tem rolagem e cortaria o menu), com a borda direita
+  // colada na do botão; abre para baixo e, sem espaço embaixo, para cima.
+  const [menu, setMenu] = useState<{ cp: any; rect: DOMRect } | null>(null);
+  const [menuTop, setMenuTop] = useState<number | null>(null);
+  const menuEl = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    if (!menu || !menuEl.current) { setMenuTop(null); return; }
+    const altura = menuEl.current.offsetHeight;
+    const { rect } = menu;
+    const cabeEmbaixo = window.innerHeight - rect.bottom - 8 >= altura;
+    setMenuTop(cabeEmbaixo ? rect.bottom + 4 : Math.max(8, rect.top - altura - 4));
+  }, [menu]);
+
   useEffect(() => {
-    if (!menuAberto) return;
-    const fora = (e: MouseEvent) => { if (!menuRef.current?.contains(e.target as Node)) setMenuAberto(null); };
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuAberto(null); };
-    const fecha = () => setMenuAberto(null);
+    if (!menu) return;
+    const fora = (e: MouseEvent) => {
+      const alvo = e.target as Element;
+      if (menuEl.current?.contains(alvo) || alvo.closest('[data-menu-btn]')) return;
+      setMenu(null);
+    };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null); };
+    const fecha = () => setMenu(null);
     document.addEventListener('mousedown', fora);
     document.addEventListener('keydown', esc);
     window.addEventListener('scroll', fecha, true);
@@ -318,7 +332,7 @@ export default function AdminCheckpoints() {
       window.removeEventListener('scroll', fecha, true);
       window.removeEventListener('resize', fecha);
     };
-  }, [menuAberto]);
+  }, [menu]);
 
   // Checkpoint aceito que ainda não está em evento: a devolução não passa pelo evento.
   const devolverSemEvento = async (checkpoint: any) => {
@@ -508,51 +522,21 @@ export default function AdminCheckpoints() {
                               <Volume2 size={16} />
                             </button>
                             {/* Mais opções: QR code de instalação e devolução ao super admin */}
-                            <div className="relative" ref={menuAberto === cp.id ? menuRef : undefined}>
-                              <button
-                                onClick={(e) => {
-                                  const r = e.currentTarget.getBoundingClientRect();
-                                  setMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
-                                  setMenuAberto(menuAberto === cp.id ? null : cp.id);
-                                }}
-                                className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-surface transition-colors"
-                                title="Mais opções"
-                                aria-label={`Mais opções do checkpoint ${numeroDoCheckpoint(cp)}`}
-                                aria-haspopup="menu"
-                                aria-expanded={menuAberto === cp.id}
-                              >
-                                <MoreVertical size={16} />
-                              </button>
-                              {menuAberto === cp.id && (
-                                <div role="menu" style={{ top: menuPos?.top, right: menuPos?.right }} className="fixed z-50 w-60 rounded-xl border border-border bg-dark p-1 shadow-xl">
-                                  <button
-                                    role="menuitem"
-                                    onClick={() => { setMenuAberto(null); setInstalando(cp); }}
-                                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-white hover:bg-surface"
-                                  >
-                                    <QrCode size={16} className="text-primary" /> QR code de instalação
-                                  </button>
-                                  {cp.macAddress && (
-                                    <button
-                                      role="menuitem"
-                                      onClick={() => { setMenuAberto(null); void (cp.eventoId ? handleDelete(cp) : devolverSemEvento(cp)); }}
-                                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-white hover:bg-surface"
-                                    >
-                                      <Undo2 size={16} className="text-warning" /> Devolver ao super admin
-                                    </button>
-                                  )}
-                                  {!cp.macAddress && cp.eventoId && (
-                                    <button
-                                      role="menuitem"
-                                      onClick={() => { setMenuAberto(null); void handleDelete(cp); }}
-                                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-danger hover:bg-surface"
-                                    >
-                                      <Trash2 size={16} /> Excluir
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                            <button
+                              data-menu-btn
+                              onClick={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setMenuTop(null);
+                                setMenu(menu?.cp.id === cp.id ? null : { cp, rect });
+                              }}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-surface transition-colors"
+                              title="Mais opções"
+                              aria-label={`Mais opções do checkpoint ${numeroDoCheckpoint(cp)}`}
+                              aria-haspopup="menu"
+                              aria-expanded={menu?.cp.id === cp.id}
+                            >
+                              <MoreVertical size={16} />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -572,6 +556,42 @@ export default function AdminCheckpoints() {
           </Card>
         </main>
       </div>
+
+      {menu && createPortal(
+        <div
+          ref={menuEl}
+          role="menu"
+          style={{ top: menuTop ?? menu.rect.bottom + 4, right: window.innerWidth - menu.rect.right, visibility: menuTop === null ? 'hidden' : 'visible' }}
+          className="fixed z-[60] w-60 rounded-xl border border-border bg-dark p-1 shadow-xl"
+        >
+          <button
+            role="menuitem"
+            onClick={() => { const cp = menu.cp; setMenu(null); setInstalando(cp); }}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-white hover:bg-surface"
+          >
+            <QrCode size={16} className="text-primary" /> QR code de instalação
+          </button>
+          {menu.cp.macAddress && (
+            <button
+              role="menuitem"
+              onClick={() => { const cp = menu.cp; setMenu(null); void (cp.eventoId ? handleDelete(cp) : devolverSemEvento(cp)); }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-white hover:bg-surface"
+            >
+              <Undo2 size={16} className="text-warning" /> Devolver ao super admin
+            </button>
+          )}
+          {!menu.cp.macAddress && menu.cp.eventoId && (
+            <button
+              role="menuitem"
+              onClick={() => { const cp = menu.cp; setMenu(null); void handleDelete(cp); }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-danger hover:bg-surface"
+            >
+              <Trash2 size={16} /> Excluir
+            </button>
+          )}
+        </div>,
+        document.body
+      )}
 
       {/* Modal de instalação: QR code que abre a página /config do checkpoint já preenchida */}
       <Modal
