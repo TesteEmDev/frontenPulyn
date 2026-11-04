@@ -389,6 +389,10 @@ export default function DisplayMap({
     return positions;
   }, [children, childLastZone, checkpoints, zones]);
 
+  // Zonas podem se sobrepor (uma dentro da outra) e cada uma vale por si: as maiores são desenhadas primeiro,
+  // para a borda e o nome das menores ficarem visíveis por cima.
+  const zonasPorTamanho = useMemo(() => [...zones].sort((x, y) => y.width * y.height - x.width * x.height), [zones]);
+
   const checkpointPositions = useMemo(() => checkpoints.map((checkpoint) => ({
     checkpoint,
     ...getCheckpointDisplayPosition(checkpoint, checkpoints, zones),
@@ -525,7 +529,7 @@ export default function DisplayMap({
         >
             <>
               {/* Zonas em coordenadas de pixels (como AdminMap) - só mostrar em modo zona */}
-              {activeGame?.type !== 'treasure_hunt' && zones.map((zone) => {
+              {activeGame?.type !== 'treasure_hunt' && zonasPorTamanho.map((zone) => {
                 const zoneData = zoneColorByOwnership.get(normalizeZoneName(zone.name));
                 const zoneOwnerColor = zoneData?.color || '#94A3B8';
                 const zoneTeamName = zoneData?.teamName || '';
