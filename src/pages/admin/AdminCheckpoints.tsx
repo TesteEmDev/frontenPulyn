@@ -577,7 +577,7 @@ export default function AdminCheckpoints() {
               onClick={() => { const cp = menu.cp; setMenu(null); void (cp.eventoId ? handleDelete(cp) : devolverSemEvento(cp)); }}
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-white hover:bg-surface"
             >
-              <Undo2 size={16} className="text-warning" /> Devolver ao super admin
+              <Undo2 size={16} className="text-warning" /> Devolver
             </button>
           )}
           {!menu.cp.macAddress && menu.cp.eventoId && (
