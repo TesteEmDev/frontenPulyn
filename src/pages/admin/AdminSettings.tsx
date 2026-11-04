@@ -18,6 +18,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import ProgressBar from '../../components/ui/ProgressBar';
+import LinkTelao from '../../components/display/LinkTelao';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -344,6 +345,9 @@ export default function AdminSettings() {
                 </div>
               </div>
             </Card>
+
+            {/* Link do telão (TV sem login) */}
+            <LinkTelao />
 
             {/* Backup */}
             <Card>

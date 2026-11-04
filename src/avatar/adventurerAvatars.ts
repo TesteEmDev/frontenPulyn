@@ -67,3 +67,9 @@ export function getAvatarLabel(value: unknown): string {
 export function getDefaultAvatar(): AdventurerAvatar {
   return avatarById.get(DEFAULT_AVATAR_ID)!;
 }
+
+// Avatar de partida de um cadastro: o primeiro que nenhum outro participante do evento usa (se todos estão em uso, o padrão, pois a repetição só vale nesse caso).
+export function primeiroAvatarLivre(emUso: readonly string[]): string {
+  const usados = new Set(emUso);
+  return ADVENTURER_AVATARS.find((avatar) => !usados.has(avatar.id))?.id ?? DEFAULT_AVATAR_ID;
+}

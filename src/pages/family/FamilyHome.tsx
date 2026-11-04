@@ -91,9 +91,9 @@ export default function FamilyHome() {
                 <div className="p-2 rounded-lg bg-primary/20">
                   <Gamepad2 size={20} className="text-primary" />
                 </div>
-                <div>
-                  <p className="text-sm text-gray-400 font-body">Evento ativo</p>
-                  <h3 className="text-white font-display font-semibold">{activeEvent.name}</h3>
+                <div className="min-w-0">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-primary font-body font-semibold">Festa em andamento</p>
+                  <h3 className="text-white font-display font-bold text-xl leading-tight break-words">{activeEvent.name}</h3>
                 </div>
               </div>
               <div className="text-right">

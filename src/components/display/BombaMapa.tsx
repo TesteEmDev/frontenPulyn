@@ -4,6 +4,7 @@ import type { BombaLocal, BombaTime } from '../../services/api';
 import { usePulynStore } from '../../store/mockData';
 import { formatarTempo, useBombaEstado } from '../../hooks/useBombaEstado';
 import { MAP_HEIGHT, MAP_WIDTH, posicaoNoMapa } from './posicaoNoMapa';
+import { nomeNoMapa } from '../../utils/checkpoints';
 
 const MOTIVOS: Record<string, string> = {
   explodiu: 'A bomba explodiu!',
@@ -81,17 +82,17 @@ export default function BombaMapa({ eventoId, floorPlan }: { eventoId: string; f
           return (
             <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
               {explodindo && (
-                <circle r={17} fill="none" stroke="#EF4444" strokeWidth={2.5}>
+                <circle r={13} fill="none" stroke="#EF4444" strokeWidth={2.5}>
                   <animate attributeName="r" values="13;26;13" dur="1s" repeatCount="indefinite" />
                   <animate attributeName="stroke-opacity" values="0.9;0;0.9" dur="1s" repeatCount="indefinite" />
                 </circle>
               )}
-              <circle r={13} fill={cor} fillOpacity={explodindo ? 0.35 : 0.2} stroke={cor} strokeWidth={2.5} />
+              <circle r={10} fill={cor} fillOpacity={explodindo ? 0.35 : 0.2} stroke={cor} strokeWidth={2.5} />
               <text y={1} textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF" fontSize={15} fontWeight={800}>
                 {local.letra}
               </text>
-              <text y={25} textAnchor="middle" fill="#E5E7EB" fontSize={9} fontWeight={600}>
-                {local.nome}
+              <text y={23} textAnchor="middle" fill="#E5E7EB" fontSize={6.5} fontWeight={600}>
+                {nomeNoMapa(local.nome)}
               </text>
             </g>
           );

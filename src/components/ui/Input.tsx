@@ -34,8 +34,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             aria-invalid={error ? true : rest['aria-invalid']}
             aria-describedby={describedBy}
             className={`
-              input-dark w-full rounded-xl border border-white/[0.10] bg-dark-card px-3.5 py-3
-              font-body text-white placeholder-gray-500 transition-all duration-200
+              input-dark min-h-[48px] w-full rounded-xl border border-white/[0.10] bg-dark-card px-3.5 py-3
+              font-body text-base text-white placeholder-gray-400 transition-all duration-200
               focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/15
               disabled:cursor-not-allowed disabled:opacity-50
               ${icon ? 'pl-10' : ''}
