@@ -1938,6 +1938,13 @@ export const api = {
     });
   },
 
+  alterarEventoCheckpoint(checkpointId: string, eventoId: string | null) {
+    return pedirRecebimento<CheckpointRecebido>(`/${encodeURIComponent(checkpointId)}/evento`, {
+      method: 'PATCH',
+      body: JSON.stringify({ eventoId: eventoId || null }),
+    });
+  },
+
   // Manda a placa acender o LED ou tocar o som (ela busca o comando sozinha; esperaSegundos é o prazo). Lança o erro com a mensagem da API.
   async testarCheckpoint(checkpointId: string, tipo: 'led' | 'som') {
     const res = await fetch(`${API_URL}/pontoVerificacao/${encodeURIComponent(checkpointId)}/testar`, {
