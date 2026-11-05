@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Radio, Plus, KeyRound, Trash2, Ruler, Crosshair, Save, Loader2, RefreshCw, Power, X } from 'lucide-react';
 import { api, API_URL, type UhfAntena, type UhfConfig, type UhfLeitor, type UhfLeituraAntena } from '../../services/api';
 import AdminSidebar from '../../components/layout/AdminSidebar';
@@ -303,19 +304,10 @@ export default function AdminUhf() {
         {chaveGerada && (
           <div className="space-y-4 text-sm">
             <p className="text-gray-300">
-              Esta chave aparece <strong>só agora</strong>. Configure o leitor <strong>{chaveGerada.leitor.nome}</strong> pelo Bluetooth
-              (BLE "AdvTrkOneRFID-BT") enviando os comandos abaixo, um por vez:
+              Esta chave aparece <strong>só agora</strong>. No app <strong>Middleware Manager</strong>, conecte ao leitor <strong>{chaveGerada.leitor.nome}</strong>,
+              toque no ícone de QR code e aponte a câmera para o código abaixo. Os campos são preenchidos; é só salvar.
             </p>
-            <pre className="overflow-x-auto rounded-lg bg-dark-surface p-3 text-xs text-green-300">{[
-              `SET_MODULE_ID:${chaveGerada.leitor.moduleId}`,
-              `SET_API_URL:${API_URL}/uhf/lote`,
-              `SET_DEVICE_KEY:${chaveGerada.chave}`,
-              'SET_SAVE_CONFIG',
-            ].join('\n')}</pre>
-            <p className="text-xs text-gray-500">
-              Se o endereço da API acima for "localhost", troque pelo IP do computador do backend na rede do leitor (ex.: http://192.168.0.50:3001/api/uhf/lote).
-              Backend local é sempre http (não https).
-            </p>
+            <QrConfiguracao moduleId={chaveGerada.leitor.moduleId} chave={chaveGerada.chave} />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => navigator.clipboard?.writeText(chaveGerada.chave)}>Copiar chave</Button>
               <Button onClick={() => setChaveGerada(null)}>Já configurei</Button>
@@ -323,6 +315,43 @@ export default function AdminUhf() {
           </div>
         )}
       </Modal>
+    </div>
+  );
+}
+
+// ---------- QR code para o app Middleware Manager ----------
+// Formato lido pelo app: {"pulyn":"uhf","v":1,"id","api","key"} (+ "ssid"/"senha" se preenchidos).
+function QrConfiguracao({ moduleId, chave }: { moduleId: string; chave: string }) {
+  const [url, setUrl] = useState(`${API_URL}/uhf/lote`);
+  const [ssid, setSsid] = useState('');
+  const [senha, setSenha] = useState('');
+  const dados = JSON.stringify({
+    pulyn: 'uhf', v: 1, id: moduleId, api: url.trim(), key: chave,
+    ...(ssid.trim() ? { ssid: ssid.trim(), senha } : {}),
+  });
+  const campo = 'w-full rounded-lg border border-white/10 bg-dark-surface px-3 py-2 text-sm text-white';
+  return (
+    <div className="grid gap-4 md:grid-cols-[auto_1fr]">
+      <div className="mx-auto rounded-xl bg-white p-3">
+        <QRCodeSVG value={dados} size={220} level="M" />
+      </div>
+      <div className="space-y-3">
+        <label className="block text-xs text-gray-400">Endereço do lote (o leitor precisa alcançar)
+          <input className={campo} value={url} onChange={(e) => setUrl(e.target.value)} />
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block text-xs text-gray-400">Wi-Fi (opcional)
+            <input className={campo} value={ssid} onChange={(e) => setSsid(e.target.value)} autoComplete="off" />
+          </label>
+          <label className="block text-xs text-gray-400">Senha do Wi-Fi
+            <input className={campo} type="password" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="new-password" />
+          </label>
+        </div>
+        <p className="text-xs text-gray-500">
+          Se o endereço for "localhost", troque pelo IP do computador na rede do leitor. O leitor não usa HTTPS: use a porta HTTP do lote
+          (ex.: http://192.168.0.50:8080/api/uhf/lote). O QR contém a chave: não compartilhe a imagem.
+        </p>
+      </div>
     </div>
   );
 }
