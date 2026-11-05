@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  FileText, RefreshCw, Settings, Crosshair, Radio, Flame
+  FileText, RefreshCw, Settings, Crosshair
 } from 'lucide-react';
 import Sidebar from './Sidebar';
+import { ROTAS_DO_MAPA } from './MapaAbas';
 import { useAuth } from '../../hooks/useAuth';
 
 // Menu do painel administrativo do buffet. Era duplicado literalmente em
@@ -17,8 +18,6 @@ export const ADMIN_NAV_ITEMS = [
   { icon: <Gamepad2 size={20} />, label: 'Jogos', path: '/admin/games' },
   { icon: <MapPin size={20} />, label: 'Checkpoints', path: '/admin/checkpoints' },
   { icon: <Map size={20} />, label: 'Mapa', path: '/admin/map' },
-  { icon: <Flame size={20} />, label: 'Mapa de calor', path: '/admin/mapa-calor' },
-  { icon: <Radio size={20} />, label: 'Leitores UHF', path: '/admin/uhf' },
   { icon: <Users size={20} />, label: 'Usuários', path: '/admin/users' },
   { icon: <Users size={20} />, label: 'Times', path: '/admin/teams' },
   { icon: <FileText size={20} />, label: 'Relatórios', path: '/admin/reports' },
@@ -50,7 +49,7 @@ export default function AdminSidebar({ activePath }: AdminSidebarProps) {
   return (
     <Sidebar
       items={items}
-      activePath={activePath ?? location.pathname}
+      activePath={activePath ?? (ROTAS_DO_MAPA.includes(location.pathname) ? '/admin/map' : location.pathname)}
       collapsed={collapsed}
       onToggleCollapse={() => setCollapsed((prev) => !prev)}
       title="Pulyn Admin"

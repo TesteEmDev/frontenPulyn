@@ -6,6 +6,7 @@ import { useUhfMapa, type FiltrosUhfMapa } from '../../hooks/useUhfMapa';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
+import MapaAbas from '../../components/layout/MapaAbas';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
@@ -62,6 +63,8 @@ export default function AdminMapaCalor() {
             description="Onde as crianças estão (Agora) ou por onde passaram e quanto tempo ficaram (últimos 5 ou 30 min, evento todo; o mais antigo fica mais fraco), pelas leituras dos leitores UHF. O mapa é recalculado a cada 5 segundos."
             icon={<Flame size={28} />}
           />
+
+          <MapaAbas />
 
           {erro && <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-red-300">{erro}</p>}
           {mapa?.escalaPadrao && (

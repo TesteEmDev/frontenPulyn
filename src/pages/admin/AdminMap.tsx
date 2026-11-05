@@ -6,6 +6,7 @@ import { numeroDoCheckpoint, nomeNoMapa } from '../../utils/checkpoints';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
+import MapaAbas from '../../components/layout/MapaAbas';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
@@ -728,6 +729,8 @@ export default function AdminMap() {
             description="A planta e as zonas são do buffet e valem para todos os eventos. Selecione um evento para posicionar os checkpoints dele na planta."
             icon={<Map size={28} />}
           />
+
+          <MapaAbas />
 
           {error && (
             <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-red-300" role="alert">

@@ -4,6 +4,7 @@ import { api, API_URL, type UhfAntena, type UhfConfig, type UhfLeitor, type UhfL
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
+import MapaAbas from '../../components/layout/MapaAbas';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
@@ -114,6 +115,8 @@ export default function AdminUhf() {
             icon={<Radio size={28} />}
             action={<Button onClick={() => setNovoAberto(true)}><Plus size={16} className="mr-1.5" />Novo leitor</Button>}
           />
+
+          <MapaAbas />
 
           {erro && <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-red-300">{erro}</p>}
           {aviso && (
