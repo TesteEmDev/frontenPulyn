@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
-  MapPin, Lightbulb, Volume2, Edit, Trash2, QrCode, MoreVertical, Undo2
+  MapPin, Lightbulb, Volume2, Edit, Trash2, QrCode, MoreVertical, Undo2, ArrowRightLeft
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../../hooks/useAuth';
@@ -52,6 +52,8 @@ export default function AdminCheckpoints() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCheckpoint, setEditingCheckpoint] = useState<any>(null);
   const [instalando, setInstalando] = useState<any>(null);
+  // Checkpoint que está trocando de evento (o mesmo aparelho é usado em vários eventos, um de cada vez).
+  const [mudandoEvento, setMudandoEvento] = useState<any>(null);
 
   // Endereço do servidor na rede local, coletado do próprio servidor: o admin costuma abrir o sistema por "localhost",
   // que o checkpoint não alcança.
@@ -213,6 +215,18 @@ export default function AdminCheckpoints() {
       setRecarregar((n) => n + 1);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Não foi possível colocar no evento');
+    }
+  };
+
+  const trocarDeEvento = async (checkpoint: any, eventoId: string) => {
+    try {
+      await api.atribuirEventoCheckpoint(checkpoint.id, eventoId);
+      const destino = events.find((e: any) => e.eventoId === eventoId);
+      toast.success(`Checkpoint ${numeroDoCheckpoint(checkpoint)} passou para ${destino?.nome || 'o evento escolhido'}`);
+      setMudandoEvento(null);
+      setRecarregar((n) => n + 1);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível mudar de evento');
     }
   };
 
@@ -576,6 +590,15 @@ export default function AdminCheckpoints() {
           >
             <QrCode size={16} className="text-primary" /> QR code de instalação
           </button>
+          {menu.cp.macAddress && menu.cp.eventoId && (
+            <button
+              role="menuitem"
+              onClick={() => { const cp = menu.cp; setMenu(null); setMudandoEvento(cp); }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-white hover:bg-surface"
+            >
+              <ArrowRightLeft size={16} className="text-primary" /> Mudar de evento
+            </button>
+          )}
           {menu.cp.macAddress && (
             <button
               role="menuitem"
@@ -597,6 +620,26 @@ export default function AdminCheckpoints() {
         </div>,
         document.body
       )}
+
+      {/* Mudar o checkpoint de evento */}
+      <Modal isOpen={Boolean(mudandoEvento)} onClose={() => setMudandoEvento(null)} title="Mudar de evento" size="md">
+        {mudandoEvento && (
+          <div className="space-y-4 text-sm">
+            <p className="text-gray-300">
+              O checkpoint <strong>{numeroDoCheckpoint(mudandoEvento)}{mudandoEvento.name ? ` (${mudandoEvento.name})` : ''}</strong> está em{' '}
+              <strong>{mudandoEvento.evento_name || 'um evento'}</strong>. Escolha o evento para onde ele vai.
+            </p>
+            <AtribuirEvento
+              events={events.filter((e: any) => e.eventoId !== mudandoEvento.eventoId)}
+              nomeCheckpoint={mudandoEvento.name || numeroDoCheckpoint(mudandoEvento)}
+              onAtribuir={(eventoId) => trocarDeEvento(mudandoEvento, eventoId)}
+            />
+            <p className="text-xs text-gray-500">
+              O que já aconteceu fica no evento antigo (leituras e pontos). Só o território conquistado neste checkpoint é zerado.
+            </p>
+          </div>
+        )}
+      </Modal>
 
       {/* Confirmação de devolver/excluir */}
       <Modal
