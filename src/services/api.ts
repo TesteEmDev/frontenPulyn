@@ -38,6 +38,12 @@ function normalizeApiUrl(value: string | undefined | null) {
   const rawValue = String(value || '').trim();
   if (!rawValue) return null;
 
+  // Caminho relativo (ex.: "/api"): usa a mesma origem da página (site servido pelo nginx).
+  if (rawValue.startsWith('/')) {
+    if (typeof window === 'undefined') return null;
+    return `${window.location.origin}${rawValue}`.replace(/\/+$/, '');
+  }
+
   try {
     const parsed = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(rawValue) ? rawValue : `https://${rawValue}`);
     if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname || hasRepeatedHost(parsed.hostname)) {
