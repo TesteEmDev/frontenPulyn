@@ -10,6 +10,7 @@ import { EventoProvider } from './contexts/EventoContext';
 
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/login/LoginPage';
+import TrocarSenhaPage from './pages/login/TrocarSenhaPage';
 import NotFound from './pages/NotFound';
 import DisplayMain from './pages/display/DisplayMain';
 import DisplayRanking from './pages/display/DisplayRanking';
@@ -225,6 +226,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/primeiro-acesso" element={<TrocarSenhaPage />} />
 
           {/* Telão */}
           <Route path="/telao" element={<TelaoEntrada />} />

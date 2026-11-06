@@ -412,6 +412,18 @@ export const api = {
     return res.json();
   },
 
+  // Troca a senha da conta logada (também a troca obrigatória do primeiro acesso). Devolve o token novo da sessão.
+  async alterarSenha(senhaAtual: string, novaSenha: string): Promise<{ success: boolean; token: string }> {
+    const res = await fetch(`${API_URL}/auth/alterar-senha`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ senhaAtual, novaSenha }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao trocar a senha (${res.status})`);
+    return data;
+  },
+
   // Troca de área: a mesma conta pede um token para outro papel que ela já tem (ver routes/auth.js).
   async trocarPapel(role: string): Promise<any> {
     const res = await fetch(`${API_URL}/auth/papel`, {
