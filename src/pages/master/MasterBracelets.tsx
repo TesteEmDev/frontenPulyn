@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { Watch, Send, Trash2, Undo2, Plus, Radio, Boxes, Hourglass, PackageCheck } from 'lucide-react';
 import {
   api, API_URL,
-  type BuffetOpcao, type MovimentoDePulseira, type PulseiraDoEstoque, type ResumoDePulseiras,
+  type BuffetOpcao, type MovimentoDePulseira, type PulseiraDoBuffet, type PulseiraDoEstoque, type PulseirasPorBuffet, type ResumoDePulseiras,
 } from '../../services/api';
 import { createAuthenticatedWebSocket, getWebSocketServerUrl } from '../../services/websocket';
 import { lerToken } from '../../utils/sessao';
@@ -26,6 +26,14 @@ const ROTULO_MOVIMENTO: Record<MovimentoDePulseira['tipo'], { texto: string; var
   recusada: { texto: 'Recusada', variante: 'warning' },
   devolvida: { texto: 'Devolvida', variante: 'muted' },
 };
+
+const SITUACAO_DA_PULSEIRA: Record<string, { texto: string; variante: 'success' | 'primary' | 'warning' | 'danger' | 'muted' }> = {
+  disponivel: { texto: 'Livre', variante: 'success' },
+  em_uso: { texto: 'Em uso', variante: 'primary' },
+  perdida: { texto: 'Perdida', variante: 'warning' },
+  bloqueada: { texto: 'Bloqueada', variante: 'danger' },
+};
+const POR_PAGINA = 100;
 
 const formatarData = (data: string | null) =>
   data ? new Date(data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -86,6 +94,14 @@ export default function MasterBracelets() {
   const [digitado, setDigitado] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [destino, setDestino] = useState('');
+  // Pulseiras que já estão nos buffets (as enviadas daqui e as que o buffet cadastrou)
+  const [porBuffet, setPorBuffet] = useState<PulseirasPorBuffet[]>([]);
+  const [nosBuffets, setNosBuffets] = useState<PulseiraDoBuffet[]>([]);
+  const [totalNosBuffets, setTotalNosBuffets] = useState(0);
+  const [filtroBuffet, setFiltroBuffet] = useState('');
+  const [filtroSituacao, setFiltroSituacao] = useState('');
+  const [busca, setBusca] = useState('');
+  const [carregandoMais, setCarregandoMais] = useState(false);
   const [ultimaLida, setUltimaLida] = useState<{ codigo: string; nova: boolean } | null>(null);
 
   const carregar = useCallback(async (silencioso = false) => {
@@ -104,8 +120,38 @@ export default function MasterBracelets() {
     }
   }, []);
 
-  useEffect(() => { void carregar(); }, [carregar]);
-  useAutoRefresh(() => carregar(true), { topicos: ['pulseiras'], pausado: enviando });
+  // Lista das pulseiras dos buffets, com os filtros da tela. `acumular`: "ver mais" junta a próxima página.
+  const carregarNosBuffets = useCallback(async (acumular = false) => {
+    try {
+      const filtros = { empresaId: filtroBuffet, status: filtroSituacao, q: busca.trim(), limit: POR_PAGINA };
+      const pagina = await api.masterPulseirasNosBuffets({ ...filtros, offset: acumular ? nosBuffets.length : 0 });
+      setTotalNosBuffets(pagina.total);
+      setNosBuffets((atual) => (acumular ? [...atual, ...pagina.itens] : pagina.itens));
+    } catch (erro) {
+      toast.error(erro instanceof Error ? erro.message : 'Não foi possível carregar as pulseiras dos buffets');
+    }
+  // nosBuffets.length só importa ao acumular
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroBuffet, filtroSituacao, busca, nosBuffets.length]);
+
+  const carregarTotais = useCallback(async () => {
+    try { setPorBuffet(await api.masterPulseirasPorBuffet()); } catch { /* o resto da tela segue */ }
+  }, []);
+
+  useEffect(() => { void carregar(); void carregarTotais(); }, [carregar, carregarTotais]);
+  // Mudou o filtro (a busca espera a pessoa parar de digitar): recomeça a lista do início
+  useEffect(() => {
+    const espera = window.setTimeout(() => { void carregarNosBuffets(false); }, busca ? 350 : 0);
+    return () => window.clearTimeout(espera);
+  // carregarNosBuffets muda com o tamanho da lista; aqui só os filtros reiniciam a lista
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroBuffet, filtroSituacao, busca]);
+  useAutoRefresh(() => {
+    void carregarTotais();
+    // Com várias páginas abertas ("ver mais") a lista não é refeita sozinha, para não encolher sob quem está rolando
+    if (nosBuffets.length <= POR_PAGINA) void carregarNosBuffets(false);
+    return carregar(true);
+  }, { topicos: ['pulseiras'], pausado: enviando });
 
   // Pulseira lida no leitor (ou digitada): entra no estoque e na lista
   const adicionar = useCallback(async (codigos: string[]) => {
@@ -174,11 +220,12 @@ export default function MasterBracelets() {
       setSelecionadas((atual) => new Set([...atual].filter((c) => !codigos.includes(c)))));
   };
 
+  const totalNosBuffetsGeral = porBuffet.reduce((soma, b) => soma + b.total, 0);
   const cartoes = [
     { rotulo: 'Em estoque', valor: resumo?.estoque ?? 0, icone: <Boxes size={20} />, cor: 'text-primary-300' },
     { rotulo: 'Aguardando aceite', valor: resumo?.pendentes ?? 0, icone: <Hourglass size={20} />, cor: 'text-warning' },
     { rotulo: 'Enviadas (total)', valor: resumo?.buffets.reduce((s, b) => s + b.enviadas, 0) ?? 0, icone: <Send size={20} />, cor: 'text-white' },
-    { rotulo: 'Com os buffets', valor: resumo?.buffets.reduce((s, b) => s + b.emPosse, 0) ?? 0, icone: <PackageCheck size={20} />, cor: 'text-success' },
+    { rotulo: 'Nos buffets (total)', valor: totalNosBuffetsGeral, icone: <PackageCheck size={20} />, cor: 'text-success' },
   ];
 
   return (
@@ -333,6 +380,102 @@ export default function MasterBracelets() {
                 </tbody>
               </table>
             </div>
+          </Card>
+
+          <Card>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-lg text-white">
+                Pulseiras nos buffets <span className="text-sm text-gray-500">({totalNosBuffets}{filtroBuffet || filtroSituacao || busca ? ' encontradas' : ''})</span>
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                <select
+                  aria-label="Buffet"
+                  value={filtroBuffet}
+                  onChange={(e) => setFiltroBuffet(e.target.value)}
+                  className="w-52 rounded-lg border border-gray-600 bg-gray-900 px-2 py-2 font-body text-sm text-white"
+                >
+                  <option value="">Todos os buffets ({totalNosBuffetsGeral})</option>
+                  {porBuffet.map((b) => <option key={b.empresaId} value={b.empresaId}>{b.nome} ({b.total})</option>)}
+                </select>
+                <select
+                  aria-label="Situação"
+                  value={filtroSituacao}
+                  onChange={(e) => setFiltroSituacao(e.target.value)}
+                  className="w-36 rounded-lg border border-gray-600 bg-gray-900 px-2 py-2 font-body text-sm text-white"
+                >
+                  <option value="">Qualquer situação</option>
+                  {Object.entries(SITUACAO_DA_PULSEIRA).map(([valor, { texto }]) => <option key={valor} value={valor}>{texto}</option>)}
+                </select>
+                <input
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar código"
+                  aria-label="Buscar pelo código da pulseira"
+                  className="input-dark min-h-[38px] w-40 rounded-lg border border-white/[0.10] bg-dark-card px-3 font-mono text-sm text-white placeholder-gray-500 focus:border-primary-400 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {porBuffet.length > 0 && (
+              <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {porBuffet.map((b) => (
+                  <button
+                    key={b.empresaId}
+                    type="button"
+                    onClick={() => setFiltroBuffet(filtroBuffet === b.empresaId ? '' : b.empresaId)}
+                    aria-pressed={filtroBuffet === b.empresaId}
+                    className={`rounded-xl border px-3 py-2 text-left transition-colors ${filtroBuffet === b.empresaId ? 'border-primary-400/60 bg-primary-500/10' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'}`}
+                  >
+                    <p className="truncate text-sm font-semibold text-white">{b.nome}</p>
+                    <p className="mt-0.5 text-xs text-gray-400">
+                      <strong className="text-white">{b.total}</strong> no total · {b.disponiveis} livres · {b.emUso} em uso
+                      {b.perdidas + b.bloqueadas > 0 ? ` · ${b.perdidas + b.bloqueadas} perdidas/bloqueadas` : ''}
+                    </p>
+                    <p className="text-xs text-gray-500">{b.daPulyn} enviadas pela Pulyn · {b.total - b.daPulyn} cadastradas pelo buffet</p>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="max-h-[28rem] overflow-y-auto overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="sticky top-0 bg-dark-card">
+                  <tr className="border-b border-border">
+                    {['Código', 'Buffet', 'Situação', 'Criança', 'Origem'].map((titulo) => (
+                      <th key={titulo} className="pb-3 pr-4 text-sm font-body font-semibold text-gray-400">{titulo}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {nosBuffets.length === 0 ? (
+                    <tr><td colSpan={5} className="py-8 text-center text-gray-500">{carregando ? 'Carregando...' : 'Nenhuma pulseira encontrada.'}</td></tr>
+                  ) : nosBuffets.map((p) => {
+                    const situacao = SITUACAO_DA_PULSEIRA[p.status] ?? { texto: p.status, variante: 'muted' as const };
+                    return (
+                      <tr key={`${p.empresaId}-${p.codigo}`} className="hover:bg-surface/50 transition-colors">
+                        <td className="py-2.5 pr-4 font-mono text-sm text-white">{p.codigo}</td>
+                        <td className="py-2.5 pr-4 text-sm text-gray-300">{p.buffetNome}</td>
+                        <td className="py-2.5 pr-4"><Badge variant={situacao.variante}>{situacao.texto}</Badge></td>
+                        <td className="py-2.5 pr-4 text-sm text-gray-400">{p.criancaNome ?? '—'}</td>
+                        <td className="py-2.5 text-sm text-gray-400">{p.doMaster ? 'Enviada pela Pulyn' : 'Cadastrada pelo buffet'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {nosBuffets.length < totalNosBuffets && (
+              <div className="mt-3 text-center">
+                <Button
+                  variant="ghost"
+                  className="border border-border"
+                  disabled={carregandoMais}
+                  onClick={() => { setCarregandoMais(true); void carregarNosBuffets(true).finally(() => setCarregandoMais(false)); }}
+                >
+                  Ver mais ({totalNosBuffets - nosBuffets.length} restantes)
+                </Button>
+              </div>
+            )}
           </Card>
 
           <div className="grid gap-6 lg:grid-cols-2">

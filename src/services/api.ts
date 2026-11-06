@@ -172,6 +172,26 @@ export interface ResumoDePulseiras {
   pendentes: number;
   buffets: { empresaId: string; nome: string; enviadas: number; aceitas: number; recusadas: number; devolvidas: number; pendentes: number; emPosse: number }[];
 }
+export interface PulseiraDoBuffet {
+  codigo: string;
+  status: 'disponivel' | 'em_uso' | 'perdida' | 'bloqueada' | string;
+  empresaId: string;
+  buffetNome: string;
+  criancaNome: string | null;
+  criadoEm: string | null;
+  // true = veio do envio da Pulyn; false = o próprio buffet cadastrou
+  doMaster: boolean;
+}
+export interface PulseirasPorBuffet {
+  empresaId: string;
+  nome: string;
+  total: number;
+  disponiveis: number;
+  emUso: number;
+  perdidas: number;
+  bloqueadas: number;
+  daPulyn: number;
+}
 export interface MovimentoDePulseira {
   codigo: string;
   tipo: 'enviada' | 'aceita' | 'recusada' | 'devolvida';
@@ -2021,6 +2041,14 @@ export const api = {
   },
   masterRemoverPulseiras(codigos: string[]) {
     return pedirJson<{ removidas: string[] }>(`${API_URL}/master/pulseiras/remover`, enviarCodigos(codigos));
+  },
+  masterPulseirasNosBuffets(filtros: { empresaId?: string; status?: string; q?: string; limit?: number; offset?: number } = {}) {
+    const parametros = new URLSearchParams();
+    for (const [chave, valor] of Object.entries(filtros)) if (valor !== undefined && valor !== '') parametros.set(chave, String(valor));
+    return pedirJson<{ total: number; itens: PulseiraDoBuffet[] }>(`${API_URL}/master/pulseiras/nos-buffets?${parametros.toString()}`);
+  },
+  masterPulseirasPorBuffet() {
+    return pedirJson<PulseirasPorBuffet[]>(`${API_URL}/master/pulseiras/por-buffet`);
   },
   masterResumoDePulseiras() {
     return pedirJson<ResumoDePulseiras>(`${API_URL}/master/pulseiras/resumo`);
