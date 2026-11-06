@@ -1,6 +1,4 @@
 import { useState, useEffect } from 'react';
-import { maskCnpj, isValidCnpj } from '../../utils/cnpj';
-import { maskPhone, validatePhone } from '../../utils/phone';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -34,6 +32,7 @@ import Select from '../../components/ui/Select';
 import Modal from '../../components/ui/Modal';
 import RowActionsMenu from '../../components/ui/RowActionsMenu';
 import ClientDetailsModal from './ClientDetailsModal';
+import NovoClienteModal from './NovoClienteModal';
 
 import { api, type ResumoExclusaoCliente } from '../../services/api';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
@@ -92,16 +91,6 @@ export default function MasterClients() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // New client form state
-  const [newName, setNewName] = useState('');
-  const [newCnpj, setNewCnpj] = useState('');
-  const [newAddress, setNewAddress] = useState('');
-  const [newCity, setNewCity] = useState('');
-  const [newState, setNewState] = useState('');
-  const [newEmail, setNewEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [newPhone, setNewPhone] = useState('');
-  const [newPlan, setNewPlan] = useState('starter');
-  const [submitting, setSubmitting] = useState(false);
 
   // Fetch clients from API
   // `silencioso`: atualização automática, sem o carregando e sem avisos de erro
@@ -177,75 +166,10 @@ export default function MasterClients() {
     setSelectedClientId(client.id);
   };
 
-  const handleNewClient = async () => {
-    // Todos os dados do cadastro são obrigatórios: o admin do buffet os vê fixos em Configurações
-    if (![newName, newCnpj, newAddress, newCity, newState, newEmail, newPhone, newPassword].every((valor) => valor.trim())) {
-      setError('Preencha todos os campos: nome, CNPJ, endereço, cidade, estado, e-mail, telefone e senha');
-      return;
-    }
-    if (!isValidCnpj(newCnpj)) {
-      setError('CNPJ inválido. Confira os 14 dígitos.');
-      return;
-    }
-    if (!/^[A-Za-z]{2}$/.test(newState.trim())) {
-      setError('Informe o estado com a sigla da UF, por exemplo SP');
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail.trim())) {
-      setError('E-mail inválido');
-      return;
-    }
-    const problemaTelefone = validatePhone(newPhone);
-    if (problemaTelefone) {
-      setError(problemaTelefone);
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      setError('A senha deve ter pelo menos 6 caracteres');
-      return;
-    }
-
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      const data = await api.createCliente({
-        nome: newName.trim(),
-        cnpj: newCnpj,
-        endereco: newAddress.trim(),
-        cidade: newCity.trim(),
-        estado: newState.trim().toUpperCase(),
-        plan: newPlan,
-        email: newEmail,
-        senha: newPassword,
-        telefone: newPhone.trim()
-      });
-
-      if (data) {
-        setClients(prev => [data, ...prev]);
-        setShowNewClientModal(false);
-        setSuccessMessage(`Cliente ${newName} criado com sucesso! Acesso: ${newEmail}`);
-
-        // Reset form
-        setNewName('');
-        setNewCnpj('');
-        setNewAddress('');
-        setNewCity('');
-        setNewState('');
-        setNewEmail('');
-        setNewPassword('');
-        setNewPhone('');
-        setNewPlan('starter');
-      } else {
-        setError('Erro ao criar cliente');
-      }
-    } catch (err) {
-      console.error('Erro ao criar cliente:', err);
-      setError('Erro de conexão ao criar cliente');
-    } finally {
-      setSubmitting(false);
-    }
+  // Cliente criado pela janela de cadastro: relê a lista (a resposta da criação não tem o formato das linhas)
+  const handleClientCreated = (cliente: { nome?: string }) => {
+    setSuccessMessage(`Cliente ${cliente?.nome ?? ''} criado com sucesso!`);
+    void fetchClients(true);
   };
 
   const handleUpdatePlan = async (clientId: string, newPlan: string) => {
@@ -578,90 +502,11 @@ export default function MasterClients() {
           </Modal>
 
           {/* New Client Modal */}
-          <Modal isOpen={showNewClientModal} onClose={() => setShowNewClientModal(false)} title="Novo Cliente">
-            <div className="space-y-4">
-              <Input 
-                label="Nome do buffet *" 
-                value={newName} 
-                onChange={e => setNewName(e.target.value)} 
-                placeholder="Ex: Buffet Feliz" 
-                required
-              />
-              <Input
-                label="CNPJ *"
-                value={newCnpj}
-                onChange={e => setNewCnpj(maskCnpj(e.target.value))}
-                placeholder="00.000.000/0000-00"
-                inputMode="numeric"
-                maxLength={18}
-                required
-              />
-              <Input
-                label="Endereço *"
-                value={newAddress}
-                onChange={e => setNewAddress(e.target.value)}
-                placeholder="Rua, número - bairro"
-                maxLength={255}
-                required
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="Cidade *" 
-                  value={newCity} 
-                  onChange={e => setNewCity(e.target.value)} 
-                  placeholder="São Paulo" 
-                  required
-                />
-                <Input 
-                  label="Estado (UF) *"
-                  value={newState}
-                  onChange={e => setNewState(e.target.value.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase())}
-                  placeholder="SP"
-                  maxLength={2}
-                  required
-                />
-              </div>
-              <Input 
-                label="E-mail (Login) *" 
-                type="email" 
-                value={newEmail} 
-                onChange={e => setNewEmail(e.target.value)} 
-                placeholder="contato@buffet.com.br" 
-                required
-              />
-              <Input 
-                label="Senha Inicial *" 
-                type="password" 
-                value={newPassword} 
-                onChange={e => setNewPassword(e.target.value)} 
-                placeholder="Digite uma senha segura" 
-                required
-              />
-              <Input 
-                label="Telefone *"
-                value={newPhone}
-                onChange={e => setNewPhone(maskPhone(e.target.value))}
-                placeholder="(11) 98765-4321"
-                type="tel"
-                inputMode="numeric"
-                maxLength={15}
-                required
-              />
-              <Select
-                label="Plano"
-                options={PLANOS_SELECIONAVEIS}
-                value={newPlan}
-                onChange={e => setNewPlan(e.target.value)}
-              />
-              <div className="flex gap-3 pt-2">
-                <Button variant="ghost" onClick={() => setShowNewClientModal(false)} className="flex-1">Cancelar</Button>
-                <Button variant="primary" onClick={handleNewClient} disabled={submitting} className="flex-1">
-                  {submitting ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
-                  Criar Cliente
-                </Button>
-              </div>
-            </div>
-          </Modal>
+          <NovoClienteModal
+            isOpen={showNewClientModal}
+            onClose={() => setShowNewClientModal(false)}
+            onCreated={handleClientCreated}
+          />
 
           {/* Client Details Modal */}
           <ClientDetailsModal
