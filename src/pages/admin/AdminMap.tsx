@@ -665,7 +665,16 @@ export default function AdminMap() {
   const handleFloorPlanChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (!file) return;
+    if (file) await enviarPlanta(file);
+  };
+
+  // Planta vinda do seletor de arquivos, de arrastar e soltar ou de colar (Ctrl+V)
+  const enviarPlanta = async (file: File) => {
+    if (uploadingFloorPlan) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Envie uma imagem (PNG, JPG ou SVG) para a planta.');
+      return;
+    }
 
     setUploadingFloorPlan(true);
     setError('');
@@ -685,6 +694,34 @@ export default function AdminMap() {
       setUploadingFloorPlan(false);
     }
   };
+
+  const [arrastandoPlanta, setArrastandoPlanta] = useState(false);
+
+  const soltarPlanta = (event: React.DragEvent) => {
+    event.preventDefault();
+    setArrastandoPlanta(false);
+    const arquivo = Array.from(event.dataTransfer.files).find((item) => item.type.startsWith('image/'));
+    if (arquivo) void enviarPlanta(arquivo);
+    else setError('Solte um arquivo de imagem (PNG, JPG ou SVG).');
+  };
+
+  // Ctrl+V com uma imagem na área de transferência (print, cópia do navegador ou de um arquivo) envia a planta.
+  // Colar texto em campos da tela continua normal.
+  const enviarPlantaRef = useRef(enviarPlanta);
+  enviarPlantaRef.current = enviarPlanta;
+  useEffect(() => {
+    const aoColar = (event: ClipboardEvent) => {
+      const alvo = event.target as HTMLElement | null;
+      if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.isContentEditable)) return;
+      const imagem = Array.from(event.clipboardData?.items ?? []).find((item) => item.kind === 'file' && item.type.startsWith('image/'))?.getAsFile();
+      if (!imagem) return;
+      event.preventDefault();
+      const extensao = imagem.type.split('/')[1]?.replace('svg+xml', 'svg') || 'png';
+      void enviarPlantaRef.current(new File([imagem], imagem.name && imagem.name !== 'image.png' ? imagem.name : `planta-colada.${extensao}`, { type: imagem.type }));
+    };
+    window.addEventListener('paste', aoColar);
+    return () => window.removeEventListener('paste', aoColar);
+  }, []);
 
   const handleRemoveFloorPlan = async (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -766,8 +803,13 @@ export default function AdminMap() {
             )}
           </Card>
 
+          <div
+            onDragOver={(event) => { event.preventDefault(); setArrastandoPlanta(true); }}
+            onDragLeave={() => setArrastandoPlanta(false)}
+            onDrop={soltarPlanta}
+          >
           <Card
-            className="cursor-pointer border-dashed border-2 hover:border-primary/50 transition-colors"
+            className={`cursor-pointer border-dashed border-2 transition-colors ${arrastandoPlanta ? 'border-primary bg-primary/10' : 'hover:border-primary/50'}`}
             onClick={() => !uploadingFloorPlan && fileInputRef.current?.click()}
           >
             <div className="flex items-center gap-4 p-4">
@@ -777,7 +819,7 @@ export default function AdminMap() {
                   {floorPlanUrl ? 'Planta do buffet carregada' : 'Enviar planta do buffet'}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  {floorPlanName || 'PNG, JPG ou SVG. Vale para todos os eventos deste buffet.'}
+                  {floorPlanName || 'Clique, arraste a imagem para cá ou cole com Ctrl+V. Vale para todos os eventos do buffet.'}
                 </p>
               </div>
               {uploadingFloorPlan ? (
@@ -795,6 +837,7 @@ export default function AdminMap() {
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFloorPlanChange} />
             </div>
           </Card>
+          </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <Card className="lg:col-span-2">
