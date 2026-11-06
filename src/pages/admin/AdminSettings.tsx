@@ -4,8 +4,7 @@ import {
   Settings, Upload, Save, Database, Trash2, Loader2
 } from 'lucide-react';
 import { api } from '../../services/api';
-import { maskCnpj, isValidCnpj, onlyDigits } from '../../utils/cnpj';
-import { maskPhone, validatePhone, countPhoneDigits } from '../../utils/phone';
+import { maskPhone } from '../../utils/phone';
 import { useAuth } from '../../hooks/useAuth';
 import { useBuffetNameStore } from '../../hooks/useBuffetName';
 import { optimizeLogo, LOGO_ACCEPT } from '../../utils/logoImage';
@@ -20,8 +19,6 @@ import Select from '../../components/ui/Select';
 import ProgressBar from '../../components/ui/ProgressBar';
 import LinkTelao from '../../components/display/LinkTelao';
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 export default function AdminSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -35,10 +32,6 @@ export default function AdminSettings() {
 
   // Cadastro da unidade (tabela clientes). O CNPJ fica na tabela empresas.
   const [cnpj, setCnpj] = useState('');
-  const [cnpjError, setCnpjError] = useState('');
-  const [nameError, setNameError] = useState('');
-  const [emailError, setEmailError] = useState('');
-  const [phoneError, setPhoneError] = useState('');
 
   // Logo/foto da unidade: enviada e salva na hora (não depende do botão Salvar).
   const [logoUrl, setLogoUrl] = useState('');
@@ -68,10 +61,6 @@ export default function AdminSettings() {
     });
     setBackupSettings({ backupFrequency: profile.backupFrequency || 'daily' });
     setCnpj(profile.cnpj || '');
-    setNameError('');
-    setEmailError('');
-    setPhoneError('');
-    setCnpjError('');
     // O cabeçalho das telas do admin mostra este nome.
     if (empresaId) useBuffetNameStore.getState().setName(empresaId, profile.name || '');
   };
@@ -144,15 +133,6 @@ export default function AdminSettings() {
     }
   };
 
-  const updateUnit = (field: string, value: string) => {
-    setUnitSettings(prev => ({ ...prev, [field]: value }));
-  };
-
-  const validateEmail = (value: string) => {
-    if (!value.trim()) return 'Informe o e-mail da unidade.';
-    return EMAIL_PATTERN.test(value.trim()) ? '' : 'E-mail inválido.';
-  };
-
   const handleSave = async () => {
     setSaveSuccess(false);
     setSaveError('');
@@ -161,28 +141,10 @@ export default function AdminSettings() {
       return;
     }
 
-    const problems = {
-      name: unitSettings.unit_name.trim() ? '' : 'Informe o nome da unidade.',
-      email: validateEmail(unitSettings.unit_email),
-      phone: validatePhone(unitSettings.unit_phone),
-      cnpj: onlyDigits(cnpj) && !isValidCnpj(cnpj) ? 'CNPJ inválido. Confira os 14 dígitos.' : '',
-    };
-    setNameError(problems.name);
-    setEmailError(problems.email);
-    setPhoneError(problems.phone);
-    setCnpjError(problems.cnpj);
-    if (Object.values(problems).some(Boolean)) return;
-
     setSaving(true);
     try {
-      const saved = await api.updateEmpresa({
-        name: unitSettings.unit_name.trim(),
-        email: unitSettings.unit_email.trim(),
-        phone: unitSettings.unit_phone.trim(),
-        address: unitSettings.unit_address.trim(),
-        backupFrequency: backupSettings.backupFrequency,
-        cnpj: onlyDigits(cnpj),
-      });
+      // Só a frequência de backup é do admin; os dados do cadastro são fixos
+      const saved = await api.updateEmpresa({ backupFrequency: backupSettings.backupFrequency });
       // Mostra o que ficou realmente salvo (o servidor pode ter normalizado algum valor).
       applyProfile(saved);
       setSaveSuccess(true);
@@ -194,8 +156,6 @@ export default function AdminSettings() {
       setSaving(false);
     }
   };
-
-  const phoneDigits = countPhoneDigits(unitSettings.unit_phone);
 
   if (loading) {
     return (
@@ -274,74 +234,15 @@ export default function AdminSettings() {
             <Card>
               <h2 className="font-display text-lg text-white mb-4">Dados da Unidade</h2>
               <div className="space-y-4">
-                <Input
-                  label="Nome da unidade *"
-                  placeholder="Ex: Buffet Alegria"
-                  maxLength={100}
-                  value={unitSettings.unit_name}
-                  error={nameError || undefined}
-                  onChange={e => { updateUnit('unit_name', e.target.value); setNameError(''); }}
-                />
-                <div>
-                  <Input
-                    label="CNPJ"
-                    placeholder="00.000.000/0000-00"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    maxLength={18}
-                    value={cnpj}
-                    disabled={!companyLoaded}
-                    error={cnpjError || undefined}
-                    onChange={e => { setCnpj(maskCnpj(e.target.value)); setCnpjError(''); }}
-                    onBlur={() => {
-                      if (onlyDigits(cnpj) && !isValidCnpj(cnpj)) setCnpjError('CNPJ inválido. Confira os 14 dígitos.');
-                    }}
-                  />
-                  {!companyLoaded && (
-                    <p className="mt-1 text-xs text-gray-500">Não foi possível carregar o CNPJ agora. Recarregue a página.</p>
-                  )}
-                </div>
-                <Input
-                  label="Endereço"
-                  placeholder="Rua, número - cidade, UF"
-                  value={unitSettings.unit_address}
-                  onChange={e => updateUnit('unit_address', e.target.value)}
-                />
+                <p className="text-xs text-gray-500">
+                  Estes dados vêm do cadastro feito pelo master e não podem ser alterados aqui. Para corrigir algum, fale com o suporte.
+                </p>
+                <Input label="Nome da unidade" value={unitSettings.unit_name} readOnly disabled />
+                <Input label="CNPJ" value={cnpj} readOnly disabled />
+                <Input label="Endereço" value={unitSettings.unit_address} readOnly disabled />
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Input
-                      label="Telefone"
-                      placeholder="(00) 00000-0000"
-                      type="tel"
-                      inputMode="numeric"
-                      autoComplete="tel-national"
-                      maxLength={15}
-                      value={unitSettings.unit_phone}
-                      error={phoneError || undefined}
-                      onChange={e => {
-                        updateUnit('unit_phone', maskPhone(e.target.value));
-                        setPhoneError('');
-                      }}
-                      onBlur={() => setPhoneError(validatePhone(unitSettings.unit_phone))}
-                    />
-                    <p className="mt-1 text-xs text-gray-500" aria-live="polite">
-                      {phoneDigits === 0
-                        ? 'DDD + número: 10 dígitos (fixo) ou 11 (celular).'
-                        : phoneDigits < 10
-                        ? `${phoneDigits} de 10 dígitos`
-                        : `${phoneDigits} dígitos (${phoneDigits === 10 ? 'fixo' : 'celular'})`}
-                    </p>
-                  </div>
-                  <Input
-                    label="E-mail *"
-                    placeholder="contato@seubuffet.com.br"
-                    type="email"
-                    maxLength={100}
-                    value={unitSettings.unit_email}
-                    error={emailError || undefined}
-                    onChange={e => { updateUnit('unit_email', e.target.value); setEmailError(''); }}
-                    onBlur={() => setEmailError(validateEmail(unitSettings.unit_email))}
-                  />
+                  <Input label="Telefone" value={unitSettings.unit_phone} readOnly disabled />
+                  <Input label="E-mail" value={unitSettings.unit_email} readOnly disabled />
                 </div>
               </div>
             </Card>

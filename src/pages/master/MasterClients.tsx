@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { maskCnpj, isValidCnpj } from '../../utils/cnpj';
+import { maskPhone, validatePhone } from '../../utils/phone';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -91,6 +93,8 @@ export default function MasterClients() {
 
   // New client form state
   const [newName, setNewName] = useState('');
+  const [newCnpj, setNewCnpj] = useState('');
+  const [newAddress, setNewAddress] = useState('');
   const [newCity, setNewCity] = useState('');
   const [newState, setNewState] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -174,8 +178,26 @@ export default function MasterClients() {
   };
 
   const handleNewClient = async () => {
-    if (!newName || !newCity || !newEmail || !newPassword) {
-      setError('Preencha todos os campos obrigatórios (nome, cidade, e-mail e senha)');
+    // Todos os dados do cadastro são obrigatórios: o admin do buffet os vê fixos em Configurações
+    if (![newName, newCnpj, newAddress, newCity, newState, newEmail, newPhone, newPassword].every((valor) => valor.trim())) {
+      setError('Preencha todos os campos: nome, CNPJ, endereço, cidade, estado, e-mail, telefone e senha');
+      return;
+    }
+    if (!isValidCnpj(newCnpj)) {
+      setError('CNPJ inválido. Confira os 14 dígitos.');
+      return;
+    }
+    if (!/^[A-Za-z]{2}$/.test(newState.trim())) {
+      setError('Informe o estado com a sigla da UF, por exemplo SP');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail.trim())) {
+      setError('E-mail inválido');
+      return;
+    }
+    const problemaTelefone = validatePhone(newPhone);
+    if (problemaTelefone) {
+      setError(problemaTelefone);
       return;
     }
 
@@ -189,13 +211,15 @@ export default function MasterClients() {
 
     try {
       const data = await api.createCliente({
-        nome: newName,
-        cidade: newCity,
-        estado: newState,
+        nome: newName.trim(),
+        cnpj: newCnpj,
+        endereco: newAddress.trim(),
+        cidade: newCity.trim(),
+        estado: newState.trim().toUpperCase(),
         plan: newPlan,
         email: newEmail,
         senha: newPassword,
-        telefone: newPhone
+        telefone: newPhone.trim()
       });
 
       if (data) {
@@ -205,6 +229,8 @@ export default function MasterClients() {
 
         // Reset form
         setNewName('');
+        setNewCnpj('');
+        setNewAddress('');
         setNewCity('');
         setNewState('');
         setNewEmail('');
@@ -561,8 +587,25 @@ export default function MasterClients() {
                 placeholder="Ex: Buffet Feliz" 
                 required
               />
+              <Input
+                label="CNPJ *"
+                value={newCnpj}
+                onChange={e => setNewCnpj(maskCnpj(e.target.value))}
+                placeholder="00.000.000/0000-00"
+                inputMode="numeric"
+                maxLength={18}
+                required
+              />
+              <Input
+                label="Endereço *"
+                value={newAddress}
+                onChange={e => setNewAddress(e.target.value)}
+                placeholder="Rua, número - bairro"
+                maxLength={255}
+                required
+              />
               <div className="grid grid-cols-2 gap-4">
-                <Input 
+                <Input
                   label="Cidade *" 
                   value={newCity} 
                   onChange={e => setNewCity(e.target.value)} 
@@ -570,10 +613,12 @@ export default function MasterClients() {
                   required
                 />
                 <Input 
-                  label="Estado" 
-                  value={newState} 
-                  onChange={e => setNewState(e.target.value)} 
-                  placeholder="SP" 
+                  label="Estado (UF) *"
+                  value={newState}
+                  onChange={e => setNewState(e.target.value.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase())}
+                  placeholder="SP"
+                  maxLength={2}
+                  required
                 />
               </div>
               <Input 
@@ -593,10 +638,14 @@ export default function MasterClients() {
                 required
               />
               <Input 
-                label="Telefone" 
-                value={newPhone} 
-                onChange={e => setNewPhone(e.target.value)} 
-                placeholder="(11) 98765-4321" 
+                label="Telefone *"
+                value={newPhone}
+                onChange={e => setNewPhone(maskPhone(e.target.value))}
+                placeholder="(11) 98765-4321"
+                type="tel"
+                inputMode="numeric"
+                maxLength={15}
+                required
               />
               <Select
                 label="Plano"
