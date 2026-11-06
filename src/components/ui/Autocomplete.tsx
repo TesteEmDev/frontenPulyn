@@ -23,6 +23,10 @@ interface AutocompleteProps {
   limite?: number;
   // Texto que o campo mostra quando não há sugestão para o que foi digitado
   semResultado?: string;
+  // false: as opções já chegam filtradas de fora (busca remota) e a lista mostra todas elas
+  filtrar?: boolean;
+  // Mostra "Buscando..." enquanto as opções chegam
+  carregando?: boolean;
 }
 
 // Sem acento e sem maiúscula: "sao" encontra "São Paulo"
@@ -32,6 +36,7 @@ export const semAcento = (texto: string) => texto.normalize('NFD').replace(/\p{M
 // Navega com as setas, escolhe com Enter e fecha com Esc.
 export default function Autocomplete({
   label, value, onChange, onSelect, opcoes, placeholder, error, disabled, maxLength, limite = 8, semResultado = 'Nada encontrado',
+  filtrar = true, carregando = false,
 }: AutocompleteProps) {
   const [aberto, setAberto] = useState(false);
   const [ativa, setAtiva] = useState(0);
@@ -39,13 +44,14 @@ export default function Autocomplete({
   const idLista = useId();
 
   const sugestoes = useMemo(() => {
+    if (!filtrar) return opcoes.slice(0, limite);
     const busca = semAcento(value);
     const rotulos = opcoes.map((opcao) => ({ opcao, texto: semAcento(opcao.rotulo ?? opcao.valor) }));
     if (!busca) return rotulos.slice(0, limite).map((item) => item.opcao);
     const comeca = rotulos.filter((item) => item.texto.startsWith(busca));
     const contem = rotulos.filter((item) => !item.texto.startsWith(busca) && item.texto.includes(busca));
     return [...comeca, ...contem].slice(0, limite).map((item) => item.opcao);
-  }, [value, opcoes, limite]);
+  }, [value, opcoes, limite, filtrar]);
 
   useEffect(() => { setAtiva(0); }, [value]);
 
@@ -107,7 +113,7 @@ export default function Autocomplete({
           className="absolute left-0 right-0 z-30 mt-1 max-h-60 overflow-y-auto rounded-xl border border-white/10 bg-dark-card py-1 shadow-xl"
         >
           {sugestoes.length === 0 ? (
-            <li className="px-3.5 py-2 text-sm text-gray-500">{semResultado}</li>
+            <li className="px-3.5 py-2 text-sm text-gray-500">{carregando ? 'Buscando...' : semResultado}</li>
           ) : sugestoes.map((opcao, indice) => (
             <li
               key={opcao.valor}
