@@ -1,9 +1,11 @@
 // Telão no fim de um jogo: "Fim de jogo!", o Pulyn comemorando e a pontuação final (equipes e, nos jogos individuais, os
-// participantes). A pontuação vem do store e se atualiza sozinha se o bônus do vencedor chegar depois. Some depois de um tempo.
-import { useEffect, useMemo } from 'react';
+// participantes). Mostra os pontos ganhos NA PARTIDA (soma das leituras dela), não o total acumulado no evento. Busca de novo
+// logo depois, caso a última leitura ainda esteja sendo gravada. Some depois de um tempo.
+import { useEffect, useState } from 'react';
 import { Crown, Medal, Trophy } from 'lucide-react';
 import Avatar from '../ui/Avatar';
 import { DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
+import { api, type PontosDaPartida } from '../../services/api';
 import { usePulynStore } from '../../store/mockData';
 import FitToBox from './FitToBox';
 import PulynComemorando from './PulynComemorando';
@@ -17,6 +19,8 @@ export interface FimDeJogo {
 }
 
 const EXIBICAO_MS = 45000;
+// Releitura dos pontos depois do fim (a última leitura pode estar sendo gravada)
+const RELEITURA_MS = 3000;
 const MEDALHAS = ['#FACC15', '#CBD5E1', '#FB923C'];
 
 export interface Linha {
@@ -61,36 +65,34 @@ function ListaDeRanking({ titulo, linhas, destacarPrimeiro = true }: { titulo: s
 
 // `exemplo` troca os dados do evento por dados de teste (página de demonstração /demo/pontuacao-final).
 export default function PontuacaoFinal({ fim, onTerminar, exemplo }: { fim: FimDeJogo; onTerminar: () => void; exemplo?: { equipes: Linha[]; participantes: Linha[] } }) {
-  const teams = usePulynStore((state) => state.teams);
-  const children = usePulynStore((state) => state.children);
+  const eventoId = usePulynStore((state) => state.eventoAtualId);
+  const [pontosDaPartida, setPontosDaPartida] = useState<PontosDaPartida | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(onTerminar, EXIBICAO_MS);
     return () => window.clearTimeout(timer);
   }, [fim.chave, onTerminar]);
 
-  const equipesDoEvento = useMemo<Linha[]>(() => [...teams]
-    .map((team: any) => ({ id: String(team.id), nome: String(team.name ?? team.nome ?? 'Equipe'), pontos: Number(team.points ?? team.score ?? 0), cor: String(team.color ?? team.cor ?? '#1E9BD7') }))
-    .sort((a, b) => b.pontos - a.pontos)
-    .slice(0, 5), [teams]);
+  useEffect(() => {
+    if (exemplo || !eventoId) return undefined;
+    let cancelado = false;
+    const buscar = () => api.getPontosDaPartida(eventoId)
+      .then((dados) => { if (!cancelado) setPontosDaPartida(dados); })
+      .catch((erro) => console.error('Erro ao carregar a pontuação da partida no telão:', erro));
+    void buscar();
+    const releitura = window.setTimeout(buscar, RELEITURA_MS);
+    return () => { cancelado = true; window.clearTimeout(releitura); };
+  }, [eventoId, fim.chave, exemplo]);
 
-  const participantesDoEvento = useMemo<Linha[]>(() => {
-    const corDaEquipe = new Map(teams.map((team: any) => [String(team.id), String(team.color ?? team.cor ?? '#1E9BD7')]));
-    return [...children]
-      .filter((child) => child.status === 'active')
-      .map((child: any) => ({
-        id: String(child.id),
-        nome: String(child.nickname || child.name || 'Participante'),
-        pontos: Number(child.scores ?? 0),
-        cor: corDaEquipe.get(String(child.teamId ?? child.timeId ?? '')) ?? '#1E9BD7',
-        avatar: child.avatar ?? null,
-      }))
-      .sort((a, b) => b.pontos - a.pontos)
-      .slice(0, fim.individual ? 5 : 3);
-  }, [children, teams, fim.individual]);
+  const equipesDaPartida: Linha[] = (pontosDaPartida?.equipes ?? [])
+    .map((equipe) => ({ id: equipe.id, nome: equipe.nome || 'Equipe', pontos: equipe.pontos, cor: equipe.cor || '#1E9BD7' }))
+    .slice(0, 5);
+  const participantesDaPartida: Linha[] = (pontosDaPartida?.participantes ?? [])
+    .map((participante) => ({ id: participante.id, nome: participante.nome || 'Participante', pontos: participante.pontos, cor: participante.cor || '#1E9BD7', avatar: participante.avatar }))
+    .slice(0, fim.individual ? 5 : 3);
 
-  const equipes = exemplo ? exemplo.equipes : equipesDoEvento;
-  const participantes = exemplo ? exemplo.participantes.slice(0, fim.individual ? 5 : 3) : participantesDoEvento;
+  const equipes = exemplo ? exemplo.equipes : equipesDaPartida;
+  const participantes = exemplo ? exemplo.participantes.slice(0, fim.individual ? 5 : 3) : participantesDaPartida;
 
   const temPontos = [...equipes, ...participantes].some((linha) => linha.pontos > 0);
 

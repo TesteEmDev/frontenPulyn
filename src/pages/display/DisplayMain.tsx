@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { mensagemParaTela } from '../../services/api';
+import { api as apiDoSistema, mensagemParaTela, type PontosDaPartida } from '../../services/api';
 import { Trophy, Medal, Star, Zap, Clock, MapPin, Users, Maximize, Minimize } from 'lucide-react';
 import { useGameWebSocket } from '../../hooks/useGameWebSocket';
 import { useZoneConquestGame, type ZoneConquestStatus } from '../../hooks/useZoneConquestGame';
@@ -22,6 +22,7 @@ import PreJogoMapa, { type LeituraPreJogo } from '../../components/display/PreJo
 import SorteioEquipes, { type SorteioDasEquipes } from '../../components/display/SorteioEquipes';
 import UltimasLeituras, { type LeituraDoJogo } from '../../components/display/UltimasLeituras';
 import PontuacaoFinal, { type FimDeJogo } from '../../components/display/PontuacaoFinal';
+import RankingDaPartida from '../../components/display/RankingDaPartida';
 import { numeroDoCheckpoint } from '../../utils/checkpoints';
 
 interface MonsterDisplayMonster {
@@ -57,6 +58,10 @@ const sameEventId = (left: unknown, right: unknown) => (
 
 // Quanto tempo uma mensagem do recreacionista fica no telão
 const MENSAGEM_VISIVEL_MS = 8000;
+// Durante o jogo a coluna da direita alterna entre as últimas leituras e o ranking da partida; cada tela fica este tempo
+const COLUNA_DO_JOGO_MS = 10000;
+// Releitura dos pontos da partida (além da feita a cada leitura nova)
+const PONTOS_DA_PARTIDA_MS = 15000;
 
 export default function DisplayMain() {
 
@@ -177,6 +182,48 @@ export default function DisplayMain() {
     .sort((a, b) => b.quando - a.quando)
     .slice(0, 8)
     .map(({ id, apelido, checkpoint, checkpointNome, pontos, cor }) => ({ id, apelido, checkpoint, checkpointNome, pontos, cor })), [scoreLog, checkpoints]);
+
+  // Pontos ganhos na partida (não o total do evento), para o ranking da coluna do jogo
+  const [pontosDaPartida, setPontosDaPartida] = useState<PontosDaPartida | null>(null);
+  // 0 = últimas leituras, 1 = equipes, 2 = participantes
+  const [colunaDoJogo, setColunaDoJogo] = useState(0);
+  const ultimaLeituraDaLista = scoreLog[0]?.id;
+
+  useEffect(() => {
+    if (!gameActive || !selectedEventId) { setPontosDaPartida(null); return undefined; }
+    let cancelado = false;
+    const buscar = () => apiDoSistema.getPontosDaPartida(selectedEventId)
+      .then((dados) => {
+        if (cancelado) return;
+        setPontosDaPartida(dados);
+        // Telão aberto com o jogo já rodando: não recebeu o início, então adota a partida em andamento para o histórico
+        const store = usePulynStore.getState();
+        if (dados.sessionId && !store.currentPartidaId) {
+          store.setCurrentPartida(dados.sessionId);
+          store.loadScoreLog().catch(() => undefined);
+        }
+      })
+      .catch((erro) => console.error('Erro ao carregar os pontos da partida no telão:', erro));
+    void buscar();
+    const intervalo = window.setInterval(buscar, PONTOS_DA_PARTIDA_MS);
+    return () => { cancelado = true; window.clearInterval(intervalo); };
+  }, [gameActive, selectedEventId, ultimaLeituraDaLista]);
+
+  // Telas da coluna que têm o que mostrar (as leituras entram sempre; o ranking só com alguém pontuado)
+  const telasDaColuna = useMemo(() => {
+    const telas = [0];
+    if ((pontosDaPartida?.equipes ?? []).some((e) => e.pontos > 0)) telas.push(1);
+    if ((pontosDaPartida?.participantes ?? []).some((p) => p.pontos > 0)) telas.push(2);
+    return telas;
+  }, [pontosDaPartida]);
+  useEffect(() => {
+    if (!gameActive || telasDaColuna.length < 2) { setColunaDoJogo(0); return undefined; }
+    const intervalo = window.setInterval(() => {
+      setColunaDoJogo((atual) => telasDaColuna[(telasDaColuna.indexOf(atual) + 1) % telasDaColuna.length]);
+    }, COLUNA_DO_JOGO_MS);
+    return () => window.clearInterval(intervalo);
+  }, [gameActive, telasDaColuna]);
+  const telaDaColuna = telasDaColuna.includes(colunaDoJogo) ? colunaDoJogo : 0;
 
   // Uma leitura chegou: relê o histórico logo depois (o servidor leva um instante para gravar), sem repetir a cada leitura em rajada
   const recargaDasLeituras = useRef<number | null>(null);
@@ -1220,7 +1267,13 @@ export default function DisplayMain() {
           <div className="min-h-0 min-w-0 flex-1">{stageContent}</div>
           {/* Últimas leituras: coluna ao lado do jogo (só em telas largas) */}
           <div className="hidden w-[clamp(13rem,19vw,21rem)] shrink-0 lg:block">
-            <UltimasLeituras leituras={ultimasLeituras} />
+            {telaDaColuna === 1 ? (
+              <RankingDaPartida modo="equipes" linhas={pontosDaPartida?.equipes ?? []} />
+            ) : telaDaColuna === 2 ? (
+              <RankingDaPartida modo="participantes" linhas={pontosDaPartida?.participantes ?? []} />
+            ) : (
+              <UltimasLeituras leituras={ultimasLeituras} />
+            )}
           </div>
         </div>
       </div>

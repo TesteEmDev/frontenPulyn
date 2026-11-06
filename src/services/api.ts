@@ -92,6 +92,13 @@ function getAuthHeaders() {
 }
 
 // Checkpoint que o super admin transferiu para este buffet (rotas de recebimento).
+// Pontos ganhos numa partida (soma das leituras dela), por equipe e por participante
+export interface PontosDaPartida {
+  sessionId: string | null;
+  equipes: { id: string; nome: string; cor: string | null; pontos: number }[];
+  participantes: { id: string; nome: string; cor: string | null; avatar: string | null; pontos: number }[];
+}
+
 export interface CheckpointRecebido {
   checkpointId: string;
   nome: string;
@@ -811,6 +818,19 @@ export const api = {
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error || `Erro ao carregar histórico do evento (${res.status})`);
+    }
+    return res.json();
+  },
+
+  // Pontos ganhos só na partida (não o total do evento). sessionId omitido = a em andamento, ou a última que terminou.
+  async getPontosDaPartida(eventoId: string, sessionId = 'atual'): Promise<PontosDaPartida> {
+    const res = await fetch(
+      `${API_URL}/leituras/evento/${encodeURIComponent(eventoId)}/pontos-da-partida?sessionId=${encodeURIComponent(sessionId)}`,
+      { headers: getAuthHeaders() },
+    );
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `Erro ao carregar os pontos da partida (${res.status})`);
     }
     return res.json();
   },
