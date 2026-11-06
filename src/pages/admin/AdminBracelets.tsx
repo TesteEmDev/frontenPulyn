@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Watch, Check, X, Undo2, Inbox, PackageCheck } from 'lucide-react';
-import { api, type PulseiraRecebida } from '../../services/api';
+import { Watch, Check, X, Undo2, Inbox, PackageCheck, Radio, ScanLine } from 'lucide-react';
+import { api, API_URL, type PulseiraRecebida } from '../../services/api';
+import { createAuthenticatedWebSocket, getWebSocketServerUrl } from '../../services/websocket';
+import { lerToken } from '../../utils/sessao';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
@@ -14,6 +16,49 @@ type Pendente = { codigo: string; enviadoEm: string };
 
 const formatarData = (data: string | null) =>
   data ? new Date(data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+
+// Escuta o leitor de recepção do buffet (qualquer pulseira passada nele, com ou sem evento aberto)
+function useLeitorDoBuffet(aoLer: (codigo: string) => void) {
+  const [conectado, setConectado] = useState(false);
+  const aoLerRef = useRef(aoLer);
+  useEffect(() => { aoLerRef.current = aoLer; });
+
+  useEffect(() => {
+    let encerrado = false;
+    let socket: WebSocket | null = null;
+    let tentativa = 0;
+    let religar: number | undefined;
+
+    const conectar = () => {
+      if (encerrado) return;
+      socket = createAuthenticatedWebSocket(`${getWebSocketServerUrl(API_URL)}?scope=company`, lerToken());
+      socket.onopen = () => { tentativa = 0; setConectado(true); };
+      socket.onmessage = (evento) => {
+        try {
+          const mensagem = JSON.parse(evento.data);
+          const codigo = mensagem?.type === 'RECEPTION_BRACELET_READ' ? mensagem.payload?.braceletCode : null;
+          if (codigo) aoLerRef.current(String(codigo).toUpperCase());
+        } catch {
+          // mensagem que não é para esta tela
+        }
+      };
+      socket.onclose = () => {
+        setConectado(false);
+        if (encerrado) return;
+        tentativa += 1;
+        religar = window.setTimeout(conectar, Math.min(1000 * 2 ** tentativa, 30_000));
+      };
+    };
+    conectar();
+    return () => {
+      encerrado = true;
+      window.clearTimeout(religar);
+      socket?.close();
+    };
+  }, []);
+
+  return conectado;
+}
 
 // Seleção de códigos com "selecionar todos"
 function useSelecao(codigos: string[]) {
@@ -31,6 +76,7 @@ function useSelecao(codigos: string[]) {
       return novo;
     }),
     alternarTodos: () => setMarcados(todos ? new Set() : new Set(codigos)),
+    marcar: (codigo: string) => setMarcados((atual) => new Set(atual).add(codigo)),
     limpar: () => setMarcados(new Set()),
   };
 }
@@ -43,6 +89,10 @@ export default function AdminBracelets() {
 
   const livres = useMemo(() => recebidas.filter((p) => !p.emUso && p.status === 'disponivel'), [recebidas]);
   const selPendentes = useSelecao(useMemo(() => pendentes.map((p) => p.codigo), [pendentes]));
+  // Pulseiras conferidas no leitor: a leitura confirma que a pulseira chegou e já deixa ela marcada para o aceite
+  const [conferidas, setConferidas] = useState<Set<string>>(new Set());
+  const [ultimaLeitura, setUltimaLeitura] = useState<{ codigo: string; situacao: 'conferida' | 'repetida' | 'desconhecida' } | null>(null);
+  const pendentesRef = useRef<Pendente[]>([]);
   const selLivres = useSelecao(useMemo(() => livres.map((p) => p.codigo), [livres]));
 
   const carregar = useCallback(async (silencioso = false) => {
@@ -57,8 +107,32 @@ export default function AdminBracelets() {
     }
   }, []);
 
+  useEffect(() => { pendentesRef.current = pendentes; }, [pendentes]);
   useEffect(() => { void carregar(); }, [carregar]);
   useAutoRefresh(() => carregar(true), { topicos: ['pulseiras'], pausado: ocupado });
+
+  const aoLerPulseira = useCallback((codigo: string) => {
+    const lista = pendentesRef.current;
+    if (!lista.some((p) => p.codigo === codigo)) {
+      setUltimaLeitura({ codigo, situacao: 'desconhecida' });
+      toast.error(`A pulseira ${codigo} não está na lista enviada pela Pulyn`);
+      return;
+    }
+    setConferidas((atual) => {
+      if (atual.has(codigo)) {
+        setUltimaLeitura({ codigo, situacao: 'repetida' });
+        return atual;
+      }
+      setUltimaLeitura({ codigo, situacao: 'conferida' });
+      return new Set(atual).add(codigo);
+    });
+    selPendentes.marcar(codigo);
+  // selPendentes.marcar só usa o setter do estado, que é estável
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const leitorConectado = useLeitorDoBuffet(aoLerPulseira);
+  // Só conta como conferida a que ainda espera aceite (as aceitas saem da lista)
+  const totalConferidas = useMemo(() => pendentes.filter((p) => conferidas.has(p.codigo)).length, [pendentes, conferidas]);
 
   const executar = async (acao: () => Promise<unknown>, sucesso: string, aoConcluir: () => void) => {
     setOcupado(true);
@@ -109,11 +183,35 @@ export default function AdminBracelets() {
                   <X size={16} className="mr-1.5" />
                   Recusar{selPendentes.validos.length > 0 ? ` ${selPendentes.validos.length}` : ''}
                 </Button>
-                <Button variant="success" disabled={pendentes.length === 0 || ocupado} onClick={() => aceitar(selPendentes.validos.length > 0 ? selPendentes.validos : pendentes.map((p) => p.codigo))}>
+                <Button variant="success" disabled={pendentes.length === 0 || ocupado} onClick={() => {
+                  const alvo = selPendentes.validos.length > 0 ? selPendentes.validos : pendentes.map((p) => p.codigo);
+                  const faltam = alvo.filter((c) => !conferidas.has(c)).length;
+                  if (faltam > 0 && !confirm(`${faltam} das ${alvo.length} pulseiras ainda não foram conferidas no leitor. Aceitar mesmo assim?`)) return;
+                  void aceitar(alvo);
+                }}>
                   <Check size={16} className="mr-1.5" />
                   {selPendentes.validos.length > 0 ? `Aceitar ${selPendentes.validos.length}` : 'Aceitar todas'}
                 </Button>
               </div>
+            </div>
+            <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
+              <Radio size={16} className={leitorConectado ? 'text-success' : 'text-gray-500'} />
+              <span className="text-gray-300">
+                {leitorConectado
+                  ? 'Passe cada pulseira no leitor da recepção para conferir que ela chegou.'
+                  : 'Leitor sem conexão em tempo real. Reconectando... você ainda pode aceitar pela lista.'}
+              </span>
+              {pendentes.length > 0 && (
+                <Badge variant={totalConferidas === pendentes.length ? 'success' : 'warning'}>
+                  {totalConferidas} de {pendentes.length} conferidas
+                </Badge>
+              )}
+              {ultimaLeitura && (
+                <span role="status" className="font-mono text-xs text-gray-400">
+                  Última: <span className="text-white">{ultimaLeitura.codigo}</span>{' '}
+                  {ultimaLeitura.situacao === 'conferida' ? '✓ conferida' : ultimaLeitura.situacao === 'repetida' ? '(já conferida)' : '✗ não consta na lista'}
+                </span>
+              )}
             </div>
             <div className="max-h-80 overflow-y-auto">
               {carregando ? (
@@ -128,6 +226,7 @@ export default function AdminBracelets() {
                         <input type="checkbox" checked={selPendentes.todos} onChange={selPendentes.alternarTodos} aria-label="Selecionar todas as pulseiras pendentes" className="h-4 w-4 cursor-pointer accent-primary" />
                       </th>
                       <th className="pb-3 pr-4 text-sm font-body font-semibold text-gray-400">Código</th>
+                      <th className="pb-3 pr-4 text-sm font-body font-semibold text-gray-400">Conferência</th>
                       <th className="pb-3 text-sm font-body font-semibold text-gray-400">Enviada em</th>
                     </tr>
                   </thead>
@@ -138,6 +237,11 @@ export default function AdminBracelets() {
                           <input type="checkbox" checked={selPendentes.marcado(p.codigo)} onChange={() => selPendentes.alternar(p.codigo)} aria-label={`Selecionar ${p.codigo}`} className="h-4 w-4 cursor-pointer accent-primary" />
                         </td>
                         <td className="py-2.5 pr-4 font-mono text-sm text-white">{p.codigo}</td>
+                        <td className="py-2.5 pr-4">
+                          {conferidas.has(p.codigo)
+                            ? <Badge variant="success">Conferida</Badge>
+                            : <span className="inline-flex items-center gap-1 text-xs text-gray-500"><ScanLine size={14} />Falta ler</span>}
+                        </td>
                         <td className="py-2.5 text-sm text-gray-400">{formatarData(p.enviadoEm)}</td>
                       </tr>
                     ))}
