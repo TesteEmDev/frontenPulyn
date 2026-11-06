@@ -1239,6 +1239,14 @@ export const api = {
     return response;
   },
 
+  // Checkpoints que o evento usa agora e os que já passaram por ele (saem do evento quando ele termina)
+  async getCheckpointsUsadosDoEvento(eventoId: string): Promise<{ checkpointId: string; numero: string | number | null; nome: string; zona: string | null; noEvento: boolean }[]> {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/checkpoints-usados`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ([]));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao carregar os checkpoints do evento (${res.status})`);
+    return data;
+  },
+
   async getEvento(id: string) {
     const res = await fetch(`${API_URL}/eventos/${id}`, {
       headers: getAuthHeaders()
