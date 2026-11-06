@@ -9,6 +9,8 @@ import {
 import { createAuthenticatedWebSocket, getWebSocketServerUrl } from '../../services/websocket';
 import { lerToken } from '../../utils/sessao';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
+import { useDeviceNFC } from '../../hooks/useDeviceNFC';
+import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
@@ -125,6 +127,8 @@ export default function MasterBracelets() {
   }, [carregar]);
 
   const leitorConectado = useLeitorDoMaster((codigo) => { void adicionar([codigo]); });
+  // Também dá para ler pelo NFC do próprio celular/tablet (Chrome no Android, página em HTTPS)
+  const nfcDoAparelho = useDeviceNFC((codigo) => { void adicionar([codigo]); }, true, 'pulyn.master.pulseiras.deviceNfc');
 
   const executar = async (acao: () => Promise<unknown>, sucesso: string) => {
     setOcupado(true);
@@ -215,7 +219,12 @@ export default function MasterBracelets() {
                   {leitorConectado
                     ? 'Passe a pulseira no leitor de recepção que está em estoque: ela entra na lista sozinha.'
                     : 'Sem conexão com o servidor em tempo real. Reconectando... você ainda pode digitar os códigos ao lado.'}
+                  {nfcDoAparelho.supported && ' Ou ative o NFC deste aparelho e encoste a pulseira nele.'}
                 </p>
+                <div className="mt-2">
+                  <DeviceNfcButton status={nfcDoAparelho.status} error={nfcDoAparelho.error} onStart={nfcDoAparelho.start} onStop={nfcDoAparelho.stop} />
+                  {nfcDoAparelho.error && <p role="alert" className="mt-1 text-xs text-warning">{nfcDoAparelho.error}</p>}
+                </div>
                 {ultimaLida && (
                   <p className="mt-2 text-sm" role="status">
                     Última lida: <span className="font-mono text-white">{ultimaLida.codigo}</span>{' '}

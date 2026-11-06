@@ -5,6 +5,8 @@ import { api, API_URL, type PulseiraRecebida } from '../../services/api';
 import { createAuthenticatedWebSocket, getWebSocketServerUrl } from '../../services/websocket';
 import { lerToken } from '../../utils/sessao';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
+import { useDeviceNFC } from '../../hooks/useDeviceNFC';
+import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -131,6 +133,8 @@ export default function AdminBracelets() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const leitorConectado = useLeitorDoBuffet(aoLerPulseira);
+  // Conferir também pelo NFC do próprio celular/tablet (Chrome no Android, página em HTTPS). O número de série vem como 04:A1:...
+  const nfcDoAparelho = useDeviceNFC((codigo) => aoLerPulseira(codigo.replace(/[^0-9a-f]/gi, '').toUpperCase()), true, 'pulyn.admin.pulseiras.deviceNfc');
   // Só conta como conferida a que ainda espera aceite (as aceitas saem da lista)
   const totalConferidas = useMemo(() => pendentes.filter((p) => conferidas.has(p.codigo)).length, [pendentes, conferidas]);
 
@@ -201,6 +205,8 @@ export default function AdminBracelets() {
                   ? 'Passe cada pulseira no leitor da recepção para conferir que ela chegou.'
                   : 'Leitor sem conexão em tempo real. Reconectando... você ainda pode aceitar pela lista.'}
               </span>
+              <DeviceNfcButton status={nfcDoAparelho.status} error={nfcDoAparelho.error} onStart={nfcDoAparelho.start} onStop={nfcDoAparelho.stop} />
+              {nfcDoAparelho.error && <span role="alert" className="text-xs text-warning">{nfcDoAparelho.error}</span>}
               {pendentes.length > 0 && (
                 <Badge variant={totalConferidas === pendentes.length ? 'success' : 'warning'}>
                   {totalConferidas} de {pendentes.length} conferidas
