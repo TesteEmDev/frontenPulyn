@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  FileText, RefreshCw, Settings, Crosshair
+  FileText, RefreshCw, Settings, Crosshair, Watch
 } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { ROTAS_DO_MAPA } from './MapaAbas';
@@ -17,6 +17,7 @@ export const ADMIN_NAV_ITEMS = [
   { icon: <Users size={20} />, label: 'Crianças', path: '/admin/children' },
   { icon: <Gamepad2 size={20} />, label: 'Jogos', path: '/admin/games' },
   { icon: <MapPin size={20} />, label: 'Checkpoints', path: '/admin/checkpoints' },
+  { icon: <Watch size={20} />, label: 'Pulseiras', path: '/admin/pulseiras' },
   { icon: <Map size={20} />, label: 'Mapa', path: '/admin/map' },
   { icon: <Users size={20} />, label: 'Usuários', path: '/admin/users' },
   { icon: <Users size={20} />, label: 'Times', path: '/admin/teams' },

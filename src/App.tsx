@@ -54,6 +54,7 @@ import AdminTeams from './pages/admin/AdminTeams';
 import AdminReports from './pages/admin/AdminReports';
 import AdminSync from './pages/admin/AdminSync';
 import AdminSettings from './pages/admin/AdminSettings';
+import AdminBracelets from './pages/admin/AdminBracelets';
 import MasterDashboard from './pages/master/MasterDashboard';
 import MasterClients from './pages/master/MasterClients';
 import MasterPlans from './pages/master/MasterPlans';
@@ -286,6 +287,7 @@ function App() {
           <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={['admin']}><AdminReports /></ProtectedRoute>} />
           <Route path="/admin/sync" element={<ProtectedRoute allowedRoles={['admin']}><AdminSync /></ProtectedRoute>} />
           <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettings /></ProtectedRoute>} />
+          <Route path="/admin/pulseiras" element={<ProtectedRoute allowedRoles={['admin']}><AdminBracelets /></ProtectedRoute>} />
 
           {/* Painel Master Pulyn */}
           <Route path="/master" element={<ProtectedRoute allowedRoles={['master']}><MasterDashboard /></ProtectedRoute>} />
