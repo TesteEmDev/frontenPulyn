@@ -1,13 +1,8 @@
 import { Fragment, useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  Users,
-  CreditCard,
   Activity,
   ScrollText,
-  LifeBuoy,
-  BarChart3,
   Search,
   Download,
   Filter,
@@ -33,17 +28,8 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
+import { masterNavItems } from './masterNav';
 
-const masterNavItems = [
-  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/master' },
-  { icon: <Users size={20} />, label: 'Clientes', path: '/master/clients' },
-  { icon: <CreditCard size={20} />, label: 'Planos', path: '/master/plans' },
-  { icon: <Cpu size={20} />, label: 'Checkpoints', path: '/master/checkpoints' },
-  { icon: <Activity size={20} />, label: 'Monitoramento', path: '/master/monitoring' },
-  { icon: <ScrollText size={20} />, label: 'Logs', path: '/master/logs' },
-  { icon: <LifeBuoy size={20} />, label: 'Suporte', path: '/master/support' },
-  { icon: <BarChart3 size={20} />, label: 'Analytics', path: '/master/analytics' },
-];
 
 type LogType = 'error' | 'info' | 'warning' | 'sync';
 type Categoria = 'cliente' | 'evento' | 'checkpoint' | 'acesso' | 'suporte' | 'sistema';

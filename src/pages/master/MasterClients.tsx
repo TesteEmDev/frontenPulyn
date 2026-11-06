@@ -1,13 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard,
   Users,
-  CreditCard,
-  Activity,
-  ScrollText,
-  LifeBuoy,
-  BarChart3,
   Search,
   Plus,
   ShieldBan,
@@ -18,7 +12,6 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
-  Cpu,
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -36,17 +29,8 @@ import NovoClienteModal from './NovoClienteModal';
 
 import { api, type ResumoExclusaoCliente } from '../../services/api';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
+import { masterNavItems } from './masterNav';
 
-const masterNavItems = [
-  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/master' },
-  { icon: <Users size={20} />, label: 'Clientes', path: '/master/clients' },
-  { icon: <CreditCard size={20} />, label: 'Planos', path: '/master/plans' },
-  { icon: <Cpu size={20} />, label: 'Checkpoints', path: '/master/checkpoints' },
-  { icon: <Activity size={20} />, label: 'Monitoramento', path: '/master/monitoring' },
-  { icon: <ScrollText size={20} />, label: 'Logs', path: '/master/logs' },
-  { icon: <LifeBuoy size={20} />, label: 'Suporte', path: '/master/support' },
-  { icon: <BarChart3 size={20} />, label: 'Analytics', path: '/master/analytics' },
-];
 
 interface Client {
   id: string;

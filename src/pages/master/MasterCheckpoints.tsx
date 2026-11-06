@@ -2,8 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
-  LayoutDashboard, Users, CreditCard, Activity, ScrollText, LifeBuoy, BarChart3,
-  Cpu, Plus, Send, Pencil, Trash2,
+  Cpu,
+  Plus,
+  Send,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { api, type BuffetOpcao, type CheckpointMaster } from '../../services/api';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
@@ -16,17 +19,9 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import StatusDot from '../../components/ui/StatusDot';
+import SeletorDeBuffet from './SeletorDeBuffet';
+import { masterNavItems } from './masterNav';
 
-const masterNavItems = [
-  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/master' },
-  { icon: <Users size={20} />, label: 'Clientes', path: '/master/clients' },
-  { icon: <CreditCard size={20} />, label: 'Planos', path: '/master/plans' },
-  { icon: <Cpu size={20} />, label: 'Checkpoints', path: '/master/checkpoints' },
-  { icon: <Activity size={20} />, label: 'Monitoramento', path: '/master/monitoring' },
-  { icon: <ScrollText size={20} />, label: 'Logs', path: '/master/logs' },
-  { icon: <LifeBuoy size={20} />, label: 'Suporte', path: '/master/support' },
-  { icon: <BarChart3 size={20} />, label: 'Analytics', path: '/master/analytics' },
-];
 
 type Situacao = CheckpointMaster['statusTransferencia'];
 // 'devolvido': em estoque e com o aviso de devolução/recusa de um buffet
@@ -93,9 +88,11 @@ export default function MasterCheckpoints() {
   const [form, setForm] = useState<Formulario>(FORM_VAZIO);
 
   // Transferência
-  const [transferindo, setTransferindo] = useState<CheckpointMaster | null>(null);
+  // Um ou vários checkpoints indo para o mesmo buffet
+  const [transferindo, setTransferindo] = useState<CheckpointMaster[] | null>(null);
   const [destino, setDestino] = useState('');
-  const [buscaDestino, setBuscaDestino] = useState('');
+  // Marcados na lista (só os que estão em estoque podem ser enviados)
+  const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
 
   const carregar = useCallback(async (silencioso = false) => {
     try {
@@ -207,26 +204,37 @@ export default function MasterCheckpoints() {
     if (feito) setFormAberto(false);
   };
 
-  const buffetsFiltrados = useMemo(() => {
-    const limpar = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    const termos = limpar(buscaDestino).split(/\s+/).filter(Boolean);
-    if (termos.length === 0) return buffets;
-    return buffets.filter((b) => {
-      const alvo = limpar(`${b.nome} ${b.cidade || ''} ${b.estado || ''}`);
-      return termos.every((t) => alvo.includes(t));
-    });
-  }, [buffets, buscaDestino]);
-
   const transferir = async () => {
-    if (!transferindo || !destino) return;
-    const feito = await executar(() => api.masterTransferirCheckpoint(transferindo.id, destino), 'Transferido para o buffet');
-    if (feito) setTransferindo(null);
+    if (!transferindo || transferindo.length === 0 || !destino) return;
+    const nomeBuffet = buffets.find((b) => b.empresaId === destino)?.nome ?? 'o buffet';
+    const feito = transferindo.length === 1
+      ? await executar(() => api.masterTransferirCheckpoint(transferindo[0].id, destino), `Transferido para ${nomeBuffet}`)
+      : await executar(async () => {
+          const r = await api.masterTransferirCheckpointsLote(transferindo.map((cp) => cp.id), destino);
+          if (r.ignorados.length > 0) toast(`${r.ignorados.length} checkpoint(s) já não estavam em estoque e foram ignorados`);
+        }, `${transferindo.length} checkpoints transferidos para ${nomeBuffet}`);
+    if (feito) {
+      setTransferindo(null);
+      setSelecionados(new Set());
+    }
   };
 
   const excluir = (cp: CheckpointMaster) => {
     if (!confirm(`Excluir "${cp.nome}" (${cp.macAddress ?? 'sem MAC'})? Só é possível enquanto está em estoque.`)) return;
     void executar(() => api.masterExcluirCheckpoint(cp.id), 'Checkpoint excluído');
   };
+
+  // Seleção para envio em lote: só checkpoints em estoque. Some da seleção o que deixou de estar à vista.
+  const enviaveis = useMemo(() => visiveis.filter((c) => c.statusTransferencia === 'estoque'), [visiveis]);
+  const marcados = useMemo(() => enviaveis.filter((c) => selecionados.has(c.id)), [enviaveis, selecionados]);
+  const todosMarcados = enviaveis.length > 0 && marcados.length === enviaveis.length;
+  const alternarUm = (id: number) => setSelecionados((atual) => {
+    const novo = new Set(atual);
+    if (novo.has(id)) novo.delete(id); else novo.add(id);
+    return novo;
+  });
+  const alternarTodos = () => setSelecionados(todosMarcados ? new Set() : new Set(enviaveis.map((c) => c.id)));
+  const abrirEnvio = (cps: CheckpointMaster[]) => { setTransferindo(cps); setDestino(''); };
 
   const buffetDe = (cp: CheckpointMaster) =>
     (cp.statusTransferencia === 'aceito' ? cp.empresaNome : null) || '—';
@@ -296,11 +304,38 @@ export default function MasterCheckpoints() {
             </div>
           </Card>
 
+          {marcados.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary-400/40 bg-primary-500/10 px-4 py-3" role="status">
+              <p className="text-sm text-white">
+                <strong>{marcados.length}</strong> checkpoint{marcados.length > 1 ? 's' : ''} selecionado{marcados.length > 1 ? 's' : ''}
+              </p>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setSelecionados(new Set())}>Limpar</Button>
+                <Button variant="primary" onClick={() => abrirEnvio(marcados)}>
+                  <Send size={16} className="mr-1.5" />
+                  Enviar para um buffet
+                </Button>
+              </div>
+            </div>
+          )}
+
           <Card>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-border">
+                    <th className="w-10 pb-3 pr-2">
+                      {enviaveis.length > 0 && (
+                        <input
+                          type="checkbox"
+                          checked={todosMarcados}
+                          onChange={alternarTodos}
+                          aria-label="Selecionar todos os checkpoints em estoque"
+                          title="Selecionar todos os que estão em estoque"
+                          className="h-4 w-4 cursor-pointer accent-primary"
+                        />
+                      )}
+                    </th>
                     {['Aparelho', 'Número', 'Situação', 'Buffet', 'Sinal', 'Ações'].map((titulo) => (
                       <th key={titulo} className="pb-3 pr-4 text-sm font-body font-semibold text-gray-400">{titulo}</th>
                     ))}
@@ -308,10 +343,10 @@ export default function MasterCheckpoints() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {carregando ? (
-                    <tr><td colSpan={6} className="py-8 text-center text-gray-500">Carregando checkpoints...</td></tr>
+                    <tr><td colSpan={7} className="py-8 text-center text-gray-500">Carregando checkpoints...</td></tr>
                   ) : visiveis.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-gray-500">
+                      <td colSpan={7} className="py-8 text-center text-gray-500">
                         {lista.length === 0
                           ? 'Nenhum checkpoint cadastrado. Clique em "Cadastrar checkpoint" e informe o MAC da placa.'
                           : doBuffet.length === 0
@@ -321,6 +356,17 @@ export default function MasterCheckpoints() {
                     </tr>
                   ) : visiveis.map((cp) => (
                     <tr key={cp.id} className="hover:bg-surface/50 transition-colors">
+                      <td className="py-3 pr-2">
+                        {cp.statusTransferencia === 'estoque' && (
+                          <input
+                            type="checkbox"
+                            checked={selecionados.has(cp.id)}
+                            onChange={() => alternarUm(cp.id)}
+                            aria-label={`Selecionar ${cp.nome}`}
+                            className="h-4 w-4 cursor-pointer accent-primary"
+                          />
+                        )}
+                      </td>
                       <td className="py-3 pr-4">
                         <p className="text-sm font-semibold text-white">{cp.nome}</p>
                         <p className="text-xs text-gray-400">
@@ -354,7 +400,7 @@ export default function MasterCheckpoints() {
                         <div className="flex items-center gap-1">
                           {cp.statusTransferencia === 'estoque' && (
                             <button
-                              onClick={() => { setTransferindo(cp); setDestino(''); setBuscaDestino(''); }}
+                              onClick={() => abrirEnvio([cp])}
                               className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-surface transition-colors"
                               title="Transferir para um buffet" aria-label={`Transferir ${cp.nome}`}
                             >
@@ -465,57 +511,18 @@ export default function MasterCheckpoints() {
       <Modal
         isOpen={transferindo !== null}
         onClose={() => setTransferindo(null)}
-        title={transferindo ? `Transferir: ${transferindo.nome}` : 'Transferir'}
+        title={transferindo ? (transferindo.length === 1 ? `Transferir: ${transferindo[0].nome}` : `Transferir ${transferindo.length} checkpoints`) : 'Transferir'}
         size="md"
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-400">
-            O checkpoint passa a ser do buffet escolhido na hora. O admin do buffet define o número e o evento depois.
+            {transferindo && transferindo.length > 1 ? 'Os checkpoints passam' : 'O checkpoint passa'} a ser do buffet escolhido na hora. O admin do buffet define o número e o evento depois.
           </p>
-          <div>
-            <label htmlFor="mc-destino" className="mb-1.5 block text-sm font-body font-semibold text-gray-300">Buffet</label>
-            <Input
-              id="mc-destino"
-              autoFocus
-              autoComplete="off"
-              placeholder="Digite o nome ou a cidade do buffet"
-              value={buscaDestino}
-              onChange={(e) => setBuscaDestino(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && buffetsFiltrados.length > 0) {
-                  e.preventDefault();
-                  setDestino(buffetsFiltrados[0].empresaId);
-                }
-              }}
-            />
-            <ul role="listbox" aria-label="Buffets" className="mt-2 max-h-60 overflow-y-auto rounded-lg border border-white/10 bg-dark-card/60">
-              {buffetsFiltrados.map((b) => {
-                const escolhido = b.empresaId === destino;
-                return (
-                  <li key={b.empresaId} role="option" aria-selected={escolhido}>
-                    <button
-                      type="button"
-                      onClick={() => setDestino(b.empresaId)}
-                      className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition-colors ${escolhido ? 'bg-primary/20 text-white' : 'text-gray-300 hover:bg-white/5'}`}
-                    >
-                      <span className="truncate font-semibold">{b.nome}</span>
-                      <span className="shrink-0 text-xs text-gray-500">{b.cidade ? `${b.cidade}${b.estado ? `/${b.estado}` : ''}` : ''}</span>
-                    </button>
-                  </li>
-                );
-              })}
-              {buffetsFiltrados.length === 0 && <li className="px-3 py-4 text-center text-sm text-gray-500">Nenhum buffet encontrado</li>}
-            </ul>
-            {destino && (
-              <p className="mt-2 text-xs text-gray-400">
-                Enviar para: <strong className="text-white">{buffets.find((b) => b.empresaId === destino)?.nome}</strong>
-              </p>
-            )}
-          </div>
+          <SeletorDeBuffet id="mc-destino" buffets={buffets} valor={destino} onChange={setDestino} />
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="ghost" onClick={() => setTransferindo(null)}>Cancelar</Button>
             <Button variant="primary" onClick={transferir} disabled={ocupado || !destino}>
-              {ocupado ? 'Transferindo...' : 'Transferir'}
+              {ocupado ? 'Transferindo...' : transferindo && transferindo.length > 1 ? `Transferir ${transferindo.length}` : 'Transferir'}
             </Button>
           </div>
         </div>

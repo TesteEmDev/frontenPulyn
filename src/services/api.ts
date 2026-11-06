@@ -158,6 +158,45 @@ async function pedirMasterCheckpoints<T>(caminho: string, init: RequestInit = {}
   return data as T;
 }
 
+// Pulseiras: estoque do master e envio aos buffets (/master/pulseiras), aceite e devolução pelo admin (/pulseiras/recebimento)
+export interface PulseiraDoEstoque {
+  codigo: string;
+  statusTransferencia: 'estoque' | 'pendente';
+  empresaDestinoId: string | null;
+  empresaDestinoNome: string | null;
+  enviadoEm: string | null;
+  criadoEm: string;
+}
+export interface ResumoDePulseiras {
+  estoque: number;
+  pendentes: number;
+  buffets: { empresaId: string; nome: string; enviadas: number; aceitas: number; recusadas: number; devolvidas: number; pendentes: number; emPosse: number }[];
+}
+export interface MovimentoDePulseira {
+  codigo: string;
+  tipo: 'enviada' | 'aceita' | 'recusada' | 'devolvida';
+  criadoEm: string;
+  porNome: string | null;
+  buffetNome: string | null;
+}
+export interface PulseiraRecebida {
+  codigo: string;
+  status: string;
+  recebidoDoMasterEm: string;
+  emUso: boolean;
+}
+
+async function pedirJson<T>(url: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(url, { ...init, headers: getAuthHeaders() });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error || `Erro ${res.status}`);
+  return data as T;
+}
+const enviarCodigos = (codigos: string[], extra: Record<string, unknown> = {}): RequestInit => ({
+  method: 'POST',
+  body: JSON.stringify({ codigos, ...extra }),
+});
+
 // Chamada às rotas de recebimento: devolve o JSON ou lança o erro com a mensagem que a API mandou.
 async function pedirRecebimento<T>(caminho: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}/pontoVerificacao/recebimento${caminho}`, { ...init, headers: getAuthHeaders() });
@@ -1958,6 +1997,53 @@ export const api = {
 
   masterTransferirCheckpoint(id: number, empresaId: string) {
     return pedirMasterCheckpoints<CheckpointMaster>(`/${id}/transferir`, { method: 'POST', body: JSON.stringify({ empresaId }) });
+  },
+
+  masterTransferirCheckpointsLote(ids: number[], empresaId: string) {
+    return pedirMasterCheckpoints<{ transferidos: number[]; ignorados: number[]; empresaNome: string }>(
+      '/transferir-lote', { method: 'POST', body: JSON.stringify({ ids, empresaId }) });
+  },
+
+  // ---- Pulseiras do master ----
+  masterGetPulseiras() {
+    return pedirJson<PulseiraDoEstoque[]>(`${API_URL}/master/pulseiras`);
+  },
+  masterAdicionarPulseiras(codigos: string[]) {
+    return pedirJson<{ adicionadas: string[]; jaNoEstoque: string[]; invalidos: string[]; jaComBuffet: string[] }>(
+      `${API_URL}/master/pulseiras`, enviarCodigos(codigos));
+  },
+  masterEnviarPulseiras(codigos: string[], empresaId: string) {
+    return pedirJson<{ enviadas: string[]; ignoradas: string[]; empresaNome: string }>(
+      `${API_URL}/master/pulseiras/enviar`, enviarCodigos(codigos, { empresaId }));
+  },
+  masterCancelarEnvioDePulseiras(codigos: string[]) {
+    return pedirJson<{ canceladas: string[] }>(`${API_URL}/master/pulseiras/cancelar-envio`, enviarCodigos(codigos));
+  },
+  masterRemoverPulseiras(codigos: string[]) {
+    return pedirJson<{ removidas: string[] }>(`${API_URL}/master/pulseiras/remover`, enviarCodigos(codigos));
+  },
+  masterResumoDePulseiras() {
+    return pedirJson<ResumoDePulseiras>(`${API_URL}/master/pulseiras/resumo`);
+  },
+  masterHistoricoDePulseiras() {
+    return pedirJson<MovimentoDePulseira[]>(`${API_URL}/master/pulseiras/historico?limit=100`);
+  },
+
+  // ---- Pulseiras recebidas do master (admin do buffet) ----
+  pulseirasPendentes() {
+    return pedirJson<{ codigo: string; enviadoEm: string }[]>(`${API_URL}/pulseiras/recebimento/pendentes`);
+  },
+  pulseirasRecebidasDoMaster() {
+    return pedirJson<PulseiraRecebida[]>(`${API_URL}/pulseiras/recebimento/recebidas`);
+  },
+  aceitarPulseiras(codigos: string[]) {
+    return pedirJson<{ aceitas: string[]; ignoradas: string[] }>(`${API_URL}/pulseiras/recebimento/aceitar`, enviarCodigos(codigos));
+  },
+  recusarPulseiras(codigos: string[]) {
+    return pedirJson<{ recusadas: string[] }>(`${API_URL}/pulseiras/recebimento/recusar`, enviarCodigos(codigos));
+  },
+  devolverPulseiras(codigos: string[]) {
+    return pedirJson<{ devolvidas: string[]; ignoradas: string[] }>(`${API_URL}/pulseiras/recebimento/devolver`, enviarCodigos(codigos));
   },
 
   masterExcluirCheckpoint(id: number) {
