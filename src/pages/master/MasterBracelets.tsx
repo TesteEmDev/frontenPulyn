@@ -316,7 +316,7 @@ export default function MasterBracelets() {
                 </Button>
               </div>
             </div>
-            <div className="max-h-[28rem] overflow-y-auto overflow-x-auto">
+            <div className="max-h-[30rem] overflow-y-auto overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="sticky top-0 bg-dark-card">
                   <tr className="border-b border-border">
@@ -437,7 +437,7 @@ export default function MasterBracelets() {
               </div>
             )}
 
-            <div className="max-h-[28rem] overflow-y-auto overflow-x-auto">
+            <div className="max-h-[30rem] overflow-y-auto overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="sticky top-0 bg-dark-card">
                   <tr className="border-b border-border">
