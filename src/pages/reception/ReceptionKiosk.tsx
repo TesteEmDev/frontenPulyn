@@ -107,6 +107,9 @@ interface KioskProfile {
   apelido: string;
   idade: number | null;
   avatar: string;
+  // Já cadastrada neste evento pela recepção (check-in), só falta a pulseira
+  jaNoEvento?: boolean;
+  cor?: string | null;
 }
 
 type KioskState = 'waiting' | 'reading' | 'ready' | 'saving' | 'success' | 'error';
@@ -216,12 +219,16 @@ export default function ReceptionKioskOtimizado() {
   }, [selectedEventId, carregarAvatares]);
   useEffect(() => {
     // O avatar do formulário é de outro participante do evento (a lista mudou, o evento mudou ou o formulário foi zerado): troca por um livre
+    // Quem já foi cadastrado neste evento pela recepção mantém o próprio avatar (a lista de "em uso" inclui o dele)
+    if (selectedProfile?.jaNoEvento) return;
     if (avataresEmUso.includes(form.avatar)) setForm(prev => ({ ...prev, avatar: primeiroAvatarLivre(avataresEmUso) }));
-  }, [avataresEmUso, form.avatar]);
+  }, [avataresEmUso, form.avatar, selectedProfile]);
   useEffect(() => {
     // Mesma regra para a cor
+    // A cor de quem já foi cadastrado neste evento é dele mesmo, mesmo aparecendo na lista de cores em uso
+    if (selectedProfile?.jaNoEvento) return;
     if (coresEmUso.some(cor => cor.toUpperCase() === form.cor.toUpperCase())) setForm(prev => ({ ...prev, cor: primeiraCorLivre(coresEmUso) }));
-  }, [coresEmUso, form.cor]);
+  }, [coresEmUso, form.cor, selectedProfile]);
 
   // RESET KIOSK OTIMIZADO
   const resetKiosk = useCallback(() => {
@@ -1046,10 +1053,10 @@ export default function ReceptionKioskOtimizado() {
                               onChange={handleAvatarChange}
                               disabled={!canInteract || state === 'saving'}
                               wide
-                              indisponiveis={avataresEmUso}
+                              indisponiveis={selectedProfile?.jaNoEvento ? avataresEmUso.filter(id => id !== profileAvatar(selectedProfile.avatar)) : avataresEmUso}
                             />
                             <p className="mb-2 mt-4 text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">E a sua cor?</p>
-                            <CorSelector value={form.cor} onChange={handleCorChange} disabled={!canInteract || state === 'saving'} indisponiveis={coresEmUso} />
+                            <CorSelector value={form.cor} onChange={handleCorChange} disabled={!canInteract || state === 'saving'} indisponiveis={selectedProfile?.jaNoEvento && selectedProfile.cor ? coresEmUso.filter(c => c.toUpperCase() !== String(selectedProfile.cor).toUpperCase()) : coresEmUso} />
                           </div>
                           <button
                             type="button"
@@ -1073,8 +1080,9 @@ export default function ReceptionKioskOtimizado() {
                                     type="button"
                                     onClick={() => {
                                       setSelectedProfile(profile);
-                                      // Se outro participante já usa o avatar do cadastro, a criança começa com um livre
-                                      setForm(prev => ({ ...prev, avatar: avataresEmUso.includes(profileAvatar(profile.avatar)) ? primeiroAvatarLivre(avataresEmUso) : profileAvatar(profile.avatar) }));
+                                      // Se outro participante já usa o avatar do cadastro, a criança começa com um livre.
+                                      // Quem já foi cadastrada neste evento mantém o próprio avatar (ele aparece "em uso" por ela mesma).
+                                      setForm(prev => ({ ...prev, ...(profile.jaNoEvento && profile.cor ? { cor: profile.cor } : {}), avatar: !profile.jaNoEvento && avataresEmUso.includes(profileAvatar(profile.avatar)) ? primeiroAvatarLivre(avataresEmUso) : profileAvatar(profile.avatar) }));
                                     }}
                                     disabled={!canInteract}
                                     className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-[#120a27]/70 p-2.5 text-left transition hover:border-fuchsia-300/50 hover:bg-fuchsia-300/10 active:scale-[0.99]"
@@ -1089,6 +1097,9 @@ export default function ReceptionKioskOtimizado() {
                                       <p className="truncate text-sm text-gray-400">
                                         {profile.nomeExibicao}{profile.idade ? ` • ${profile.idade} anos` : ''}
                                       </p>
+                                      {profile.jaNoEvento && (
+                                        <p className="truncate text-xs font-semibold text-fuchsia-300">Cadastrado na recepção · falta a pulseira</p>
+                                      )}
                                     </div>
                                     <span className="text-xl text-fuchsia-300" aria-hidden="true">›</span>
                                   </button>
