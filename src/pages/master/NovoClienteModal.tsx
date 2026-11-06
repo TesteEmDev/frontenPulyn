@@ -155,7 +155,7 @@ export default function NovoClienteModal({ isOpen, onClose, onCreated }: Props) 
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={fechar} title={criado ? 'Cliente criado' : 'Novo cliente'} size="lg">
+    <Modal isOpen={isOpen} onClose={fechar} title={criado ? 'Cliente criado' : 'Novo cliente'} size={criado ? 'lg' : '2xl'}>
       {criado ? (
         <div className="space-y-5">
           <div className="flex items-start gap-3 rounded-xl border border-success/30 bg-success/10 p-4">
@@ -191,6 +191,8 @@ export default function NovoClienteModal({ isOpen, onClose, onCreated }: Props) 
             Todos os campos são obrigatórios. Estes dados ficam fixos no cadastro: o buffet os vê em Configurações, mas não consegue alterá-los.
           </p>
 
+          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-4">
           <Secao icone={<Building2 size={14} />} titulo="Dados do buffet">
             <Input label="Nome do buffet" value={form.nome} onChange={(e) => mudar('nome', e.target.value)} placeholder="Ex.: Buffet Feliz" maxLength={100} error={erros.nome} />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -206,9 +208,11 @@ export default function NovoClienteModal({ isOpen, onClose, onCreated }: Props) 
               <Input label="UF" value={form.estado} onChange={(e) => mudar('estado', e.target.value.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase())} placeholder="SP" maxLength={2} error={erros.estado} />
             </div>
           </Secao>
+          </div>
 
+          <div className="space-y-4">
           <Secao icone={<Layers size={14} />} titulo="Plano">
-            <div role="radiogroup" aria-label="Plano" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div role="radiogroup" aria-label="Plano" className="grid grid-cols-2 gap-2">
               {PLANOS_SELECIONAVEIS.map((opcao) => {
                 const ativo = plano === opcao.value;
                 return (
@@ -253,6 +257,8 @@ export default function NovoClienteModal({ isOpen, onClose, onCreated }: Props) 
               <p className="mt-1.5 text-xs text-gray-500">O cliente é obrigado a trocar esta senha no primeiro acesso.</p>
             </div>
           </Secao>
+          </div>
+          </div>
 
           {erroGeral && <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{erroGeral}</p>}
 
