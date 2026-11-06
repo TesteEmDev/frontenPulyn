@@ -182,6 +182,7 @@ export default function AdminCheckpoints() {
                 status: cp.status,
                 eventoId: null,
                 evento_name: null,
+                ultimo_evento_name: cp.ultimoEventoNome ?? null,
               })),
           ];
         } else {
@@ -486,11 +487,17 @@ export default function AdminCheckpoints() {
                         {isAllEvents && (
                           <td className="py-3 pr-4">
                             {cp.macAddress && !cp.eventoId ? (
-                              <AtribuirEvento
-                                events={events}
-                                nomeCheckpoint={cp.name}
-                                onAtribuir={(eventoId) => colocarNoEvento(cp, eventoId)}
-                              />
+                              <div className="space-y-1">
+                                <AtribuirEvento
+                                  events={events}
+                                  nomeCheckpoint={cp.name}
+                                  onAtribuir={(eventoId) => colocarNoEvento(cp, eventoId)}
+                                />
+                                {/* Livre: entra sozinho no próximo evento que começar, se estiver ligado */}
+                                <p className="text-xs text-gray-500">
+                                  Último evento: <span className="text-gray-300">{cp.ultimo_evento_name || 'nenhum ainda'}</span>
+                                </p>
+                              </div>
                             ) : (
                               <p className="text-sm text-gray-300">{cp.evento_name || '-'}</p>
                             )}

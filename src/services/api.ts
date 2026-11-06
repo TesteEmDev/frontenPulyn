@@ -109,6 +109,8 @@ export interface CheckpointRecebido {
   statusTransferencia?: 'estoque' | 'aceito';
   eventoId?: string | null;
   eventoNome?: string | null;
+  // Último evento em que esteve (livre agora, entra no próximo evento que começar se estiver ligado)
+  ultimoEventoNome?: string | null;
   transferidoEm?: string | null;
   zona?: string | null;
   pontos?: number | null;
