@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  Users, Settings, X, UserPlus, Loader2, Eye, EyeOff
+  Users, Settings, X, UserPlus, Loader2, Eye, EyeOff, Wand2, Check
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
@@ -12,7 +12,6 @@ import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
-import Select from '../../components/ui/Select';
 import StatusDot from '../../components/ui/StatusDot';
 import Modal from '../../components/ui/Modal';
 
@@ -40,6 +39,21 @@ const roleConfig: Record<UserRole, { label: string; description: string; variant
 
 const USUARIOS_POR_PAGINA = 10;
 
+// Papéis ao criar um usuário: o principal (o que ele abre ao entrar) e os extras que ele também pode usar.
+const GRUPOS_DE_PAPEL: { titulo: string; papeis: UserRole[] }[] = [
+  { titulo: 'Equipe', papeis: ['admin', 'reception', 'game_master'] },
+  { titulo: 'Equipamentos', papeis: ['display', 'kiosk', 'score_kiosk'] },
+  { titulo: 'Famílias', papeis: ['family'] },
+];
+const MINIMO_SENHA = 6;
+// Sem caracteres que se confundem (0/O, 1/l/I), para a senha poder ser ditada ou digitada sem erro
+const ALFABETO_SENHA = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const gerarSenha = (tamanho = 10) => {
+  const sorteio = new Uint32Array(tamanho);
+  crypto.getRandomValues(sorteio);
+  return Array.from(sorteio, (n) => ALFABETO_SENHA[n % ALFABETO_SENHA.length]).join('');
+};
+
 // Só a equipe acumula áreas (mesma regra do backend, utils/papeis.js).
 const PAPEIS_ACUMULAVEIS: UserRole[] = ['admin', 'reception', 'game_master'];
 
@@ -66,8 +80,12 @@ export default function AdminUsers() {
   const [newUser, setNewUser] = useState({
     username: '',
     password: '',
+    confirmPassword: '',
     role: 'reception' as UserRole,
+    // Áreas extras (só contas da equipe acumulam áreas)
+    extras: [] as UserRole[],
   });
+  const [senhaCriada, setSenhaCriada] = useState<string | null>(null);
 
   // Paginação da lista (a API devolve todos os usuários do buffet; a paginação é no navegador)
   const [pagina, setPagina] = useState(1);
@@ -152,14 +170,38 @@ export default function AdminUsers() {
 
   const closeAddModal = () => {
     setShowAddModal(false);
-    setNewUser({ username: '', password: '', role: 'reception' });
+    setNewUser({ username: '', password: '', confirmPassword: '', role: 'reception', extras: [] });
     setModalError(null);
     setShowPassword(false);
+    setSenhaCriada(null);
   };
 
+  // Trocar o papel principal: o extra que virou principal sai da lista, e perfis que não acumulam ficam sem extras
+  const escolherPapelPrincipal = (role: UserRole) =>
+    setNewUser(prev => ({
+      ...prev,
+      role,
+      extras: PAPEIS_ACUMULAVEIS.includes(role) && role !== 'admin' ? prev.extras.filter(extra => extra !== role) : [],
+    }));
+  const alternarExtra = (role: UserRole) =>
+    setNewUser(prev => ({ ...prev, extras: prev.extras.includes(role) ? prev.extras.filter(extra => extra !== role) : [...prev.extras, role] }));
+
+  const regrasDaSenha = [
+    { ok: newUser.password.length >= MINIMO_SENHA, texto: `Pelo menos ${MINIMO_SENHA} caracteres` },
+    { ok: newUser.password.length > 0 && newUser.password === newUser.confirmPassword, texto: 'As duas senhas conferem' },
+  ];
+  const senhaValida = regrasDaSenha.every(regra => regra.ok);
+  // O admin já acessa todas as áreas do buffet, então não há extras a escolher para ele
+  const aceitaExtras = PAPEIS_ACUMULAVEIS.includes(newUser.role) && newUser.role !== 'admin';
+  const extrasPossiveis = PAPEIS_ACUMULAVEIS.filter(role => role !== newUser.role);
+
   const handleAddUser = async () => {
-    if (!newUser.username || !newUser.password || !user?.empresaId) {
-      setModalError('Preencha o usuário, a senha e selecione um perfil.');
+    if (!newUser.username || !user?.empresaId) {
+      setModalError('Informe o usuário (a parte do e-mail antes do @).');
+      return;
+    }
+    if (!newUser.password) {
+      setModalError('A senha é obrigatória. Digite uma ou use o botão Gerar.');
       return;
     }
 
@@ -173,8 +215,12 @@ export default function AdminUsers() {
       return;
     }
 
-    if (newUser.password.length < 6) {
-      setModalError('Senha deve ter no mínimo 6 caracteres.');
+    if (newUser.password.length < MINIMO_SENHA) {
+      setModalError(`A senha precisa ter no mínimo ${MINIMO_SENHA} caracteres.`);
+      return;
+    }
+    if (newUser.password !== newUser.confirmPassword) {
+      setModalError('As duas senhas não conferem.');
       return;
     }
 
@@ -182,16 +228,18 @@ export default function AdminUsers() {
     setModalError(null);
 
     try {
-      const createdUser = await api.createUser({
+      await api.createUser({
         email: `${newUser.username}@${emailDomain}`,
         senha: newUser.password,
         role: newUser.role,
+        papeis: aceitaExtras ? newUser.extras : [],
         empresaId: user.empresaId
       });
 
-      setUsers(prev => [...prev, createdUser]);
-      closeAddModal();
-      
+      // Mostra o acesso criado para passar à pessoa e relê a lista (o retorno da criação não tem o formato das linhas)
+      setSenhaCriada(newUser.password);
+      void loadUsers(true);
+
     } catch (err: any) {
       console.error('❌ Erro ao criar usuário:', err);
       setModalError(err.message || 'Erro ao criar usuário. Tente novamente.');
@@ -431,98 +479,204 @@ export default function AdminUsers() {
           <Modal
             isOpen={showAddModal}
             onClose={closeAddModal}
-            title="Criar Novo Usuário"
+            title={senhaCriada ? 'Usuário criado' : 'Criar Novo Usuário'}
+            size="xl"
           >
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="new-user-username" className="mb-1.5 block text-sm font-body font-semibold text-gray-300">
-                  E-mail de acesso *
-                </label>
-                <div className="flex items-stretch rounded-xl border border-white/[0.10] bg-dark-card transition-all duration-200 focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500/15">
-                  <input
-                    id="new-user-username"
-                    value={newUser.username}
-                    onChange={e => setNewUser(prev => ({ ...prev, username: sanitizeUsername(e.target.value) }))}
-                    placeholder="recreacionista"
-                    autoComplete="off"
-                    autoCapitalize="none"
-                    spellCheck={false}
-                    maxLength={64}
-                    aria-describedby="new-user-email-preview"
-                    className="min-w-0 flex-1 rounded-l-xl bg-transparent px-3.5 py-3 font-body text-white placeholder-gray-500 focus:outline-none"
-                  />
-                  <span className="flex shrink-0 items-center rounded-r-xl border-l border-white/[0.10] bg-white/[0.04] px-3.5 font-body text-sm text-gray-300">
-                    {emailDomain === undefined ? 'carregando...' : emailDomain ? `@${emailDomain}` : '@—'}
-                  </span>
+            {senhaCriada ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-success/30 bg-success/10 p-4">
+                  <p className="font-semibold text-white">{newUser.username}@{emailDomain} foi criado</p>
+                  <p className="mt-1 text-sm text-gray-300">Passe o acesso abaixo para a pessoa. A senha não aparece de novo depois que você fechar esta janela.</p>
                 </div>
-                <p id="new-user-email-preview" className="mt-1.5 break-all text-xs text-gray-500">
-                  {emailDomain === null
-                    ? 'Defina o nome da unidade em Configurações para gerar o e-mail dos usuários.'
-                    : newUser.username && emailDomain
-                    ? `O usuário entrará com ${newUser.username}@${emailDomain}`
-                    : 'O domínio vem do nome da unidade, sem espaços. Digite só o início do e-mail.'}
-                </p>
+                <dl className="space-y-3 rounded-xl border border-white/10 bg-black/20 p-4">
+                  <div>
+                    <dt className="text-xs uppercase tracking-wider text-gray-500">E-mail (login)</dt>
+                    <dd className="font-mono text-white">{newUser.username}@{emailDomain}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-wider text-gray-500">Senha</dt>
+                    <dd className="font-mono text-lg text-white">{senhaCriada}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-wider text-gray-500">Papéis</dt>
+                    <dd className="text-white">
+                      {roleConfig[newUser.role].label}
+                      {aceitaExtras && newUser.extras.length > 0 && <span className="text-gray-300"> + {newUser.extras.map(extra => roleConfig[extra].label).join(', ')}</span>}
+                    </dd>
+                  </div>
+                </dl>
+                <div className="flex justify-end">
+                  <Button variant="primary" onClick={closeAddModal}>Concluir</Button>
+                </div>
               </div>
-              
-              <div className="relative">
-                <Input
-                  label="Senha *"
-                  placeholder="Mínimo 6 caracteres"
-                  type={showPassword ? 'text' : 'password'}
-                  value={newUser.password}
-                  onChange={e => setNewUser(prev => ({ ...prev, password: e.target.value }))}
-                />
-                <button
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-10 text-gray-400 hover:text-white"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
+            ) : (
+              <div className="space-y-5">
+                <div className="grid gap-5 lg:grid-cols-2">
+                  {/* Acesso */}
+                  <fieldset className="space-y-4 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+                    <legend className="px-1 text-xs font-bold uppercase tracking-wider text-primary-300">Acesso</legend>
+                    <div>
+                      <label htmlFor="new-user-username" className="mb-1.5 block text-sm font-body font-semibold text-gray-300">
+                        E-mail de acesso *
+                      </label>
+                      <div className="flex items-stretch rounded-xl border border-white/[0.10] bg-dark-card transition-all duration-200 focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500/15">
+                        <input
+                          id="new-user-username"
+                          value={newUser.username}
+                          onChange={e => setNewUser(prev => ({ ...prev, username: sanitizeUsername(e.target.value) }))}
+                          placeholder="recreacionista"
+                          autoComplete="off"
+                          autoCapitalize="none"
+                          spellCheck={false}
+                          maxLength={64}
+                          aria-describedby="new-user-email-preview"
+                          className="min-w-0 flex-1 rounded-l-xl bg-transparent px-3.5 py-3 font-body text-white placeholder-gray-500 focus:outline-none"
+                        />
+                        <span className="flex shrink-0 items-center rounded-r-xl border-l border-white/[0.10] bg-white/[0.04] px-3.5 font-body text-sm text-gray-300">
+                          {emailDomain === undefined ? 'carregando...' : emailDomain ? `@${emailDomain}` : '@—'}
+                        </span>
+                      </div>
+                      <p id="new-user-email-preview" className="mt-1.5 break-all text-xs text-gray-500">
+                        {emailDomain === null
+                          ? 'Defina o nome da unidade em Configurações para gerar o e-mail dos usuários.'
+                          : newUser.username && emailDomain
+                          ? `O usuário entrará com ${newUser.username}@${emailDomain}`
+                          : 'O domínio vem do nome da unidade, sem espaços. Digite só o início do e-mail.'}
+                      </p>
+                    </div>
 
-              <Select
-                label="Perfil *"
-                options={Object.entries(roleConfig).map(([key, val]) => ({
-                  value: key,
-                  label: `${val.label} - ${val.description}`,
-                }))}
-                value={newUser.role}
-                onChange={e => setNewUser(prev => ({ ...prev, role: e.target.value as UserRole }))}
-              />
+                    <div>
+                      <div className="flex items-end gap-2">
+                        <div className="min-w-0 flex-1">
+                          <Input
+                            label="Senha *"
+                            placeholder={`Mínimo ${MINIMO_SENHA} caracteres`}
+                            type={showPassword ? 'text' : 'password'}
+                            autoComplete="new-password"
+                            value={newUser.password}
+                            onChange={e => setNewUser(prev => ({ ...prev, password: e.target.value }))}
+                          />
+                        </div>
+                        <Button type="button" variant="ghost" className="mb-0.5 border border-border" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'} title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
+                          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="mb-0.5 border border-border"
+                          onClick={() => { const nova = gerarSenha(); setNewUser(prev => ({ ...prev, password: nova, confirmPassword: nova })); setShowPassword(true); }}
+                        >
+                          <Wand2 size={16} className="mr-1.5" />
+                          Gerar
+                        </Button>
+                      </div>
+                    </div>
+                    <Input
+                      label="Repita a senha *"
+                      placeholder="Digite a senha de novo"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      value={newUser.confirmPassword}
+                      onChange={e => setNewUser(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                    />
+                    <ul className="space-y-1" aria-live="polite">
+                      {regrasDaSenha.map(regra => (
+                        <li key={regra.texto} className={`flex items-center gap-2 text-xs ${regra.ok ? 'text-success' : 'text-gray-500'}`}>
+                          <Check size={13} className={regra.ok ? 'opacity-100' : 'opacity-30'} />
+                          {regra.texto}
+                        </li>
+                      ))}
+                    </ul>
+                  </fieldset>
 
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-                <p className="text-xs text-blue-200">
-                  💡 <strong>Dica:</strong> Escolha o perfil baseado na função:
-                </p>
-              </div>
+                  {/* Papéis */}
+                  <fieldset className="space-y-4 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+                    <legend className="px-1 text-xs font-bold uppercase tracking-wider text-primary-300">Papel principal *</legend>
+                    <p className="text-xs text-gray-500">É a área que abre quando a pessoa entra no sistema.</p>
+                    <div className="space-y-3">
+                      {GRUPOS_DE_PAPEL.map(grupo => (
+                        <div key={grupo.titulo}>
+                          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">{grupo.titulo}</p>
+                          <div role="radiogroup" aria-label={`Papel principal: ${grupo.titulo}`} className="grid gap-1.5 sm:grid-cols-2">
+                            {grupo.papeis.map(role => {
+                              const ativo = newUser.role === role;
+                              return (
+                                <button
+                                  key={role}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={ativo}
+                                  onClick={() => escolherPapelPrincipal(role)}
+                                  className={`rounded-lg border px-3 py-2 text-left transition-colors ${ativo ? 'border-primary bg-primary/15' : 'border-white/10 bg-white/[0.03] hover:border-white/25'}`}
+                                >
+                                  <span className="block text-sm font-semibold text-white">{roleConfig[role].label}</span>
+                                  <span className="block text-xs text-gray-400">{roleConfig[role].description}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </fieldset>
+                </div>
 
-              {modalError && (
-                <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-                  {modalError}
-                </p>
-              )}
-
-              <div className="flex justify-end gap-2 pt-2">
-                <Button 
-                  variant="ghost" 
-                  onClick={closeAddModal}
-                  disabled={submitting}
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  variant="primary" 
-                  onClick={handleAddUser}
-                  disabled={!newUser.username || !newUser.password || !emailDomain || submitting}
-                >
-                  {submitting ? (
-                    <><Loader2 size={16} className="mr-2 animate-spin" /> Criando...</>
+                {/* Extras */}
+                <fieldset className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+                  <legend className="px-1 text-xs font-bold uppercase tracking-wider text-primary-300">Papéis extras (opcional)</legend>
+                  {newUser.role === 'admin' ? (
+                    <p className="text-sm text-gray-400">O administrador já acessa todas as áreas do buffet, então não há extras para escolher.</p>
+                  ) : !aceitaExtras ? (
+                    <p className="text-sm text-gray-400">{roleConfig[newUser.role].label} é um acesso próprio e não acumula outras áreas.</p>
                   ) : (
-                    'Criar Usuário'
+                    <>
+                      <p className="mb-2 text-xs text-gray-500">Além de {roleConfig[newUser.role].label}, a pessoa também poderá abrir estas áreas (aparecem em "Outras áreas" no menu).</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {extrasPossiveis.map(role => {
+                          const marcado = newUser.extras.includes(role);
+                          return (
+                            <label key={role} className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 transition-colors ${marcado ? 'border-primary bg-primary/10' : 'border-white/10 bg-white/[0.03] hover:border-white/25'}`}>
+                              <input type="checkbox" checked={marcado} onChange={() => alternarExtra(role)} className="mt-1 h-4 w-4 cursor-pointer accent-primary" />
+                              <span>
+                                <span className="block text-sm font-semibold text-white">{roleConfig[role].label}</span>
+                                <span className="block text-xs text-gray-400">{roleConfig[role].description}</span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </>
                   )}
-                </Button>
+                  <p className="mt-3 text-xs text-gray-400">
+                    Resumo: entra como <strong className="text-white">{roleConfig[newUser.role].label}</strong>
+                    {newUser.role === 'admin' ? ' com acesso a todas as áreas' : aceitaExtras && newUser.extras.length > 0 ? <> e também poderá usar <strong className="text-white">{newUser.extras.map(extra => roleConfig[extra].label).join(', ')}</strong></> : ' e só poderá usar esta área'}.
+                  </p>
+                </fieldset>
+
+                {modalError && (
+                  <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                    {modalError}
+                  </p>
+                )}
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button variant="ghost" onClick={closeAddModal} disabled={submitting}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleAddUser}
+                    disabled={!newUser.username || !senhaValida || !emailDomain || submitting}
+                  >
+                    {submitting ? (
+                      <><Loader2 size={16} className="mr-2 animate-spin" /> Criando...</>
+                    ) : (
+                      'Criar Usuário'
+                    )}
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
           </Modal>
         </main>
       </div>
