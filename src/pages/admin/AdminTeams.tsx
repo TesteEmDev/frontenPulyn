@@ -167,16 +167,17 @@ export default function AdminTeams() {
     try {
       if (editingId) {
         await api.updateTime(editingId, { nome: name, color });
-        setVisibleTeams(prev => prev.map(t => (t.timeId === editingId ? { ...t, name, color } : t)));
+        setVisibleTeams(prev => prev.map(t => (t.timeId === editingId ? { ...t, nome: name, cor: color } : t)));
         setNotice(`Time "${name}" atualizado.`);
       } else {
-        const createdTeam = await api.createTime({
+        await api.createTime({
           nome: name,
           color,
           eventoId: asDefault ? undefined : selectedEventId,
         });
-        if (asDefault) setDefaultTeams(prev => [...prev, createdTeam]);
-        else setTeamsList(prev => [...prev, createdTeam]);
+        // Relê a lista: a resposta da criação vem com outros nomes de campo (id/color) que a tabela não usa
+        if (asDefault) setDefaultTeams(await api.getDefaultTimes());
+        else await loadTeams(true);
         // Mostra o time recém-criado na aba onde ele mora.
         setScope(asDefault ? 'default' : 'event');
         setNotice(asDefault
