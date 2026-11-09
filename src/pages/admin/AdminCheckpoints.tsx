@@ -36,6 +36,10 @@ export default function AdminCheckpoints() {
   const [events, setEvents] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [checkpointsList, setCheckpointsList] = useState<any[]>([]);
+  // Finalidade dos checkpoints mostrados: jogo, recepção ou todos
+  const [filtroFinalidade, setFiltroFinalidade] = useState<'todos' | 'game' | 'reception'>('todos');
+  const ehRecepcao = (cp: any) => String(cp?.proposito || 'game').toLowerCase() === 'reception';
+  const checkpointsVisiveis = checkpointsList.filter((cp) => filtroFinalidade === 'todos' || (filtroFinalidade === 'reception') === ehRecepcao(cp));
   // Sobe quando um checkpoint recebido entra num evento, para a lista recarregar.
   const [recarregar, setRecarregar] = useState(0);
 
@@ -154,7 +158,7 @@ export default function AdminCheckpoints() {
           // Cada checkpoint leva o evento a que pertence (para a coluna Evento e para editar/excluir)
           const [lists, semEvento] = await Promise.all([
             Promise.all(events.map((event) =>
-              api.getCheckpoints(event.eventoId)
+              api.getCheckpoints(event.eventoId, { todos: true })
                 .then((list: any[]) => (list || []).map((cp) => ({
                   ...cp,
                   eventoId: cp.eventoId ?? event.eventoId,
@@ -168,7 +172,6 @@ export default function AdminCheckpoints() {
           data = [
             ...lists.flat(),
             ...semEvento
-              .filter((cp) => String(cp.proposito || 'game').toLowerCase() !== 'reception')
               .map((cp) => ({
                 id: cp.checkpointId,
                 checkpointId: cp.checkpointId,
@@ -180,13 +183,14 @@ export default function AdminCheckpoints() {
                 zone: cp.zona,
                 points: cp.pontos,
                 status: cp.status,
+                proposito: cp.proposito || 'game',
                 eventoId: null,
                 evento_name: null,
                 ultimo_evento_name: cp.ultimoEventoNome ?? null,
               })),
           ];
         } else {
-          data = await api.getCheckpoints(selectedEventId);
+          data = await api.getCheckpoints(selectedEventId, { todos: true });
         }
         if (disposed) return;
         console.log('📍 Checkpoints carregados:', data);
@@ -444,9 +448,25 @@ export default function AdminCheckpoints() {
                   </option>
                 ))}
               </select>
+              <div className="flex items-center gap-1.5" role="group" aria-label="Finalidade dos checkpoints">
+                {([['todos', 'Todos'], ['game', 'Jogo'], ['reception', 'Recepção']] as const).map(([valor, rotulo]) => {
+                  const total = checkpointsList.filter((cp) => valor === 'todos' || (valor === 'reception') === ehRecepcao(cp)).length;
+                  return (
+                    <button
+                      key={valor}
+                      type="button"
+                      onClick={() => setFiltroFinalidade(valor)}
+                      aria-pressed={filtroFinalidade === valor}
+                      className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${filtroFinalidade === valor ? 'border-primary-400/60 bg-primary-500/15 text-white' : 'border-white/10 text-gray-400 hover:bg-white/[0.04] hover:text-white'}`}
+                    >
+                      {rotulo} <span className="ml-1 font-semibold">{total}</span>
+                    </button>
+                  );
+                })}
+              </div>
               {selectedEventId && checkpointsList.length > 0 && (
                 <span className="text-xs text-gray-400 ml-auto">
-                  ✓ {checkpointsList.length} checkpoint(s)
+                  ✓ {checkpointsVisiveis.length} checkpoint(s)
                 </span>
               )}
             </div>
@@ -463,6 +483,7 @@ export default function AdminCheckpoints() {
                       <th className="pb-3 text-sm font-body font-semibold text-gray-400">Evento</th>
                     )}
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">Tipo</th>
+                    <th className="pb-3 text-sm font-body font-semibold text-gray-400">Finalidade</th>
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">Zona</th>
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">Status</th>
                     <th className="pb-3 text-sm font-body font-semibold text-gray-400">Pontos</th>
@@ -470,8 +491,8 @@ export default function AdminCheckpoints() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {checkpointsList.length > 0 ? (
-                    checkpointsList.map(cp => (
+                  {checkpointsVisiveis.length > 0 ? (
+                    checkpointsVisiveis.map(cp => (
                       <tr key={`${cp.eventoId || ''}-${cp.id}`} className="hover:bg-surface/50 transition-colors">
                         <td className="py-3 pr-4">
                           <p className="text-sm font-mono text-gray-300">{numeroDoCheckpoint(cp)}</p>
@@ -505,6 +526,9 @@ export default function AdminCheckpoints() {
                         )}
                         <td className="py-3 pr-4">
                           <Badge variant="secondary">{cp.type}</Badge>
+                        </td>
+                        <td className="py-3 pr-4">
+                          <Badge variant={ehRecepcao(cp) ? 'accent' : 'primary'}>{ehRecepcao(cp) ? 'Recepção' : 'Jogo'}</Badge>
                         </td>
                         <td className="py-3 pr-4">
                           <p className="text-sm text-gray-300">{cp.zone || '-'}</p>
@@ -569,7 +593,7 @@ export default function AdminCheckpoints() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={isAllEvents ? 8 : 7} className="py-8 text-center text-gray-500">
+                      <td colSpan={isAllEvents ? 9 : 8} className="py-8 text-center text-gray-500">
                         {isAllEvents
                           ? 'Nenhum checkpoint em nenhum evento.'
                           : 'Nenhum checkpoint neste evento. Os checkpoints chegam do super admin e você os coloca no evento.'}

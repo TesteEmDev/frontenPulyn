@@ -1950,15 +1950,16 @@ export const api = {
     return Array.isArray(data) ? data : [];
   },
 
-  async getCheckpoints(eventoId: string) {
+  // Por padrão só os checkpoints de jogo (as telas de jogo e de mapa não querem os de recepção); `todos` traz também os de recepção.
+  async getCheckpoints(eventoId: string, { todos = false }: { todos?: boolean } = {}) {
     try {
-      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}`, {
+      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}${todos ? '?proposito=todos' : ''}`, {
         headers: getAuthHeaders()
       });
       if (!res.ok) return [];
       const data = await res.json();
       return Array.isArray(data)
-        ? data.filter(checkpoint => String(checkpoint?.proposito || 'game').toLowerCase() !== 'reception')
+        ? (todos ? data : data.filter(checkpoint => String(checkpoint?.proposito || 'game').toLowerCase() !== 'reception'))
         : [];
     } catch (err) {
       console.error('Erro ao carregar checkpoints:', err);
