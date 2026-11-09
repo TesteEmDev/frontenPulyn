@@ -44,7 +44,8 @@ export default function CheckpointsRecebidos({ events, eventoPadrao, onChange }:
 
   const carregar = useCallback(async () => {
     try {
-      setSemNumero(await api.getCheckpointsSemNumero());
+      const lista = await api.getCheckpointsSemNumero();
+      setSemNumero(Array.isArray(lista) ? lista : []);
     } catch (err) {
       // Backend sem as rotas novas ou sem permissão: a tela segue sem este cartão.
       console.warn('Checkpoints recebidos indisponíveis:', err);

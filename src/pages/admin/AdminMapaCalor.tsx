@@ -133,13 +133,13 @@ export default function AdminMapaCalor() {
             <Card className="xl:col-span-3">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-gray-500">
-                  {mapa ? `Janela das ${new Date(mapa.balde).toLocaleTimeString('pt-BR')} · ${mapa.totais.pulseirasVistas} pulseira(s) vista(s)` : 'Carregando...'}
+                  {mapa ? `Janela das ${new Date(mapa.balde).toLocaleTimeString('pt-BR')} · ${mapa.totais?.pulseirasVistas ?? 0} pulseira(s) vista(s)` : 'Carregando...'}
                 </p>
                 <LegendaCalor valorMax={mapa?.valorMax || 0} acumulado={mapa?.acumulado} />
               </div>
               <MapaPlanta plantaUrl={plantaUrl} altura={520}>
                 {mapa && <CamadaCalor celulas={mapa.celulas} celulaUnidades={mapa.celulaUnidades} valorMax={mapa.valorMax} acumulado={mapa.acumulado} />}
-                {mostrarAntenas && mapa?.antenas.filter((a) => a.mapaX !== null).map((a) => (
+                {mostrarAntenas && mapa?.antenas?.filter((a) => a.mapaX !== null).map((a) => (
                   <MarcadorAntena
                     key={a.antenaId}
                     x={a.mapaX as number} y={a.mapaY as number} porta={a.porta} rotulo={a.moduleId}
@@ -159,7 +159,7 @@ export default function AdminMapaCalor() {
             <Card>
               <h3 className="mb-3 font-display text-lg text-white">Resumo</h3>
               <dl className="space-y-2 text-sm">
-                <div className="flex justify-between"><dt className="text-gray-400">Pulseiras vistas</dt><dd className="text-white">{mapa?.totais.pulseirasVistas ?? '—'}</dd></div>
+                <div className="flex justify-between"><dt className="text-gray-400">Pulseiras vistas</dt><dd className="text-white">{mapa?.totais?.pulseirasVistas ?? '—'}</dd></div>
                 {Object.entries(mapa?.totais.porMetodo || {}).map(([metodo, total]) => (
                   <div key={metodo} className="flex justify-between"><dt className="text-gray-400">· {NOME_METODO[metodo] || metodo}</dt><dd className="text-white">{total}</dd></div>
                 ))}
