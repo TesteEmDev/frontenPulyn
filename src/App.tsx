@@ -252,6 +252,8 @@ function App() {
           {/* Várias telas de autoatendimento: /reception/kiosk/1 ouve o leitor de recepção R1, /2 ouve o R2... */}
           <Route path="/reception/kiosk/:numero" element={<ProtectedRoute allowedRoles={['kiosk']}><ReceptionKiosk /></ProtectedRoute>} />
           <Route path="/score-kiosk" element={<ProtectedRoute allowedRoles={['kiosk', 'score_kiosk']}><ScoreKiosk /></ProtectedRoute>} />
+          {/* Várias telas de pontuação: /score-kiosk/1 ouve o leitor de pontuação P1, /2 ouve o P2... */}
+          <Route path="/score-kiosk/:numero" element={<ProtectedRoute allowedRoles={['kiosk', 'score_kiosk']}><ScoreKiosk /></ProtectedRoute>} />
           <Route path="/reception/participants" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionParticipants /></ProtectedRoute>} />
           <Route path="/reception/bracelets" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionBracelets /></ProtectedRoute>} />
           <Route path="/reception/families" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionFamilies /></ProtectedRoute>} />

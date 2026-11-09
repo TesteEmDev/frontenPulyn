@@ -6,6 +6,9 @@ const numCheckDe = (leitura: { numCheck?: string | null } | null | undefined) =>
 
 export const ehLeituraDoBalcao = (leitura: { numCheck?: string | null } | null | undefined) => numCheckDe(leitura) === LEITOR_DO_BALCAO;
 
+// Leitores de pontuação: P1, P2, P3... (/score-kiosk/1 ouve o P1). Sem número a tela ouve qualquer um (e os leitores antigos, sem número).
+export const ehLeituraDePontuacao = (leitura: { numCheck?: string | null } | null | undefined) => /^P\d{1,3}$/.test(numCheckDe(leitura));
+
 // Qualquer leitor de recepção que não seja o do balcão
 export const ehLeituraDeAutoatendimento = (leitura: { numCheck?: string | null } | null | undefined) => {
   const numCheck = numCheckDe(leitura);

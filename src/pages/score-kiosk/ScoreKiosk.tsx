@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useNFCReader } from '../../hooks/useNFCReader';
 import { useDeviceNFC } from '../../hooks/useDeviceNFC';
@@ -165,6 +166,25 @@ export default function ScoreKiosk() {
       });
   }, [resetScreen, selectedEventId]);
 
+  // Várias telas de pontuação: /score-kiosk/2 só ouve o leitor de pontuação P2. Sem número ouve qualquer leitor.
+  const { numero: numeroDaTela } = useParams<{ numero?: string }>();
+  const numCheckDaTela = numeroDaTela && /^\d{1,3}$/.test(numeroDaTela) ? `P${Number(numeroDaTela)}` : null;
+  const soDoLeitorDaTela = useCallback(
+    (leitura: { numCheck?: string | null }) => !numCheckDaTela || String(leitura?.numCheck || '').toUpperCase() === numCheckDaTela,
+    [numCheckDaTela],
+  );
+  const [leitorDaTela, setLeitorDaTela] = useState<{ online: boolean } | null | undefined>(undefined);
+  useEffect(() => {
+    if (!numCheckDaTela) { setLeitorDaTela(undefined); return undefined; }
+    let vivo = true;
+    const conferir = () => api.getLeitoresDePontuacao()
+      .then((lista) => { if (vivo) setLeitorDaTela(lista.find((item) => item.numCheck === numCheckDaTela) ?? null); })
+      .catch(() => undefined);
+    void conferir();
+    const intervalo = window.setInterval(conferir, 30_000);
+    return () => { vivo = false; window.clearInterval(intervalo); };
+  }, [numCheckDaTela]);
+
   const { isConnected } = useNFCReader(
     handleBraceletDetected,
     'score-kiosk',
@@ -172,6 +192,7 @@ export default function ScoreKiosk() {
     'score-kiosk',
     true,
     'score-kiosk',
+    soDoLeitorDaTela,
   );
 
   // Leitura alternativa pelo NFC do próprio tablet/celular usado como totem.
@@ -199,7 +220,7 @@ export default function ScoreKiosk() {
         </header>
         <section className="mb-3 flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-2 backdrop-blur">
           <div className="flex min-w-0 items-center gap-2 text-xs text-gray-400"><span className={`h-2 w-2 shrink-0 rounded-full ${selectedEventId ? 'bg-success shadow-[0_0_10px_rgba(34,197,94,0.8)]' : 'bg-warning'}`} /><span className="truncate">{selectedEventId ? <>Evento controlado pela recepção: <strong className="text-white">{selectedEvent?.nome || 'carregando...'}</strong></> : 'Aguardando a recepção selecionar um evento'}</span></div>
-          <div className="flex shrink-0 items-center gap-3 text-xs text-gray-500"><span className="hidden md:inline" title="O totem precisa enviar as leituras para este mesmo servidor">Servidor: {serverHost}</span><span>Consulta de pontuação</span><button type="button" onClick={logout} className="underline hover:text-white">Sair</button></div>
+          <div className="flex shrink-0 items-center gap-3 text-xs text-gray-500"><span className="hidden md:inline" title="O totem precisa enviar as leituras para este mesmo servidor">Servidor: {serverHost}</span><span>Consulta de pontuação{numCheckDaTela ? ` · tela ${Number(numeroDaTela)} · leitor ${numCheckDaTela}` : ''}{leitorDaTela === null && <span className="ml-2 text-warning">nenhum leitor {numCheckDaTela} cadastrado</span>}{leitorDaTela && !leitorDaTela.online && <span className="ml-2 text-warning">leitor desligado</span>}</span><button type="button" onClick={logout} className="underline hover:text-white">Sair</button></div>
         </section>
 
         {!selectedEventId ? (

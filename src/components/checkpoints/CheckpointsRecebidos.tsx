@@ -66,13 +66,17 @@ export default function CheckpointsRecebidos({ events, eventoPadrao, onChange }:
   const salvar = async (cp: CheckpointRecebido) => {
     const { numCheck, eventoId } = rascunhoDe(cp);
     const numero = numCheck.trim();
-    const recepcao = String(cp.proposito || 'game').toLowerCase() === 'reception';
-    if (numero && recepcao && !/^R\d{1,3}$/i.test(numero)) {
-      toast.error('O número de um checkpoint de recepção é R1, R2, R3... (o número da tela de autoatendimento)');
+    const finalidade = String(cp.proposito || 'game').toLowerCase();
+    if (numero && finalidade === 'reception' && !/^R\d{1,3}$/i.test(numero)) {
+      toast.error('O número de um checkpoint de recepção é R1, R2, R3... (R1 é o balcão; os outros são de autoatendimento)');
       return;
     }
-    if (numero && !recepcao && /^R\d{1,3}$/i.test(numero)) {
-      toast.error('Números como R1, R2... são só dos checkpoints de recepção. Use outro número');
+    if (numero && finalidade === 'score' && !/^P\d{1,3}$/i.test(numero)) {
+      toast.error('O número de um checkpoint de pontuação é P1, P2, P3... (o número da tela de pontuação)');
+      return;
+    }
+    if (numero && finalidade === 'game' && /^[RP]\d{1,3}$/i.test(numero)) {
+      toast.error('Números como R1 (recepção) e P1 (pontuação) são reservados a esses leitores. Use outro número');
       return;
     }
     if (!numero) {
@@ -145,13 +149,16 @@ export default function CheckpointsRecebidos({ events, eventoPadrao, onChange }:
                     {cp.tipo}
                     {cp.macAddress && <> · MAC <span className="font-mono text-gray-300">{cp.macAddress}</span></>}
                   </p>
+                  {String(cp.proposito || 'game').toLowerCase() === 'score' && (
+                    <p className="mt-0.5 text-xs text-cyan-200">Pontuação: use P1, P2, P3... O P2 atende a tela /score-kiosk/2.</p>
+                  )}
                   {String(cp.proposito || 'game').toLowerCase() === 'reception' && (
                     <p className="mt-0.5 text-xs text-cyan-200">Recepção: R1 é o balcão (check-in); R2, R3... são telas de autoatendimento (o R2 atende /reception/kiosk/2).</p>
                   )}
                 </div>
                 <Input
                   label="Número"
-                  placeholder={String(cp.proposito || 'game').toLowerCase() === 'reception' ? 'Ex: R1' : 'Ex: 12'}
+                  placeholder={{ reception: 'Ex: R1', score: 'Ex: P1' }[String(cp.proposito || 'game').toLowerCase()] ?? 'Ex: 12'}
                   value={rascunho.numCheck}
                   onChange={(e) => editar(cp, { numCheck: mascaraNumeroCheckpoint(e.target.value) })}
                   maxLength={NUMERO_CHECKPOINT_MAX}

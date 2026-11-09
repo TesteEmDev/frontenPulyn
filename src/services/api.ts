@@ -1276,6 +1276,14 @@ export const api = {
     return body as PerfilCrianca;
   },
 
+  // Leitores de pontuação cadastrados (P1, P2...): um para cada tela de pontuação (/score-kiosk/<número>).
+  async getLeitoresDePontuacao(): Promise<{ numero: number; numCheck: string; nome: string; online: boolean }[]> {
+    const res = await fetch(`${API_URL}/score-kiosk/readers`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => []);
+    if (!res.ok) throw new Error((data as any).error || `Erro ao listar os leitores de pontuação (${res.status})`);
+    return data;
+  },
+
   // Leitores de recepção cadastrados (R1, R2...): um para cada tela de autoatendimento (/reception/kiosk/<número>).
   async getLeitoresDeRecepcao(): Promise<{ numero: number; numCheck: string; nome: string; online: boolean }[]> {
     const res = await fetch(`${API_URL}/kiosk/receptions`, { headers: getAuthHeaders() });
