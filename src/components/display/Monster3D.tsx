@@ -64,6 +64,7 @@ export default function Monster3D({
   const corDoMonstro = cor && dados.cores.includes(cor) ? cor : dados.cores[0];
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const defeatedRef = useRef(defeated);
+  const hpRef = useRef(hp);
   // Pedido de animação: cada golpe novo muda a chave, e o laço de desenho reinicia o clipe (mesmo repetindo o mesmo golpe)
   const pedidoRef = useRef<{ tipo: PedidoDeAnimacao; chave: number }>({ tipo: null, chave: 0 });
   const [effect, setEffect] = useState<MonsterEffect>(null);
@@ -75,7 +76,8 @@ export default function Monster3D({
 
   useEffect(() => {
     defeatedRef.current = defeated;
-  }, [defeated]);
+    hpRef.current = hp;
+  }, [defeated, hp]);
 
   useEffect(() => {
     // Na primeira vez só guarda o estado: um monstro que já chega derrotado aparece caído, sem repetir a queda
@@ -278,8 +280,9 @@ export default function Monster3D({
           ultimaChave = pedido.chave;
           if (pedido.tipo) comecar(pedido.tipo);
         }
-        // Nova partida: o monstro volta ao normal
-        if (estadoModelo === 'death' && !defeatedRef.current) voltarAoRepouso(0.4);
+        // Nova partida (ele voltou a ter energia): o monstro volta ao normal. Só a energia decide: um aviso de "derrotado"
+        // que chega atrasado em relação ao HP não pode levantá-lo no meio da queda.
+        if (estadoModelo === 'death' && !defeatedRef.current && hpRef.current > 0) voltarAoRepouso(0.4);
         mixer.update(delta);
         aplicarFlash();
       }

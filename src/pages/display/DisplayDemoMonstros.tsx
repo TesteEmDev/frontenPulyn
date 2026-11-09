@@ -16,7 +16,10 @@ const EQUIPES = [
 
 // Sorteio só para a demonstração (o jogo de verdade sorteia no servidor): tipos embaralhados, nenhum repete
 function sortear(): { tipo: TipoDeMonstro; cor: string }[] {
-  const tipos = [...TIPOS_DE_MONSTRO];
+  // ?m=dragao,esqueleto fixa os primeiros monstros (para conferir um deles)
+  const pedidos = (new URLSearchParams(window.location.search).get('m') || '').split(',').filter((x): x is TipoDeMonstro => (TIPOS_DE_MONSTRO as readonly string[]).includes(x));
+  const tipos = [...pedidos, ...TIPOS_DE_MONSTRO.filter((x) => !pedidos.includes(x))];
+  if (pedidos.length) return tipos.map((tipo) => ({ tipo, cor: MONSTROS[tipo].cores[0] }));
   for (let i = tipos.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
     [tipos[i], tipos[j]] = [tipos[j], tipos[i]];

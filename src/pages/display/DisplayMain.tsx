@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api as apiDoSistema, mensagemParaTela, type PontosDaPartida } from '../../services/api';
 import { Trophy, Medal, Star, Zap, Clock, MapPin, Users, Maximize, Minimize } from 'lucide-react';
-import { useGameWebSocket } from '../../hooks/useGameWebSocket';
+import { useGameWebSocket, type GameEvent } from '../../hooks/useGameWebSocket';
 import { useZoneConquestGame, type ZoneConquestStatus } from '../../hooks/useZoneConquestGame';
 import { ZoneConquestIndividualRanking } from '../../components/display/ZoneConquestIndividualRanking';
 import { usePulynStore } from '../../store/mockData';
@@ -65,6 +65,8 @@ const sameEventId = (left: unknown, right: unknown) => (
 // Modo de teste do Caça ao Monstro (abra o telão com ?teste=1): botões que simulam a leitura de um checkpoint normal, de um
 // especial e o ataque especial, só aqui na tela, para ver as animações sem checkpoints. Nada é enviado nem gravado no servidor.
 const DANO_DE_TESTE = { normal: 10, especial: 30, ataque: 50 } as const;
+// Quanto o telão espera, ao fim do Caça ao Monstro, para o último monstro terminar de cair antes da pontuação aparecer
+const FIM_DO_MONSTRO_ADIADO_MS = 4500;
 
 // Quanto tempo uma mensagem do recreacionista fica no telão
 const MENSAGEM_VISIVEL_MS = 8000;
@@ -515,9 +517,7 @@ export default function DisplayMain() {
   }, [zoneConquestGameStatus, isIndividualMode]);
 
   // WebSocket para eventos em tempo real
-  const { connectionStatus } = useGameWebSocket(
-    selectedEventId || null,
-    (event) => {
+  const aoReceberEvento = (event: GameEvent): void => {
       // Processar eventos do WebSocket
       if (['NFC_READING_DETECTED', 'SCORE_UPDATE', 'CHILD_CHECKPOINT_PASSED'].includes(event.type) && sameEventId(event.payload?.eventoId, selectedEventId)) {
         agendarRecargaDasLeituras();
@@ -815,6 +815,30 @@ export default function DisplayMain() {
         }, 3000);
         
       }
+  };
+
+  // Quando o último monstro cai o servidor encerra o jogo na mesma hora, e o telão trocaria para a pontuação no meio da
+  // queda. O fim do Caça ao Monstro espera a animação de derrota terminar (a queda dura 3,2 s).
+  const iniciosDeJogo = useRef(0);
+  const fimAdiado = useRef<number | null>(null);
+  useEffect(() => () => { if (fimAdiado.current !== null) window.clearTimeout(fimAdiado.current); }, []);
+  const { connectionStatus } = useGameWebSocket(
+    selectedEventId || null,
+    (event) => {
+      if (event.type === 'GAME_STARTED') {
+        iniciosDeJogo.current += 1;
+        if (fimAdiado.current !== null) { window.clearTimeout(fimAdiado.current); fimAdiado.current = null; }
+      }
+      const monstrosEmCena = selectedGameType === 'monster_hunt' && Boolean(monsterStatus?.monsters?.length || monsterStatus?.progress?.length);
+      if (event.type === 'GAME_STOPPED' && monstrosEmCena && fimAdiado.current === null) {
+        const inicio = iniciosDeJogo.current;
+        fimAdiado.current = window.setTimeout(() => {
+          fimAdiado.current = null;
+          if (iniciosDeJogo.current === inicio) aoReceberEvento(event); // se um jogo novo começou nesse meio tempo, o fim antigo não vale
+        }, FIM_DO_MONSTRO_ADIADO_MS);
+        return;
+      }
+      aoReceberEvento(event);
     }
   );
 
