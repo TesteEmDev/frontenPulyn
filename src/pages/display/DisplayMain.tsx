@@ -498,6 +498,14 @@ export default function DisplayMain() {
     return () => window.clearInterval(interval);
   }, [selectedEventId, refreshTreasureStatus, refreshMonsterStatus, refreshGameActive]);
 
+  // Caça ao Tesouro: o mapa só mostra os checkpoints ligados, então relê o estado deles de tempos em tempos
+  // (um que desliga some do mapa e um que liga volta, sem recarregar o telão)
+  useEffect(() => {
+    if (!selectedEventId || !gameActive || selectedGameType !== 'treasure_hunt') return undefined;
+    const intervalo = window.setInterval(() => { loadCheckpoints().catch(() => undefined); }, 15000);
+    return () => window.clearInterval(intervalo);
+  }, [selectedEventId, gameActive, selectedGameType, loadCheckpoints]);
+
   // O guia reflete jogos ativados/desativados e textos editados pelo admin sem precisar recarregar o telão
   useEffect(() => {
     if (!selectedEventId || gameActive) return undefined;
