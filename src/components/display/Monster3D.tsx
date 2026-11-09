@@ -163,7 +163,11 @@ export default function Monster3D({
     const passarPara = (nome: 'idle' | 'hit' | 'crit' | 'faint', fade: number) => {
       const alvo = acoes[nome];
       if (!alvo) return;
-      Object.values(acoes).forEach((outra) => { if (outra && outra !== alvo && outra.isRunning()) outra.fadeOut(fade); });
+      // Todas as outras saem, inclusive as que já terminaram: um clipe que acabou fica parado (pausado) no último quadro com
+      // peso total, e isRunning() é falso para ele. Sem tirá-lo, o monstro caído se misturava com o Idle e voltava torto.
+      Object.values(acoes).forEach((outra) => {
+        if (outra && outra !== alvo && (outra.isRunning() || outra.paused || outra.getEffectiveWeight() > 0)) outra.fadeOut(fade);
+      });
       alvo.reset().fadeIn(fade).play();
     };
     const voltarAoRepouso = (fade = 0.25) => {
