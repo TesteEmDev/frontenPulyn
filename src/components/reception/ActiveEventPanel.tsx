@@ -27,7 +27,7 @@ const formatDay = (value?: string) => {
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 };
 
-// Onde a recepção escolhe QUAL evento aparece no telão (/display) e nos terminais do Game Master.
+// Onde a recepção escolhe QUAL evento aparece no telão (/display) e nos terminais do recreacionista.
 // A escolha é gravada no servidor (é isso que o telão consulta); só mudar a tela da recepção não basta.
 export default function ActiveEventPanel({ onChange }: { onChange?: (eventId: string | null) => void }) {
   const { eventoAtualId, setEventoAtual } = usePulynStore();
@@ -114,7 +114,7 @@ export default function ActiveEventPanel({ onChange }: { onChange?: (eventId: st
           <div>
             <h2 className="font-display text-lg text-white">Evento no telão</h2>
             <p className="text-xs text-gray-400">
-              O evento escolhido aqui é o que aparece no telão (/display) e nos terminais do Game Master.
+              O evento escolhido aqui é o que aparece no telão (/display) e nos terminais do recreacionista.
             </p>
           </div>
         </div>

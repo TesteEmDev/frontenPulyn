@@ -340,7 +340,7 @@ export default function GameMasterDashboard() {
         setTreasureStatus({ active: false, gameType: 'none' });
         setMonsterStatus({ active: false, gameType: 'none' });
       }
-      setLastGameEvent({ label: 'Jogo iniciado', detail: 'O evento foi iniciado pelo Game Master.', at: receivedAt });
+      setLastGameEvent({ label: 'Jogo iniciado', detail: 'O evento foi iniciado pelo recreacionista.', at: receivedAt });
       setGameRunning(true);
       loadTreasureStatus();
       loadMonsterStatus();

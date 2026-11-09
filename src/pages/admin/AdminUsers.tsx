@@ -30,7 +30,7 @@ interface User {
 const roleConfig: Record<UserRole, { label: string; description: string; variant: 'primary' | 'secondary' | 'accent' | 'success' | 'warning' | 'danger' | 'muted' }> = {
   admin: { label: 'Administrador', description: 'Acesso total ao painel', variant: 'danger' },
   reception: { label: 'Recepcionista', description: 'Check-in e cadastro', variant: 'secondary' },
-  game_master: { label: 'Game Master', description: 'Controle do jogo', variant: 'accent' },
+  game_master: { label: 'Recreacionista', description: 'Controle do jogo', variant: 'accent' },
   display: { label: 'Telão', description: 'Exibição de placar', variant: 'muted' },
   family: { label: 'Familiar', description: 'Acesso ao app', variant: 'success' },
   kiosk: { label: 'Autoatendimento', description: 'Totem de cadastro de crianças', variant: 'primary' },

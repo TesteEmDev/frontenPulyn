@@ -101,7 +101,7 @@ export default function GameGuide({
   subheading,
 }: {
   games: GuideGame[];
-  // Jogo já escolhido pelo Game Master e ainda não iniciado: abre nele e recebe a etiqueta "Próximo jogo"
+  // Jogo já escolhido pelo recreacionista e ainda não iniciado: abre nele e recebe a etiqueta "Próximo jogo"
   highlightName?: string | null;
   // Metade da tela (dividindo com o placar): uma coluna só, em vez do painel dividido ao meio
   compact?: boolean;
