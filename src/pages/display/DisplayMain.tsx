@@ -12,6 +12,9 @@ import DominioMapa from '../../components/display/DominioMapa';
 import { useDominioEstado } from '../../hooks/useDominioEstado';
 import Badge from '../../components/ui/Badge';
 import Monster3D from '../../components/display/Monster3D';
+import BotaoSomDosMonstros from '../../components/display/monstros/BotaoSomDosMonstros';
+import { monstroDaEquipe, urlDoModelo } from '../../components/display/monstros/catalogo';
+import { preCarregarModelos } from '../../components/display/monstros/modelos';
 import DisplayMap from './DisplayMap';
 import GameGuide, { type GuideGame } from '../../components/display/GameGuide';
 import FitToBox from '../../components/display/FitToBox';
@@ -29,6 +32,9 @@ interface MonsterDisplayMonster {
   teamId: string;
   teamName: string;
   teamColor: string;
+  // Monstro sorteado para a equipe neste jogo (o servidor garante que não se repete)
+  monsterType?: string | null;
+  monsterColor?: string | null;
   monsterHp: number;
   monsterMaxHp: number;
   monsterDefeated?: boolean;
@@ -153,6 +159,16 @@ export default function DisplayMain() {
       || children.some((child) => Number(child.scores || 0) > 0)
       || teams.some((team) => Number(team.points ?? team.score ?? 0) > 0)) },
   );
+  // Os arquivos dos monstros são grandes: baixa assim que se sabe quais são, antes dos golpes começarem
+  const monstrosDoJogo = monsterStatus?.monsters?.length ? monsterStatus.monsters : monsterStatus?.progress;
+  const arquivosDosMonstros = (monstrosDoJogo || []).map((monster, indice) => {
+    const escolhido = monstroDaEquipe(monster.monsterType, monster.monsterColor, indice);
+    return urlDoModelo(escolhido.tipo, escolhido.cor);
+  }).join('|');
+  useEffect(() => {
+    if (arquivosDosMonstros) preCarregarModelos(arquivosDosMonstros.split('|'));
+  }, [arquivosDosMonstros]);
+
   const recentActivities = useMemo(() => scoreLog
     .map((entry: any) => ({
       id: entry.id,
@@ -941,13 +957,17 @@ export default function DisplayMain() {
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-danger">Caça ao Monstro</p>
                   <h2 className="font-display text-4xl font-bold text-white">Um monstro para cada equipe</h2>
                 </div>
-                <div className="rounded-full border border-danger/40 bg-danger/10 px-4 py-2 text-sm font-bold text-red-100">
-                  {monsterCards.filter(monster => monster.monsterDefeated).length}/{monsterCards.length} derrotados
+                <div className="flex items-center gap-3">
+                  <BotaoSomDosMonstros />
+                  <div className="rounded-full border border-danger/40 bg-danger/10 px-4 py-2 text-sm font-bold text-red-100">
+                    {monsterCards.filter(monster => monster.monsterDefeated).length}/{monsterCards.length} derrotados
+                  </div>
                 </div>
               </div>
 
               <div className="grid gap-5 lg:grid-cols-2">
-                {monsterCards.map((monster) => {
+                {monsterCards.map((monster, indice) => {
+                  const escolhido = monstroDaEquipe(monster.monsterType, monster.monsterColor, indice);
                   const hp = Number(monster.monsterHp || 0);
                   const maxHp = Number(monster.monsterMaxHp || 500);
                   const defeated = Boolean(monster.monsterDefeated || monster.victory);
@@ -972,6 +992,8 @@ export default function DisplayMain() {
                           teamColor={monster.teamColor}
                           winnerTeamName={defeated ? monster.teamName : null}
                           winnerTeamColor={monster.teamColor}
+                          tipo={escolhido.tipo}
+                          cor={escolhido.cor}
                         />
                         <div className="mt-3 flex items-center justify-between text-sm font-semibold text-gray-200">
                           <span>Energia do monstro</span>

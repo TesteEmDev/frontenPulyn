@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MONSTROS, urlDoModelo, type TipoDeMonstro } from './monstros/catalogo';
+import { criarMonstro, type MonstroPronto } from './monstros/modelos';
+import { tocarSom } from './monstros/som';
 
 interface Monster3DProps {
   hp: number;
@@ -10,9 +12,13 @@ interface Monster3DProps {
   teamColor?: string | null;
   winnerTeamName?: string | null;
   winnerTeamColor?: string | null;
+  // Monstro sorteado para a equipe (tipo e cor); sem eles, aparece o slime verde
+  tipo?: TipoDeMonstro;
+  cor?: string;
 }
 
 type MonsterEffect = 'hit' | 'death' | null;
+type PedidoDeAnimacao = 'hit' | 'crit' | 'death' | null;
 
 const monsterStyles = `
   .monster-3d { position: relative; width: 100%; min-height: 330px; overflow: hidden; border-radius: 1.5rem; background: radial-gradient(circle at 50% 42%, #4c1d95 0%, #1e123c 38%, #090613 78%); }
@@ -240,6 +246,37 @@ function createMonster(scene: THREE.Scene) {
   return monster;
 }
 
+// Intensidade do flash vermelho pelo tempo (s) desde o início do clipe. Não vai no arquivo do modelo (é do Blender): é feito aqui.
+const flashHit = (t: number) => (t < 0.1 ? t / 0.1 : t < 0.27 ? 1 : Math.max(0, 1 - (t - 0.27) / 0.13));
+const flashCrit = (t: number) => (
+  t < 0.13 ? t / 0.13 : t < 0.5 ? 1 : t < 0.8 ? 1 - (0.85 * (t - 0.5)) / 0.3
+    : t < 0.9 ? 0.15 + 5.5 * (t - 0.8) : t < 1.2 ? 0.7 * (1 - (t - 0.9) / 0.3) : 0
+);
+const flashFaint = (t: number) => (t < 0.07 ? t / 0.07 : t < 0.2 ? 1 - (0.5 * (t - 0.07)) / 0.13 : Math.max(0, 0.5 - (0.5 * (t - 0.2)) / 0.17));
+
+// Fração da distância da câmera do catálogo (menor = o monstro maior no cartão)
+const ZOOM_DO_CARTAO = 0.74;
+
+// Dano a partir do qual o golpe é um ataque especial (30 do checkpoint especial e 50 do ataque especial): usa o Crit
+const DANO_CRITICO = 30;
+
+// Fundo do cartão: degradê vertical da paleta do monstro
+function criarFundo(paradas: [number, string][]) {
+  const tela = document.createElement('canvas');
+  tela.width = 2;
+  tela.height = 256;
+  const contexto = tela.getContext('2d');
+  if (contexto) {
+    const degrade = contexto.createLinearGradient(0, 0, 0, 256);
+    paradas.forEach(([posicao, cor]) => degrade.addColorStop(posicao, cor));
+    contexto.fillStyle = degrade;
+    contexto.fillRect(0, 0, 2, 256);
+  }
+  const textura = new THREE.CanvasTexture(tela);
+  textura.colorSpace = THREE.SRGBColorSpace;
+  return textura;
+}
+
 export default function Monster3D({
   hp,
   maxHp,
@@ -248,37 +285,52 @@ export default function Monster3D({
   teamColor,
   winnerTeamName,
   winnerTeamColor,
+  tipo = 'slime',
+  cor,
 }: Monster3DProps) {
+  const dados = MONSTROS[tipo];
+  const corDoMonstro = cor && dados.cores.includes(cor) ? cor : dados.cores[0];
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const effectRef = useRef<MonsterEffect>(null);
   const defeatedRef = useRef(defeated);
+  // Pedido de animação: cada golpe novo muda a chave, e o laço de desenho reinicia o clipe (mesmo repetindo o mesmo golpe)
+  const pedidoRef = useRef<{ tipo: PedidoDeAnimacao; chave: number }>({ tipo: null, chave: 0 });
   const [effect, setEffect] = useState<MonsterEffect>(null);
   const [damage, setDamage] = useState(0);
   const [effectKey, setEffectKey] = useState(0);
   const [webglUnavailable, setWebglUnavailable] = useState(false);
   const previousHpRef = useRef(hp);
+  const montadoRef = useRef(false);
 
   useEffect(() => {
     defeatedRef.current = defeated;
-    effectRef.current = effect;
-  }, [defeated, effect]);
+  }, [defeated]);
 
   useEffect(() => {
+    // Na primeira vez só guarda o estado: um monstro que já chega derrotado aparece caído, sem repetir a queda
+    if (!montadoRef.current) {
+      montadoRef.current = true;
+      previousHpRef.current = hp;
+      return undefined;
+    }
     const previousHp = previousHpRef.current;
     previousHpRef.current = hp;
-    if (hp >= previousHp && !defeated) return;
+    if (hp >= previousHp && !defeated) return undefined;
 
-    setDamage(Math.max(0, previousHp - hp));
-    setEffect(defeated || hp <= 0 ? 'death' : 'hit');
+    const dano = Math.max(0, previousHp - hp);
+    const morreu = defeated || hp <= 0;
+    const pedido: PedidoDeAnimacao = morreu ? 'death' : dano >= DANO_CRITICO ? 'crit' : 'hit';
+    pedidoRef.current = { tipo: pedido, chave: pedidoRef.current.chave + 1 };
+    setDamage(dano);
+    setEffect(morreu ? 'death' : 'hit');
     setEffectKey((current) => current + 1);
-    const timeout = window.setTimeout(() => setEffect(null), defeated || hp <= 0 ? 1200 : 700);
+    const timeout = window.setTimeout(() => setEffect(null), morreu ? 1200 : 900);
     return () => window.clearTimeout(timeout);
   }, [hp, defeated]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = canvas?.parentElement;
-    if (!canvas || !container) return;
+    if (!canvas || !container) return undefined;
 
     let renderer: THREE.WebGLRenderer;
     try {
@@ -286,122 +338,45 @@ export default function Monster3D({
     } catch (error) {
       console.warn('WebGL indisponível para o monstro 3D:', error);
       setWebglUnavailable(true);
-      return;
+      return undefined;
     }
 
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
 
+    // Cenário leve: só cores (fundo, névoa, chão e luzes do cenário do monstro). Cada cartão tem o próprio renderizador,
+    // então nada de objetos nem de muitas luzes aqui.
+    const paleta = dados.paleta;
     const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x090613, 6, 14);
+    const fundo = criarFundo(paleta.fundo);
+    scene.background = fundo;
+    scene.fog = new THREE.Fog(paleta.nevoa[0], paleta.nevoa[1], paleta.nevoa[2]);
     const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
-    camera.position.set(0.28, 1.25, 8.5);
-    camera.lookAt(0, 0.72, 0);
+    // Os valores do catálogo enquadram o monstro inteiro com folga; o cartão é largo e baixo, então chega um pouco mais perto
+    const { x, y, z, alvoY } = dados.camera;
+    camera.position.set(x * ZOOM_DO_CARTAO, alvoY + (y - alvoY) * ZOOM_DO_CARTAO, z * ZOOM_DO_CARTAO);
+    camera.lookAt(0, alvoY, 0);
 
-    scene.add(new THREE.HemisphereLight(0xffb7f6, 0x130b2b, 2.1));
-    const keyLight = new THREE.DirectionalLight(0xffffff, 3.2);
-    keyLight.position.set(-3, 5, 5);
+    scene.add(new THREE.HemisphereLight(paleta.hemi[0], paleta.hemi[1], paleta.hemi[2]));
+    const keyLight = new THREE.DirectionalLight(paleta.luz[0], paleta.luz[1]);
+    keyLight.position.set(-3, 6, 5);
     scene.add(keyLight);
-    const pinkLight = new THREE.PointLight(0xec4899, 7, 8);
-    pinkLight.position.set(2.8, 1.5, 2.5);
-    scene.add(pinkLight);
-    const purpleLight = new THREE.PointLight(0x7c3aed, 5, 7);
-    purpleLight.position.set(-3, 0.2, 1);
-    scene.add(purpleLight);
+    const rimLight = new THREE.PointLight(paleta.rim[0], (8 * paleta.rim[2]) / 2, 10);
+    rimLight.position.set(2.8, 1.8, 2.5);
+    scene.add(rimLight);
 
-    const floor = new THREE.Mesh(
-      new THREE.CircleGeometry(3.2, 64),
-      new THREE.MeshBasicMaterial({ color: 0xa21caf, transparent: true, opacity: 0.22, depthWrite: false })
+    const chao = new THREE.Mesh(
+      new THREE.CircleGeometry(60, 48),
+      new THREE.MeshStandardMaterial({ color: paleta.chao, roughness: 0.95 })
     );
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -1.72;
-    scene.add(floor);
+    chao.rotation.x = -Math.PI / 2;
+    scene.add(chao);
 
+    // Monstro de reserva (desenhado por código): aparece enquanto o arquivo carrega ou se ele não carregar
     const monster = createMonster(scene);
-    let importedModel: THREE.Object3D | null = null;
-    let modelMixer: THREE.AnimationMixer | null = null;
-    let modelActions: Record<string, THREE.AnimationAction> = {};
-    let lastModelState = '';
-    let disposed = false;
-
-    const playModelAction = (state: string) => {
-      const action = modelActions[state] || modelActions.idle;
-      if (!action || lastModelState === state) return;
-
-      Object.values(modelActions).forEach((otherAction) => {
-        if (otherAction !== action) otherAction.fadeOut(0.12);
-      });
-      action.reset().fadeIn(0.12);
-      if (state === 'death' || state === 'hit' || state === 'attack') {
-        action.setLoop(THREE.LoopOnce, 1);
-        action.clampWhenFinished = true;
-      } else {
-        action.setLoop(THREE.LoopRepeat, Infinity);
-        action.clampWhenFinished = false;
-      }
-      action.play();
-      lastModelState = state;
-    };
-
-    const modelLoader = new GLTFLoader();
-    modelLoader.load(
-      '/models/morrendo.glb',
-      (gltf) => {
-        if (disposed) return;
-
-        const model = gltf.scene;
-        model.traverse((object) => {
-          if (!(object instanceof THREE.Mesh)) return;
-          object.castShadow = true;
-          object.receiveShadow = true;
-        });
-
-        const initialBounds = new THREE.Box3().setFromObject(model);
-        const initialSize = initialBounds.getSize(new THREE.Vector3());
-        const targetHeight = 4.45;
-        const modelScale = initialSize.y > 0 ? targetHeight / initialSize.y : 1;
-        model.scale.setScalar(modelScale);
-
-        const scaledBounds = new THREE.Box3().setFromObject(model);
-        const scaledCenter = scaledBounds.getCenter(new THREE.Vector3());
-        model.position.x -= scaledCenter.x;
-        model.position.z -= scaledCenter.z;
-        model.position.y += -1.62 - scaledBounds.min.y;
-        scene.add(model);
-
-        modelMixer = new THREE.AnimationMixer(model);
-        const findClip = (terms: string[]) => gltf.animations.find((clip) => {
-          const clipName = clip.name.toLowerCase();
-          return terms.some((term) => clipName.includes(term));
-        });
-        const createAction = (terms: string[]) => {
-          const clip = findClip(terms);
-          return clip && modelMixer ? modelMixer.clipAction(clip) : undefined;
-        };
-
-        modelActions = {
-          idle: createAction(['flying_idle', 'idle']) || createAction(['flying']),
-          attack: createAction(['punch']) || createAction(['headbutt']),
-          hit: createAction(['hitreact', 'hit']),
-          death: createAction(['death', 'die']),
-          special: createAction(['headbutt']),
-          victory: createAction(['yes']),
-        } as Record<string, THREE.AnimationAction>;
-        modelActions = Object.fromEntries(
-          Object.entries(modelActions).filter(([, action]) => Boolean(action))
-        ) as Record<string, THREE.AnimationAction>;
-
-        monster.visible = false;
-        importedModel = model;
-        playModelAction('idle');
-      },
-      undefined,
-      (error) => {
-        console.warn('Não foi possível carregar o modelo GLB do monstro. Usando fallback procedural.', error);
-      }
-    );
-
+    monster.scale.setScalar(0.5);
+    monster.position.y = 1.0;
     const parts = monster.userData.parts as {
       body: THREE.Mesh;
       head: THREE.Mesh;
@@ -412,8 +387,83 @@ export default function Monster3D({
       legs: THREE.Mesh[];
       particleGroup: THREE.Group;
     };
+
+    let disposed = false;
+    let pronto: MonstroPronto | null = null;
+    let mixer: THREE.AnimationMixer | null = null;
+    const acoes: Partial<Record<'idle' | 'hit' | 'crit' | 'faint', THREE.AnimationAction>> = {};
+    let estadoModelo: 'idle' | 'hit' | 'crit' | 'death' = 'idle';
+    let ultimaChave = pedidoRef.current.chave;
+    const coresOriginais = new Map<THREE.MeshStandardMaterial, { cor: THREE.Color; intensidade: number }>();
+
+    const passarPara = (nome: 'idle' | 'hit' | 'crit' | 'faint', fade: number) => {
+      const alvo = acoes[nome];
+      if (!alvo) return;
+      Object.values(acoes).forEach((outra) => { if (outra && outra !== alvo && outra.isRunning()) outra.fadeOut(fade); });
+      alvo.reset().fadeIn(fade).play();
+    };
+    const voltarAoRepouso = (fade = 0.25) => {
+      estadoModelo = 'idle';
+      passarPara('idle', fade);
+    };
+    const comecar = (pedido: 'hit' | 'crit' | 'death', comSom = true) => {
+      if (!pronto) return;
+      if (pedido === 'death') {
+        estadoModelo = 'death';
+        passarPara('faint', 0.04);
+        if (comSom) tocarSom(tipo, 'faint');
+        return;
+      }
+      if (estadoModelo === 'death') return; // monstro caído não reage a golpes
+      estadoModelo = pedido;
+      passarPara(pedido, 0.04);
+      if (comSom) tocarSom(tipo, pedido);
+    };
+
+    criarMonstro(urlDoModelo(tipo, corDoMonstro))
+      .then((monstro) => {
+        if (disposed) { monstro.descartar(); return; }
+        pronto = monstro;
+        monstro.modelo.position.set(0, 0, 0); // a origem dos modelos é o chão, entre os pés
+        scene.add(monstro.modelo);
+
+        mixer = new THREE.AnimationMixer(monstro.modelo);
+        const clipe = (nome: string) => monstro.animacoes.find((c) => c.name === nome);
+        const criar = (nome: string, repete: boolean) => {
+          const c = clipe(nome);
+          if (!c || !mixer) return undefined;
+          const acao = mixer.clipAction(c);
+          if (!repete) { acao.setLoop(THREE.LoopOnce, 1); acao.clampWhenFinished = true; }
+          return acao;
+        };
+        acoes.idle = criar('Idle', true);
+        acoes.hit = criar('Hit', false);
+        acoes.crit = criar('Crit', false) ?? acoes.hit;
+        acoes.faint = criar('Faint', false);
+        mixer.addEventListener('finished', (evento) => {
+          const acao = (evento as unknown as { action: THREE.AnimationAction }).action;
+          if ((acao === acoes.hit && estadoModelo === 'hit') || (acao === acoes.crit && estadoModelo === 'crit')) voltarAoRepouso(0.15);
+        });
+        monstro.materiaisDoCorpo.forEach((m) => coresOriginais.set(m, { cor: m.emissive.clone(), intensidade: m.emissiveIntensity }));
+
+        monster.visible = false;
+        if (defeatedRef.current && acoes.faint) {
+          // Já chegou derrotado (página recarregada no meio do jogo): fica caído, sem repetir a queda nem o som
+          estadoModelo = 'death';
+          acoes.faint.reset().play();
+          acoes.faint.time = acoes.faint.getClip().duration;
+          mixer.update(0);
+        } else {
+          acoes.idle?.play();
+        }
+      })
+      .catch((error) => {
+        console.warn('Não foi possível carregar o modelo do monstro. Usando o desenho de reserva.', error);
+      });
+
     const clock = new THREE.Clock();
     let frameId = 0;
+    let visivel = true;
 
     const resize = () => {
       const width = Math.max(1, container.clientWidth);
@@ -426,37 +476,57 @@ export default function Monster3D({
     const resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(container);
     resize();
+    // Cartão fora da tela não precisa ser desenhado
+    const observadorDeVisibilidade = typeof IntersectionObserver !== 'undefined'
+      ? new IntersectionObserver(([entrada]) => { visivel = entrada.isIntersecting; })
+      : null;
+    observadorDeVisibilidade?.observe(container);
+
+    const aplicarFlash = () => {
+      if (!pronto) return;
+      let intensidade = 0;
+      const acao = estadoModelo === 'death' ? acoes.faint : acoes[estadoModelo];
+      if (acao) {
+        if (estadoModelo === 'hit') intensidade = flashHit(acao.time);
+        else if (estadoModelo === 'crit') intensidade = flashCrit(acao.time);
+        else if (estadoModelo === 'death') intensidade = flashFaint(acao.time);
+      }
+      pronto.materiaisDoCorpo.forEach((material) => {
+        if (intensidade > 0.001) {
+          material.emissive.setRGB(1, 0.04, 0.04);
+          material.emissiveIntensity = intensidade;
+        } else {
+          const original = coresOriginais.get(material);
+          if (original) {
+            material.emissive.copy(original.cor);
+            material.emissiveIntensity = original.intensidade;
+          }
+        }
+      });
+    };
 
     const animate = () => {
+      frameId = window.requestAnimationFrame(animate);
       const delta = clock.getDelta();
+      if (!visivel) return;
       const elapsed = clock.getElapsedTime();
-      const currentEffect = effectRef.current;
-      const isDead = defeatedRef.current || currentEffect === 'death';
-      const isHit = currentEffect === 'hit';
-      const breathe = 1 + Math.sin(elapsed * 1.8) * 0.025;
-      const blink = Math.sin(elapsed * 0.72) > 0.986 ? 0.12 : 1;
 
-      if (importedModel && modelMixer) {
-        playModelAction(isDead ? 'death' : isHit ? 'hit' : 'idle');
-        modelMixer.update(delta);
-        importedModel.rotation.y = isDead
-          ? THREE.MathUtils.lerp(importedModel.rotation.y, -0.22, 0.04)
-          : Math.sin(elapsed * 0.7) * 0.045;
-        importedModel.rotation.z = isDead
-          ? THREE.MathUtils.lerp(importedModel.rotation.z, -0.12, 0.04)
-          : isHit ? Math.sin(elapsed * 36) * 0.025 : 0;
-      }
-
-      if (isDead) {
-        monster.rotation.y = THREE.MathUtils.lerp(monster.rotation.y, -0.22, 0.04);
-        monster.rotation.z = THREE.MathUtils.lerp(monster.rotation.z, -0.38, 0.04);
-        monster.scale.lerp(new THREE.Vector3(0.82, 0.82, 0.82), 0.035);
+      if (pronto && mixer) {
+        const pedido = pedidoRef.current;
+        if (pedido.chave !== ultimaChave) {
+          ultimaChave = pedido.chave;
+          if (pedido.tipo) comecar(pedido.tipo);
+        }
+        // Nova partida: o monstro volta ao normal
+        if (estadoModelo === 'death' && !defeatedRef.current) voltarAoRepouso(0.4);
+        mixer.update(delta);
+        aplicarFlash();
       } else {
+        // Desenho de reserva, enquanto o modelo não chega
+        const breathe = 1 + Math.sin(elapsed * 1.8) * 0.025;
+        const blink = Math.sin(elapsed * 0.72) > 0.986 ? 0.12 : 1;
         monster.rotation.y = -0.06 + Math.sin(elapsed * 0.8) * 0.08;
-        monster.rotation.z = isHit ? Math.sin(elapsed * 42) * 0.09 : 0;
-        monster.position.y = -0.35 + Math.sin(elapsed * 1.8) * 0.1;
-        monster.scale.lerp(new THREE.Vector3(1, 1, 1), 0.08);
-
+        monster.position.y = 1.0 + Math.sin(elapsed * 1.8) * 0.05;
         parts.body.scale.set(breathe, 1.18 * breathe, 0.84 * breathe);
         parts.head.position.y = 1.5 + Math.sin(elapsed * 1.8) * 0.025;
         parts.belly.position.y = -0.22 + Math.sin(elapsed * 1.8) * 0.035;
@@ -469,15 +539,10 @@ export default function Monster3D({
           leg.rotation.z = Math.sin(elapsed * 1.8 + index * Math.PI) * 0.025;
         });
         parts.chestCrystal.rotation.y = elapsed * 1.4;
-        parts.chestCrystal.rotation.x = 0.25 + Math.sin(elapsed * 2) * 0.08;
+        parts.particleGroup.rotation.y = elapsed * 0.18;
       }
 
-      parts.particleGroup.rotation.y = elapsed * 0.18;
-      parts.particleGroup.position.y = Math.sin(elapsed * 1.4) * 0.08;
-      floor.scale.setScalar(1 + Math.sin(elapsed * 2) * 0.06);
-      pinkLight.intensity = 6.5 + Math.sin(elapsed * 2.2) * 1.2;
       renderer.render(scene, camera);
-      frameId = window.requestAnimationFrame(animate);
     };
     animate();
 
@@ -485,16 +550,23 @@ export default function Monster3D({
       disposed = true;
       window.cancelAnimationFrame(frameId);
       resizeObserver.disconnect();
-      modelMixer?.stopAllAction();
+      observadorDeVisibilidade?.disconnect();
+      mixer?.stopAllAction();
+      // O monstro do arquivo compartilha geometria e texturas com as outras cópias: só os materiais clonados vão embora
+      pronto?.descartar();
       scene.traverse((object) => {
         if (!(object instanceof THREE.Mesh)) return;
+        if (pronto && pronto.modelo.getObjectById(object.id)) return;
         object.geometry.dispose();
         if (Array.isArray(object.material)) object.material.forEach((material) => material.dispose());
         else object.material.dispose();
       });
+      fundo.dispose();
       renderer.dispose();
     };
-  }, []);
+    // O monstro é escolhido ao montar o cartão; trocar de tipo ou cor remonta a cena
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipo, corDoMonstro]);
 
   const safeMaxHp = Math.max(1, maxHp || 500);
   const safeHp = Math.max(0, Math.min(safeMaxHp, hp || 0));
@@ -502,7 +574,7 @@ export default function Monster3D({
   const winnerStyle = { '--winner-color': winnerTeamColor || teamColor || '#86efac' } as CSSProperties;
 
   return (
-    <div className="monster-3d" aria-label={`${teamName ? `Monstro da equipe ${teamName}` : 'Monstro 3D'} com ${safeHp} de ${safeMaxHp} HP`}>
+    <div className="monster-3d" aria-label={`${teamName ? `Monstro da equipe ${teamName}` : 'Monstro 3D'} (${dados.nome}) com ${safeHp} de ${safeMaxHp} HP`}>
       <style>{monsterStyles}</style>
       <canvas ref={canvasRef} className="monster-3d__canvas" aria-hidden="true" />
       {webglUnavailable && <div className="monster-3d__fallback" aria-hidden="true">👹</div>}
@@ -510,7 +582,7 @@ export default function Monster3D({
         {defeated ? (
           <span className="monster-3d__winner">🏆 {winnerTeamName || 'Monstro derrotado'}</span>
         ) : (
-          <span>{teamName ? `Monstro de ${teamName}` : 'Monstro em batalha'}</span>
+          <span>{teamName ? `${dados.nome} de ${teamName}` : `${dados.nome} em batalha`}</span>
         )}
         <span className={effect ? 'monster-3d__damage' : ''} key={effectKey}>
           {effect === 'death' ? 'DERROTADO!' : effect === 'hit' ? `-${damage} HP` : `${hpPercent}% de energia`}

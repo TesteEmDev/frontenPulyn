@@ -18,6 +18,7 @@ import DisplayMap from './pages/display/DisplayMap';
 import DisplayStandby from './pages/display/DisplayStandby';
 import TelaoEntrada from './pages/display/TelaoEntrada';
 import DisplayDemoPontuacao from './pages/display/DisplayDemoPontuacao';
+import DisplayDemoMonstros from './pages/display/DisplayDemoMonstros';
 import DisplayDemoRegras from './pages/display/DisplayDemoRegras';
 import DemoCadastroAparencia from './pages/reception/DemoCadastroAparencia';
 import DemoRoleta from './pages/game-master/DemoRoleta';
@@ -234,6 +235,7 @@ function App() {
           <Route path="/telao" element={<TelaoEntrada />} />
           {/* Prévia da tela de pontuação final com dados de exemplo (não lê nem grava nada do evento) */}
           <Route path="/demo/pontuacao-final" element={<DisplayDemoPontuacao />} />
+          <Route path="/demo/monstros" element={<DisplayDemoMonstros />} />
           <Route path="/demo/regras" element={<DisplayDemoRegras />} />
           <Route path="/demo/cadastro-aparencia" element={<DemoCadastroAparencia />} />
           <Route path="/demo/roleta" element={<DemoRoleta />} />
