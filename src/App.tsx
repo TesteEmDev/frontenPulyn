@@ -249,6 +249,8 @@ function App() {
           <Route path="/reception" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionDashboard /></ProtectedRoute>} />
           <Route path="/reception/checkin" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionCheckin /></ProtectedRoute>} />
           <Route path="/reception/kiosk" element={<ProtectedRoute allowedRoles={['kiosk']}><ReceptionKiosk /></ProtectedRoute>} />
+          {/* Várias telas de autoatendimento: /reception/kiosk/1 ouve o leitor de recepção R1, /2 ouve o R2... */}
+          <Route path="/reception/kiosk/:numero" element={<ProtectedRoute allowedRoles={['kiosk']}><ReceptionKiosk /></ProtectedRoute>} />
           <Route path="/score-kiosk" element={<ProtectedRoute allowedRoles={['kiosk', 'score_kiosk']}><ScoreKiosk /></ProtectedRoute>} />
           <Route path="/reception/participants" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionParticipants /></ProtectedRoute>} />
           <Route path="/reception/bracelets" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionBracelets /></ProtectedRoute>} />

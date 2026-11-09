@@ -66,6 +66,15 @@ export default function CheckpointsRecebidos({ events, eventoPadrao, onChange }:
   const salvar = async (cp: CheckpointRecebido) => {
     const { numCheck, eventoId } = rascunhoDe(cp);
     const numero = numCheck.trim();
+    const recepcao = String(cp.proposito || 'game').toLowerCase() === 'reception';
+    if (numero && recepcao && !/^R\d{1,3}$/i.test(numero)) {
+      toast.error('O número de um checkpoint de recepção é R1, R2, R3... (o número da tela de autoatendimento)');
+      return;
+    }
+    if (numero && !recepcao && /^R\d{1,3}$/i.test(numero)) {
+      toast.error('Números como R1, R2... são só dos checkpoints de recepção. Use outro número');
+      return;
+    }
     if (!numero) {
       toast.error('Informe o número do checkpoint');
       return;
@@ -136,10 +145,13 @@ export default function CheckpointsRecebidos({ events, eventoPadrao, onChange }:
                     {cp.tipo}
                     {cp.macAddress && <> · MAC <span className="font-mono text-gray-300">{cp.macAddress}</span></>}
                   </p>
+                  {String(cp.proposito || 'game').toLowerCase() === 'reception' && (
+                    <p className="mt-0.5 text-xs text-cyan-200">Recepção: use R1, R2, R3... O R2 atende a tela /reception/kiosk/2.</p>
+                  )}
                 </div>
                 <Input
                   label="Número"
-                  placeholder="Ex: 12"
+                  placeholder={String(cp.proposito || 'game').toLowerCase() === 'reception' ? 'Ex: R1' : 'Ex: 12'}
                   value={rascunho.numCheck}
                   onChange={(e) => editar(cp, { numCheck: mascaraNumeroCheckpoint(e.target.value) })}
                   maxLength={NUMERO_CHECKPOINT_MAX}

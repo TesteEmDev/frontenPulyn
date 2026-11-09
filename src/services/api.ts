@@ -1276,6 +1276,14 @@ export const api = {
     return body as PerfilCrianca;
   },
 
+  // Leitores de recepção cadastrados (R1, R2...): um para cada tela de autoatendimento (/reception/kiosk/<número>).
+  async getLeitoresDeRecepcao(): Promise<{ numero: number; numCheck: string; nome: string; online: boolean }[]> {
+    const res = await fetch(`${API_URL}/kiosk/receptions`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => []);
+    if (!res.ok) throw new Error((data as any).error || `Erro ao listar os leitores de recepção (${res.status})`);
+    return data;
+  },
+
   // Procura cadastros de crianças que já participaram de outros eventos da empresa.
   async searchKioskProfiles(eventId: string, busca: string) {
     const res = await fetch(`${API_URL}/kiosk/profiles?eventId=${encodeURIComponent(eventId)}&busca=${encodeURIComponent(busca)}`, {

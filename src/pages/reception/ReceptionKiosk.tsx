@@ -2,6 +2,7 @@
 // Performance: <300ms troca de tela, 50+ FPS
 
 import { useCallback, useEffect, useRef, useState, memo, type FormEvent } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { usePulynStore } from '../../store/mockData';
 import { useNFCOtimizado } from '../../hooks/useNFCReader_otimizado';
@@ -329,6 +330,26 @@ export default function ReceptionKioskOtimizado() {
 
   const registrationVisible = Boolean(braceletCode && (state === 'ready' || state === 'saving'));
 
+  // Várias telas de autoatendimento: /reception/kiosk/2 só ouve o leitor de recepção R2. Sem número, ouve qualquer leitor.
+  const { numero: numeroDaTela } = useParams<{ numero?: string }>();
+  const numCheckDaTela = numeroDaTela && /^\d{1,3}$/.test(numeroDaTela) ? `R${Number(numeroDaTela)}` : null;
+  const soDoLeitorDaTela = useCallback(
+    (leitura: { numCheck?: string | null }) => !numCheckDaTela || String(leitura?.numCheck || '').toUpperCase() === numCheckDaTela,
+    [numCheckDaTela],
+  );
+  // Esse leitor está cadastrado e ligado? (avisa no topo da tela quando não)
+  const [leitorDaTela, setLeitorDaTela] = useState<{ online: boolean } | null | undefined>(undefined);
+  useEffect(() => {
+    if (!numCheckDaTela) { setLeitorDaTela(undefined); return undefined; }
+    let vivo = true;
+    const conferir = () => api.getLeitoresDeRecepcao()
+      .then((lista) => { if (vivo) setLeitorDaTela(lista.find((item) => item.numCheck === numCheckDaTela) ?? null); })
+      .catch(() => undefined);
+    void conferir();
+    const intervalo = window.setInterval(conferir, 30_000);
+    return () => { vivo = false; window.clearInterval(intervalo); };
+  }, [numCheckDaTela]);
+
   // NFC READER OTIMIZADO
   const { isConnected } = useNFCOtimizado(
     handleBraceletDetected,
@@ -336,6 +357,8 @@ export default function ReceptionKioskOtimizado() {
     selectedEventId || null,
     'reception',
     !registrationVisible && state !== 'saving' && state !== 'success',
+    'kiosk',
+    soDoLeitorDaTela,
   );
 
   // Leitura alternativa pelo NFC do próprio tablet/celular usado como totem.
@@ -594,6 +617,13 @@ export default function ReceptionKioskOtimizado() {
               <h1 className="truncate font-display text-xl font-bold text-white sm:text-2xl">
                 Monte seu personagem
               </h1>
+              {numCheckDaTela && (
+                <p className="truncate text-xs font-semibold text-cyan-200">
+                  Autoatendimento {Number(numeroDaTela)} · leitor {numCheckDaTela}
+                  {leitorDaTela === null && <span className="ml-2 text-warning">nenhum leitor {numCheckDaTela} cadastrado</span>}
+                  {leitorDaTela && !leitorDaTela.online && <span className="ml-2 text-warning">leitor desligado</span>}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
