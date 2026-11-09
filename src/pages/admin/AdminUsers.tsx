@@ -42,8 +42,8 @@ const USUARIOS_POR_PAGINA = 10;
 // Papéis ao criar um usuário: o principal (o que ele abre ao entrar) e os extras que ele também pode usar.
 const GRUPOS_DE_PAPEL: { titulo: string; papeis: UserRole[] }[] = [
   { titulo: 'Equipe', papeis: ['admin', 'reception', 'game_master'] },
-  { titulo: 'Equipamentos', papeis: ['display', 'kiosk', 'score_kiosk'] },
-  { titulo: 'Famílias', papeis: ['family'] },
+  // O telão abre por link (sem conta) e as contas de família se cadastram sozinhas: nenhum dos dois é criado aqui
+  { titulo: 'Equipamentos', papeis: ['kiosk', 'score_kiosk'] },
 ];
 const MINIMO_SENHA = 6;
 // Sem caracteres que se confundem (0/O, 1/l/I), para a senha poder ser ditada ou digitada sem erro
