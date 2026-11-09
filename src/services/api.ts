@@ -1623,11 +1623,11 @@ export const api = {
   // cliente: o backend deriva isso de brincadeiras.type (escolhido no
   // AdminGameForm ao criar o jogo), que é a fonte de verdade persistida.
   // quantidadeCheckpoints: só o Caça ao Tesouro usa (quantos checkpoints entram na partida; vazio = todos)
-  async startGame(gameId: string, gameName: string, eventoId: string, quantidadeCheckpoints?: number | null) {
+  async startGame(gameId: string, gameName: string, eventoId: string, quantidadeCheckpoints?: number | null, checkpointFinalId?: string | null) {
     const res = await fetch(`${API_URL}/debug/start-game`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ gameId, gameName, eventoId, ...(quantidadeCheckpoints ? { quantidadeCheckpoints } : {}) }),
+      body: JSON.stringify({ gameId, gameName, eventoId, ...(quantidadeCheckpoints ? { quantidadeCheckpoints } : {}), ...(checkpointFinalId ? { checkpointFinalId } : {}) }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao iniciar jogo');
@@ -1635,11 +1635,15 @@ export const api = {
   },
 
   // Quantos checkpoints o Caça ao Tesouro pode usar neste evento (os do jogo que estão online): o máximo da escolha
-  async getTreasureAvailableCheckpoints(eventoId: string, brincadeiraId: string): Promise<{ total: number; minimo: number }> {
+  async getTreasureAvailableCheckpoints(eventoId: string, brincadeiraId: string): Promise<{ total: number; minimo: number; checkpoints: Array<{ id: string; nome: string }> }> {
     const res = await fetch(`${API_URL}/treasure/evento/${encodeURIComponent(eventoId)}/checkpoints-disponiveis?brincadeiraId=${encodeURIComponent(brincadeiraId)}`, { headers: getAuthHeaders() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Erro ao contar os checkpoints do jogo');
-    return { total: Number(data.total) || 0, minimo: Number(data.minimo) || 2 };
+    return {
+      total: Number(data.total) || 0,
+      minimo: Number(data.minimo) || 2,
+      checkpoints: Array.isArray(data.checkpoints) ? data.checkpoints : [],
+    };
   },
 
   async stopGame(eventoId: string) {

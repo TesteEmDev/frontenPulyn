@@ -142,7 +142,8 @@ export default function GameMasterDashboard() {
   const [semJogos, setSemJogos] = useState(false);
   // Caça ao Tesouro: quantos checkpoints usar na partida (vazio = todos) e quantos o jogo tem online
   const [qtdCheckpoints, setQtdCheckpoints] = useState('');
-  const [checkpointsDoJogo, setCheckpointsDoJogo] = useState<{ total: number; minimo: number } | null>(null);
+  const [checkpointsDoJogo, setCheckpointsDoJogo] = useState<{ total: number; minimo: number; checkpoints: Array<{ id: string; nome: string }> } | null>(null);
+  const [checkpointFinal, setCheckpointFinal] = useState('');
   const [treasureStatus, setTreasureStatus] = useState<TreasureStatus>({ active: false, gameType: 'none' });
   const [monsterStatus, setMonsterStatus] = useState<MonsterStatus>({ active: false, gameType: 'none' });
   const [clockNow, setClockNow] = useState(() => Date.now());
@@ -595,7 +596,7 @@ export default function GameMasterDashboard() {
           return;
         }
       }
-      const data = await api.startGame(selectedGameId, gameName, selectedEventId, quantidade);
+      const data = await api.startGame(selectedGameId, gameName, selectedEventId, quantidade, activeGame?.type === 'treasure_hunt' ? checkpointFinal || null : null);
       console.log('✅ Jogo iniciado:', data);
       resetGameTimer();
       setGameRunning(true);
@@ -612,6 +613,7 @@ export default function GameMasterDashboard() {
   // Quantos checkpoints o Caça ao Tesouro pode usar: o máximo da escolha do recreacionista
   useEffect(() => {
     setQtdCheckpoints('');
+    setCheckpointFinal('');
     setCheckpointsDoJogo(null);
     if (activeGame?.type !== 'treasure_hunt' || !selectedEventId || !selectedGameId) return undefined;
     let vivo = true;
@@ -939,6 +941,23 @@ export default function GameMasterDashboard() {
                     <span className="text-xs text-gray-500">
                       de {checkpointsDoJogo.total} online ({checkpointsDoJogo.minimo} no mínimo; em branco = todos). Os checkpoints usados são sorteados ao iniciar.
                     </span>
+                  </label>
+                )}
+                {activeGame?.type === 'treasure_hunt' && !gameRunning && checkpointsDoJogo && checkpointsDoJogo.checkpoints.length > 1 && (
+                  <label className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-300">
+                    Último checkpoint:
+                    <select
+                      value={checkpointFinal}
+                      onChange={(e) => setCheckpointFinal(e.target.value)}
+                      aria-label="Último checkpoint do Caça ao Tesouro"
+                      className="rounded-lg border border-dark-border bg-dark-surface px-2 py-1 text-white focus:border-primary focus:outline-none"
+                    >
+                      <option value="">Qualquer (sorteado)</option>
+                      {checkpointsDoJogo.checkpoints.map((cp) => (
+                        <option key={cp.id} value={cp.id}>{cp.nome}</option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-gray-500">Cada equipe só lê esse checkpoint depois de todos os outros.</span>
                   </label>
                 )}
               </div>
