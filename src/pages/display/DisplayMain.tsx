@@ -994,6 +994,7 @@ export default function DisplayMain() {
                           winnerTeamColor={monster.teamColor}
                           tipo={escolhido.tipo}
                           cor={escolhido.cor}
+                          leve={monsterCards.length > 2}
                         />
                         <div className="mt-3 flex items-center justify-between text-sm font-semibold text-gray-200">
                           <span>Energia do monstro</span>

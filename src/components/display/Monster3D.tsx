@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { MONSTROS, urlDoModelo, type TipoDeMonstro } from './monstros/catalogo';
 import { criarMonstro, type MonstroPronto } from './monstros/modelos';
 import { tocarSom } from './monstros/som';
+import { criarCenario, descartarCenario } from './monstros/cenarios';
 
 interface Monster3DProps {
   hp: number;
@@ -15,6 +16,8 @@ interface Monster3DProps {
   // Monstro sorteado para a equipe (tipo e cor); sem eles, aparece o slime verde
   tipo?: TipoDeMonstro;
   cor?: string;
+  // Cenário mais leve (sem luzes pontuais e com metade dos objetos): para quando há muitas equipes na tela
+  leve?: boolean;
 }
 
 type MonsterEffect = 'hit' | 'death' | null;
@@ -24,7 +27,7 @@ const monsterStyles = `
   .monster-3d { position: relative; width: 100%; min-height: 330px; overflow: hidden; border-radius: 1.5rem; background: radial-gradient(circle at 50% 42%, #4c1d95 0%, #1e123c 38%, #090613 78%); }
   .monster-3d__canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   .monster-3d__fallback { position: absolute; inset: 0; display: grid; place-items: center; font-size: 7rem; filter: drop-shadow(0 0 25px #ec4899); animation: monster-fallback-float 2.5s ease-in-out infinite; }
-  .monster-3d__status { position: absolute; left: 1rem; right: 1rem; bottom: 1rem; z-index: 4; display: flex; align-items: center; justify-content: space-between; gap: 1rem; color: #e9d5ff; font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; }
+  .monster-3d__status { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.6rem 1rem .8rem; background: linear-gradient(to top, rgba(8, 4, 20, .82), rgba(8, 4, 20, 0)); color: #f5ecff; font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; text-shadow: 0 1px 6px rgba(0, 0, 0, .9); }
   .monster-3d__damage { color: #fef08a; text-shadow: 0 0 12px #f43f5e; animation: monster-damage .8s ease-out forwards; }
   .monster-3d__winner { color: var(--winner-color, #86efac); text-shadow: 0 0 12px var(--winner-color, #86efac); }
   @keyframes monster-damage { 0% { opacity: 0; transform: translateY(12px); } 25% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-28px); } }
@@ -260,23 +263,6 @@ const ZOOM_DO_CARTAO = 0.74;
 // Dano a partir do qual o golpe é um ataque especial (30 do checkpoint especial e 50 do ataque especial): usa o Crit
 const DANO_CRITICO = 30;
 
-// Fundo do cartão: degradê vertical da paleta do monstro
-function criarFundo(paradas: [number, string][]) {
-  const tela = document.createElement('canvas');
-  tela.width = 2;
-  tela.height = 256;
-  const contexto = tela.getContext('2d');
-  if (contexto) {
-    const degrade = contexto.createLinearGradient(0, 0, 0, 256);
-    paradas.forEach(([posicao, cor]) => degrade.addColorStop(posicao, cor));
-    contexto.fillStyle = degrade;
-    contexto.fillRect(0, 0, 2, 256);
-  }
-  const textura = new THREE.CanvasTexture(tela);
-  textura.colorSpace = THREE.SRGBColorSpace;
-  return textura;
-}
-
 export default function Monster3D({
   hp,
   maxHp,
@@ -287,6 +273,7 @@ export default function Monster3D({
   winnerTeamColor,
   tipo = 'slime',
   cor,
+  leve = false,
 }: Monster3DProps) {
   const dados = MONSTROS[tipo];
   const corDoMonstro = cor && dados.cores.includes(cor) ? cor : dados.cores[0];
@@ -345,30 +332,35 @@ export default function Monster3D({
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
 
-    // Cenário leve: só cores (fundo, névoa, chão e luzes do cenário do monstro). Cada cartão tem o próprio renderizador,
-    // então nada de objetos nem de muitas luzes aqui.
-    const paleta = dados.paleta;
+    // Cenário do monstro (o mesmo do visualizador): fundo, névoa, chão, luzes e os objetos de cada lugar
     const scene = new THREE.Scene();
-    const fundo = criarFundo(paleta.fundo);
-    scene.background = fundo;
-    scene.fog = new THREE.Fog(paleta.nevoa[0], paleta.nevoa[1], paleta.nevoa[2]);
+    const cenario = criarCenario(tipo, leve);
+    scene.add(cenario.group);
+    scene.background = cenario.bgTexture ?? null;
+    scene.fog = new THREE.Fog(cenario.fog[0], cenario.fog[1], cenario.fog[2]);
     const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
     // Os valores do catálogo enquadram o monstro inteiro com folga; o cartão é largo e baixo, então chega um pouco mais perto
     const { x, y, z, alvoY } = dados.camera;
     camera.position.set(x * ZOOM_DO_CARTAO, alvoY + (y - alvoY) * ZOOM_DO_CARTAO, z * ZOOM_DO_CARTAO);
     camera.lookAt(0, alvoY, 0);
 
-    scene.add(new THREE.HemisphereLight(paleta.hemi[0], paleta.hemi[1], paleta.hemi[2]));
-    const keyLight = new THREE.DirectionalLight(paleta.luz[0], paleta.luz[1]);
+    scene.add(new THREE.HemisphereLight(cenario.hemi[0], cenario.hemi[1], cenario.hemi[2]));
+    const keyLight = new THREE.DirectionalLight(cenario.key[0], cenario.key[1]);
     keyLight.position.set(-3, 6, 5);
     scene.add(keyLight);
-    const rimLight = new THREE.PointLight(paleta.rim[0], (8 * paleta.rim[2]) / 2, 10);
+    // Luzes de contorno nas cores do cenário (no modo leve só uma, mais fraca)
+    const rimLight = new THREE.PointLight(cenario.rim[0], ((leve ? 6 : 8) * cenario.rim[2]) / 2, 10);
     rimLight.position.set(2.8, 1.8, 2.5);
     scene.add(rimLight);
+    if (!leve) {
+      const rimLight2 = new THREE.PointLight(cenario.rim[1], (6 * cenario.rim[2]) / 2, 9);
+      rimLight2.position.set(-3, 0.5, 1);
+      scene.add(rimLight2);
+    }
 
     const chao = new THREE.Mesh(
-      new THREE.CircleGeometry(60, 48),
-      new THREE.MeshStandardMaterial({ color: paleta.chao, roughness: 0.95 })
+      new THREE.CircleGeometry(60, leve ? 32 : 64),
+      new THREE.MeshStandardMaterial({ color: cenario.ground, roughness: 0.95 })
     );
     chao.rotation.x = -Math.PI / 2;
     scene.add(chao);
@@ -542,6 +534,7 @@ export default function Monster3D({
         parts.particleGroup.rotation.y = elapsed * 0.18;
       }
 
+      cenario.update?.(elapsed);
       renderer.render(scene, camera);
     };
     animate();
@@ -554,6 +547,8 @@ export default function Monster3D({
       mixer?.stopAllAction();
       // O monstro do arquivo compartilha geometria e texturas com as outras cópias: só os materiais clonados vão embora
       pronto?.descartar();
+      scene.remove(cenario.group);
+      descartarCenario(cenario);
       scene.traverse((object) => {
         if (!(object instanceof THREE.Mesh)) return;
         if (pronto && pronto.modelo.getObjectById(object.id)) return;
@@ -561,12 +556,11 @@ export default function Monster3D({
         if (Array.isArray(object.material)) object.material.forEach((material) => material.dispose());
         else object.material.dispose();
       });
-      fundo.dispose();
       renderer.dispose();
     };
     // O monstro é escolhido ao montar o cartão; trocar de tipo ou cor remonta a cena
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tipo, corDoMonstro]);
+  }, [tipo, corDoMonstro, leve]);
 
   const safeMaxHp = Math.max(1, maxHp || 500);
   const safeHp = Math.max(0, Math.min(safeMaxHp, hp || 0));

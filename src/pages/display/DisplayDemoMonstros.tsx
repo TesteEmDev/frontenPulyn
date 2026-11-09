@@ -78,6 +78,7 @@ export default function DisplayDemoMonstros() {
                 winnerTeamColor={equipe.cor}
                 tipo={tipo}
                 cor={cor}
+                leve={quantidade > 2}
                 key={`${equipe.id}-${tipo}-${cor}`}
               />
             </section>
