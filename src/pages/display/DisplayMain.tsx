@@ -62,6 +62,10 @@ const sameEventId = (left: unknown, right: unknown) => (
   String(left || '').trim().toLowerCase() === String(right || '').trim().toLowerCase()
 );
 
+// Modo de teste do Caça ao Monstro (abra o telão com ?teste=1): botões que simulam a leitura de um checkpoint normal, de um
+// especial e o ataque especial, só aqui na tela, para ver as animações sem checkpoints. Nada é enviado nem gravado no servidor.
+const DANO_DE_TESTE = { normal: 10, especial: 30, ataque: 50 } as const;
+
 // Quanto tempo uma mensagem do recreacionista fica no telão
 const MENSAGEM_VISIVEL_MS = 8000;
 // Durante o jogo a coluna da direita alterna entre as últimas leituras e o ranking da partida; cada tela fica este tempo
@@ -111,6 +115,9 @@ export default function DisplayMain() {
   const [gameStateLoaded, setGameStateLoaded] = useState(false);
   // Jogos ativos do evento, para o guia que passa enquanto não há jogo rodando
   const [guideGames, setGuideGames] = useState<GuideGame[]>([]);
+  // Dano simulado pelo modo de teste, por equipe (some quando chega um evento real do jogo)
+  const modoDeTeste = useMemo(() => new URLSearchParams(window.location.search).has('teste'), []);
+  const [danoDeTeste, setDanoDeTeste] = useState<Record<string, number>>({});
 
   const {
     eventoAtualId,
@@ -566,6 +573,7 @@ export default function DisplayMain() {
         setMessageArrivedAt(Date.now());
       } else if (['MONSTER_PROGRESS', 'MONSTER_SPECIAL_ATTACK', 'MONSTER_TEAM_DEFEATED', 'MONSTER_DEFEATED'].includes(event.type) && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const payload = event.payload || {};
+        setDanoDeTeste({}); // um golpe de verdade: a tela volta a mostrar só o que o servidor diz
         const monsters = Array.isArray(payload.monsters)
           ? payload.monsters
           : Array.isArray(payload.progress) ? payload.progress : payload.teamsProgress;
@@ -588,6 +596,7 @@ export default function DisplayMain() {
         refreshTreasureStatus();
         refreshMonsterStatus();
       } else if (event.type === 'GAME_STARTED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        setDanoDeTeste({});
         const treasure = event.payload?.treasure;
 
         const gameType = event.payload?.gameType;
@@ -668,6 +677,7 @@ export default function DisplayMain() {
           setZoneConquestStatus(null);
         }
       } else if (event.type === 'GAME_STOPPED' && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
+        setDanoDeTeste({});
         // Havia um jogo rodando: mostra a pontuação final com o Pulyn comemorando
         if (gameActive) {
           const tipoDoJogo = guideGames.find((g) => g.name === selectedGameName)?.type;
@@ -968,9 +978,10 @@ export default function DisplayMain() {
               <div className="grid gap-5 lg:grid-cols-2">
                 {monsterCards.map((monster, indice) => {
                   const escolhido = monstroDaEquipe(monster.monsterType, monster.monsterColor, indice);
-                  const hp = Number(monster.monsterHp || 0);
                   const maxHp = Number(monster.monsterMaxHp || 500);
-                  const defeated = Boolean(monster.monsterDefeated || monster.victory);
+                  // No modo de teste o dano simulado se soma ao que o servidor informa
+                  const hp = Math.max(0, Number(monster.monsterHp || 0) - (danoDeTeste[monster.teamId] || 0));
+                  const defeated = Boolean(monster.monsterDefeated || monster.victory || (modoDeTeste && hp <= 0));
                   const progressPercent = maxHp > 0 ? Math.max(0, Math.min(100, (hp / maxHp) * 100)) : 0;
                   return (
                     <article key={monster.teamId} className="overflow-hidden rounded-2xl border border-white/10 bg-black/25" style={{ borderColor: `${monster.teamColor || '#ef4444'}66` }}>
@@ -1031,8 +1042,34 @@ export default function DisplayMain() {
             )
   );
 
+  // Simula o golpe numa equipe; um monstro já derrotado não reage
+  const simularGolpe = (teamId: string, dano: number) => setDanoDeTeste((atual) => ({ ...atual, [teamId]: (atual[teamId] || 0) + dano }));
+
   const conquestOverlay = (
     <>
+      {modoDeTeste && monsterCards.length > 0 && (
+        <div className="fixed bottom-3 left-3 z-[60] max-h-[70vh] max-w-md overflow-y-auto rounded-xl border border-warning/40 bg-black/85 p-3 text-xs text-white shadow-xl backdrop-blur" role="region" aria-label="Modo de teste do Caça ao Monstro">
+          <p className="mb-2 font-bold uppercase tracking-wide text-warning">Modo de teste · nada é gravado</p>
+          <div className="space-y-2">
+            {monsterCards.map((monster) => {
+              const caido = Number(monster.monsterHp || 0) - (danoDeTeste[monster.teamId] || 0) <= 0 || Boolean(monster.monsterDefeated);
+              const botao = 'rounded-md border border-white/15 bg-white/[0.07] px-2 py-1 font-semibold transition-colors hover:bg-white/[0.16] disabled:cursor-not-allowed disabled:opacity-40';
+              return (
+                <div key={monster.teamId} className="flex flex-wrap items-center gap-1.5">
+                  <span className="mr-1 w-24 truncate font-bold" style={{ color: monster.teamColor || '#f87171' }}>{monster.teamName}</span>
+                  <button type="button" className={botao} disabled={caido} onClick={() => simularGolpe(monster.teamId, DANO_DE_TESTE.normal)} title="Como a leitura de um checkpoint normal (-10 HP)">Normal</button>
+                  <button type="button" className={botao} disabled={caido} onClick={() => simularGolpe(monster.teamId, DANO_DE_TESTE.especial)} title="Como a leitura do checkpoint especial (-30 HP)">Especial</button>
+                  <button type="button" className={botao} disabled={caido} onClick={() => simularGolpe(monster.teamId, DANO_DE_TESTE.ataque)} title="Como o ataque especial da equipe (-50 HP)">Ataque</button>
+                  <button type="button" className={botao} disabled={caido} onClick={() => simularGolpe(monster.teamId, Number(monster.monsterHp || 0))} title="Derrota o monstro desta equipe">Derrotar</button>
+                </div>
+              );
+            })}
+          </div>
+          <button type="button" className="mt-2 rounded-md border border-warning/40 px-2 py-1 font-semibold text-warning hover:bg-warning/10" onClick={() => setDanoDeTeste({})}>
+            Desfazer o teste (voltar ao jogo)
+          </button>
+        </div>
+      )}
       {parallelRoulette && (
         <RouletteOverlay
           data={parallelRoulette}
