@@ -146,7 +146,7 @@ export default function CheckpointsRecebidos({ events, eventoPadrao, onChange }:
                     {cp.macAddress && <> · MAC <span className="font-mono text-gray-300">{cp.macAddress}</span></>}
                   </p>
                   {String(cp.proposito || 'game').toLowerCase() === 'reception' && (
-                    <p className="mt-0.5 text-xs text-cyan-200">Recepção: use R1, R2, R3... O R2 atende a tela /reception/kiosk/2.</p>
+                    <p className="mt-0.5 text-xs text-cyan-200">Recepção: R1 é o balcão (check-in); R2, R3... são telas de autoatendimento (o R2 atende /reception/kiosk/2).</p>
                   )}
                 </div>
                 <Input

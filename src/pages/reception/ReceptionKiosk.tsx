@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState, memo, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
+import { LEITOR_DO_BALCAO, ehLeituraDeAutoatendimento } from '../../utils/recepcao';
 import { useAuth } from '../../hooks/useAuth';
 import { usePulynStore } from '../../store/mockData';
 import { useNFCOtimizado } from '../../hooks/useNFCReader_otimizado';
@@ -333,8 +334,13 @@ export default function ReceptionKioskOtimizado() {
   // Várias telas de autoatendimento: /reception/kiosk/2 só ouve o leitor de recepção R2. Sem número, ouve qualquer leitor.
   const { numero: numeroDaTela } = useParams<{ numero?: string }>();
   const numCheckDaTela = numeroDaTela && /^\d{1,3}$/.test(numeroDaTela) ? `R${Number(numeroDaTela)}` : null;
+  // O R1 é do balcão: a tela 1 não existe como autoatendimento
+  const telaDoBalcao = numCheckDaTela === LEITOR_DO_BALCAO;
   const soDoLeitorDaTela = useCallback(
-    (leitura: { numCheck?: string | null }) => !numCheckDaTela || String(leitura?.numCheck || '').toUpperCase() === numCheckDaTela,
+    (leitura: { numCheck?: string | null }) => {
+      if (!ehLeituraDeAutoatendimento(leitura)) return false;
+      return !numCheckDaTela || String(leitura?.numCheck || '').toUpperCase() === numCheckDaTela;
+    },
     [numCheckDaTela],
   );
   // Esse leitor está cadastrado e ligado? (avisa no topo da tela quando não)
@@ -620,7 +626,8 @@ export default function ReceptionKioskOtimizado() {
               {numCheckDaTela && (
                 <p className="truncate text-xs font-semibold text-cyan-200">
                   Autoatendimento {Number(numeroDaTela)} · leitor {numCheckDaTela}
-                  {leitorDaTela === null && <span className="ml-2 text-warning">nenhum leitor {numCheckDaTela} cadastrado</span>}
+                  {telaDoBalcao && <span className="ml-2 text-warning">o R1 é do balcão: use /reception/kiosk/2, /3...</span>}
+                  {!telaDoBalcao && leitorDaTela === null && <span className="ml-2 text-warning">nenhum leitor {numCheckDaTela} cadastrado</span>}
                   {leitorDaTela && !leitorDaTela.online && <span className="ml-2 text-warning">leitor desligado</span>}
                 </p>
               )}

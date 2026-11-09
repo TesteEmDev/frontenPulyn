@@ -11,7 +11,11 @@ export function useNFCReader(
   expectedSource?: string,
   pollingEnabled = true,
   pollingApiBase = 'kiosk',
+  // Só deixa passar as leituras que o filtro aceita (ex.: o balcão só ouve o leitor R1)
+  aceitarLeitura?: (leitura: any) => boolean,
 ) {
+  const aceitarLeituraRef = useRef(aceitarLeitura);
+  useEffect(() => { aceitarLeituraRef.current = aceitarLeitura; }, [aceitarLeitura]);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onBraceletDetectedRef = useRef(onBraceletDetected);
@@ -52,6 +56,7 @@ export function useNFCReader(
         readings.forEach((reading: any) => {
           const receivedAt = Number(reading.receivedAt || 0);
           latest = Math.max(latest, receivedAt);
+          if (aceitarLeituraRef.current && !aceitarLeituraRef.current(reading)) return;
           const code = reading.braceletCode || reading.code || reading.uid;
           if (code) onBraceletDetectedRef.current(code);
         });
@@ -103,7 +108,8 @@ export function useNFCReader(
             || msg.payload?.source === expectedSource
             || isLegacyReceptionMessage;
 
-          if (isNfcMessage && belongsToSelectedEvent && isExpectedReceptionMessage) {
+          const doLeitorCerto = !aceitarLeituraRef.current || aceitarLeituraRef.current(msg.payload);
+          if (isNfcMessage && belongsToSelectedEvent && isExpectedReceptionMessage && doLeitorCerto) {
             const code = msg.payload?.braceletCode || msg.payload?.code || msg.payload?.uid;
             if (code) onBraceletDetectedRef.current(code);
           }

@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { QrCode, Edit, RotateCw, Unlink } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useNFCReader } from '../../hooks/useNFCReader';
+import { ehLeituraDoBalcao } from '../../utils/recepcao';
 import { api } from '../../services/api';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import ReceptionSidebar from '../../components/layout/ReceptionSidebar';
@@ -76,6 +77,9 @@ export default function ReceptionParticipants() {
     'checkin',
     selectedEventId,
     'reception',
+    true,
+    'kiosk',
+    ehLeituraDoBalcao, // o balcão só ouve o leitor R1; R2, R3... são das telas de autoatendimento
   );
 
   useEffect(() => {
