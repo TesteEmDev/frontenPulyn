@@ -111,7 +111,7 @@ export default function AdminGameForm() {
           if (!id) {
             const doEvento = await api.getCheckpoints(selectedEventoId);
             const lista = (Array.isArray(doEvento) ? doEvento : [])
-              .filter((cp: any) => String(cp.proposito || 'game').toLowerCase() !== 'reception');
+              .filter((cp: any) => String(cp.proposito || 'game').toLowerCase() === 'game');
             setCheckpointConfigs(anteriores => lista.map((cp: any) => ({
               id: cp.checkpointId ?? cp.id,
               // o que já estava marcado continua marcado se o checkpoint também existe neste evento

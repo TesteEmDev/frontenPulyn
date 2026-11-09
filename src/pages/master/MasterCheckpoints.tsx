@@ -372,7 +372,7 @@ export default function MasterCheckpoints() {
                         <p className="text-xs text-gray-400">
                           <span className="font-mono">{cp.macAddress ?? 'sem MAC'}</span>
                           {cp.epc && <>{' · EPC '}<span className="font-mono" title="Só o super admin vê o EPC">{cp.epc}</span></>}
-                          {' · '}{cp.tipo}{cp.proposito === 'reception' ? ' · recepção' : ''}
+                          {' · '}{cp.tipo}{cp.proposito === 'reception' ? ' · recepção' : cp.proposito === 'score' ? ' · pontuação' : ''}
                         </p>
                       </td>
                       <td className="py-3 pr-4 text-sm font-mono text-gray-300">{cp.numCheck ?? '—'}</td>
@@ -496,6 +496,7 @@ export default function MasterCheckpoints() {
               <select id="mc-proposito" value={form.proposito} onChange={(e) => setForm({ ...form, proposito: e.target.value })} className={SELECT_CLASSES}>
                 <option value="game" style={OPTION_STYLE}>Jogos</option>
                 <option value="reception" style={OPTION_STYLE}>Recepção</option>
+                <option value="score" style={OPTION_STYLE}>Pontuação (consulta de pontos)</option>
               </select>
             </div>
           </div>

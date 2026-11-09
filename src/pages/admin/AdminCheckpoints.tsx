@@ -37,9 +37,12 @@ export default function AdminCheckpoints() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [checkpointsList, setCheckpointsList] = useState<any[]>([]);
   // Finalidade dos checkpoints mostrados: jogo, recepção ou todos
-  const [filtroFinalidade, setFiltroFinalidade] = useState<'todos' | 'game' | 'reception'>('todos');
-  const ehRecepcao = (cp: any) => String(cp?.proposito || 'game').toLowerCase() === 'reception';
-  const checkpointsVisiveis = checkpointsList.filter((cp) => filtroFinalidade === 'todos' || (filtroFinalidade === 'reception') === ehRecepcao(cp));
+  const [filtroFinalidade, setFiltroFinalidade] = useState<'todos' | 'game' | 'reception' | 'score'>('todos');
+  const finalidadeDe = (cp: any): 'game' | 'reception' | 'score' => {
+    const valor = String(cp?.proposito || 'game').toLowerCase();
+    return valor === 'reception' || valor === 'score' ? valor : 'game';
+  };
+  const checkpointsVisiveis = checkpointsList.filter((cp) => filtroFinalidade === 'todos' || finalidadeDe(cp) === filtroFinalidade);
   // Sobe quando um checkpoint recebido entra num evento, para a lista recarregar.
   const [recarregar, setRecarregar] = useState(0);
 
@@ -449,8 +452,8 @@ export default function AdminCheckpoints() {
                 ))}
               </select>
               <div className="flex items-center gap-1.5" role="group" aria-label="Finalidade dos checkpoints">
-                {([['todos', 'Todos'], ['game', 'Jogo'], ['reception', 'Recepção']] as const).map(([valor, rotulo]) => {
-                  const total = checkpointsList.filter((cp) => valor === 'todos' || (valor === 'reception') === ehRecepcao(cp)).length;
+                {([['todos', 'Todos'], ['game', 'Jogo'], ['reception', 'Recepção'], ['score', 'Pontuação']] as const).map(([valor, rotulo]) => {
+                  const total = checkpointsList.filter((cp) => valor === 'todos' || finalidadeDe(cp) === valor).length;
                   return (
                     <button
                       key={valor}
@@ -528,7 +531,9 @@ export default function AdminCheckpoints() {
                           <Badge variant="secondary">{cp.type}</Badge>
                         </td>
                         <td className="py-3 pr-4">
-                          <Badge variant={ehRecepcao(cp) ? 'accent' : 'primary'}>{ehRecepcao(cp) ? 'Recepção' : 'Jogo'}</Badge>
+                          <Badge variant={finalidadeDe(cp) === 'game' ? 'primary' : finalidadeDe(cp) === 'reception' ? 'accent' : 'success'}>
+                            {finalidadeDe(cp) === 'game' ? 'Jogo' : finalidadeDe(cp) === 'reception' ? 'Recepção' : 'Pontuação'}
+                          </Badge>
                         </td>
                         <td className="py-3 pr-4">
                           <p className="text-sm text-gray-300">{cp.zone || '-'}</p>

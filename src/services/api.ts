@@ -1959,7 +1959,7 @@ export const api = {
       if (!res.ok) return [];
       const data = await res.json();
       return Array.isArray(data)
-        ? (todos ? data : data.filter(checkpoint => String(checkpoint?.proposito || 'game').toLowerCase() !== 'reception'))
+        ? (todos ? data : data.filter(checkpoint => String(checkpoint?.proposito || 'game').toLowerCase() === 'game'))
         : [];
     } catch (err) {
       console.error('Erro ao carregar checkpoints:', err);
