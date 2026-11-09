@@ -19,6 +19,7 @@ import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import SeletorDeBuffet from './SeletorDeBuffet';
 import { masterNavItems } from './masterNav';
+import { confirmar } from '../../components/ui/dialogo';
 
 const ROTULO_MOVIMENTO: Record<MovimentoDePulseira['tipo'], { texto: string; variante: 'primary' | 'success' | 'warning' | 'muted' }> = {
   enviada: { texto: 'Enviada', variante: 'primary' },
@@ -214,8 +215,8 @@ export default function MasterBracelets() {
     }
   };
 
-  const remover = (codigos: string[]) => {
-    if (!confirm(`Tirar ${codigos.length} pulseira(s) da lista? Elas podem ser lidas de novo depois.`)) return;
+  const remover = async (codigos: string[]) => {
+    if (!(await confirmar(`Tirar ${codigos.length} pulseira(s) da lista? Elas podem ser lidas de novo depois.`, { titulo: 'Tirar da lista', confirmar: 'Tirar da lista', perigo: false }))) return;
     void executar(() => api.masterRemoverPulseiras(codigos), 'Removida(s) da lista').then(() =>
       setSelecionadas((atual) => new Set([...atual].filter((c) => !codigos.includes(c)))));
   };

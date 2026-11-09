@@ -15,6 +15,7 @@ import Modal from '../../components/ui/Modal';
 import ColorPicker from '../../components/ui/ColorPicker';
 import AllEventsTeams, { type EventTeam } from '../../components/team/AllEventsTeams';
 import { normalizeHex, readableTextOn } from '../../utils/color';
+import { confirmar } from '../../components/ui/dialogo';
 
 interface Team {
   timeId: string;
@@ -192,7 +193,7 @@ export default function AdminTeams() {
   };
 
   const handleDeleteTeam = async (id: string) => {
-    if (!window.confirm('Tem certeza que deseja remover este time? Esta ação não pode ser desfeita!')) return;
+    if (!(await confirmar('Tem certeza que deseja remover este time? Esta ação não pode ser desfeita!', { titulo: 'Remover o time', confirmar: 'Remover' }))) return;
 
     try {
       await api.deleteTime(id);

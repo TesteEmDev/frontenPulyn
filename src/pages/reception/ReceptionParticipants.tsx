@@ -16,6 +16,7 @@ import Avatar from '../../components/ui/Avatar';
 import Modal from '../../components/ui/Modal';
 import QRCodeModal from '../../components/ui/QRCodeModal';
 import StatusDot from '../../components/ui/StatusDot';
+import { avisar } from '../../components/ui/dialogo';
 
 type FilterTab = 'all' | 'with-bracelet' | 'without-bracelet' | 'by-team';
 
@@ -280,14 +281,14 @@ export default function ReceptionParticipants() {
       } else if (modalAction === 'edit-name') {
         // Editar nome
         if (!editingName.trim()) {
-          alert('O nome não pode estar vazio');
+          avisar('O nome não pode estar vazio');
           setSaving(false);
           return;
         }
 
         const child = children.find(c => c.criancaId === modalChild);
         if (!child || !selectedEventId) {
-          alert('Erro ao atualizar criança');
+          avisar('Erro ao atualizar criança');
           setSaving(false);
           return;
         }
@@ -304,7 +305,7 @@ export default function ReceptionParticipants() {
         // Trocar pulseira - LÓGICA ORIGINAL
         const inputValue = braceletInput;if (!inputValue || !inputValue.trim()) {
           console.error(`❌ inputValue vazio: "${inputValue}"`);
-          alert('Leia a pulseira antes de confirmar');
+          avisar('Leia a pulseira antes de confirmar');
           setSaving(false);
           return;
         }
@@ -317,7 +318,7 @@ export default function ReceptionParticipants() {
           pulseira = { code: normalizedInput, status: 'disponivel' };
         }if (pulseira.status !== 'disponivel') {
           console.error(`❌ Pulseira indisponível: ${pulseira.status}`);
-          alert(`Pulseira indisponível. Status: ${pulseira.status}`);
+          avisar(`Pulseira indisponível. Status: ${pulseira.status}`);
           setSaving(false);
           return;
         }
@@ -325,14 +326,14 @@ export default function ReceptionParticipants() {
         const child = children.find(c => c.criancaId === modalChild);
         if (!child) {
           console.error('❌ Criança não encontrada');
-          alert('Criança não encontrada');
+          avisar('Criança não encontrada');
           setSaving(false);
           return;
         }
 
         if (!selectedEventId) {
           console.error('❌ Evento não selecionado');
-          alert('Evento não selecionado');
+          avisar('Evento não selecionado');
           setSaving(false);
           return;
         }if (child.codigoPulseira && child.codigoPulseira.trim().toUpperCase() !== normalizedInput) {await api.unassignBracelet(modalChild);
@@ -363,10 +364,10 @@ export default function ReceptionParticipants() {
       setEditingNickname('');
       setModalChild(null);
       setModalAction(null);
-      alert('✅ Ação realizada com sucesso!');
+      avisar('✅ Ação realizada com sucesso!');
     } catch (error: any) {
       console.error('❌ Erro:', error);
-      alert(`Erro ao processar ação: ${error.message || 'Tente novamente'}`);
+      avisar(`Erro ao processar ação: ${error.message || 'Tente novamente'}`);
     } finally {
       setSaving(false);
     }
@@ -374,7 +375,7 @@ export default function ReceptionParticipants() {
 
   const handleTeamChange = useCallback(async (child: Child, timeId: string) => {
     if (!selectedEventId) {
-      alert('Selecione um evento antes de definir o time');
+      avisar('Selecione um evento antes de definir o time');
       return;
     }
 
@@ -400,7 +401,7 @@ export default function ReceptionParticipants() {
     } catch (error: any) {
       setTeamSelections((current) => ({ ...current, [child.criancaId]: previousTimeId }));
       console.error('❌ Erro ao atualizar time da criança:', error);
-      alert(`Não foi possível atualizar o time: ${error.message || 'Tente novamente.'}`);
+      avisar(`Não foi possível atualizar o time: ${error.message || 'Tente novamente.'}`);
     } finally {
       setSavingTeamId(null);
     }

@@ -14,6 +14,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
+import { confirmar } from '../../components/ui/dialogo';
 
 type Config = Record<string, number>;
 type Limites = Record<string, [number, number]>;
@@ -252,17 +253,17 @@ export default function AdminPulynBall() {
   const todosOsJogos = grupos.flatMap(grupo => grupo.jogos.map(jogo => ({ jogo, grupo })));
   const escolhido = todosOsJogos.find(item => item.jogo.brincadeiraId === jogoEscolhidoId) ?? null;
 
-  const confirmarPerdaDeAlteracoes = () =>
-    !editandoAlterado || window.confirm('Você tem alterações não salvas neste jogo. Deseja descartá-las?');
+  const confirmarPerdaDeAlteracoes = async () =>
+    !editandoAlterado || confirmar('Você tem alterações não salvas neste jogo. Deseja descartá-las?', { titulo: 'Alterações não salvas', confirmar: 'Descartar' });
 
-  const escolherJogo = (id: string) => {
-    if (id === jogoEscolhidoId || !confirmarPerdaDeAlteracoes()) return;
+  const escolherJogo = async (id: string) => {
+    if (id === jogoEscolhidoId || !(await confirmarPerdaDeAlteracoes())) return;
     setEditandoAlterado(false);
     setJogoEscolhidoId(id);
   };
 
-  const trocarEvento = (id: string) => {
-    if (id === eventoAtualId || !confirmarPerdaDeAlteracoes()) return;
+  const trocarEvento = async (id: string) => {
+    if (id === eventoAtualId || !(await confirmarPerdaDeAlteracoes())) return;
     setEventoAtualId(id);
   };
 

@@ -1,6 +1,7 @@
 import { lerToken, sessaoSoDestaAba } from './utils/sessao';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { DialogoGlobal } from './components/ui/dialogo';
 import { useEffect, useCallback } from 'react';
 import { usePulynStore } from './store/mockData';
 import { useAuth } from './hooks/useAuth';
@@ -213,6 +214,7 @@ function App() {
         />
         <DisplayRealtimeBridge enabled={isAuthenticated && user?.role === 'display'} />
         <TelaoSessao />
+        <DialogoGlobal />
         <Toaster
           position="top-right"
           toastOptions={{

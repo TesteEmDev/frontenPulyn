@@ -7,6 +7,7 @@ import { useBuffetName, useBuffetNameStore, DEFAULT_BUFFET_TITLE } from '../../h
 import { itensDoAdmin } from './AdminSidebar';
 import { RECEPTION_NAV_ITEMS } from './ReceptionSidebar';
 import { GAME_MASTER_NAV_ITEMS } from './gameMasterNav';
+import { avisar } from '../ui/dialogo';
 
 interface SidebarItem {
   icon: ReactNode;
@@ -123,7 +124,7 @@ export default function Sidebar({
     if (resultado.success) {
       navigate(path);
     } else {
-      alert(resultado.error || 'Não foi possível abrir essa área');
+      avisar(resultado.error || 'Não foi possível abrir essa área');
     }
   };
   // No admin, o nome exibido é o "Nome da unidade" do cadastro do buffet.

@@ -12,6 +12,7 @@ import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
 import StatusDot from '../../components/ui/StatusDot';
+import { avisar } from '../../components/ui/dialogo';
 
 type BraceletStatus = 'disponivel' | 'em uso' | 'perdida' | 'bloqueada';
 
@@ -156,7 +157,7 @@ export default function ReceptionBracelets() {
       
     } catch (error: any) {
       console.error('❌ Erro ao executar ação:', error);
-      alert(`Erro ao executar ação: ${error.message || 'Tente novamente.'}`);
+      avisar(`Erro ao executar ação: ${error.message || 'Tente novamente.'}`);
     }
 
     setModalOpen(false);
@@ -190,7 +191,7 @@ export default function ReceptionBracelets() {
       
       setNovaPulseiraCode('');
       setCadastrarModalOpen(false);
-      alert(`✅ Pulseira ${code} cadastrada com sucesso!`);} catch (error: any) {
+      avisar(`✅ Pulseira ${code} cadastrada com sucesso!`);} catch (error: any) {
       console.error('❌ Erro ao cadastrar:', error);
       setErrorMessage(error.message || 'Erro ao cadastrar pulseira');
     } finally {
@@ -229,7 +230,7 @@ export default function ReceptionBracelets() {
     
     setNovaPulseiraCode('');
     setCadastrarModalOpen(false);
-    alert(`Cadastradas: ${novos} pulseira(s)\nErros: ${erros}`);
+    avisar(`Cadastradas: ${novos} pulseira(s)\nErros: ${erros}`);
     setSaving(false);
   }, [novaPulseiraCode, loadBracelets]);
 

@@ -13,6 +13,7 @@ import Modal from '../../components/ui/Modal';
 import MapaPlanta, { LARGURA_PLANTA, ALTURA_PLANTA, type PontoPlanta } from '../../components/uhf/MapaPlanta';
 import MarcadorAntena, { CORES_LEITOR } from '../../components/uhf/MarcadorAntena';
 import VinculoPulseiras from '../../components/uhf/VinculoPulseiras';
+import { confirmar } from '../../components/ui/dialogo';
 
 const ESCALA_PADRAO = 0.05;
 const campo = 'w-full rounded-lg border border-dark-border bg-dark-surface px-3 py-2 text-sm text-white focus:border-primary focus:outline-none';
@@ -154,15 +155,15 @@ export default function AdminUhf() {
                     <div className="flex flex-wrap gap-1.5">
                       <Button size="sm" variant="ghost" onClick={() => setEditando(leitor)}>Editar</Button>
                       <Button size="sm" variant="ghost" onClick={async () => {
-                        if (!window.confirm(`Gerar uma nova chave para ${leitor.nome}? A chave atual para de funcionar e o leitor precisa receber a nova.`)) return;
+                        if (!(await confirmar(`Gerar uma nova chave para ${leitor.nome}? A chave atual para de funcionar e o leitor precisa receber a nova.`, { titulo: 'Gerar nova chave', confirmar: 'Gerar nova chave' }))) return;
                         try { setChaveGerada({ leitor, chave: (await api.gerarUhfChave(leitor.leitorId)).chave }); }
                         catch (err) { setErro(err instanceof Error ? err.message : 'Não foi possível gerar a chave.'); }
                       }}><KeyRound size={14} className="mr-1" />Nova chave</Button>
                       <Button size="sm" variant="ghost" onClick={() => executar(() => api.atualizarUhfLeitor(leitor.leitorId, { ativo: !leitor.ativo }))}>
                         <Power size={14} className="mr-1" />{leitor.ativo ? 'Desativar' : 'Ativar'}
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => {
-                        if (window.confirm(`Remover ${leitor.nome}? As antenas e as leituras dele também são apagadas.`)) {
+                      <Button size="sm" variant="ghost" onClick={async () => {
+                        if (await confirmar(`Remover ${leitor.nome}? As antenas e as leituras dele também são apagadas.`, { titulo: 'Remover o leitor', confirmar: 'Remover' })) {
                           executar(() => api.removerUhfLeitor(leitor.leitorId), 'Leitor removido.');
                         }
                       }}><Trash2 size={14} className="text-danger" /></Button>

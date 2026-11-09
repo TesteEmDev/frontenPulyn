@@ -21,6 +21,7 @@ import Modal from '../../components/ui/Modal';
 import StatusDot from '../../components/ui/StatusDot';
 import SeletorDeBuffet from './SeletorDeBuffet';
 import { masterNavItems } from './masterNav';
+import { confirmar } from '../../components/ui/dialogo';
 
 
 type Situacao = CheckpointMaster['statusTransferencia'];
@@ -219,8 +220,8 @@ export default function MasterCheckpoints() {
     }
   };
 
-  const excluir = (cp: CheckpointMaster) => {
-    if (!confirm(`Excluir "${cp.nome}" (${cp.macAddress ?? 'sem MAC'})? Só é possível enquanto está em estoque.`)) return;
+  const excluir = async (cp: CheckpointMaster) => {
+    if (!(await confirmar(`Excluir "${cp.nome}" (${cp.macAddress ?? 'sem MAC'})? Só é possível enquanto está em estoque.`, { titulo: 'Excluir o checkpoint', confirmar: 'Excluir' }))) return;
     void executar(() => api.masterExcluirCheckpoint(cp.id), 'Checkpoint excluído');
   };
 

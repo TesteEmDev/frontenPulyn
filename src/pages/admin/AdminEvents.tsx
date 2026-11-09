@@ -16,6 +16,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import TimeInput from '../../components/ui/TimeInput';
+import { confirmar } from '../../components/ui/dialogo';
 
 type FilterTab = 'all' | 'scheduled' | 'active' | 'finished';
 type LifecycleStatus = 'scheduled' | 'active' | 'finished';
@@ -191,14 +192,15 @@ export default function AdminEvents() {
   const handleDelete = async (eventItem: any, e: React.MouseEvent) => {
     e.stopPropagation();
     if (busyId) return;
-    if (!confirm(
+    if (!(await confirmar(
       `Excluir o evento "${eventItem.nome}"?
 
 `
       + 'Participantes, times, pontuação e o histórico do jogo deste evento serão apagados. '
       + 'As pulseiras voltam a ficar disponíveis e os checkpoints continuam no buffet, sem evento. '
-      + 'Essa ação não pode ser desfeita.'
-    )) return;
+      + 'Essa ação não pode ser desfeita.',
+      { titulo: 'Excluir o evento', confirmar: 'Excluir o evento' }
+    ))) return;
 
     setBusyId(eventItem.eventoId);
     try {
@@ -285,7 +287,7 @@ export default function AdminEvents() {
     const question = action === 'start'
       ? `Iniciar o evento "${eventItem.nome}" agora?`
       : `Encerrar o evento "${eventItem.nome}"?\n\nO jogo em andamento será parado e a recepção deixará de cadastrar participantes nele. Essa ação não pode ser desfeita.`;
-    if (!confirm(question)) return;
+    if (!(await confirmar(question, { titulo: action === 'start' ? 'Iniciar o evento' : 'Encerrar o evento', confirmar: action === 'start' ? 'Iniciar' : 'Encerrar', perigo: action !== 'start' }))) return;
 
     setBusyId(eventItem.eventoId);
     try {

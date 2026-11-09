@@ -9,6 +9,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import { QRCodeSVG as QRCode } from 'qrcode.react';
+import { confirmar } from '../../components/ui/dialogo';
 
 export default function ReceptionFamilies() {
   const [events, setEvents] = useState<any[]>([]);
@@ -61,7 +62,7 @@ export default function ReceptionFamilies() {
 
   const renewEventCode = async () => {
     if (!eventId) return;
-    const ok = window.confirm('Gerar um novo código para este evento?\n\nO código atual deixa de valer agora. Quem já entrou no evento continua nele.');
+    const ok = await confirmar('Gerar um novo código para este evento?\n\nO código atual deixa de valer agora. Quem já entrou no evento continua nele.', { titulo: 'Gerar novo código', confirmar: 'Gerar novo código' });
     if (!ok) return;
     try {
       setError('');

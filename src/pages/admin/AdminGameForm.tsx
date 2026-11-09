@@ -12,6 +12,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
+import { avisar } from '../../components/ui/dialogo';
 
 interface CheckpointConfig {
   id: string;
@@ -266,18 +267,18 @@ export default function AdminGameForm() {
   const handleSave = async () => {
     // Validar campos obrigatórios
     if (!selectedEventoId) {
-      alert('Selecione um evento');
+      avisar('Selecione um evento');
       return;
     }
     if (!formData.name || !formData.duration) {
-      alert('Preencha o nome e duração do jogo');
+      avisar('Preencha o nome e duração do jogo');
       return;
     }
 
     // Validar se tem checkpoints selecionados
     const selectedCheckpoints = checkpointConfigs.filter(cp => cp.enabled);
     if (selectedCheckpoints.length === 0) {
-      alert('Selecione pelo menos um checkpoint para o jogo');
+      avisar('Selecione pelo menos um checkpoint para o jogo');
       return;
     }
 
@@ -294,7 +295,7 @@ export default function AdminGameForm() {
     if (formData.type === 'monster_hunt' && selectedCheckpoints.some((cp) =>
       !Number.isInteger(cp.cooldown) || cp.cooldown < 1 || cp.cooldown > 120
     )) {
-      alert('Defina o bloqueio de cada checkpoint do Monstro entre 1 e 120 segundos.');
+      avisar('Defina o bloqueio de cada checkpoint do Monstro entre 1 e 120 segundos.');
       return;
     }
 

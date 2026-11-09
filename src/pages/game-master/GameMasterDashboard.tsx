@@ -17,6 +17,7 @@ import StatusDot from '../../components/ui/StatusDot';
 import Timer from '../../components/ui/Timer';
 import ScoreCounter from '../../components/ui/ScoreCounter';
 import { api, API_URL } from '../../services/api';
+import { avisar } from '../../components/ui/dialogo';
 
 const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
@@ -569,12 +570,12 @@ export default function GameMasterDashboard() {
 
   const handleIniciar = async () => {
     if (!selectedGameId) {
-      alert('Selecione um jogo primeiro');
+      avisar('Selecione um jogo primeiro');
       return;
     }
     
     if (!selectedEventId) {
-      alert('Selecione um evento primeiro');
+      avisar('Selecione um evento primeiro');
       return;
     }
     
@@ -590,7 +591,7 @@ export default function GameMasterDashboard() {
         const maximo = checkpointsDoJogo?.total ?? quantidade;
         const minimo = checkpointsDoJogo?.minimo ?? 2;
         if (!Number.isInteger(quantidade) || quantidade < minimo || quantidade > maximo) {
-          alert(`Escolha de ${minimo} a ${maximo} checkpoints para o Caça ao Tesouro (ou deixe em branco para usar todos).`);
+          avisar(`Escolha de ${minimo} a ${maximo} checkpoints para o Caça ao Tesouro (ou deixe em branco para usar todos).`);
           return;
         }
       }
@@ -602,7 +603,7 @@ export default function GameMasterDashboard() {
       await loadMonsterStatus();
     } catch (err) {
       console.error('Erro ao iniciar jogo:', err);
-      alert('❌ Erro ao iniciar jogo: ' + (err instanceof Error ? err.message : String(err)));
+      avisar('❌ Erro ao iniciar jogo: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setActionLoading(null);
     }
@@ -626,7 +627,7 @@ export default function GameMasterDashboard() {
 
   const handleFinalizar = async () => {
     if (!selectedEventId) {
-      alert('Nenhum evento selecionado');
+      avisar('Nenhum evento selecionado');
       return;
     }
     
@@ -645,7 +646,7 @@ export default function GameMasterDashboard() {
       await loadTerritoriesStatus();
     } catch (err) {
       console.error('Erro ao finalizar jogo:', err);
-      alert('❌ Erro ao finalizar jogo: ' + (err instanceof Error ? err.message : String(err)));
+      avisar('❌ Erro ao finalizar jogo: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setActionLoading(null);
     }
@@ -663,7 +664,7 @@ export default function GameMasterDashboard() {
 
   const handleResetarPontos = async () => {
     if (!selectedEventId) {
-      alert('Nenhum evento selecionado');
+      avisar('Nenhum evento selecionado');
       return;
     }
 
@@ -672,7 +673,7 @@ export default function GameMasterDashboard() {
       const data = await api.resetScores(selectedEventId);
       
       if (data.ok) {
-        alert('✅ Pontos resetados com sucesso!');
+        avisar('✅ Pontos resetados com sucesso!');
         // Recarregar dados
         await Promise.all([
           loadTeams(),
@@ -682,11 +683,11 @@ export default function GameMasterDashboard() {
         // Resetar territórios
         loadTerritoriesStatus();
       } else {
-        alert('❌ Erro ao resetar pontos: ' + data.error);
+        avisar('❌ Erro ao resetar pontos: ' + data.error);
       }
     } catch (err) {
       console.error('Erro ao chamar reset-scores endpoint:', err);
-      alert('❌ Erro ao resetar pontos: ' + err);
+      avisar('❌ Erro ao resetar pontos: ' + err);
     } finally {
       setActionLoading(null);
     }
@@ -866,7 +867,7 @@ export default function GameMasterDashboard() {
                           setSelectedGameId('');
                           setActiveGame(null);
                         })
-                        .catch(error => alert(error instanceof Error ? error.message : 'Não foi possível deixar sem jogos'));
+                        .catch(error => avisar(error instanceof Error ? error.message : 'Não foi possível deixar sem jogos'));
                       return;
                     }
                     const game = games.find(g => g.id === gameId);
@@ -882,7 +883,7 @@ export default function GameMasterDashboard() {
                       api.selectGame(game.id, selectedEventId).catch(error => {
                         setSelectedGameId(previousGameId);
                         setActiveGame(previousGame || null);
-                        alert(error instanceof Error ? error.message : 'Não foi possível selecionar o jogo');
+                        avisar(error instanceof Error ? error.message : 'Não foi possível selecionar o jogo');
                       });
                     }
                   }}
@@ -978,7 +979,7 @@ export default function GameMasterDashboard() {
                              await loadTreasureStatus();
                              setGameRunning(true);
                            } catch (err) {
-                             alert('Erro ao iniciar próxima rodada: ' + (err instanceof Error ? err.message : String(err)));
+                             avisar('Erro ao iniciar próxima rodada: ' + (err instanceof Error ? err.message : String(err)));
                            } finally {
                              setActionLoading(null);
                            }

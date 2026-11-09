@@ -13,6 +13,7 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import TimeInput from '../../components/ui/TimeInput';
+import { avisar } from '../../components/ui/dialogo';
 
 // Nome do tipo de jogo na lista (antes tudo que não era equipe/individual aparecia como "Cooperativo").
 const TIPO_DO_JOGO: Record<string, string> = {
@@ -78,7 +79,7 @@ export default function AdminEventNew() {
         if (editingId) {
           const evento = await api.getEvento(editingId);
           if (!evento || evento.error || !evento.eventoId) {
-            alert('Evento não encontrado.');
+            avisar('Evento não encontrado.');
             navigate('/admin/events');
             return;
           }
@@ -157,7 +158,7 @@ export default function AdminEventNew() {
       navigate('/admin/events');
     } catch (error) {
       console.error('Erro ao salvar evento:', error);
-      alert(error instanceof Error && error.message ? error.message : 'Erro ao salvar evento. Tente novamente.');
+      avisar(error instanceof Error && error.message ? error.message : 'Erro ao salvar evento. Tente novamente.');
     } finally {
       setSaving(false);
     }

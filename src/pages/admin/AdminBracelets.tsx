@@ -13,6 +13,7 @@ import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
+import { confirmar } from '../../components/ui/dialogo';
 
 type Pendente = { codigo: string; enviadoEm: string };
 
@@ -153,12 +154,12 @@ export default function AdminBracelets() {
   };
 
   const aceitar = (codigos: string[]) => executar(() => api.aceitarPulseiras(codigos), `${codigos.length} pulseira(s) aceita(s): já podem ser usadas`, selPendentes.limpar);
-  const recusar = (codigos: string[]) => {
-    if (!confirm(`Recusar ${codigos.length} pulseira(s)? Elas voltam para o estoque do master.`)) return;
+  const recusar = async (codigos: string[]) => {
+    if (!(await confirmar(`Recusar ${codigos.length} pulseira(s)? Elas voltam para o estoque do master.`, { titulo: 'Recusar pulseiras', confirmar: 'Recusar' }))) return;
     void executar(() => api.recusarPulseiras(codigos), `${codigos.length} pulseira(s) recusada(s)`, selPendentes.limpar);
   };
-  const devolver = (codigos: string[]) => {
-    if (!confirm(`Devolver ${codigos.length} pulseira(s) ao master? Elas saem do seu cadastro.`)) return;
+  const devolver = async (codigos: string[]) => {
+    if (!(await confirmar(`Devolver ${codigos.length} pulseira(s) ao master? Elas saem do seu cadastro.`, { titulo: 'Devolver pulseiras', confirmar: 'Devolver' }))) return;
     void executar(() => api.devolverPulseiras(codigos), `${codigos.length} pulseira(s) devolvida(s) ao master`, selLivres.limpar);
   };
 
@@ -187,10 +188,10 @@ export default function AdminBracelets() {
                   <X size={16} className="mr-1.5" />
                   Recusar{selPendentes.validos.length > 0 ? ` ${selPendentes.validos.length}` : ''}
                 </Button>
-                <Button variant="success" disabled={pendentes.length === 0 || ocupado} onClick={() => {
+                <Button variant="success" disabled={pendentes.length === 0 || ocupado} onClick={async () => {
                   const alvo = selPendentes.validos.length > 0 ? selPendentes.validos : pendentes.map((p) => p.codigo);
                   const faltam = alvo.filter((c) => !conferidas.has(c)).length;
-                  if (faltam > 0 && !confirm(`${faltam} das ${alvo.length} pulseiras ainda não foram conferidas no leitor. Aceitar mesmo assim?`)) return;
+                  if (faltam > 0 && !(await confirmar(`${faltam} das ${alvo.length} pulseiras ainda não foram conferidas no leitor. Aceitar mesmo assim?`, { titulo: 'Pulseiras não conferidas', confirmar: 'Aceitar mesmo assim', perigo: false }))) return;
                   void aceitar(alvo);
                 }}>
                   <Check size={16} className="mr-1.5" />

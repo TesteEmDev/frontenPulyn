@@ -4,6 +4,7 @@ import { api, type UhfPulseira, type UhfTagVista } from '../../services/api';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
+import { confirmar } from '../ui/dialogo';
 
 const campo = 'w-full rounded-lg border border-dark-border bg-dark-surface px-3 py-2 text-sm text-white focus:border-primary focus:outline-none';
 const hexDe = (valor: string) => valor.toUpperCase().replace(/[^0-9A-F]/g, '');
@@ -68,9 +69,9 @@ export default function VinculoPulseiras() {
     }
   };
 
-  const vincular = (pulseira: UhfPulseira) => {
+  const vincular = async (pulseira: UhfPulseira) => {
     if (!epcValido) return;
-    if (pulseira.epc && !window.confirm(`A pulseira ${pulseira.codigo} já tem o EPC ${pulseira.epc}. Trocar pelo novo?`)) return;
+    if (pulseira.epc && !(await confirmar(`A pulseira ${pulseira.codigo} já tem o EPC ${pulseira.epc}. Trocar pelo novo?`, { titulo: 'Trocar o EPC', confirmar: 'Trocar' }))) return;
     salvar(pulseira.codigo, hexDe(epcSelecionado), `EPC vinculado à pulseira ${pulseira.codigo}.`);
   };
 
@@ -167,7 +168,7 @@ export default function VinculoPulseiras() {
                   </div>
                   {p.epc && (
                     <Button size="sm" variant="ghost" disabled={salvando} aria-label={`Desvincular EPC da pulseira ${p.codigo}`}
-                      onClick={() => window.confirm(`Desvincular o EPC da pulseira ${p.codigo}?`) && salvar(p.codigo, null, `EPC desvinculado da pulseira ${p.codigo}.`)}>
+                      onClick={async () => (await confirmar(`Desvincular o EPC da pulseira ${p.codigo}?`, { titulo: 'Desvincular o EPC', confirmar: 'Desvincular' })) && salvar(p.codigo, null, `EPC desvinculado da pulseira ${p.codigo}.`)}>
                       <Unlink size={14} />
                     </Button>
                   )}
