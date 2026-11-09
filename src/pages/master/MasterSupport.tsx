@@ -105,9 +105,9 @@ export default function MasterSupport() {
   useAutoRefresh(loadTickets, { topicos: ['suporte', 'clientes'], intervaloMs: 15_000 });
 
   const filteredTickets = tickets.filter(ticket => {
-    const matchSearch = ticket.subject.toLowerCase().includes(search.toLowerCase()) ||
-      ticket.client.toLowerCase().includes(search.toLowerCase()) ||
-      ticket.id.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = String(ticket.subject ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      String(ticket.client ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      String(ticket.id ?? '').toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'all' || ticket.status === filterStatus;
     const matchTipo = filterTipo === 'all' || ticket.tipoChamado === 'checkpoint';
     return matchSearch && matchStatus && matchTipo;
@@ -121,14 +121,15 @@ export default function MasterSupport() {
   const handleNewTicket = async () => {
     if (!newClient || !newSubject) return;
     try {
-      const ticket = await api.createTicket({
+      await api.createTicket({
         client: newClient,
         subject: newSubject,
         priority: newPriority,
         description: newDescription,
         assignee: newAssignee || 'Atribuir'
       });
-      setTickets(prev => [ticket, ...prev]);
+      // Relê a lista: a resposta da criação não tem o mesmo formato das linhas da tela
+      await loadTickets();
       setShowNewTicketModal(false);
       setNewClient('');
       setNewSubject('');

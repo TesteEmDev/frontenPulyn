@@ -261,7 +261,7 @@ const BrazilMap = memo(function BrazilMap({
       (perState[group.shape.uf] ||= []).push(group);
     });
     Object.values(perState).forEach((list) => {
-      list.sort((a, b) => a.city.localeCompare(b.city, 'pt-BR'));
+      list.sort((a, b) => String(a.city ?? '').localeCompare(String(b.city ?? ''), 'pt-BR'));
       list.forEach((group, index) => {
         if (index === 0) return;
         const angle = index * 2.4;

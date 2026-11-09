@@ -116,8 +116,8 @@ export default function MasterClients() {
   const selectedClient = clients.find(c => c.id === selectedClientId) || null;
 
   const filteredClients = clients.filter(client => {
-    const matchSearch = client.name.toLowerCase().includes(search.toLowerCase()) ||
-      client.city.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = String(client.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      String(client.city ?? '').toLowerCase().includes(search.toLowerCase());
     const matchPlan = filterPlan === 'all' || client.plan === filterPlan;
     const matchStatus = filterStatus === 'all' || client.status === filterStatus;
     return matchSearch && matchPlan && matchStatus;

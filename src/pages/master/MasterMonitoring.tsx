@@ -104,7 +104,7 @@ export default function MasterMonitoring() {
 
   // Quem tem mais alertas aparece primeiro na escolha e na lista
   const ordenadas = useMemo(
-    () => [...units].sort((a, b) => b.alerts.length - a.alerts.length || a.name.localeCompare(b.name, 'pt-BR')),
+    () => [...units].sort((a, b) => b.alerts.length - a.alerts.length || String(a.name ?? '').localeCompare(String(b.name ?? ''), 'pt-BR')),
     [units],
   );
   const unidade = useMemo(() => units.find((u) => u.id === selecionado) ?? null, [units, selecionado]);
