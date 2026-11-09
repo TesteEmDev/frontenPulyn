@@ -676,7 +676,9 @@ export default function DisplayMain() {
           setMonsterStatus(null);
           setZoneConquestStatus(null);
         }
-      } else if (event.type === 'GAME_STOPPED' && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
+      } else if ((event.type === 'GAME_STOPPED' || event.type === 'GAME_STOPPING') && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
+        // GAME_STOPPING vem na hora em que o recreacionista encerra; GAME_STOPPED só quando o servidor termina de encerrar tudo.
+        // O telão já mostra o resultado no primeiro (o segundo é repetido e não muda nada).
         setDanoDeTeste({});
         // Havia um jogo rodando: mostra a pontuação final com o Pulyn comemorando
         if (gameActive) {
@@ -830,7 +832,8 @@ export default function DisplayMain() {
         if (fimAdiado.current !== null) { window.clearTimeout(fimAdiado.current); fimAdiado.current = null; }
       }
       const monstrosEmCena = selectedGameType === 'monster_hunt' && Boolean(monsterStatus?.monsters?.length || monsterStatus?.progress?.length);
-      if (event.type === 'GAME_STOPPED' && monstrosEmCena && fimAdiado.current === null) {
+      // Só o fim automático (o último monstro caiu) espera a queda; o encerramento pelo recreacionista mostra o resultado na hora
+      if (event.type === 'GAME_STOPPED' && event.payload?.automatic && monstrosEmCena && fimAdiado.current === null) {
         const inicio = iniciosDeJogo.current;
         fimAdiado.current = window.setTimeout(() => {
           fimAdiado.current = null;
