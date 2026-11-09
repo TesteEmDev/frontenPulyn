@@ -1,5 +1,5 @@
 import toast from 'react-hot-toast';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Play, Pause, Square, RotateCcw, Gamepad2, Trophy, MapPin, MessageSquare, Users, Clock, Shield } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useGameWebSocket, GameEvent } from '../../hooks/useGameWebSocket';
@@ -11,6 +11,7 @@ import BombaPainel from '../../components/game-master/BombaPainel';
 import RefemPainel from '../../components/game-master/RefemPainel';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
+import Modal from '../../components/ui/Modal';
 import Avatar from '../../components/ui/Avatar';
 import StatusDot from '../../components/ui/StatusDot';
 import Timer from '../../components/ui/Timer';
@@ -146,14 +147,21 @@ export default function GameMasterDashboard() {
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [lastGameEvent, setLastGameEvent] = useState<{ label: string; detail: string; at: string } | null>(null);
   const [actionLoading, setActionLoading] = useState<'start' | 'stop' | 'reset' | null>(null);
+  // Janela de confirmação de Finalizar e Reset
+  const [confirmando, setConfirmando] = useState<'finalizar' | 'reset' | null>(null);
+  // Quando o jogo foi encerrado por último: a consulta de status que saiu ANTES disso e responde depois (elas rodam a cada
+  // 5 s) trazia "ativo" de volta e religava o jogo na tela, o que obrigava a clicar em Finalizar de novo.
+  const encerradoEmRef = useRef(0);
 
   const loadTreasureStatus = useCallback(async () => {
     if (!selectedEventId) {
       setTreasureStatus({ active: false, gameType: 'none' });
       return;
     }
+    const pedidoEm = Date.now();
     try {
       const status = await api.getTreasureEventStatus(selectedEventId);
+      if (pedidoEm < encerradoEmRef.current) return; // resposta de antes de encerrar o jogo
       setTreasureStatus({
         ...status,
         // O valor do backend já considera o relógio do servidor. O frontend
@@ -171,8 +179,10 @@ export default function GameMasterDashboard() {
       setMonsterStatus({ active: false, gameType: 'none' });
       return;
     }
+    const pedidoEm = Date.now();
     try {
       const status = await api.getMonsterEventStatus(selectedEventId);
+      if (pedidoEm < encerradoEmRef.current) return; // resposta de antes de encerrar o jogo
       setMonsterStatus(status?.gameType === 'monster_hunt' ? status : { active: false, gameType: 'none' });
       if (status?.active) setGameRunning(true);
     } catch (err) {
@@ -335,6 +345,7 @@ export default function GameMasterDashboard() {
       loadTreasureStatus();
       loadMonsterStatus();
     } else if (event.type === 'GAME_STOPPED') {
+      encerradoEmRef.current = Date.now();
       setLastGameEvent({ label: 'Jogo finalizado', detail: 'O evento foi finalizado.', at: receivedAt });
       setGameRunning(false);
       resetGameTimer();
@@ -534,6 +545,7 @@ export default function GameMasterDashboard() {
   // Stop game in the backend when the timer reaches zero.
   useEffect(() => {
     if (gameTimer > 0 || !gameRunning || !selectedEventId) return;
+    encerradoEmRef.current = Date.now();
     setGameRunning(false);
     api.stopGame(selectedEventId)
       .then(() => {
@@ -621,6 +633,7 @@ export default function GameMasterDashboard() {
     setActionLoading('stop');
     try {
       const data = await api.stopGame(selectedEventId);
+      encerradoEmRef.current = Date.now();
       console.log('✅ Jogo finalizado:', data);
       if (data?.bonus) {
         toast.success(`${data.bonus.teamName} ganhou ${data.bonus.pointsPerMember} pontos por participante (${data.bonus.membersAwarded} participantes).`, { duration: 8000 });
@@ -651,15 +664,6 @@ export default function GameMasterDashboard() {
   const handleResetarPontos = async () => {
     if (!selectedEventId) {
       alert('Nenhum evento selecionado');
-      return;
-    }
-
-    // Pedir confirmação
-    const confirmar = window.confirm(
-      '⚠️ Tem certeza que deseja resetar TODOS os pontos?\n\nIsto vai zerar:\n✓ Pontos das crianças\n✓ Pontos dos times\n✓ Todas as leituras\n✓ Todos os territórios'
-    );
-
-    if (!confirmar) {
       return;
     }
 
@@ -1142,7 +1146,7 @@ export default function GameMasterDashboard() {
             <Button
               variant="danger"
               size="lg"
-              onClick={handleFinalizar}
+              onClick={() => setConfirmando('finalizar')}
               disabled={(!gameRunning && gameTimer === 0) || actionLoading !== null}
               className="w-full"
             >
@@ -1171,7 +1175,7 @@ export default function GameMasterDashboard() {
             <Button
               variant="warning"
               size="lg"
-              onClick={handleResetarPontos}
+              onClick={() => setConfirmando('reset')}
               disabled={actionLoading !== null}
               className="w-full"
             >
@@ -1188,6 +1192,38 @@ export default function GameMasterDashboard() {
               )}
             </Button>
           </div>
+
+          <Modal
+            isOpen={confirmando !== null}
+            onClose={() => setConfirmando(null)}
+            title={confirmando === 'reset' ? 'Zerar os pontos?' : 'Encerrar o jogo?'}
+            size="sm"
+          >
+            {confirmando === 'reset' ? (
+              <p className="text-sm text-gray-300">
+                Isto zera os pontos das crianças e dos times, todas as leituras e os territórios deste evento. Não dá para desfazer.
+              </p>
+            ) : (
+              <p className="text-sm text-gray-300">
+                O jogo é encerrado agora para todos. A pontuação e o histórico ficam guardados.
+              </p>
+            )}
+            <div className="mt-5 flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setConfirmando(null)}>Cancelar</Button>
+              <Button
+                variant={confirmando === 'reset' ? 'warning' : 'danger'}
+                autoFocus
+                onClick={() => {
+                  const acao = confirmando;
+                  setConfirmando(null);
+                  if (acao === 'reset') void handleResetarPontos();
+                  else void handleFinalizar();
+                }}
+              >
+                {confirmando === 'reset' ? 'Sim, zerar os pontos' : 'Sim, encerrar'}
+              </Button>
+            </div>
+          </Modal>
 
           {/* Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
