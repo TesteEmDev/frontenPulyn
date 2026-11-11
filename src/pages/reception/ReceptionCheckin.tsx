@@ -263,6 +263,16 @@ export default function ReceptionCheckin() {
     }
   }, [braceletCode, carregarAvatares, clearBracelet, form, loadChildren, loadTeams, saving, selectedEventId, selectedTeam, showToast, teams]);
 
+  // O que ainda impede o cadastro (aparece embaixo do botão, que fica desativado enquanto algo faltar)
+  const erroDaDataAtual = erroNascimentoSemLimite(form.nascimento || null);
+  const pendencias = [
+    !selectedEventId && 'escolha o evento',
+    !form.name.trim() && 'informe o nome',
+    erroDaDataAtual && (form.nascimento ? erroDaDataAtual.replace(/\.$/, '').toLowerCase() : 'informe a data de nascimento'),
+    avatarRepetido && 'mude alguma peça do avatar (já existe um igual)',
+    Boolean(braceletCode) && braceletStatus === 'registered' && 'a pulseira lida já está vinculada: aproxime outra',
+  ].filter((item): item is string => Boolean(item));
+
   if (loading) {
     return (
       <div className="flex h-screen bg-dark">
@@ -404,10 +414,10 @@ export default function ReceptionCheckin() {
               <div className="flex min-w-0 flex-col gap-3 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
                 <div className="grid gap-3 sm:grid-cols-[1fr_170px] xl:grid-cols-[1.5fr_1fr_170px]">
                   <div className="sm:col-span-2 xl:col-span-1">
-                    <Input label="Nome completo" placeholder="Ex: Pedro Almeida" value={form.name} onChange={handleChange('name')} />
+                    <Input label="Nome completo *" placeholder="Ex: Pedro Almeida" value={form.name} onChange={handleChange('name')} />
                   </div>
                   <Input label="Apelido" placeholder="Ex: Pedrinho" value={form.nickname} onChange={handleChange('nickname')} />
-                  <Input label="Data de nascimento" type="date" max={hojeIso()} value={form.nascimento} onChange={handleChange('nascimento')} />
+                  <Input label="Data de nascimento *" type="date" max={hojeIso()} value={form.nascimento} onChange={handleChange('nascimento')} />
                 </div>
 
                 <div>
@@ -459,7 +469,12 @@ export default function ReceptionCheckin() {
               </div>
             </div>
 
-            <div className="flex shrink-0 justify-center">
+            <div className="flex shrink-0 flex-col items-center gap-1.5">
+            {pendencias.length > 0 && (
+              <p role="status" className="text-center text-xs font-semibold text-warning">
+                Para cadastrar: {pendencias.join(' · ')}
+              </p>
+            )}
             <Button
               variant="primary"
               size="lg"
