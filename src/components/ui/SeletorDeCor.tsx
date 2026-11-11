@@ -102,13 +102,13 @@ export default function SeletorDeCor({ valor, onChange, disabled = false, classN
             mask: `radial-gradient(farthest-side, transparent calc(100% - ${ESPESSURA}px), #000 calc(100% - ${ESPESSURA - 1}px))`,
           }}
         />
-        {/* Marcador no anel e cor atual no meio (fora do elemento com máscara, para não serem cortados) */}
+        {/* Marcador no anel e, no meio, a pré-visualização da cor escolhida (fora do elemento com máscara, para não serem cortados) */}
         <span
           aria-hidden="true"
           className="pointer-events-none absolute h-[22px] w-[22px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow-[0_0_0_1.5px_rgba(0,0,0,0.4),0_2px_6px_rgba(0,0,0,0.5)]"
-          style={{ left: TAMANHO / 2 + raioMarcador * Math.sin(rad), top: TAMANHO / 2 - raioMarcador * Math.cos(rad), backgroundColor: puro }}
+          style={{ left: TAMANHO / 2 + raioMarcador * Math.sin(rad), top: TAMANHO / 2 - raioMarcador * Math.cos(rad), backgroundColor: cor }}
         />
-        <span aria-hidden="true" className="pointer-events-none absolute left-1/2 top-1/2 h-[64px] w-[64px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/60 shadow-md" style={{ backgroundColor: cor }} />
+        <span aria-hidden="true" className="pointer-events-none absolute left-1/2 top-1/2 h-[88px] w-[88px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white/70 shadow-[0_4px_14px_rgba(0,0,0,0.45)] transition-colors" style={{ backgroundColor: cor }} />
       </div>
 
       {/* Do escuro ao claro, na cor escolhida */}
