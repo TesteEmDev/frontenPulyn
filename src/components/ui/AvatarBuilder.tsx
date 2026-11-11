@@ -73,49 +73,49 @@ interface AvatarBuilderProps {
 const LAYOUT = {
   responsive: {
     root: 'flex flex-col gap-3 sm:grid sm:grid-cols-[minmax(140px,170px)_minmax(0,1fr)] sm:items-start lg:grid-cols-[minmax(200px,250px)_minmax(0,1fr)]',
-    card: 'sticky top-0 z-20 flex items-center gap-3 rounded-2xl border border-cyan-300/20 bg-[#0a1226]/95 p-2 backdrop-blur max-sm:[@media(max-height:520px)]:static sm:top-2 sm:flex-col sm:p-3',
+    card: 'sticky top-0 z-20 flex items-center gap-3 rounded-3xl border border-fuchsia-300/20 bg-gradient-to-br from-[#1b1240]/95 to-[#0a1226]/95 shadow-[0_8px_26px_rgba(0,0,0,0.35)] p-2 backdrop-blur max-sm:[@media(max-height:520px)]:static sm:top-2 sm:flex-col sm:p-3',
     imgBox: 'aspect-square w-[72px] shrink-0 sm:w-full sm:max-w-[220px]',
-    img: 'h-full w-full rounded-2xl border-2 border-cyan-300/40 shadow-lg sm:rounded-3xl sm:border-4',
-    legacy: 'h-full w-full overflow-hidden rounded-2xl border-2 border-cyan-300/40 shadow-lg sm:rounded-3xl sm:border-4 [&>div]:!h-full [&>div]:!w-full [&>div]:!rounded-none',
+    img: 'h-full w-full rounded-full border-4 border-white/70 object-cover shadow-[0_0_24px_rgba(217,70,239,0.45)]',
+    legacy: 'h-full w-full overflow-hidden rounded-full border-4 border-white/70 shadow-[0_0_24px_rgba(217,70,239,0.45)] [&>div]:!h-full [&>div]:!w-full [&>div]:!rounded-none',
     side: 'flex min-w-0 flex-1 flex-col gap-1.5 sm:w-full sm:flex-none',
     hint: 'text-[11px] leading-snug text-gray-400 sm:text-center sm:text-xs',
-    random: 'w-full rounded-xl border border-cyan-300/40 bg-cyan-300/10 px-3 py-2.5 text-sm font-bold text-cyan-100 transition hover:bg-cyan-300/20 active:scale-95 disabled:opacity-50 sm:py-3',
+    random: 'w-full rounded-full bg-gradient-to-r from-fuchsia-500 to-violet-500 px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_6px_16px_rgba(168,85,247,0.45)] transition hover:brightness-110 active:scale-95 disabled:opacity-50 sm:py-3',
     tabsBox: 'sticky top-[88px] z-10 -mx-1 mb-3 bg-[#0a1226]/95 px-1 pb-2 pt-1 backdrop-blur max-sm:[@media(max-height:520px)]:static sm:static sm:bg-transparent sm:p-0 sm:backdrop-blur-none',
     tabs: 'flex snap-x gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:overflow-visible',
     tab: 'sm:min-w-[72px] sm:px-3 sm:py-2',
     tabIcon: 'text-lg sm:text-xl',
-    list: 'space-y-4 sm:max-h-[min(62dvh,600px)] sm:overflow-y-auto sm:overscroll-contain sm:pr-1 sm:scrollbar-thin sm:scrollbar-thumb-primary/50 sm:scrollbar-track-white/5',
+    list: 'space-y-5 sm:max-h-[min(62dvh,600px)] sm:overflow-y-auto sm:overscroll-contain sm:rounded-3xl sm:border sm:border-white/[0.07] sm:bg-white/[0.03] sm:p-3 sm:scrollbar-thin sm:scrollbar-thumb-primary/50 sm:scrollbar-track-white/5',
   },
   // 'fill': como o 'stacked', mas ocupa a altura da coluna e só a lista de peças rola
   fill: {
     root: 'flex h-full min-h-0 flex-col gap-3',
-    card: 'flex shrink-0 items-center gap-3 rounded-2xl border border-cyan-300/20 bg-[#0a1226]/95 p-2',
+    card: 'flex shrink-0 items-center gap-3 rounded-3xl border border-fuchsia-300/20 bg-gradient-to-br from-[#1b1240]/95 to-[#0a1226]/95 shadow-[0_8px_26px_rgba(0,0,0,0.35)] p-2',
     imgBox: 'aspect-square w-[72px] shrink-0',
-    img: 'h-full w-full rounded-2xl border-2 border-cyan-300/40 shadow-lg',
-    legacy: 'h-full w-full overflow-hidden rounded-2xl border-2 border-cyan-300/40 shadow-lg [&>div]:!h-full [&>div]:!w-full [&>div]:!rounded-none',
+    img: 'h-full w-full rounded-full border-4 border-white/70 object-cover shadow-[0_0_24px_rgba(217,70,239,0.45)]',
+    legacy: 'h-full w-full overflow-hidden rounded-full border-4 border-white/70 shadow-[0_0_24px_rgba(217,70,239,0.45)] [&>div]:!h-full [&>div]:!w-full [&>div]:!rounded-none',
     side: 'flex min-w-0 flex-1 flex-col gap-1.5',
     hint: 'text-[11px] leading-snug text-gray-400',
-    random: 'w-full rounded-xl border border-cyan-300/40 bg-cyan-300/10 px-3 py-2.5 text-sm font-bold text-cyan-100 transition hover:bg-cyan-300/20 active:scale-95 disabled:opacity-50',
+    random: 'w-full rounded-full bg-gradient-to-r from-fuchsia-500 to-violet-500 px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_6px_16px_rgba(168,85,247,0.45)] transition hover:brightness-110 active:scale-95 disabled:opacity-50',
     tabsBox: 'mb-0 shrink-0',
     tabs: 'flex snap-x gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
     tab: '',
     tabIcon: 'text-lg',
-    list: 'min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5',
+    list: 'min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain rounded-3xl border border-white/[0.07] bg-white/[0.03] p-3 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5',
   },
   stacked: {
     root: 'flex flex-col gap-3',
-    card: 'flex items-center gap-3 rounded-2xl border border-cyan-300/20 bg-[#0a1226]/95 p-2',
+    card: 'flex items-center gap-3 rounded-3xl border border-fuchsia-300/20 bg-gradient-to-br from-[#1b1240]/95 to-[#0a1226]/95 shadow-[0_8px_26px_rgba(0,0,0,0.35)] p-2',
     imgBox: 'aspect-square w-[72px] shrink-0',
-    img: 'h-full w-full rounded-2xl border-2 border-cyan-300/40 shadow-lg',
-    legacy: 'h-full w-full overflow-hidden rounded-2xl border-2 border-cyan-300/40 shadow-lg [&>div]:!h-full [&>div]:!w-full [&>div]:!rounded-none',
+    img: 'h-full w-full rounded-full border-4 border-white/70 object-cover shadow-[0_0_24px_rgba(217,70,239,0.45)]',
+    legacy: 'h-full w-full overflow-hidden rounded-full border-4 border-white/70 shadow-[0_0_24px_rgba(217,70,239,0.45)] [&>div]:!h-full [&>div]:!w-full [&>div]:!rounded-none',
     side: 'flex min-w-0 flex-1 flex-col gap-1.5',
     hint: 'text-[11px] leading-snug text-gray-400',
-    random: 'w-full rounded-xl border border-cyan-300/40 bg-cyan-300/10 px-3 py-2.5 text-sm font-bold text-cyan-100 transition hover:bg-cyan-300/20 active:scale-95 disabled:opacity-50',
+    random: 'w-full rounded-full bg-gradient-to-r from-fuchsia-500 to-violet-500 px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_6px_16px_rgba(168,85,247,0.45)] transition hover:brightness-110 active:scale-95 disabled:opacity-50',
     tabsBox: 'mb-3',
     tabs: 'flex snap-x gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
     tab: '',
     tabIcon: 'text-lg',
-    list: 'max-h-[50dvh] space-y-4 overflow-y-auto overscroll-contain pr-1 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5',
+    list: 'max-h-[50dvh] space-y-5 overflow-y-auto overscroll-contain rounded-3xl border border-white/[0.07] bg-white/[0.03] p-3 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5',
   },
 } as const;
 
@@ -130,14 +130,23 @@ const Thumb = memo(function Thumb({ config, selected, label, disabled, onPick }:
       disabled={disabled}
       aria-pressed={selected}
       aria-label={label}
-      className={`flex flex-col items-center gap-1 rounded-2xl border-2 p-1.5 transition active:scale-95 disabled:opacity-50 ${
+      className={`group relative flex flex-col items-center gap-1.5 rounded-3xl border-2 p-2 transition duration-200 active:scale-95 disabled:opacity-50 ${
         selected
-          ? 'border-fuchsia-300 bg-fuchsia-300/15 shadow-[0_0_14px_rgba(240,171,252,0.3)]'
-          : 'border-white/10 bg-black/20 hover:border-fuchsia-300/50'
+          ? 'border-fuchsia-300 bg-gradient-to-b from-fuchsia-400/25 to-violet-500/15 shadow-[0_8px_22px_rgba(217,70,239,0.35)]'
+          : 'border-white/10 bg-gradient-to-b from-white/[0.06] to-black/20 hover:-translate-y-0.5 hover:border-fuchsia-300/50 hover:shadow-[0_8px_18px_rgba(0,0,0,0.35)]'
       }`}
     >
-      <img src={avatarImageUrl(config)} alt="" decoding="async" loading="lazy" className="aspect-square w-full rounded-xl" />
-      <span className="w-full truncate text-center text-[11px] font-semibold text-gray-200">{label}</span>
+      <img
+        src={avatarImageUrl(config)}
+        alt=""
+        decoding="async"
+        loading="lazy"
+        className={`aspect-square w-full rounded-full border-2 object-cover shadow-md transition duration-200 group-hover:scale-[1.03] ${selected ? 'border-white/80' : 'border-white/15'}`}
+      />
+      <span className={`w-full truncate text-center text-[11px] font-bold ${selected ? 'text-white' : 'text-gray-300'}`}>{label}</span>
+      {selected && (
+        <span aria-hidden="true" className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-fuchsia-400 text-[11px] font-black text-white shadow-lg ring-2 ring-[#0a1226]">✓</span>
+      )}
     </button>
   );
 });
@@ -224,10 +233,10 @@ function AvatarBuilder({ value, onChange, disabled = false, className = '', layo
                 role="tab"
                 aria-selected={item.id === tab.id}
                 onClick={() => setTabId(item.id)}
-                className={`flex min-w-[64px] shrink-0 snap-start flex-col items-center rounded-xl border-2 px-2.5 py-1.5 text-xs font-bold transition active:scale-95 ${L.tab} ${
+                className={`flex min-w-[64px] shrink-0 snap-start flex-col items-center rounded-2xl border px-3 py-1.5 text-xs font-bold transition duration-200 active:scale-95 ${L.tab} ${
                   item.id === tab.id
-                    ? 'border-fuchsia-300 bg-fuchsia-300/20 text-white'
-                    : 'border-white/10 bg-black/20 text-gray-300 hover:border-fuchsia-300/40'
+                    ? 'border-transparent bg-gradient-to-b from-fuchsia-500 to-violet-600 text-white shadow-[0_6px_16px_rgba(168,85,247,0.5)]'
+                    : 'border-white/10 bg-white/[0.04] text-gray-300 hover:border-fuchsia-300/40 hover:bg-white/[0.08]'
                 }`}
               >
                 <span className={L.tabIcon} aria-hidden="true">{item.icon}</span>
@@ -241,9 +250,13 @@ function AvatarBuilder({ value, onChange, disabled = false, className = '', layo
         <div className={L.list}>
           {tab.sections.map(section => (
             <section key={section.title}>
-              <h4 className="mb-2 text-[10px] font-bold uppercase tracking-[0.25em] text-fuchsia-300">{section.title}</h4>
+              <h4 className="mb-2.5 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.2em] text-fuchsia-200">
+                <span aria-hidden="true" className="h-3.5 w-1 rounded-full bg-gradient-to-b from-fuchsia-300 to-violet-400" />
+                {section.title}
+                <span aria-hidden="true" className="h-px flex-1 bg-gradient-to-r from-fuchsia-300/30 to-transparent" />
+              </h4>
               {section.kind === 'options' && (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(84px,1fr))] gap-2">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-2.5">
                   {section.options.map(option => (
                     <Thumb
                       key={option.value}
@@ -267,10 +280,12 @@ function AvatarBuilder({ value, onChange, disabled = false, className = '', layo
                       aria-label={`Cor ${color}`}
                       aria-pressed={config[section.key] === color}
                       style={{ backgroundColor: color }}
-                      className={`h-11 w-11 rounded-full border-2 transition active:scale-90 disabled:opacity-50 ${
-                        config[section.key] === color ? 'border-white ring-4 ring-fuchsia-300/60' : 'border-white/30'
+                      className={`relative h-11 w-11 rounded-full border-2 shadow-md transition duration-200 hover:scale-110 active:scale-90 disabled:opacity-50 ${
+                        config[section.key] === color ? 'scale-110 border-white ring-4 ring-fuchsia-300/60' : 'border-white/30'
                       }`}
-                    />
+                    >
+                      {config[section.key] === color && <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-sm font-black text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">✓</span>}
+                    </button>
                   ))}
                   {section.key === 'bg' && (
                     <CorPersonalizada

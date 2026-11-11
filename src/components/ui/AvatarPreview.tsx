@@ -33,10 +33,10 @@ function AvatarPreview({ value, onChange, disabled = false, className = '', fill
             <img
               src={avatarImageUrl(config)}
               alt="Personagem do participante"
-              className="aspect-square h-full max-h-full rounded-3xl border-4 border-cyan-300/40 shadow-lg"
+              className="aspect-square h-full max-h-full rounded-full border-4 border-white/70 object-cover shadow-[0_0_24px_rgba(217,70,239,0.45)]"
             />
           ) : (
-            <div className="aspect-square h-full max-h-full overflow-hidden rounded-3xl border-4 border-cyan-300/40 shadow-lg [&>div]:!h-full [&>div]:!w-full [&>div]:!rounded-none">
+            <div className="aspect-square h-full max-h-full overflow-hidden rounded-full border-4 border-white/70 shadow-[0_0_24px_rgba(217,70,239,0.45)] [&>div]:!h-full [&>div]:!w-full [&>div]:!rounded-none">
               <Avatar emoji={value} size="xl" shape="square" decorative />
             </div>
           )}
