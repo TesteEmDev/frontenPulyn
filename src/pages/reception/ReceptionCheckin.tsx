@@ -9,6 +9,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
+import { PARENTESCO_OPCOES } from '../../utils/parentesco';
 import StatusDot from '../../components/ui/StatusDot';
 import Avatar from '../../components/ui/Avatar';
 import AvatarBuilder from '../../components/ui/AvatarBuilder';
@@ -18,14 +19,6 @@ import { ADVENTURER_AVATARS } from '../../avatar/adventurerAvatars';
 import { corDoAvatar, isAvatarCode, newAvatarCode } from '../../avatar/builder/code';
 import { useAvatarUnico, MENSAGEM_AVATAR_REPETIDO } from '../../hooks/useAvatarUnico';
 import { CHAVE_RASCUNHO_CHECKIN, lerAvatarRascunho, salvarAvatarRascunho } from '../../avatar/builder/rascunho';
-
-// Quem trouxe a criança: os de família e também outras pessoas de confiança
-const PARENTESCOS = [
-  'Pai', 'Mãe', 'Padrasto', 'Madrasta', 'Avô', 'Avó', 'Tio', 'Tia', 'Irmão', 'Irmã', 'Primo(a)',
-  'Padrinho', 'Madrinha', 'Responsável legal', 'Professor(a)', 'Vizinho(a)', 'Amigo(a) da família',
-  'Babá / cuidador(a)', 'Outro',
-];
-const PARENTESCO_OPCOES = [{ value: '', label: 'Selecione…' }, ...PARENTESCOS.map(valor => ({ value: valor, label: valor }))];
 
 const normalizeUid = (value: string) => value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
 
