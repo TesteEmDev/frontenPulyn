@@ -1,5 +1,5 @@
 import toast from 'react-hot-toast';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Play, Pause, Square, RotateCcw, Gamepad2, Trophy, MapPin, MessageSquare, Users, Clock, Shield } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useGameWebSocket, GameEvent } from '../../hooks/useGameWebSocket';
@@ -11,11 +11,13 @@ import BombaPainel from '../../components/game-master/BombaPainel';
 import RefemPainel from '../../components/game-master/RefemPainel';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
+import Modal from '../../components/ui/Modal';
 import Avatar from '../../components/ui/Avatar';
 import StatusDot from '../../components/ui/StatusDot';
 import Timer from '../../components/ui/Timer';
 import ScoreCounter from '../../components/ui/ScoreCounter';
 import { api, API_URL } from '../../services/api';
+import { avisar } from '../../components/ui/dialogo';
 
 const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
@@ -140,20 +142,28 @@ export default function GameMasterDashboard() {
   const [semJogos, setSemJogos] = useState(false);
   // Caça ao Tesouro: quantos checkpoints usar na partida (vazio = todos) e quantos o jogo tem online
   const [qtdCheckpoints, setQtdCheckpoints] = useState('');
-  const [checkpointsDoJogo, setCheckpointsDoJogo] = useState<{ total: number; minimo: number } | null>(null);
+  const [checkpointsDoJogo, setCheckpointsDoJogo] = useState<{ total: number; minimo: number; checkpoints: Array<{ id: string; nome: string }> } | null>(null);
+  const [checkpointFinal, setCheckpointFinal] = useState('');
   const [treasureStatus, setTreasureStatus] = useState<TreasureStatus>({ active: false, gameType: 'none' });
   const [monsterStatus, setMonsterStatus] = useState<MonsterStatus>({ active: false, gameType: 'none' });
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [lastGameEvent, setLastGameEvent] = useState<{ label: string; detail: string; at: string } | null>(null);
   const [actionLoading, setActionLoading] = useState<'start' | 'stop' | 'reset' | null>(null);
+  // Janela de confirmação de Finalizar e Reset
+  const [confirmando, setConfirmando] = useState<'finalizar' | 'reset' | null>(null);
+  // Quando o jogo foi encerrado por último: a consulta de status que saiu ANTES disso e responde depois (elas rodam a cada
+  // 5 s) trazia "ativo" de volta e religava o jogo na tela, o que obrigava a clicar em Finalizar de novo.
+  const encerradoEmRef = useRef(0);
 
   const loadTreasureStatus = useCallback(async () => {
     if (!selectedEventId) {
       setTreasureStatus({ active: false, gameType: 'none' });
       return;
     }
+    const pedidoEm = Date.now();
     try {
       const status = await api.getTreasureEventStatus(selectedEventId);
+      if (pedidoEm < encerradoEmRef.current) return; // resposta de antes de encerrar o jogo
       setTreasureStatus({
         ...status,
         // O valor do backend já considera o relógio do servidor. O frontend
@@ -171,8 +181,10 @@ export default function GameMasterDashboard() {
       setMonsterStatus({ active: false, gameType: 'none' });
       return;
     }
+    const pedidoEm = Date.now();
     try {
       const status = await api.getMonsterEventStatus(selectedEventId);
+      if (pedidoEm < encerradoEmRef.current) return; // resposta de antes de encerrar o jogo
       setMonsterStatus(status?.gameType === 'monster_hunt' ? status : { active: false, gameType: 'none' });
       if (status?.active) setGameRunning(true);
     } catch (err) {
@@ -330,11 +342,12 @@ export default function GameMasterDashboard() {
         setTreasureStatus({ active: false, gameType: 'none' });
         setMonsterStatus({ active: false, gameType: 'none' });
       }
-      setLastGameEvent({ label: 'Jogo iniciado', detail: 'O evento foi iniciado pelo Game Master.', at: receivedAt });
+      setLastGameEvent({ label: 'Jogo iniciado', detail: 'O evento foi iniciado pelo recreacionista.', at: receivedAt });
       setGameRunning(true);
       loadTreasureStatus();
       loadMonsterStatus();
     } else if (event.type === 'GAME_STOPPED') {
+      encerradoEmRef.current = Date.now();
       setLastGameEvent({ label: 'Jogo finalizado', detail: 'O evento foi finalizado.', at: receivedAt });
       setGameRunning(false);
       resetGameTimer();
@@ -534,6 +547,7 @@ export default function GameMasterDashboard() {
   // Stop game in the backend when the timer reaches zero.
   useEffect(() => {
     if (gameTimer > 0 || !gameRunning || !selectedEventId) return;
+    encerradoEmRef.current = Date.now();
     setGameRunning(false);
     api.stopGame(selectedEventId)
       .then(() => {
@@ -557,12 +571,12 @@ export default function GameMasterDashboard() {
 
   const handleIniciar = async () => {
     if (!selectedGameId) {
-      alert('Selecione um jogo primeiro');
+      avisar('Selecione um jogo primeiro');
       return;
     }
     
     if (!selectedEventId) {
-      alert('Selecione um evento primeiro');
+      avisar('Selecione um evento primeiro');
       return;
     }
     
@@ -578,11 +592,11 @@ export default function GameMasterDashboard() {
         const maximo = checkpointsDoJogo?.total ?? quantidade;
         const minimo = checkpointsDoJogo?.minimo ?? 2;
         if (!Number.isInteger(quantidade) || quantidade < minimo || quantidade > maximo) {
-          alert(`Escolha de ${minimo} a ${maximo} checkpoints para o Caça ao Tesouro (ou deixe em branco para usar todos).`);
+          avisar(`Escolha de ${minimo} a ${maximo} checkpoints para o Caça ao Tesouro (ou deixe em branco para usar todos).`);
           return;
         }
       }
-      const data = await api.startGame(selectedGameId, gameName, selectedEventId, quantidade);
+      const data = await api.startGame(selectedGameId, gameName, selectedEventId, quantidade, activeGame?.type === 'treasure_hunt' ? checkpointFinal || null : null);
       console.log('✅ Jogo iniciado:', data);
       resetGameTimer();
       setGameRunning(true);
@@ -590,7 +604,7 @@ export default function GameMasterDashboard() {
       await loadMonsterStatus();
     } catch (err) {
       console.error('Erro ao iniciar jogo:', err);
-      alert('❌ Erro ao iniciar jogo: ' + (err instanceof Error ? err.message : String(err)));
+      avisar('❌ Erro ao iniciar jogo: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setActionLoading(null);
     }
@@ -599,6 +613,7 @@ export default function GameMasterDashboard() {
   // Quantos checkpoints o Caça ao Tesouro pode usar: o máximo da escolha do recreacionista
   useEffect(() => {
     setQtdCheckpoints('');
+    setCheckpointFinal('');
     setCheckpointsDoJogo(null);
     if (activeGame?.type !== 'treasure_hunt' || !selectedEventId || !selectedGameId) return undefined;
     let vivo = true;
@@ -614,13 +629,14 @@ export default function GameMasterDashboard() {
 
   const handleFinalizar = async () => {
     if (!selectedEventId) {
-      alert('Nenhum evento selecionado');
+      avisar('Nenhum evento selecionado');
       return;
     }
     
     setActionLoading('stop');
     try {
       const data = await api.stopGame(selectedEventId);
+      encerradoEmRef.current = Date.now();
       console.log('✅ Jogo finalizado:', data);
       if (data?.bonus) {
         toast.success(`${data.bonus.teamName} ganhou ${data.bonus.pointsPerMember} pontos por participante (${data.bonus.membersAwarded} participantes).`, { duration: 8000 });
@@ -632,7 +648,7 @@ export default function GameMasterDashboard() {
       await loadTerritoriesStatus();
     } catch (err) {
       console.error('Erro ao finalizar jogo:', err);
-      alert('❌ Erro ao finalizar jogo: ' + (err instanceof Error ? err.message : String(err)));
+      avisar('❌ Erro ao finalizar jogo: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setActionLoading(null);
     }
@@ -650,16 +666,7 @@ export default function GameMasterDashboard() {
 
   const handleResetarPontos = async () => {
     if (!selectedEventId) {
-      alert('Nenhum evento selecionado');
-      return;
-    }
-
-    // Pedir confirmação
-    const confirmar = window.confirm(
-      '⚠️ Tem certeza que deseja resetar TODOS os pontos?\n\nIsto vai zerar:\n✓ Pontos das crianças\n✓ Pontos dos times\n✓ Todas as leituras\n✓ Todos os territórios'
-    );
-
-    if (!confirmar) {
+      avisar('Nenhum evento selecionado');
       return;
     }
 
@@ -668,7 +675,7 @@ export default function GameMasterDashboard() {
       const data = await api.resetScores(selectedEventId);
       
       if (data.ok) {
-        alert('✅ Pontos resetados com sucesso!');
+        avisar('✅ Pontos resetados com sucesso!');
         // Recarregar dados
         await Promise.all([
           loadTeams(),
@@ -678,11 +685,11 @@ export default function GameMasterDashboard() {
         // Resetar territórios
         loadTerritoriesStatus();
       } else {
-        alert('❌ Erro ao resetar pontos: ' + data.error);
+        avisar('❌ Erro ao resetar pontos: ' + data.error);
       }
     } catch (err) {
       console.error('Erro ao chamar reset-scores endpoint:', err);
-      alert('❌ Erro ao resetar pontos: ' + err);
+      avisar('❌ Erro ao resetar pontos: ' + err);
     } finally {
       setActionLoading(null);
     }
@@ -862,7 +869,7 @@ export default function GameMasterDashboard() {
                           setSelectedGameId('');
                           setActiveGame(null);
                         })
-                        .catch(error => alert(error instanceof Error ? error.message : 'Não foi possível deixar sem jogos'));
+                        .catch(error => avisar(error instanceof Error ? error.message : 'Não foi possível deixar sem jogos'));
                       return;
                     }
                     const game = games.find(g => g.id === gameId);
@@ -878,7 +885,7 @@ export default function GameMasterDashboard() {
                       api.selectGame(game.id, selectedEventId).catch(error => {
                         setSelectedGameId(previousGameId);
                         setActiveGame(previousGame || null);
-                        alert(error instanceof Error ? error.message : 'Não foi possível selecionar o jogo');
+                        avisar(error instanceof Error ? error.message : 'Não foi possível selecionar o jogo');
                       });
                     }
                   }}
@@ -936,6 +943,23 @@ export default function GameMasterDashboard() {
                     </span>
                   </label>
                 )}
+                {activeGame?.type === 'treasure_hunt' && !gameRunning && checkpointsDoJogo && checkpointsDoJogo.checkpoints.length > 1 && (
+                  <label className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-300">
+                    Último checkpoint:
+                    <select
+                      value={checkpointFinal}
+                      onChange={(e) => setCheckpointFinal(e.target.value)}
+                      aria-label="Último checkpoint do Caça ao Tesouro"
+                      className="rounded-lg border border-dark-border bg-dark-surface px-2 py-1 text-white focus:border-primary focus:outline-none"
+                    >
+                      <option value="">Qualquer (sorteado)</option>
+                      {checkpointsDoJogo.checkpoints.map((cp) => (
+                        <option key={cp.id} value={cp.id}>{cp.nome}</option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-gray-500">Cada equipe só lê esse checkpoint depois de todos os outros.</span>
+                  </label>
+                )}
               </div>
               <div className="flex items-center gap-4 rounded-xl border border-primary/20 bg-dark-surface/60 px-4 py-3">
                 <div className="text-center" aria-live="polite">
@@ -974,7 +998,7 @@ export default function GameMasterDashboard() {
                              await loadTreasureStatus();
                              setGameRunning(true);
                            } catch (err) {
-                             alert('Erro ao iniciar próxima rodada: ' + (err instanceof Error ? err.message : String(err)));
+                             avisar('Erro ao iniciar próxima rodada: ' + (err instanceof Error ? err.message : String(err)));
                            } finally {
                              setActionLoading(null);
                            }
@@ -1142,7 +1166,7 @@ export default function GameMasterDashboard() {
             <Button
               variant="danger"
               size="lg"
-              onClick={handleFinalizar}
+              onClick={() => setConfirmando('finalizar')}
               disabled={(!gameRunning && gameTimer === 0) || actionLoading !== null}
               className="w-full"
             >
@@ -1171,7 +1195,7 @@ export default function GameMasterDashboard() {
             <Button
               variant="warning"
               size="lg"
-              onClick={handleResetarPontos}
+              onClick={() => setConfirmando('reset')}
               disabled={actionLoading !== null}
               className="w-full"
             >
@@ -1188,6 +1212,38 @@ export default function GameMasterDashboard() {
               )}
             </Button>
           </div>
+
+          <Modal
+            isOpen={confirmando !== null}
+            onClose={() => setConfirmando(null)}
+            title={confirmando === 'reset' ? 'Zerar os pontos?' : 'Encerrar o jogo?'}
+            size="sm"
+          >
+            {confirmando === 'reset' ? (
+              <p className="text-sm text-gray-300">
+                Isto zera os pontos das crianças e dos times, todas as leituras e os territórios deste evento. Não dá para desfazer.
+              </p>
+            ) : (
+              <p className="text-sm text-gray-300">
+                O jogo é encerrado agora para todos. A pontuação e o histórico ficam guardados.
+              </p>
+            )}
+            <div className="mt-5 flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setConfirmando(null)}>Cancelar</Button>
+              <Button
+                variant={confirmando === 'reset' ? 'warning' : 'danger'}
+                autoFocus
+                onClick={() => {
+                  const acao = confirmando;
+                  setConfirmando(null);
+                  if (acao === 'reset') void handleResetarPontos();
+                  else void handleFinalizar();
+                }}
+              >
+                {confirmando === 'reset' ? 'Sim, zerar os pontos' : 'Sim, encerrar'}
+              </Button>
+            </div>
+          </Modal>
 
           {/* Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

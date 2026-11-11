@@ -2,17 +2,20 @@
 // Performance: <300ms troca de tela, 50+ FPS
 
 import { useCallback, useEffect, useRef, useState, memo, type FormEvent } from 'react';
+import { useParams } from 'react-router-dom';
+import { LEITOR_DO_BALCAO, ehLeituraDeAutoatendimento } from '../../utils/recepcao';
 import { useAuth } from '../../hooks/useAuth';
 import { usePulynStore } from '../../store/mockData';
 import { useNFCOtimizado } from '../../hooks/useNFCReader_otimizado';
 import { useDeviceNFC } from '../../hooks/useDeviceNFC';
 import { api } from '../../services/api';
 import Avatar from '../../components/ui/Avatar';
-import AvatarSelector from '../../components/ui/AvatarSelector';
-import CorSelector from '../../components/ui/CorSelector';
-import { primeiraCorLivre } from '../../utils/coresParticipante';
-import { mascaraData, dataDeDigitos, erroNascimento, idadeDeNascimento } from '../../utils/nascimento';
-import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID, primeiroAvatarLivre } from '../../avatar/adventurerAvatars';
+import AvatarBuilder from '../../components/ui/AvatarBuilder';
+import { mascaraData, dataDeDigitos, erroNascimentoSemLimite, idadeDeNascimento } from '../../utils/nascimento';
+import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
+import { corDoAvatar, decodeAvatar, newAvatarCode } from '../../avatar/builder/code';
+import { useAvatarUnico, MENSAGEM_AVATAR_REPETIDO } from '../../hooks/useAvatarUnico';
+import { CHAVE_RASCUNHO_KIOSK, lerAvatarRascunho, salvarAvatarRascunho } from '../../avatar/builder/rascunho';
 import StatusDot from '../../components/ui/StatusDot';
 import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
 import VirtualKeyboardOtimizado from '../../components/ui/VirtualKeyboardOtimizado';
@@ -25,8 +28,9 @@ const AVATAR_OPTIONS = ADVENTURER_AVATARS.map(option => ({
 }));
 
 // Cadastros antigos podem ter um avatar que não existe mais; o Kiosk usa o padrão nesses casos.
+// Avatares montados (código pulyn1-...) são válidos quando o código decodifica.
 const profileAvatar = (avatar: string) =>
-  AVATAR_OPTIONS.some(option => option.emoji === avatar) ? avatar : DEFAULT_AVATAR_ID;
+  AVATAR_OPTIONS.some(option => option.emoji === avatar) || decodeAvatar(avatar) ? avatar : DEFAULT_AVATAR_ID;
 
 const normalizeUid = (value: string) =>
   value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
@@ -107,6 +111,9 @@ interface KioskProfile {
   apelido: string;
   idade: number | null;
   avatar: string;
+  // Já cadastrada neste evento pela recepção (check-in), só falta a pulseira
+  jaNoEvento?: boolean;
+  cor?: string | null;
 }
 
 type KioskState = 'waiting' | 'reading' | 'ready' | 'saving' | 'success' | 'error';
@@ -123,10 +130,10 @@ export default function ReceptionKioskOtimizado() {
   const [message, setMessage] = useState('Encoste a pulseira no leitor abaixo da tela para começar');
   const [braceletCode, setBraceletCode] = useState('');
   // nascimento: os dígitos da data (DDMMAAAA); aparece como dd/mm/aaaa
-  const [form, setForm] = useState({ name: '', nickname: '', nascimento: '', avatar: DEFAULT_AVATAR_ID, cor: primeiraCorLivre([]) });
-  // Avatares que os outros participantes do evento já usam: ficam indisponíveis e o cadastro começa num livre
-  const [avataresEmUso, setAvataresEmUso] = useState<string[]>([]);
-  const [coresEmUso, setCoresEmUso] = useState<string[]>([]);
+  // avatar: código do personagem montado pela criança (cada um é único, não há "avatar já escolhido")
+  // O personagem em montagem fica salvo no aparelho: atualizar a página não perde o avatar
+  const [form, setForm] = useState(() => ({ name: '', nickname: '', nascimento: '', avatar: lerAvatarRascunho(CHAVE_RASCUNHO_KIOSK) }));
+  useEffect(() => { salvarAvatarRascunho(CHAVE_RASCUNHO_KIOSK, form.avatar); }, [form.avatar]);
   const [successData, setSuccessData] = useState<{ name: string; avatar: string; returning: boolean } | null>(null);
   const [mode, setMode] = useState<KioskMode>('choose');
   const [newStep, setNewStep] = useState<NewStep>('avatar');
@@ -146,14 +153,13 @@ export default function ReceptionKioskOtimizado() {
   const kioskStateRef = useRef<KioskState>('waiting');
 
   // Cache para evitar renders desnecessários
-  const selectedAvatar = AVATAR_OPTIONS.find(option => option.emoji === form.avatar) || AVATAR_OPTIONS[0];
   const selectedEvent = events.find(event => String(event.eventoId) === String(selectedEventId));
   
   // DEBOUNCE para evitar renders rápidos
   const debouncedProfileSearch = useDebounce(profileSearch, 300);
 
   const nascimentoIso = dataDeDigitos(form.nascimento);
-  const erroDoNascimento = form.nascimento.length === 8 ? erroNascimento(nascimentoIso) : '';
+  const erroDoNascimento = form.nascimento.length === 8 ? erroNascimentoSemLimite(nascimentoIso) : '';
   const idadeCalculada = nascimentoIso && !erroDoNascimento ? idadeDeNascimento(nascimentoIso) : null;
   const newFormValid = form.name.trim().length >= 2 && Boolean(nascimentoIso) && !erroDoNascimento;
 
@@ -193,16 +199,15 @@ export default function ReceptionKioskOtimizado() {
     };
   }, []);
 
+  const [avataresEmUso, setAvataresEmUso] = useState<string[]>([]);
   const carregarAvatares = useCallback(async () => {
     if (!selectedEventId) {
       setAvataresEmUso([]);
-      setCoresEmUso([]);
       return;
     }
     try {
       const emUso = await api.getKioskAvatarsInUse(selectedEventId);
       setAvataresEmUso(emUso.avatares);
-      setCoresEmUso(emUso.cores);
     } catch (error) {
       console.error('Erro ao carregar os avatares em uso:', error);
     }
@@ -214,14 +219,6 @@ export default function ReceptionKioskOtimizado() {
     const timer = window.setInterval(carregarAvatares, 8000);
     return () => window.clearInterval(timer);
   }, [selectedEventId, carregarAvatares]);
-  useEffect(() => {
-    // O avatar do formulário é de outro participante do evento (a lista mudou, o evento mudou ou o formulário foi zerado): troca por um livre
-    if (avataresEmUso.includes(form.avatar)) setForm(prev => ({ ...prev, avatar: primeiroAvatarLivre(avataresEmUso) }));
-  }, [avataresEmUso, form.avatar]);
-  useEffect(() => {
-    // Mesma regra para a cor
-    if (coresEmUso.some(cor => cor.toUpperCase() === form.cor.toUpperCase())) setForm(prev => ({ ...prev, cor: primeiraCorLivre(coresEmUso) }));
-  }, [coresEmUso, form.cor]);
 
   // RESET KIOSK OTIMIZADO
   const resetKiosk = useCallback(() => {
@@ -229,7 +226,8 @@ export default function ReceptionKioskOtimizado() {
     lastReadRef.current = null;
     kioskStateRef.current = 'waiting';
     setBraceletCode('');
-    setForm({ name: '', nickname: '', nascimento: '', avatar: DEFAULT_AVATAR_ID, cor: primeiraCorLivre([]) });
+    reiniciarAvatar();
+    setForm({ name: '', nickname: '', nascimento: '', avatar: newAvatarCode() });
     setMode('choose');
     setNewStep('avatar');
     setFocusField('name');
@@ -322,6 +320,31 @@ export default function ReceptionKioskOtimizado() {
 
   const registrationVisible = Boolean(braceletCode && (state === 'ready' || state === 'saving'));
 
+  // Várias telas de autoatendimento: /reception/kiosk/2 só ouve o leitor de recepção R2. Sem número, ouve qualquer leitor.
+  const { numero: numeroDaTela } = useParams<{ numero?: string }>();
+  const numCheckDaTela = numeroDaTela && /^\d{1,3}$/.test(numeroDaTela) ? `R${Number(numeroDaTela)}` : null;
+  // O R1 é do balcão: a tela 1 não existe como autoatendimento
+  const telaDoBalcao = numCheckDaTela === LEITOR_DO_BALCAO;
+  const soDoLeitorDaTela = useCallback(
+    (leitura: { numCheck?: string | null }) => {
+      if (!ehLeituraDeAutoatendimento(leitura)) return false;
+      return !numCheckDaTela || String(leitura?.numCheck || '').toUpperCase() === numCheckDaTela;
+    },
+    [numCheckDaTela],
+  );
+  // Esse leitor está cadastrado e ligado? (avisa no topo da tela quando não)
+  const [leitorDaTela, setLeitorDaTela] = useState<{ online: boolean } | null | undefined>(undefined);
+  useEffect(() => {
+    if (!numCheckDaTela) { setLeitorDaTela(undefined); return undefined; }
+    let vivo = true;
+    const conferir = () => api.getLeitoresDeRecepcao()
+      .then((lista) => { if (vivo) setLeitorDaTela(lista.find((item) => item.numCheck === numCheckDaTela) ?? null); })
+      .catch(() => undefined);
+    void conferir();
+    const intervalo = window.setInterval(conferir, 30_000);
+    return () => { vivo = false; window.clearInterval(intervalo); };
+  }, [numCheckDaTela]);
+
   // NFC READER OTIMIZADO
   const { isConnected } = useNFCOtimizado(
     handleBraceletDetected,
@@ -329,6 +352,8 @@ export default function ReceptionKioskOtimizado() {
     selectedEventId || null,
     'reception',
     !registrationVisible && state !== 'saving' && state !== 'success',
+    'kiosk',
+    soDoLeitorDaTela,
   );
 
   // Leitura alternativa pelo NFC do próprio tablet/celular usado como totem.
@@ -391,7 +416,8 @@ export default function ReceptionKioskOtimizado() {
             perfilCriancaId: selectedProfile!.perfilCriancaId,
             apelido: selectedProfile!.apelido,
             avatar,
-            cor: form.cor,
+            // A cor do participante é a cor de fundo do avatar
+            cor: corDoAvatar(avatar) ?? selectedProfile?.cor ?? undefined,
             braceletCode,
           }
         : {
@@ -399,7 +425,8 @@ export default function ReceptionKioskOtimizado() {
             apelido: nickname,
             dataNascimento: nascimentoIso,
             avatar,
-            cor: form.cor,
+            // A cor do participante é a cor de fundo do avatar
+            cor: corDoAvatar(avatar) ?? selectedProfile?.cor ?? undefined,
             braceletCode,
           });
 
@@ -432,13 +459,14 @@ export default function ReceptionKioskOtimizado() {
   const canInteract = Boolean(selectedEventId && state === 'ready');
 
   // HANDLERS OTIMIZADOS
-  const handleCorChange = useCallback((cor: string) => {
-    setForm(prev => ({ ...prev, cor }));
-  }, []);
-
+  // Avatar único no evento: o sorteado que já existe troca sozinho; o que a criança montou e já existe avisa e não deixa salvar
+  const trocarAvatar = useCallback((avatar: string) => setForm(prev => ({ ...prev, avatar })), []);
+  const avatarProprio = selectedProfile?.jaNoEvento ? profileAvatar(selectedProfile.avatar) : null;
+  const { repetido: avatarRepetido, marcarEscolhido: marcarAvatarEscolhido, reiniciar: reiniciarAvatar } = useAvatarUnico(avataresEmUso, form.avatar, trocarAvatar, avatarProprio);
   const handleAvatarChange = useCallback((avatar: string) => {
+    marcarAvatarEscolhido();
     setForm(prev => ({ ...prev, avatar }));
-  }, []);
+  }, [marcarAvatarEscolhido]);
 
   // Campos digitados pelo teclado do aparelho/físico. A data de nascimento aceita só dígitos (até 8: dia, mês e ano).
   const handleTextChange = useCallback((field: 'name' | 'nickname', value: string) => {
@@ -587,6 +615,14 @@ export default function ReceptionKioskOtimizado() {
               <h1 className="truncate font-display text-xl font-bold text-white sm:text-2xl">
                 Monte seu personagem
               </h1>
+              {numCheckDaTela && (
+                <p className="truncate text-xs font-semibold text-cyan-200">
+                  Autoatendimento {Number(numeroDaTela)} · leitor {numCheckDaTela}
+                  {telaDoBalcao && <span className="ml-2 text-warning">o R1 é do balcão: use /reception/kiosk/2, /3...</span>}
+                  {!telaDoBalcao && leitorDaTela === null && <span className="ml-2 text-warning">nenhum leitor {numCheckDaTela} cadastrado</span>}
+                  {leitorDaTela && !leitorDaTela.online && <span className="ml-2 text-warning">leitor desligado</span>}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -822,31 +858,26 @@ export default function ReceptionKioskOtimizado() {
                               Etapa 1 de 2 • Aparência
                             </p>
                             <h3 className="mt-1 font-display text-2xl font-bold text-white">
-                              Escolha seu personagem
+                              Crie seu personagem
                             </h3>
                           </div>
                           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-4 border-cyan-300/40 bg-cyan-300/10 p-1">
-                            <Avatar emoji={selectedAvatar.emoji} size="md" bgColor={selectedAvatar.color} />
+                            <Avatar emoji={form.avatar} size="md" bgColor="bg-primary/20" />
                           </div>
                         </div>
-                        <AvatarSelector
+                        <AvatarBuilder
                           value={form.avatar}
                           onChange={handleAvatarChange}
                           disabled={!canInteract}
-                          wide
-                          indisponiveis={avataresEmUso}
                         />
-                        <div className="mt-4 border-t border-cyan-300/10 pt-4">
-                          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">Escolha a sua cor</p>
-                          <CorSelector value={form.cor} onChange={handleCorChange} disabled={!canInteract} indisponiveis={coresEmUso} />
-                        </div>
+                        {avatarRepetido && <p role="alert" className="mt-2 rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-200">{MENSAGEM_AVATAR_REPETIDO}</p>}
                       </section>
                     ) : (
                       /* ETAPA 2: NOME COMPLETO, APELIDO E IDADE */
                       <section className="mx-auto flex w-full max-w-3xl flex-col rounded-[1.75rem] border border-fuchsia-300/25 bg-[#1b0f38] p-4 shadow-lg backdrop-blur sm:p-5 lg:col-span-2">
                         <div className="mb-3 flex items-center gap-3 rounded-3xl border border-fuchsia-300/20 bg-gradient-to-r from-fuchsia-300/10 to-transparent p-3">
                           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-4 border-fuchsia-300/50 bg-fuchsia-300/10 p-1.5 shadow-md">
-                            <Avatar emoji={selectedAvatar.emoji} size="md" bgColor={selectedAvatar.color} />
+                            <Avatar emoji={form.avatar} size="md" bgColor="bg-primary/20" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">
@@ -968,7 +999,7 @@ export default function ReceptionKioskOtimizado() {
                           <button
                             type="submit"
                             form="kiosk-new-form"
-                            disabled={!canInteract || state === 'saving' || !newFormValid}
+                            disabled={!canInteract || state === 'saving' || !newFormValid || avatarRepetido}
                             className="rounded-xl border border-success/40 bg-success/10 px-5 py-2.5 text-sm font-semibold text-success transition hover:bg-success/20 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {state === 'saving' ? 'Criando...' : 'Criar personagem'}
@@ -1041,15 +1072,12 @@ export default function ReceptionKioskOtimizado() {
                             <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">
                               Quer mudar o personagem?
                             </p>
-                            <AvatarSelector
+                            <AvatarBuilder
                               value={form.avatar}
-                              onChange={handleAvatarChange}
-                              disabled={!canInteract || state === 'saving'}
-                              wide
-                              indisponiveis={avataresEmUso}
-                            />
-                            <p className="mb-2 mt-4 text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">E a sua cor?</p>
-                            <CorSelector value={form.cor} onChange={handleCorChange} disabled={!canInteract || state === 'saving'} indisponiveis={coresEmUso} />
+                          onChange={handleAvatarChange}
+                          disabled={!canInteract || state === 'saving'}
+                        />
+                            {avatarRepetido && <p role="alert" className="mt-2 rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-200">{MENSAGEM_AVATAR_REPETIDO}</p>}
                           </div>
                           <button
                             type="button"
@@ -1073,8 +1101,8 @@ export default function ReceptionKioskOtimizado() {
                                     type="button"
                                     onClick={() => {
                                       setSelectedProfile(profile);
-                                      // Se outro participante já usa o avatar do cadastro, a criança começa com um livre
-                                      setForm(prev => ({ ...prev, avatar: avataresEmUso.includes(profileAvatar(profile.avatar)) ? primeiroAvatarLivre(avataresEmUso) : profileAvatar(profile.avatar) }));
+                                      // A criança começa com o avatar do cadastro dela e pode montar outro logo abaixo.
+                                      setForm(prev => ({ ...prev, avatar: profileAvatar(profile.avatar) }));
                                     }}
                                     disabled={!canInteract}
                                     className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-[#120a27]/70 p-2.5 text-left transition hover:border-fuchsia-300/50 hover:bg-fuchsia-300/10 active:scale-[0.99]"
@@ -1089,6 +1117,9 @@ export default function ReceptionKioskOtimizado() {
                                       <p className="truncate text-sm text-gray-400">
                                         {profile.nomeExibicao}{profile.idade ? ` • ${profile.idade} anos` : ''}
                                       </p>
+                                      {profile.jaNoEvento && (
+                                        <p className="truncate text-xs font-semibold text-fuchsia-300">Cadastrado na recepção · falta a pulseira</p>
+                                      )}
                                     </div>
                                     <span className="text-xl text-fuchsia-300" aria-hidden="true">›</span>
                                   </button>
@@ -1131,7 +1162,7 @@ export default function ReceptionKioskOtimizado() {
                         <button
                           type="button"
                           onClick={handleSubmit}
-                          disabled={!canInteract || state === 'saving' || !selectedProfile}
+                          disabled={!canInteract || state === 'saving' || !selectedProfile || avatarRepetido}
                           className="rounded-xl border border-success/40 bg-success/10 px-5 py-2.5 text-sm font-semibold text-success transition hover:bg-success/20 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {state === 'saving' ? 'Entrando...' : 'Entrar no evento'}

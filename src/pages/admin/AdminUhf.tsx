@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Radio, Plus, KeyRound, Trash2, Ruler, Crosshair, Save, Loader2, RefreshCw, Power, X } from 'lucide-react';
 import { api, API_URL, type UhfAntena, type UhfConfig, type UhfLeitor, type UhfLeituraAntena } from '../../services/api';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
+import MapaAbas from '../../components/layout/MapaAbas';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
@@ -11,6 +13,7 @@ import Modal from '../../components/ui/Modal';
 import MapaPlanta, { LARGURA_PLANTA, ALTURA_PLANTA, type PontoPlanta } from '../../components/uhf/MapaPlanta';
 import MarcadorAntena, { CORES_LEITOR } from '../../components/uhf/MarcadorAntena';
 import VinculoPulseiras from '../../components/uhf/VinculoPulseiras';
+import { confirmar } from '../../components/ui/dialogo';
 
 const ESCALA_PADRAO = 0.05;
 const campo = 'w-full rounded-lg border border-dark-border bg-dark-surface px-3 py-2 text-sm text-white focus:border-primary focus:outline-none';
@@ -115,6 +118,8 @@ export default function AdminUhf() {
             action={<Button onClick={() => setNovoAberto(true)}><Plus size={16} className="mr-1.5" />Novo leitor</Button>}
           />
 
+          <MapaAbas />
+
           {erro && <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-red-300">{erro}</p>}
           {aviso && (
             <p className="flex items-center justify-between rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-green-300">
@@ -150,15 +155,15 @@ export default function AdminUhf() {
                     <div className="flex flex-wrap gap-1.5">
                       <Button size="sm" variant="ghost" onClick={() => setEditando(leitor)}>Editar</Button>
                       <Button size="sm" variant="ghost" onClick={async () => {
-                        if (!window.confirm(`Gerar uma nova chave para ${leitor.nome}? A chave atual para de funcionar e o leitor precisa receber a nova.`)) return;
+                        if (!(await confirmar(`Gerar uma nova chave para ${leitor.nome}? A chave atual para de funcionar e o leitor precisa receber a nova.`, { titulo: 'Gerar nova chave', confirmar: 'Gerar nova chave' }))) return;
                         try { setChaveGerada({ leitor, chave: (await api.gerarUhfChave(leitor.leitorId)).chave }); }
                         catch (err) { setErro(err instanceof Error ? err.message : 'Não foi possível gerar a chave.'); }
                       }}><KeyRound size={14} className="mr-1" />Nova chave</Button>
                       <Button size="sm" variant="ghost" onClick={() => executar(() => api.atualizarUhfLeitor(leitor.leitorId, { ativo: !leitor.ativo }))}>
                         <Power size={14} className="mr-1" />{leitor.ativo ? 'Desativar' : 'Ativar'}
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => {
-                        if (window.confirm(`Remover ${leitor.nome}? As antenas e as leituras dele também são apagadas.`)) {
+                      <Button size="sm" variant="ghost" onClick={async () => {
+                        if (await confirmar(`Remover ${leitor.nome}? As antenas e as leituras dele também são apagadas.`, { titulo: 'Remover o leitor', confirmar: 'Remover' })) {
                           executar(() => api.removerUhfLeitor(leitor.leitorId), 'Leitor removido.');
                         }
                       }}><Trash2 size={14} className="text-danger" /></Button>
@@ -300,19 +305,10 @@ export default function AdminUhf() {
         {chaveGerada && (
           <div className="space-y-4 text-sm">
             <p className="text-gray-300">
-              Esta chave aparece <strong>só agora</strong>. Configure o leitor <strong>{chaveGerada.leitor.nome}</strong> pelo Bluetooth
-              (BLE "AdvTrkOneRFID-BT") enviando os comandos abaixo, um por vez:
+              Esta chave aparece <strong>só agora</strong>. No app <strong>Middleware Manager</strong>, conecte ao leitor <strong>{chaveGerada.leitor.nome}</strong>,
+              toque no ícone de QR code e aponte a câmera para o código abaixo. Os campos são preenchidos; é só salvar.
             </p>
-            <pre className="overflow-x-auto rounded-lg bg-dark-surface p-3 text-xs text-green-300">{[
-              `SET_MODULE_ID:${chaveGerada.leitor.moduleId}`,
-              `SET_API_URL:${API_URL}/uhf/lote`,
-              `SET_DEVICE_KEY:${chaveGerada.chave}`,
-              'SET_SAVE_CONFIG',
-            ].join('\n')}</pre>
-            <p className="text-xs text-gray-500">
-              Se o endereço da API acima for "localhost", troque pelo IP do computador do backend na rede do leitor (ex.: http://192.168.0.50:3001/api/uhf/lote).
-              Backend local é sempre http (não https).
-            </p>
+            <QrConfiguracao moduleId={chaveGerada.leitor.moduleId} chave={chaveGerada.chave} />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => navigator.clipboard?.writeText(chaveGerada.chave)}>Copiar chave</Button>
               <Button onClick={() => setChaveGerada(null)}>Já configurei</Button>
@@ -320,6 +316,43 @@ export default function AdminUhf() {
           </div>
         )}
       </Modal>
+    </div>
+  );
+}
+
+// ---------- QR code para o app Middleware Manager ----------
+// Formato lido pelo app: {"pulyn":"uhf","v":1,"id","api","key"} (+ "ssid"/"senha" se preenchidos).
+function QrConfiguracao({ moduleId, chave }: { moduleId: string; chave: string }) {
+  const [url, setUrl] = useState(`${API_URL}/uhf/lote`);
+  const [ssid, setSsid] = useState('');
+  const [senha, setSenha] = useState('');
+  const dados = JSON.stringify({
+    pulyn: 'uhf', v: 1, id: moduleId, api: url.trim(), key: chave,
+    ...(ssid.trim() ? { ssid: ssid.trim(), senha } : {}),
+  });
+  const campo = 'w-full rounded-lg border border-white/10 bg-dark-surface px-3 py-2 text-sm text-white';
+  return (
+    <div className="grid gap-4 md:grid-cols-[auto_1fr]">
+      <div className="mx-auto rounded-xl bg-white p-3">
+        <QRCodeSVG value={dados} size={220} level="M" />
+      </div>
+      <div className="space-y-3">
+        <label className="block text-xs text-gray-400">Endereço do lote (o leitor precisa alcançar)
+          <input className={campo} value={url} onChange={(e) => setUrl(e.target.value)} />
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block text-xs text-gray-400">Wi-Fi (opcional)
+            <input className={campo} value={ssid} onChange={(e) => setSsid(e.target.value)} autoComplete="off" />
+          </label>
+          <label className="block text-xs text-gray-400">Senha do Wi-Fi
+            <input className={campo} type="password" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="new-password" />
+          </label>
+        </div>
+        <p className="text-xs text-gray-500">
+          Se o endereço for "localhost", troque pelo IP do computador na rede do leitor. O leitor não usa HTTPS: use a porta HTTP do lote
+          (ex.: http://192.168.0.50:8080/api/uhf/lote). O QR contém a chave: não compartilhe a imagem.
+        </p>
+      </div>
     </div>
   );
 }

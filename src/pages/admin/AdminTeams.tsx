@@ -3,6 +3,7 @@ import {
   Users, Plus, Loader2, Edit2, Trash2, Download, Bookmark, CalendarDays, Check
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { useAuth } from '../../hooks/useAuth';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
@@ -14,6 +15,7 @@ import Modal from '../../components/ui/Modal';
 import ColorPicker from '../../components/ui/ColorPicker';
 import AllEventsTeams, { type EventTeam } from '../../components/team/AllEventsTeams';
 import { normalizeHex, readableTextOn } from '../../utils/color';
+import { confirmar } from '../../components/ui/dialogo';
 
 interface Team {
   timeId: string;
@@ -128,16 +130,19 @@ export default function AdminTeams() {
     }
   }, [selectedEventId]);
 
-  const loadTeams = async () => {
+  const loadTeams = async (silencioso = false) => {
     if (!selectedEventId) return;
     try {
       const timesData = await api.getTimes(selectedEventId);
       setTeamsList(timesData || []);
     } catch (err) {
       console.error('❌ Erro ao carregar times:', err);
-      setError('Erro ao carregar times');
+      if (!silencioso) setError('Erro ao carregar times');
     }
   };
+
+  // Os times (e a contagem de participantes) se atualizam sozinhos, menos com o formulário aberto
+  useAutoRefresh(() => loadTeams(true), { topicos: ['times', 'criancas'], intervaloMs: 15_000, pausado: showAddModal || editingId !== null || applying });
 
   const handleAddTeam = async () => {
     const name = newTeam.name.trim();
@@ -162,16 +167,17 @@ export default function AdminTeams() {
     try {
       if (editingId) {
         await api.updateTime(editingId, { nome: name, color });
-        setVisibleTeams(prev => prev.map(t => (t.timeId === editingId ? { ...t, name, color } : t)));
+        setVisibleTeams(prev => prev.map(t => (t.timeId === editingId ? { ...t, nome: name, cor: color } : t)));
         setNotice(`Time "${name}" atualizado.`);
       } else {
-        const createdTeam = await api.createTime({
+        await api.createTime({
           nome: name,
           color,
           eventoId: asDefault ? undefined : selectedEventId,
         });
-        if (asDefault) setDefaultTeams(prev => [...prev, createdTeam]);
-        else setTeamsList(prev => [...prev, createdTeam]);
+        // Relê a lista: a resposta da criação vem com outros nomes de campo (id/color) que a tabela não usa
+        if (asDefault) setDefaultTeams(await api.getDefaultTimes());
+        else await loadTeams(true);
         // Mostra o time recém-criado na aba onde ele mora.
         setScope(asDefault ? 'default' : 'event');
         setNotice(asDefault
@@ -188,7 +194,7 @@ export default function AdminTeams() {
   };
 
   const handleDeleteTeam = async (id: string) => {
-    if (!window.confirm('Tem certeza que deseja remover este time? Esta ação não pode ser desfeita!')) return;
+    if (!(await confirmar('Tem certeza que deseja remover este time? Esta ação não pode ser desfeita!', { titulo: 'Remover o time', confirmar: 'Remover' }))) return;
 
     try {
       await api.deleteTime(id);

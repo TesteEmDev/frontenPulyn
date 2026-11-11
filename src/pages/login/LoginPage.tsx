@@ -86,7 +86,10 @@ export default function LoginPage() {
 
       if (result.success) {
         const user = useAuth.getState().user;
-        if (user?.redirect) {
+        // Senha provisória do master: a primeira coisa a fazer é trocá-la
+        if (user?.trocarSenha) {
+          navigate('/primeiro-acesso');
+        } else if (user?.redirect) {
           navigate(user.redirect);
         }
       } else {

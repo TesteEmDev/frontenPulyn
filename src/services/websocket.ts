@@ -35,7 +35,11 @@ export function getWebSocketServerUrl(fallbackApiUrl?: string) {
   const apiUrl = toWebSocketOrigin(fallbackApiUrl);
   if (apiUrl) return apiUrl;
 
-  return `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:3001`;
+  // API no mesmo domínio (ex.: /api atrás do nginx): o WebSocket usa a mesma origem da página.
+  const protocolo = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  if (fallbackApiUrl?.startsWith('/')) return `${protocolo}//${window.location.host}`;
+
+  return `${protocolo}//${window.location.hostname}:3001`;
 }
 
 export function createAuthenticatedWebSocket(url: string, token?: string | null): WebSocket {

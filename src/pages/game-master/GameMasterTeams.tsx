@@ -14,6 +14,7 @@ import ScoreCounter from '../../components/ui/ScoreCounter';
 import { api } from '../../services/api';
 import RandomTeamDistributionModal from '../../components/team/RandomTeamDistributionModal';
 import AddTeamMemberModal from '../../components/team/AddTeamMemberModal';
+import { avisar, confirmar } from '../../components/ui/dialogo';
 
 const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
@@ -113,7 +114,7 @@ export default function GameMasterTeams() {
   const handleSaveEdit = async (teamId: string) => {
     const nome = editForm.name.trim();
     if (!nome) {
-      alert('Informe o nome do time.');
+      avisar('Informe o nome do time.');
       return;
     }
     try {
@@ -122,12 +123,12 @@ export default function GameMasterTeams() {
       await loadTeams();
       setEditingTeam(null);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível salvar o time.');
+      avisar(error instanceof Error ? error.message : 'Não foi possível salvar o time.');
     }
   };
 
   const handleDeleteTeam = async (teamId: string) => {
-    if (confirm('Tem certeza que deseja excluir este time?')) {
+    if (await confirmar('Tem certeza que deseja excluir este time?', { titulo: 'Excluir o time', confirmar: 'Excluir' })) {
       await deleteTeam(teamId);
       await loadTeams();
     }
@@ -136,7 +137,7 @@ export default function GameMasterTeams() {
   const handleAddTeam = async () => {
     if (!newTeam.name.trim()) return;
     if (!selectedEventId) {
-      alert('Por favor, selecione um evento primeiro');
+      avisar('Por favor, selecione um evento primeiro');
       return;
     }
     
@@ -154,7 +155,7 @@ export default function GameMasterTeams() {
       setShowNewTeamForm(false);
     } catch (error) {
       console.error('❌ Erro ao criar time:', error);
-      alert('Erro ao criar time');
+      avisar('Erro ao criar time');
     }
   };
 
@@ -171,7 +172,7 @@ export default function GameMasterTeams() {
       await assignChild(criancaId, null);
     } catch (error) {
       console.error('❌ Erro ao tirar participante do time:', error);
-      alert(error instanceof Error ? error.message : 'Erro ao tirar o participante do time');
+      avisar(error instanceof Error ? error.message : 'Erro ao tirar o participante do time');
     } finally {
       setRemovingChildId(null);
     }

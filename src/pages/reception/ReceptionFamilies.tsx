@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Copy, Link as LinkIcon, Check, Users, UserCheck, UserX, QrCode, Share2, Download } from 'lucide-react';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import ReceptionSidebar from '../../components/layout/ReceptionSidebar';
 import ReceptionTopBar from '../../components/layout/ReceptionTopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -8,6 +9,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import { QRCodeSVG as QRCode } from 'qrcode.react';
+import { confirmar } from '../../components/ui/dialogo';
 
 export default function ReceptionFamilies() {
   const [events, setEvents] = useState<any[]>([]);
@@ -26,9 +28,9 @@ export default function ReceptionFamilies() {
   const [error, setError] = useState('');
   const [showQRModal, setShowQRModal] = useState(false);
 
-  const loadFamilyData = async (selectedEvent = eventId) => {
+  const loadFamilyData = async (selectedEvent = eventId, silencioso = false) => {
     try {
-      setLoading(true);
+      if (!silencioso) setLoading(true);
       const [pendingData, approvedData] = await Promise.all([
         api.getPendingFamilyLinks(selectedEvent || undefined),
         api.getApprovedFamilyLinks(selectedEvent || undefined),
@@ -36,11 +38,14 @@ export default function ReceptionFamilies() {
       setPending(pendingData || []);
       setApproved(approvedData || []);
     } catch (err: any) {
-      setError(err.message || 'Não foi possível carregar as famílias.');
+      if (!silencioso) setError(err.message || 'Não foi possível carregar as famílias.');
     } finally {
-      setLoading(false);
+      if (!silencioso) setLoading(false);
     }
   };
+
+  // Pedidos de família chegam sozinhos na lista (sem F5)
+  useAutoRefresh(() => loadFamilyData(eventId, true), { topicos: ['familias', 'criancas'], intervaloMs: 8_000 });
 
   // Código fixo do evento: nasce na primeira consulta, então basta pedir
   const loadEventCode = async (selectedEvent: string) => {
@@ -57,7 +62,7 @@ export default function ReceptionFamilies() {
 
   const renewEventCode = async () => {
     if (!eventId) return;
-    const ok = window.confirm('Gerar um novo código para este evento?\n\nO código atual deixa de valer agora. Quem já entrou no evento continua nele.');
+    const ok = await confirmar('Gerar um novo código para este evento?\n\nO código atual deixa de valer agora. Quem já entrou no evento continua nele.', { titulo: 'Gerar novo código', confirmar: 'Gerar novo código' });
     if (!ok) return;
     try {
       setError('');

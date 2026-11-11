@@ -6,7 +6,7 @@ interface ModalProps {
   title?: string;
   children: React.ReactNode;
   className?: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -33,6 +33,7 @@ const Modal: React.FC<ModalProps> = ({
     md: 'max-w-md',
     lg: 'max-w-2xl',
     xl: 'max-w-4xl',
+    '2xl': 'max-w-6xl',
   };
 
   return (
@@ -44,7 +45,7 @@ const Modal: React.FC<ModalProps> = ({
       <div
         className={`
           relative z-10 w-full ${sizeClasses[size]} rounded-xl border border-dark-border
-          bg-dark-card p-6 shadow-xl animate-in fade-in zoom-in-95 duration-200
+          max-h-[92vh] overflow-y-auto bg-dark-card p-6 shadow-xl animate-in fade-in zoom-in-95 duration-200
           ${className}
         `}
       >

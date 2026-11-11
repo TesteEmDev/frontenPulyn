@@ -1,8 +1,10 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { QrCode, Edit, RotateCw, Unlink } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useNFCReader } from '../../hooks/useNFCReader';
+import { ehLeituraDoBalcao } from '../../utils/recepcao';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import ReceptionSidebar from '../../components/layout/ReceptionSidebar';
 import ReceptionTopBar from '../../components/layout/ReceptionTopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -14,6 +16,7 @@ import Avatar from '../../components/ui/Avatar';
 import Modal from '../../components/ui/Modal';
 import QRCodeModal from '../../components/ui/QRCodeModal';
 import StatusDot from '../../components/ui/StatusDot';
+import { avisar } from '../../components/ui/dialogo';
 
 type FilterTab = 'all' | 'with-bracelet' | 'without-bracelet' | 'by-team';
 
@@ -75,6 +78,9 @@ export default function ReceptionParticipants() {
     'checkin',
     selectedEventId,
     'reception',
+    true,
+    'kiosk',
+    ehLeituraDoBalcao, // o balcão só ouve o leitor R1; R2, R3... são das telas de autoatendimento
   );
 
   useEffect(() => {
@@ -119,6 +125,11 @@ export default function ReceptionParticipants() {
     loadEvents();
   }, [eventoAtualId, setEventoAtual]);
 
+  // Atualização automática: o contador faz o efeito abaixo recarregar a lista sem o "carregando" (sem piscar)
+  const [tickAuto, setTickAuto] = useState(0);
+  const cargaDoEvento = useRef<string | null>(null);
+  useAutoRefresh(() => setTickAuto((n) => n + 1), { topicos: ['criancas', 'pulseiras', 'times', 'leituras'], intervaloMs: 8_000, pausado: modalOpen || qrCodeModalOpen || saving });
+
   // Carregar crianças e times quando evento muda
   useEffect(() => {
     if (!selectedEventId) {
@@ -126,33 +137,42 @@ export default function ReceptionParticipants() {
       return;
     }
 
+    // Mesmo evento de antes (só atualizando): sem carregando, sem apagar a lista se falhar e sem desfazer o que
+    // a pessoa já escolheu nas listas de time
+    const silencioso = cargaDoEvento.current === selectedEventId;
+    cargaDoEvento.current = selectedEventId;
+
     const loadData = async () => {
       try {
-        setLoading(true);
+        if (!silencioso) setLoading(true);
         const [criancasData, timesData] = await Promise.all([
           api.getCriancas(selectedEventId),
           api.getTimes(selectedEventId),
         ]);
         setChildren(criancasData || []);
-        setTeamSelections(Object.fromEntries(
+        const doServidor = Object.fromEntries(
           (criancasData || []).map((child: Child) => [child.criancaId, child.timeId || ''])
-        ));
+        );
+        // Atualizando: crianças novas entram com o time do servidor; as que já estavam mantêm a escolha atual
+        setTeamSelections(silencioso ? (anterior) => ({ ...doServidor, ...anterior }) : doServidor);
         setTeamsData(timesData || []);
-        if (timesData?.length > 0) {
+        if (!silencioso && timesData?.length > 0) {
           setSelectedTeam(timesData[0].id);
         }
       } catch (err) {
         console.error('❌ Erro ao carregar dados:', err);
-        setChildren([]);
-        setTeamsData([]);
-        setTeamSelections({});
+        if (!silencioso) {
+          setChildren([]);
+          setTeamsData([]);
+          setTeamSelections({});
+        }
       } finally {
         setLoading(false);
       }
     };
 
     loadData();
-  }, [selectedEventId]);
+  }, [selectedEventId, tickAuto]);
 
   const tabs: { key: FilterTab; label: string }[] = [
     { key: 'all', label: 'Todos' },
@@ -261,14 +281,14 @@ export default function ReceptionParticipants() {
       } else if (modalAction === 'edit-name') {
         // Editar nome
         if (!editingName.trim()) {
-          alert('O nome não pode estar vazio');
+          avisar('O nome não pode estar vazio');
           setSaving(false);
           return;
         }
 
         const child = children.find(c => c.criancaId === modalChild);
         if (!child || !selectedEventId) {
-          alert('Erro ao atualizar criança');
+          avisar('Erro ao atualizar criança');
           setSaving(false);
           return;
         }
@@ -285,7 +305,7 @@ export default function ReceptionParticipants() {
         // Trocar pulseira - LÓGICA ORIGINAL
         const inputValue = braceletInput;if (!inputValue || !inputValue.trim()) {
           console.error(`❌ inputValue vazio: "${inputValue}"`);
-          alert('Leia a pulseira antes de confirmar');
+          avisar('Leia a pulseira antes de confirmar');
           setSaving(false);
           return;
         }
@@ -298,7 +318,7 @@ export default function ReceptionParticipants() {
           pulseira = { code: normalizedInput, status: 'disponivel' };
         }if (pulseira.status !== 'disponivel') {
           console.error(`❌ Pulseira indisponível: ${pulseira.status}`);
-          alert(`Pulseira indisponível. Status: ${pulseira.status}`);
+          avisar(`Pulseira indisponível. Status: ${pulseira.status}`);
           setSaving(false);
           return;
         }
@@ -306,14 +326,14 @@ export default function ReceptionParticipants() {
         const child = children.find(c => c.criancaId === modalChild);
         if (!child) {
           console.error('❌ Criança não encontrada');
-          alert('Criança não encontrada');
+          avisar('Criança não encontrada');
           setSaving(false);
           return;
         }
 
         if (!selectedEventId) {
           console.error('❌ Evento não selecionado');
-          alert('Evento não selecionado');
+          avisar('Evento não selecionado');
           setSaving(false);
           return;
         }if (child.codigoPulseira && child.codigoPulseira.trim().toUpperCase() !== normalizedInput) {await api.unassignBracelet(modalChild);
@@ -344,10 +364,10 @@ export default function ReceptionParticipants() {
       setEditingNickname('');
       setModalChild(null);
       setModalAction(null);
-      alert('✅ Ação realizada com sucesso!');
+      avisar('✅ Ação realizada com sucesso!');
     } catch (error: any) {
       console.error('❌ Erro:', error);
-      alert(`Erro ao processar ação: ${error.message || 'Tente novamente'}`);
+      avisar(`Erro ao processar ação: ${error.message || 'Tente novamente'}`);
     } finally {
       setSaving(false);
     }
@@ -355,7 +375,7 @@ export default function ReceptionParticipants() {
 
   const handleTeamChange = useCallback(async (child: Child, timeId: string) => {
     if (!selectedEventId) {
-      alert('Selecione um evento antes de definir o time');
+      avisar('Selecione um evento antes de definir o time');
       return;
     }
 
@@ -381,7 +401,7 @@ export default function ReceptionParticipants() {
     } catch (error: any) {
       setTeamSelections((current) => ({ ...current, [child.criancaId]: previousTimeId }));
       console.error('❌ Erro ao atualizar time da criança:', error);
-      alert(`Não foi possível atualizar o time: ${error.message || 'Tente novamente.'}`);
+      avisar(`Não foi possível atualizar o time: ${error.message || 'Tente novamente.'}`);
     } finally {
       setSavingTeamId(null);
     }

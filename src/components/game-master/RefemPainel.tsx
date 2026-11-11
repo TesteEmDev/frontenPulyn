@@ -8,6 +8,7 @@ import { api } from '../../services/api';
 import type { BombaJogador, BombaTime } from '../../services/api';
 import { formatarTempo } from '../../hooks/useBombaEstado';
 import { useRefemEstado } from '../../hooks/useRefemEstado';
+import { confirmar } from '../ui/dialogo';
 
 const MOTIVOS: Record<string, string> = {
   resgatado: 'o refém foi resgatado',
@@ -199,11 +200,11 @@ export default function RefemPainel({ eventoId }: { eventoId: string }) {
             )}
             {emAndamento && (
               <>
-                <Button variant="danger" size="sm" disabled={ocupado} onClick={() => {
-                  if (window.confirm('Encerrar o round dando a vitória aos Rebeldes?')) executar(() => api.encerrarRoundRefem(eventoId, 'tr'));
+                <Button variant="danger" size="sm" disabled={ocupado} onClick={async () => {
+                  if (await confirmar('Encerrar o round dando a vitória aos Rebeldes?', { titulo: 'Encerrar o round', confirmar: 'Sim, encerrar' })) executar(() => api.encerrarRoundRefem(eventoId, 'tr'));
                 }}>Rebeldes venceram</Button>
-                <Button variant="primary" size="sm" disabled={ocupado} onClick={() => {
-                  if (window.confirm('Encerrar o round dando a vitória aos Agentes?')) executar(() => api.encerrarRoundRefem(eventoId, 'ct'));
+                <Button variant="primary" size="sm" disabled={ocupado} onClick={async () => {
+                  if (await confirmar('Encerrar o round dando a vitória aos Agentes?', { titulo: 'Encerrar o round', confirmar: 'Sim, encerrar' })) executar(() => api.encerrarRoundRefem(eventoId, 'ct'));
                 }}>Agentes venceram</Button>
                 <span className="text-xs text-gray-500">Use quando uma equipe inteira for eliminada.</span>
               </>

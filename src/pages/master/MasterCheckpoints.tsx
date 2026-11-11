@@ -2,10 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
-  LayoutDashboard, Users, CreditCard, Activity, ScrollText, LifeBuoy, BarChart3,
-  Cpu, Plus, Send, Pencil, Trash2,
+  Cpu,
+  Plus,
+  Send,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { api, type BuffetOpcao, type CheckpointMaster } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
+import { digitarEpc, epcCompleto, macCompleto, mascaraEpc, mascaraMac } from '../../utils/mascaras';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
@@ -14,25 +19,20 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import StatusDot from '../../components/ui/StatusDot';
+import SeletorDeBuffet from './SeletorDeBuffet';
+import { masterNavItems } from './masterNav';
+import { confirmar } from '../../components/ui/dialogo';
 
-const masterNavItems = [
-  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/master' },
-  { icon: <Users size={20} />, label: 'Clientes', path: '/master/clients' },
-  { icon: <CreditCard size={20} />, label: 'Planos', path: '/master/plans' },
-  { icon: <Cpu size={20} />, label: 'Checkpoints', path: '/master/checkpoints' },
-  { icon: <Activity size={20} />, label: 'Monitoramento', path: '/master/monitoring' },
-  { icon: <ScrollText size={20} />, label: 'Logs', path: '/master/logs' },
-  { icon: <LifeBuoy size={20} />, label: 'Suporte', path: '/master/support' },
-  { icon: <BarChart3 size={20} />, label: 'Analytics', path: '/master/analytics' },
-];
 
 type Situacao = CheckpointMaster['statusTransferencia'];
-type Filtro = 'todos' | Situacao;
+// 'devolvido': em estoque e com o aviso de devolução/recusa de um buffet
+type Filtro = 'todos' | Situacao | 'devolvido';
 
 const FILTROS: { valor: Filtro; rotulo: string }[] = [
   { valor: 'todos', rotulo: 'Todos' },
   { valor: 'estoque', rotulo: 'Em estoque' },
-  { valor: 'aceito', rotulo: 'Aceitos' },
+  { valor: 'aceito', rotulo: 'Com buffets' },
+  { valor: 'devolvido', rotulo: 'Devolvidos' },
 ];
 
 // Valores do seletor de buffet que não são o id de um buffet.
@@ -46,23 +46,30 @@ const OPTION_STYLE = { backgroundColor: '#1a1a2e', color: '#fff' };
 // O heartbeat chega a cada 60 s; sem sinal há mais de 3 minutos o aparelho está offline.
 const ONLINE_ATE_MS = 3 * 60 * 1000;
 
+// Em estoque com o aviso de que um buffet devolveu (ou recusou) o checkpoint
+const foiDevolvido = (cp: CheckpointMaster) => cp.statusTransferencia === 'estoque' && Boolean(cp.devolvidoEm);
+
+// O EPC do checkpoint guarda só os 6 últimos dígitos (colar o EPC inteiro também funciona)
+const ultimos6 = mascaraEpc;
+
 const estaOnline = (cp: CheckpointMaster) =>
   Boolean(cp.ultimoVisto) && Date.now() - new Date(cp.ultimoVisto as string).getTime() < ONLINE_ATE_MS;
 
 interface Formulario {
   macAddress: string;
+  epc: string;
   nome: string;
   tipo: string;
   proposito: string;
 }
 
-const FORM_VAZIO: Formulario = { macAddress: '', nome: '', tipo: 'NFC', proposito: 'game' };
+const FORM_VAZIO: Formulario = { macAddress: '', epc: '', nome: '', tipo: 'NFC', proposito: 'game' };
 
-// Buffet a que o checkpoint pertence (o que recebeu a transferência).
+// Buffet a que o checkpoint pertence (só os transferidos têm um).
 const buffetIdDe = (cp: CheckpointMaster) => (cp.statusTransferencia === 'aceito' ? cp.empresaId : null);
 
 function BadgeSituacao({ situacao }: { situacao: Situacao }) {
-  if (situacao === 'aceito') return <Badge variant="success">Aceito</Badge>;
+  if (situacao === 'aceito') return <Badge variant="success">Com o buffet</Badge>;
   return <Badge variant="muted">Em estoque</Badge>;
 }
 
@@ -82,22 +89,27 @@ export default function MasterCheckpoints() {
   const [form, setForm] = useState<Formulario>(FORM_VAZIO);
 
   // Transferência
-  const [transferindo, setTransferindo] = useState<CheckpointMaster | null>(null);
+  // Um ou vários checkpoints indo para o mesmo buffet
+  const [transferindo, setTransferindo] = useState<CheckpointMaster[] | null>(null);
   const [destino, setDestino] = useState('');
+  // Marcados na lista (só os que estão em estoque podem ser enviados)
+  const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
 
-  const carregar = useCallback(async () => {
+  const carregar = useCallback(async (silencioso = false) => {
     try {
       const [checkpoints, destinos] = await Promise.all([api.masterGetCheckpoints(), api.masterGetBuffets()]);
       setLista(checkpoints);
       setBuffets(destinos);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Não foi possível carregar os checkpoints');
+      if (!silencioso) toast.error(err instanceof Error ? err.message : 'Não foi possível carregar os checkpoints');
     } finally {
       setCarregando(false);
     }
   }, []);
 
   useEffect(() => { void carregar(); }, [carregar]);
+  // Com o formulário ou a transferência aberta não atualiza (a lista mexendo atrapalha quem está digitando)
+  useAutoRefresh(() => carregar(true), { topicos: ['checkpoints'], pausado: formAberto || Boolean(transferindo) });
 
   const totalPorBuffet = useMemo(() => {
     const total = new Map<string, number>();
@@ -116,10 +128,15 @@ export default function MasterCheckpoints() {
   const contagem = useMemo(() => ({
     estoque: doBuffet.filter((c) => c.statusTransferencia === 'estoque').length,
     aceito: doBuffet.filter((c) => c.statusTransferencia === 'aceito').length,
+    devolvido: doBuffet.filter(foiDevolvido).length,
   }), [doBuffet]);
 
   const visiveis = useMemo(
-    () => (filtro === 'todos' ? doBuffet : doBuffet.filter((c) => c.statusTransferencia === filtro)),
+    () => {
+      if (filtro === 'todos') return doBuffet;
+      if (filtro === 'devolvido') return doBuffet.filter(foiDevolvido);
+      return doBuffet.filter((c) => c.statusTransferencia === filtro);
+    },
     [doBuffet, filtro]
   );
 
@@ -149,6 +166,7 @@ export default function MasterCheckpoints() {
     setEditando(cp);
     setForm({
       macAddress: cp.macAddress ?? '',
+      epc: cp.epc ?? '',
       nome: cp.nome,
       tipo: cp.tipo || 'NFC',
       proposito: cp.proposito || 'game',
@@ -157,15 +175,20 @@ export default function MasterCheckpoints() {
   };
 
   const salvar = async () => {
-    if (!form.macAddress.trim()) {
-      toast.error('Informe o MAC do aparelho (aparece no Serial Monitor e na página /config da placa)');
+    if (!macCompleto(form.macAddress)) {
+      toast.error('Informe o MAC completo do aparelho: 12 dígitos (aparece no Serial Monitor e na página /config da placa)');
+      return;
+    }
+    if (form.epc && !epcCompleto(form.epc)) {
+      toast.error('O EPC precisa ter os 6 últimos dígitos (0-9 e A-F)');
       return;
     }
     const feito = editando
       ? await executar(() => {
-          // Só manda o que mudou. O número do checkpoint não é do master: o admin do buffet o define ao aceitar.
+          // Só manda o que mudou. O número do checkpoint não é do master: o admin do buffet o define depois de receber.
           const dados: Parameters<typeof api.masterEditarCheckpoint>[1] = {};
           if (form.macAddress.trim().toUpperCase() !== (editando.macAddress ?? '')) dados.macAddress = form.macAddress.trim();
+          if (ultimos6(form.epc) !== (editando.epc ?? '')) dados.epc = ultimos6(form.epc);
           if (form.nome.trim() !== editando.nome) dados.nome = form.nome.trim();
           if (form.tipo !== editando.tipo) dados.tipo = form.tipo;
           if (form.proposito !== (editando.proposito || 'game')) dados.proposito = form.proposito;
@@ -174,6 +197,7 @@ export default function MasterCheckpoints() {
         }, 'Checkpoint atualizado')
       : await executar(() => api.masterCriarCheckpoint({
           macAddress: form.macAddress.trim(),
+          epc: ultimos6(form.epc) || undefined,
           nome: form.nome.trim() || undefined,
           tipo: form.tipo,
           proposito: form.proposito,
@@ -182,15 +206,36 @@ export default function MasterCheckpoints() {
   };
 
   const transferir = async () => {
-    if (!transferindo || !destino) return;
-    const feito = await executar(() => api.masterTransferirCheckpoint(transferindo.id, destino), 'Transferido: já está no buffet, que define o número');
-    if (feito) setTransferindo(null);
+    if (!transferindo || transferindo.length === 0 || !destino) return;
+    const nomeBuffet = buffets.find((b) => b.empresaId === destino)?.nome ?? 'o buffet';
+    const feito = transferindo.length === 1
+      ? await executar(() => api.masterTransferirCheckpoint(transferindo[0].id, destino), `Transferido para ${nomeBuffet}`)
+      : await executar(async () => {
+          const r = await api.masterTransferirCheckpointsLote(transferindo.map((cp) => cp.id), destino);
+          if (r.ignorados.length > 0) toast(`${r.ignorados.length} checkpoint(s) já não estavam em estoque e foram ignorados`);
+        }, `${transferindo.length} checkpoints transferidos para ${nomeBuffet}`);
+    if (feito) {
+      setTransferindo(null);
+      setSelecionados(new Set());
+    }
   };
 
-  const excluir = (cp: CheckpointMaster) => {
-    if (!confirm(`Excluir "${cp.nome}" (${cp.macAddress ?? 'sem MAC'})? Só é possível enquanto está em estoque.`)) return;
+  const excluir = async (cp: CheckpointMaster) => {
+    if (!(await confirmar(`Excluir "${cp.nome}" (${cp.macAddress ?? 'sem MAC'})? Só é possível enquanto está em estoque.`, { titulo: 'Excluir o checkpoint', confirmar: 'Excluir' }))) return;
     void executar(() => api.masterExcluirCheckpoint(cp.id), 'Checkpoint excluído');
   };
+
+  // Seleção para envio em lote: só checkpoints em estoque. Some da seleção o que deixou de estar à vista.
+  const enviaveis = useMemo(() => visiveis.filter((c) => c.statusTransferencia === 'estoque'), [visiveis]);
+  const marcados = useMemo(() => enviaveis.filter((c) => selecionados.has(c.id)), [enviaveis, selecionados]);
+  const todosMarcados = enviaveis.length > 0 && marcados.length === enviaveis.length;
+  const alternarUm = (id: number) => setSelecionados((atual) => {
+    const novo = new Set(atual);
+    if (novo.has(id)) novo.delete(id); else novo.add(id);
+    return novo;
+  });
+  const alternarTodos = () => setSelecionados(todosMarcados ? new Set() : new Set(enviaveis.map((c) => c.id)));
+  const abrirEnvio = (cps: CheckpointMaster[]) => { setTransferindo(cps); setDestino(''); };
 
   const buffetDe = (cp: CheckpointMaster) =>
     (cp.statusTransferencia === 'aceito' ? cp.empresaNome : null) || '—';
@@ -260,11 +305,38 @@ export default function MasterCheckpoints() {
             </div>
           </Card>
 
+          {marcados.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary-400/40 bg-primary-500/10 px-4 py-3" role="status">
+              <p className="text-sm text-white">
+                <strong>{marcados.length}</strong> checkpoint{marcados.length > 1 ? 's' : ''} selecionado{marcados.length > 1 ? 's' : ''}
+              </p>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setSelecionados(new Set())}>Limpar</Button>
+                <Button variant="primary" onClick={() => abrirEnvio(marcados)}>
+                  <Send size={16} className="mr-1.5" />
+                  Enviar para um buffet
+                </Button>
+              </div>
+            </div>
+          )}
+
           <Card>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-border">
+                    <th className="w-10 pb-3 pr-2">
+                      {enviaveis.length > 0 && (
+                        <input
+                          type="checkbox"
+                          checked={todosMarcados}
+                          onChange={alternarTodos}
+                          aria-label="Selecionar todos os checkpoints em estoque"
+                          title="Selecionar todos os que estão em estoque"
+                          className="h-4 w-4 cursor-pointer accent-primary"
+                        />
+                      )}
+                    </th>
                     {['Aparelho', 'Número', 'Situação', 'Buffet', 'Sinal', 'Ações'].map((titulo) => (
                       <th key={titulo} className="pb-3 pr-4 text-sm font-body font-semibold text-gray-400">{titulo}</th>
                     ))}
@@ -272,10 +344,10 @@ export default function MasterCheckpoints() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {carregando ? (
-                    <tr><td colSpan={6} className="py-8 text-center text-gray-500">Carregando checkpoints...</td></tr>
+                    <tr><td colSpan={7} className="py-8 text-center text-gray-500">Carregando checkpoints...</td></tr>
                   ) : visiveis.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-gray-500">
+                      <td colSpan={7} className="py-8 text-center text-gray-500">
                         {lista.length === 0
                           ? 'Nenhum checkpoint cadastrado. Clique em "Cadastrar checkpoint" e informe o MAC da placa.'
                           : doBuffet.length === 0
@@ -285,15 +357,39 @@ export default function MasterCheckpoints() {
                     </tr>
                   ) : visiveis.map((cp) => (
                     <tr key={cp.id} className="hover:bg-surface/50 transition-colors">
+                      <td className="py-3 pr-2">
+                        {cp.statusTransferencia === 'estoque' && (
+                          <input
+                            type="checkbox"
+                            checked={selecionados.has(cp.id)}
+                            onChange={() => alternarUm(cp.id)}
+                            aria-label={`Selecionar ${cp.nome}`}
+                            className="h-4 w-4 cursor-pointer accent-primary"
+                          />
+                        )}
+                      </td>
                       <td className="py-3 pr-4">
                         <p className="text-sm font-semibold text-white">{cp.nome}</p>
                         <p className="text-xs text-gray-400">
                           <span className="font-mono">{cp.macAddress ?? 'sem MAC'}</span>
-                          {' · '}{cp.tipo}{cp.proposito === 'reception' ? ' · recepção' : ''}
+                          {cp.epc && <>{' · EPC '}<span className="font-mono" title="Só o super admin vê o EPC">{cp.epc}</span></>}
+                          {' · '}{cp.tipo}{cp.proposito === 'reception' ? ' · recepção' : cp.proposito === 'score' ? ' · pontuação' : ''}
                         </p>
                       </td>
                       <td className="py-3 pr-4 text-sm font-mono text-gray-300">{cp.numCheck ?? '—'}</td>
-                      <td className="py-3 pr-4"><BadgeSituacao situacao={cp.statusTransferencia} /></td>
+                      <td className="py-3 pr-4">
+                        <BadgeSituacao situacao={cp.statusTransferencia} />
+                        {foiDevolvido(cp) && cp.devolvidoEm && (
+                          <div className="mt-1.5">
+                            <Badge variant="warning">{cp.devolvidoMotivo === 'recusado' ? 'Recusado' : 'Devolvido'}</Badge>
+                            <p className="mt-1 text-xs text-gray-400">
+                              {cp.devolvidoMotivo === 'recusado' ? 'Recusado' : 'Devolvido'} por {cp.devolvidoPorNome ?? 'um buffet'}
+                              {cp.devolvidoMotivo === 'cliente_excluido' ? ' (cliente excluído)' : ''}
+                              {' · '}{new Date(cp.devolvidoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        )}
+                      </td>
                       <td className="py-3 pr-4 text-sm text-gray-300">{buffetDe(cp)}</td>
                       <td className="py-3 pr-4">
                         <div className="flex items-center gap-2">
@@ -305,7 +401,7 @@ export default function MasterCheckpoints() {
                         <div className="flex items-center gap-1">
                           {cp.statusTransferencia === 'estoque' && (
                             <button
-                              onClick={() => { setTransferindo(cp); setDestino(''); }}
+                              onClick={() => abrirEnvio([cp])}
                               className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-surface transition-colors"
                               title="Transferir para um buffet" aria-label={`Transferir ${cp.nome}`}
                             >
@@ -350,11 +446,34 @@ export default function MasterCheckpoints() {
             label="MAC do aparelho"
             placeholder="AA:BB:CC:DD:EE:FF"
             value={form.macAddress}
-            onChange={(e) => setForm({ ...form, macAddress: e.target.value.toUpperCase() })}
+            onChange={(e) => setForm({ ...form, macAddress: mascaraMac(e.target.value) })}
+            maxLength={17}
+            autoComplete="off"
+            spellCheck={false}
+            className="font-mono"
+            error={form.macAddress && !macCompleto(form.macAddress) ? 'Faltam dígitos: o MAC tem 12 (6 pares)' : undefined}
             required
           />
           <p className="-mt-2 text-xs text-gray-500">
-            Aparece no Serial Monitor ao ligar a placa e na página /config dela. Aceita com dois-pontos, hífen ou sem separador.
+            Aparece no Serial Monitor ao ligar a placa e na página /config dela. Digite só 0-9 e A-F: os dois-pontos entram sozinhos. Pode colar com dois-pontos, hífen ou sem separador.
+          </p>
+          <Input
+            label="EPC - últimos 6 dígitos (opcional)"
+            placeholder="Ex: 3B1C2D"
+            value={form.epc}
+            onChange={(e) => setForm({ ...form, epc: digitarEpc(e.target.value) })}
+            onPaste={(e) => {
+              e.preventDefault();
+              setForm({ ...form, epc: mascaraEpc(e.clipboardData.getData('text')) });
+            }}
+            maxLength={6}
+            autoComplete="off"
+            spellCheck={false}
+            className="font-mono"
+            error={form.epc && !epcCompleto(form.epc) ? 'Faltam dígitos: são 6' : undefined}
+          />
+          <p className="-mt-2 text-xs text-gray-500">
+            Informe só os 6 últimos dígitos do EPC da tag que identifica o checkpoint (0-9 e A-F). Se colar o EPC inteiro, ficam só os 6 últimos. Só o super admin vê este dado: os buffets não o recebem.
           </p>
           <Input
             label="Nome (opcional)"
@@ -363,7 +482,7 @@ export default function MasterCheckpoints() {
             onChange={(e) => setForm({ ...form, nome: e.target.value })}
           />
           <p className="-mt-2 text-xs text-gray-500">
-            O ID é gerado automaticamente. O número do checkpoint é definido pelo admin do buffet, ao aceitar.
+            O ID é gerado automaticamente. O número do checkpoint é definido pelo admin do buffet, depois de receber.
           </p>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -378,6 +497,7 @@ export default function MasterCheckpoints() {
               <select id="mc-proposito" value={form.proposito} onChange={(e) => setForm({ ...form, proposito: e.target.value })} className={SELECT_CLASSES}>
                 <option value="game" style={OPTION_STYLE}>Jogos</option>
                 <option value="reception" style={OPTION_STYLE}>Recepção</option>
+                <option value="score" style={OPTION_STYLE}>Pontuação (consulta de pontos)</option>
               </select>
             </div>
           </div>
@@ -393,28 +513,18 @@ export default function MasterCheckpoints() {
       <Modal
         isOpen={transferindo !== null}
         onClose={() => setTransferindo(null)}
-        title={transferindo ? `Transferir: ${transferindo.nome}` : 'Transferir'}
+        title={transferindo ? (transferindo.length === 1 ? `Transferir: ${transferindo[0].nome}` : `Transferir ${transferindo.length} checkpoints`) : 'Transferir'}
         size="md"
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-400">
-            O checkpoint aparece para o admin do buffet escolhido, que precisa aceitá-lo e definir o número e o evento.
+            {transferindo && transferindo.length > 1 ? 'Os checkpoints passam' : 'O checkpoint passa'} a ser do buffet escolhido na hora. O admin do buffet define o número e o evento depois.
           </p>
-          <div>
-            <label htmlFor="mc-destino" className="mb-1.5 block text-sm font-body font-semibold text-gray-300">Buffet</label>
-            <select id="mc-destino" value={destino} onChange={(e) => setDestino(e.target.value)} className={SELECT_CLASSES}>
-              <option value="" style={OPTION_STYLE}>Escolha o buffet</option>
-              {buffets.map((b) => (
-                <option key={b.empresaId} value={b.empresaId} style={OPTION_STYLE}>
-                  {b.nome}{b.cidade ? ` — ${b.cidade}${b.estado ? `/${b.estado}` : ''}` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
+          <SeletorDeBuffet id="mc-destino" buffets={buffets} valor={destino} onChange={setDestino} />
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="ghost" onClick={() => setTransferindo(null)}>Cancelar</Button>
             <Button variant="primary" onClick={transferir} disabled={ocupado || !destino}>
-              {ocupado ? 'Transferindo...' : 'Transferir'}
+              {ocupado ? 'Transferindo...' : transferindo && transferindo.length > 1 ? `Transferir ${transferindo.length}` : 'Transferir'}
             </Button>
           </div>
         </div>

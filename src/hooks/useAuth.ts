@@ -12,6 +12,8 @@ export interface User {
   papeis?: string[];
   redirect: string;
   plan?: string;
+  // Senha provisória definida pelo master: precisa ser trocada no primeiro acesso antes de usar o sistema
+  trocarSenha?: boolean;
 }
 
 interface AuthStore {
@@ -26,6 +28,8 @@ interface AuthStore {
   entrarComoTelao: (codigo: string) => Promise<{ success: boolean; error?: string; semConexao?: boolean }>;
   // Telão aberto pela equipe logada (botão da recepção): sessão de telão só desta aba, sem mexer na da equipe.
   abrirTelaoDaEquipe: () => Promise<{ success: boolean; error?: string }>;
+  // Depois da troca obrigatória da senha: guarda o token novo e libera o resto do sistema
+  concluirTrocaDeSenha: (token: string) => void;
   logout: () => void;
 }
 
@@ -76,7 +80,8 @@ export const useAuth = create<AuthStore>((set, get) => {
                 : decoded.role === 'score_kiosk' ? '/score-kiosk'
                 : '/login',
         plan: decoded.plan,
-        papeis: Array.isArray(decoded.papeis) ? decoded.papeis : [decoded.role || 'admin']
+        papeis: Array.isArray(decoded.papeis) ? decoded.papeis : [decoded.role || 'admin'],
+        trocarSenha: Boolean(decoded.ts),
       };
       isInitiallyAuthenticated = true;
     }
@@ -165,6 +170,11 @@ export const useAuth = create<AuthStore>((set, get) => {
       } catch (err: any) {
         return { success: false, error: err.message || 'Não foi possível abrir o telão' };
       }
+    },
+
+    concluirTrocaDeSenha: (token: string) => {
+      localStorage.setItem('authToken', token);
+      set((estado) => ({ token, user: estado.user ? { ...estado.user, trocarSenha: false } : estado.user }));
     },
 
     logout: () => {

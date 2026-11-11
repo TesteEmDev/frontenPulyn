@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Home } from 'lucide-react';
 import Sidebar from './Sidebar';
@@ -65,39 +64,17 @@ export const RECEPTION_NAV_ITEMS = [
   },
 ];
 
-const COLLAPSED_KEY = 'pulyn.reception.sidebarCollapsed';
-
-const readCollapsed = () => {
-  try {
-    return localStorage.getItem(COLLAPSED_KEY) === '1';
-  } catch {
-    return false;
-  }
-};
-
+// O menu da recepção fica recolhido e abre quando o mouse passa por cima (ou o teclado entra nele).
 export default function ReceptionSidebar() {
   const location = useLocation();
-  // Lembra se o menu estava recolhido, para ele não "reabrir" a cada troca de tela.
-  const [collapsed, setCollapsed] = useState(readCollapsed);
-
-  const toggle = () => {
-    setCollapsed(previous => {
-      const next = !previous;
-      try {
-        localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0');
-      } catch {
-        // Sem storage o menu só não lembra a preferência.
-      }
-      return next;
-    });
-  };
 
   return (
     <Sidebar
       items={RECEPTION_NAV_ITEMS}
       activePath={location.pathname}
-      collapsed={collapsed}
-      onToggleCollapse={toggle}
+      collapsed
+      onToggleCollapse={() => undefined}
+      hoverExpand
       title="Recepção"
       accentColor="#F59E0B"
     />

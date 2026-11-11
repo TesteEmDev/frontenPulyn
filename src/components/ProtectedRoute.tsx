@@ -38,6 +38,9 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
     return <Navigate to="/login" replace />;
   }
 
+  // Senha provisória (cadastro feito pelo master): nada do sistema abre antes de trocá-la
+  if (user?.trocarSenha) return <Navigate to="/primeiro-acesso" replace />;
+
   // ✅ Se há restrição de roles e o usuário não tem permissão
   if (allowedRoles && allowedRoles.length > 0) {
     // Troca de área pelo menu (o token muda para a outra área e a navegação vem em seguida): esta tela, que já estava

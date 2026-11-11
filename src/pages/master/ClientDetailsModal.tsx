@@ -102,7 +102,7 @@ const eventStatus = (status: string): { label: string; variant: 'success' | 'acc
 const roleLabels: Record<string, string> = {
   admin: 'Administrador',
   reception: 'Recepção',
-  game_master: 'Game Master',
+  game_master: 'Recreacionista',
   kiosk: 'Totem',
   score_kiosk: 'Placar',
   master: 'Master',

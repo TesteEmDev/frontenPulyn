@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Save, Check, MessageSquare
+  Save, Check
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useEvento } from '../../contexts/EventoContext';
@@ -12,6 +12,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
+import { avisar } from '../../components/ui/dialogo';
 
 interface CheckpointConfig {
   id: string;
@@ -19,11 +20,6 @@ interface CheckpointConfig {
   points: number;
   cooldown: number;
   special?: boolean;
-}
-
-interface AutoMessage {
-  trigger: string;
-  message: string;
 }
 
 // Nome dos tipos que um jogo antigo pode ter (o plano atual pode não criá-los mais).
@@ -72,7 +68,7 @@ export default function AdminGameForm() {
           duration: game.duration?.toString() || '',
           status: game.status || 'active',
         });
-        
+
         // Se o jogo tem checkpoints salvos, inicializar checkpointConfigs direto
         if (game.checkpoints && Array.isArray(game.checkpoints) && game.checkpoints.length > 0) {
           setCheckpointConfigs(
@@ -116,7 +112,7 @@ export default function AdminGameForm() {
           if (!id) {
             const doEvento = await api.getCheckpoints(selectedEventoId);
             const lista = (Array.isArray(doEvento) ? doEvento : [])
-              .filter((cp: any) => String(cp.proposito || 'game').toLowerCase() !== 'reception');
+              .filter((cp: any) => String(cp.proposito || 'game').toLowerCase() === 'game');
             setCheckpointConfigs(anteriores => lista.map((cp: any) => ({
               id: cp.checkpointId ?? cp.id,
               // o que já estava marcado continua marcado se o checkpoint também existe neste evento
@@ -127,7 +123,7 @@ export default function AdminGameForm() {
             })));
             setCheckpointsInitialized(true);
           }
-          
+
           // Se o store voltou vazio, tentar buscar da API diretamente
           if (checkpoints.length === 0) {
             console.log('📍 Store vazio, buscando checkpoints da API...');
@@ -208,12 +204,6 @@ export default function AdminGameForm() {
     }
   }, [checkpoints, existingGame, checkpointsInitialized]);
 
-  const [autoMessages, setAutoMessages] = useState<AutoMessage[]>([
-    { trigger: 'on_start', message: 'O jogo começou! Vamos nos divertir!' },
-    { trigger: 'on_score', message: 'Parabéns! +{points} pontos!' },
-    { trigger: 'on_end', message: 'O jogo terminou. Confira o ranking!' },
-  ]);
-
   // O evento mostrado no campo precisa ser o evento guardado. O <select> mostra a primeira opção quando o valor
   // está vazio, então a tela parecia ter um evento escolhido e o salvar dizia "Selecione um evento".
   // Jogo novo: usa o evento em uso (o da recepção) ou, na falta dele, o primeiro da lista. Também acerta
@@ -274,27 +264,21 @@ export default function AdminGameForm() {
     );
   };
 
-  const updateAutoMessage = (index: number, field: 'trigger' | 'message', value: string) => {
-    setAutoMessages(prev =>
-      prev.map((msg, i) => i === index ? { ...msg, [field]: value } : msg)
-    );
-  };
-
   const handleSave = async () => {
     // Validar campos obrigatórios
     if (!selectedEventoId) {
-      alert('Selecione um evento');
+      avisar('Selecione um evento');
       return;
     }
     if (!formData.name || !formData.duration) {
-      alert('Preencha o nome e duração do jogo');
+      avisar('Preencha o nome e duração do jogo');
       return;
     }
 
     // Validar se tem checkpoints selecionados
     const selectedCheckpoints = checkpointConfigs.filter(cp => cp.enabled);
     if (selectedCheckpoints.length === 0) {
-      alert('Selecione pelo menos um checkpoint para o jogo');
+      avisar('Selecione pelo menos um checkpoint para o jogo');
       return;
     }
 
@@ -311,7 +295,7 @@ export default function AdminGameForm() {
     if (formData.type === 'monster_hunt' && selectedCheckpoints.some((cp) =>
       !Number.isInteger(cp.cooldown) || cp.cooldown < 1 || cp.cooldown > 120
     )) {
-      alert('Defina o bloqueio de cada checkpoint do Monstro entre 1 e 120 segundos.');
+      avisar('Defina o bloqueio de cada checkpoint do Monstro entre 1 e 120 segundos.');
       return;
     }
 
@@ -383,11 +367,14 @@ export default function AdminGameForm() {
                   onChange={e => setSelectedEventoId(e.target.value)}
                   disabled={loadingEventos}
                 />
+                <p className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-gray-200">
+                  Este jogo vem cadastrado pelo seu plano. Você pode alterar a <strong>duração</strong>, que vale para todos os eventos, e configurar os checkpoints e pontos.
+                </p>
                 <Input
                   label="Nome do Jogo"
-                  placeholder="Ex: Caça ao Tesouro"
                   value={formData.name}
-                  onChange={e => updateField('name', e.target.value)}
+                  disabled
+                  readOnly
                 />
                 <div className="w-full">
                   <label className="mb-1.5 block text-sm font-body font-medium text-gray-300">
@@ -397,7 +384,8 @@ export default function AdminGameForm() {
                     className="w-full rounded-lg border border-gray-500 bg-gray-800 px-3 py-2 text-white placeholder-gray-400 font-body text-sm transition-colors duration-200 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50 min-h-[60px]"
                     placeholder="Descrição do jogo..."
                     value={formData.description}
-                    onChange={e => updateField('description', e.target.value)}
+                    disabled
+                    readOnly
                   />
                 </div>
                 <div className="w-full">
@@ -408,7 +396,8 @@ export default function AdminGameForm() {
                     className="w-full rounded-lg border border-gray-500 bg-gray-800 px-3 py-2 text-white placeholder-gray-400 font-body text-sm transition-colors duration-200 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50 min-h-[80px]"
                     placeholder="Regras do jogo..."
                     value={formData.rules}
-                    onChange={e => updateField('rules', e.target.value)}
+                    disabled
+                    readOnly
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -416,11 +405,13 @@ export default function AdminGameForm() {
                     label="Tipo"
                     options={opcoesDeTipo}
                     value={formData.type}
-                    onChange={e => updateField('type', e.target.value)}
+                    disabled
                   />
                   <Input
-                    label="Duração (minutos)"
+                    label="Duração (minutos) — vale para todos os eventos"
                     type="number"
+                    min={1}
+                    max={240}
                     placeholder="20"
                     value={formData.duration}
                     onChange={e => updateField('duration', e.target.value)}
@@ -547,38 +538,6 @@ export default function AdminGameForm() {
                   </div>
                 </>
               )}
-            </Card>
-
-            {/* Auto Messages */}
-            <Card>
-              <div className="flex items-center gap-2 mb-4">
-                <MessageSquare size={20} className="text-secondary" />
-                <h2 className="font-display text-lg text-white">Mensagens Automáticas</h2>
-              </div>
-              <div className="space-y-3">
-                {autoMessages.map((msg, index) => (
-                  <div key={index} className="p-3 rounded-lg bg-surface/50">
-                    <Select
-                      label="Gatilho"
-                      options={[
-                        { value: 'on_start', label: 'Ao iniciar' },
-                        { value: 'on_score', label: 'Ao pontuar' },
-                        { value: 'on_end', label: 'Ao encerrar' },
-                        { value: 'on_cooldown', label: 'Ao entrar em cooldown' },
-                      ]}
-                      value={msg.trigger}
-                      onChange={e => updateAutoMessage(index, 'trigger', e.target.value)}
-                    />
-                    <Input
-                      label="Mensagem"
-                      placeholder="Mensagem automática..."
-                      value={msg.message}
-                      onChange={e => updateAutoMessage(index, 'message', e.target.value)}
-                      className="mt-2"
-                    />
-                  </div>
-                ))}
-              </div>
             </Card>
 
             {/* Save */}

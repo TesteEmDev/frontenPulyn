@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link2, Search, RefreshCw, Unlink, Loader2 } from 'lucide-react';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import ReceptionSidebar from '../../components/layout/ReceptionSidebar';
 import ReceptionTopBar from '../../components/layout/ReceptionTopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -92,18 +93,23 @@ export default function ReceptionFamilyLinks() {
   const [unlinking, setUnlinking] = useState(false);
   const [unlinkError, setUnlinkError] = useState('');
 
-  const loadLinks = useCallback(async (selectedEventId: string) => {
-    setLoading(true);
-    setError('');
+  const loadLinks = useCallback(async (selectedEventId: string, silencioso = false) => {
+    if (!silencioso) {
+      setLoading(true);
+      setError('');
+    }
     try {
       const data = await api.getFamilyLinks(selectedEventId || undefined);
       setLinks(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível carregar as vinculações.');
+      if (!silencioso) setError(err instanceof Error ? err.message : 'Não foi possível carregar as vinculações.');
     } finally {
-      setLoading(false);
+      if (!silencioso) setLoading(false);
     }
   }, []);
+
+  // As vinculações se atualizam sozinhas (sem F5)
+  useAutoRefresh(() => loadLinks(eventId, true), { topicos: ['familias', 'criancas'], intervaloMs: 10_000 });
 
   // Começa no evento ativo (se houver); senão, mostra todos os eventos.
   useEffect(() => {

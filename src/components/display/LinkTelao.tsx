@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { api } from '../../services/api';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
+import { confirmar } from '../ui/dialogo';
 
 // Link para abrir o telão (TV) sem login. Quem tem o link vê o telão deste buffet, então ele só aparece para o admin.
 export default function LinkTelao() {
@@ -31,7 +32,7 @@ export default function LinkTelao() {
   };
 
   const trocar = async () => {
-    if (!window.confirm('Gerar um novo link? O link atual deixa de abrir o telão. Telões já abertos continuam até a sessão deles vencer (7 dias).')) return;
+    if (!(await confirmar('Gerar um novo link? O link atual deixa de abrir o telão. Telões já abertos continuam até a sessão deles vencer (7 dias).', { titulo: 'Gerar novo link', confirmar: 'Gerar novo link' }))) return;
     setTrocando(true);
     try {
       setCodigo(await api.renovarCodigoTelao());

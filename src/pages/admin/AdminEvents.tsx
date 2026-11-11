@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
-  Calendar, CalendarClock, Plus, Edit, Trash2, Play, Square, User, MoreHorizontal, RotateCcw
+  Calendar, CalendarClock, Plus, Edit, Trash2, Play, Square, User, MoreHorizontal, RotateCcw, MapPin
 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useEvento } from '../../contexts/EventoContext';
@@ -16,6 +16,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import TimeInput from '../../components/ui/TimeInput';
+import { confirmar } from '../../components/ui/dialogo';
 
 type FilterTab = 'all' | 'scheduled' | 'active' | 'finished';
 type LifecycleStatus = 'scheduled' | 'active' | 'finished';
@@ -120,6 +121,21 @@ export default function AdminEvents() {
   const [rescheduleSaving, setRescheduleSaving] = useState(false);
   // O mesmo formulário serve para reagendar (evento agendado) e reabrir (evento encerrado)
   const [rescheduleMode, setRescheduleMode] = useState<'reschedule' | 'reopen'>('reschedule');
+  // Checkpoints usados: evento aberto no modal e a lista dele
+  const [verCheckpoints, setVerCheckpoints] = useState<any | null>(null);
+  const [checkpointsUsados, setCheckpointsUsados] = useState<Awaited<ReturnType<typeof api.getCheckpointsUsadosDoEvento>> | null>(null);
+  const [checkpointsErro, setCheckpointsErro] = useState('');
+
+  const abrirCheckpoints = (e: React.MouseEvent, event: any) => {
+    e.stopPropagation();
+    setVerCheckpoints(event);
+    setCheckpointsUsados(null);
+    setCheckpointsErro('');
+    api.getCheckpointsUsadosDoEvento(event.eventoId)
+      .then(setCheckpointsUsados)
+      .catch((erro) => setCheckpointsErro(erro.message || 'Não foi possível carregar os checkpoints.'));
+  };
+
   // Menu "Mais opções" aberto: posição na tela (fixa, para não ser cortada pela tabela)
   const [menu, setMenu] = useState<{ id: string; top: number; right: number } | null>(null);
 
@@ -176,14 +192,15 @@ export default function AdminEvents() {
   const handleDelete = async (eventItem: any, e: React.MouseEvent) => {
     e.stopPropagation();
     if (busyId) return;
-    if (!confirm(
+    if (!(await confirmar(
       `Excluir o evento "${eventItem.nome}"?
 
 `
       + 'Participantes, times, pontuação e o histórico do jogo deste evento serão apagados. '
       + 'As pulseiras voltam a ficar disponíveis e os checkpoints continuam no buffet, sem evento. '
-      + 'Essa ação não pode ser desfeita.'
-    )) return;
+      + 'Essa ação não pode ser desfeita.',
+      { titulo: 'Excluir o evento', confirmar: 'Excluir o evento' }
+    ))) return;
 
     setBusyId(eventItem.eventoId);
     try {
@@ -270,7 +287,7 @@ export default function AdminEvents() {
     const question = action === 'start'
       ? `Iniciar o evento "${eventItem.nome}" agora?`
       : `Encerrar o evento "${eventItem.nome}"?\n\nO jogo em andamento será parado e a recepção deixará de cadastrar participantes nele. Essa ação não pode ser desfeita.`;
-    if (!confirm(question)) return;
+    if (!(await confirmar(question, { titulo: action === 'start' ? 'Iniciar o evento' : 'Encerrar o evento', confirmar: action === 'start' ? 'Iniciar' : 'Encerrar', perigo: action !== 'start' }))) return;
 
     setBusyId(eventItem.eventoId);
     try {
@@ -428,6 +445,14 @@ export default function AdminEvents() {
                           )}
                           <button
                             className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-surface transition-colors"
+                            title="Checkpoints usados no evento"
+                            aria-label={`Checkpoints usados em ${event.nome}`}
+                            onClick={(e) => abrirCheckpoints(e, event)}
+                          >
+                            <MapPin size={16} />
+                          </button>
+                          <button
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-surface transition-colors"
                             title="Editar"
                             onClick={(e) => { e.stopPropagation(); navigate(`/admin/events/${event.eventoId}/edit`); }}
                           >
@@ -478,6 +503,35 @@ export default function AdminEvents() {
           </Card>
         </main>
       </div>
+
+      <Modal isOpen={verCheckpoints !== null} onClose={() => setVerCheckpoints(null)} title={`Checkpoints de ${verCheckpoints?.nome ?? ''}`} size="md">
+        {checkpointsErro ? (
+          <p className="text-sm text-danger">{checkpointsErro}</p>
+        ) : checkpointsUsados === null ? (
+          <p className="py-6 text-center text-sm text-gray-400">Carregando...</p>
+        ) : checkpointsUsados.length === 0 ? (
+          <p className="py-6 text-center text-sm text-gray-400">Nenhum checkpoint foi usado neste evento.</p>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-gray-500">
+              Os checkpoints são do buffet e ficam livres quando o evento termina. Esta lista mostra os que o evento usa agora e os que já passaram por ele.
+            </p>
+            <ul className="divide-y divide-border rounded-lg border border-border">
+              {checkpointsUsados.map((cp) => (
+                <li key={cp.checkpointId} className="flex items-center gap-3 px-3 py-2">
+                  <span className="flex h-8 min-w-8 items-center justify-center rounded-lg bg-primary/10 px-2 text-sm font-bold text-primary">{cp.numero ?? '-'}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-white">{cp.nome || 'Checkpoint'}</p>
+                    {cp.zona && <p className="truncate text-xs text-gray-500">{cp.zona}</p>}
+                  </div>
+                  <Badge variant={cp.noEvento ? 'success' : 'muted'}>{cp.noEvento ? 'No evento' : 'Já usado'}</Badge>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-gray-500">{checkpointsUsados.length} checkpoint(s)</p>
+          </div>
+        )}
+      </Modal>
 
       <Modal isOpen={rescheduling !== null} onClose={closeReschedule} title={rescheduleMode === 'reopen' ? 'Reabrir evento' : 'Reagendar evento'} size="md">
         {rescheduling && (
