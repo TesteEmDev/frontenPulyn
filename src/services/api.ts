@@ -1839,6 +1839,13 @@ export const api = {
     }
   },
 
+  // Cadastros permanentes das crianças do buffet, com o último evento de cada uma (participacoes = 0: sem evento)
+  async getCadastrosCriancas() {
+    const res = await fetch(`${API_URL}/criancas/cadastros`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
   // Check-in sem evento aberto: só o cadastro permanente da criança (vincula ao evento depois, pelo autoatendimento)
   async createPerfilCrianca(data: any) {
     const res = await fetch(`${API_URL}/criancas/perfil`, {
