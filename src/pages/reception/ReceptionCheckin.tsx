@@ -343,59 +343,61 @@ export default function ReceptionCheckin() {
 
           {/* No desktop o cadastro ocupa a altura que sobra na tela: só a lista de peças rola, não a página */}
           <Card className="relative flex flex-col gap-4 !p-4 lg:min-h-[520px] lg:flex-1 lg:!p-5">
-            {/* Leitor NFC: aviso pequeno no canto do cadastro (situação do leitor e da pulseira lida), sem ocupar um cartão à parte */}
-            <div
-              aria-live="polite"
-              title={[
-                nfcConnected ? 'Leitor NFC conectado' : 'Leitor NFC aguardando conexão',
-                braceletCode ? `Pulseira ${braceletCode}` : 'Nenhuma pulseira lida',
-                lastReadAt ? `Última leitura: ${lastReadAt.toLocaleTimeString('pt-BR')}` : '',
-              ].filter(Boolean).join(' · ')}
-              className={`flex w-full max-w-[280px] items-center gap-2 self-start rounded-xl border px-2.5 py-1.5 text-left lg:absolute lg:left-5 lg:top-5 lg:w-auto lg:max-w-[250px] ${
-                braceletStatus === 'available'
-                  ? 'border-success/30 bg-success/10'
-                  : braceletStatus === 'registered'
-                    ? 'border-warning/30 bg-warning/10'
-                    : braceletStatus === 'not-found' || braceletStatus === 'error'
-                      ? 'border-danger/30 bg-danger/10'
-                      : 'border-white/10 bg-black/20'
-              }`}
-            >
-              <StatusDot status={
-                braceletStatus === 'available' ? 'online' :
-                  braceletStatus === 'registered' ? 'warning' :
-                    braceletStatus === 'not-found' || braceletStatus === 'error' ? 'offline' :
-                      nfcConnected ? 'online' : 'offline'
-              } size="sm" />
-              <div className="min-w-0 leading-tight">
-                <p className="truncate text-[11px] font-semibold text-white">
-                  {braceletCode ? `Pulseira ${braceletCode}` : nfcConnected ? 'Leitor NFC conectado' : 'Leitor NFC aguardando'}
-                </p>
-                <p className="truncate text-[10px] text-gray-400">
-                  {braceletStatus === 'available' ? 'Disponível para vincular' :
-                    braceletStatus === 'registered' ? 'Já vinculada a outra criança' :
-                      braceletStatus === 'not-found' ? 'Nova: será cadastrada ao finalizar' :
-                        braceletStatus === 'error' ? 'Conferência não concluída' :
-                          braceletStatus === 'checking' ? 'Verificando pulseira...' :
-                            nfcConnected ? 'Aproxime uma pulseira' : 'Conecte o leitor'}
-                </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 text-left">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Novo participante</p>
+                <h2 className="mt-1 font-display text-xl text-white lg:text-2xl">Cadastre a criança</h2>
+                <p className="mt-1 hidden text-sm text-gray-400 [@media(min-height:900px)]:block">A pulseira é opcional: aproxime uma para já vincular, ou cadastre sem ela e vincule depois.</p>
               </div>
-              {(braceletCode || braceletStatus !== 'idle') && (
-                <button
-                  type="button"
-                  onClick={clearBracelet}
-                  aria-label="Limpar leitura da pulseira"
-                  title="Limpar leitura"
-                  className="ml-auto shrink-0 rounded-md px-1.5 py-0.5 text-xs text-gray-300 transition hover:bg-white/10 hover:text-white"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-            <div className="text-center">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Novo participante</p>
-              <h2 className="mt-1 font-display text-xl text-white lg:text-2xl">Cadastre a criança</h2>
-              <p className="mt-1 hidden text-sm text-gray-400 [@media(min-height:900px)]:block">A pulseira é opcional: aproxime uma para já vincular, ou cadastre sem ela e vincule depois.</p>
+              {/* Leitor NFC: aviso pequeno à direita do título (situação do leitor e da pulseira lida), sem ocupar um cartão à parte */}
+              <div
+                aria-live="polite"
+                title={[
+                  nfcConnected ? 'Leitor NFC conectado' : 'Leitor NFC aguardando conexão',
+                  braceletCode ? `Pulseira ${braceletCode}` : 'Nenhuma pulseira lida',
+                  lastReadAt ? `Última leitura: ${lastReadAt.toLocaleTimeString('pt-BR')}` : '',
+                ].filter(Boolean).join(' · ')}
+                className={`flex w-full max-w-[280px] shrink-0 items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left sm:w-auto sm:max-w-[260px] ${
+                  braceletStatus === 'available'
+                    ? 'border-success/30 bg-success/10'
+                    : braceletStatus === 'registered'
+                      ? 'border-warning/30 bg-warning/10'
+                      : braceletStatus === 'not-found' || braceletStatus === 'error'
+                        ? 'border-danger/30 bg-danger/10'
+                        : 'border-white/10 bg-black/20'
+                }`}
+              >
+                <StatusDot status={
+                  braceletStatus === 'available' ? 'online' :
+                    braceletStatus === 'registered' ? 'warning' :
+                      braceletStatus === 'not-found' || braceletStatus === 'error' ? 'offline' :
+                        nfcConnected ? 'online' : 'offline'
+                } size="sm" />
+                <div className="min-w-0 leading-tight">
+                  <p className="truncate text-[11px] font-semibold text-white">
+                    {braceletCode ? `Pulseira ${braceletCode}` : nfcConnected ? 'Leitor NFC conectado' : 'Leitor NFC aguardando'}
+                  </p>
+                  <p className="truncate text-[10px] text-gray-400">
+                    {braceletStatus === 'available' ? 'Disponível para vincular' :
+                      braceletStatus === 'registered' ? 'Já vinculada a outra criança' :
+                        braceletStatus === 'not-found' ? 'Nova: será cadastrada ao finalizar' :
+                          braceletStatus === 'error' ? 'Conferência não concluída' :
+                            braceletStatus === 'checking' ? 'Verificando pulseira...' :
+                              nfcConnected ? 'Aproxime uma pulseira' : 'Conecte o leitor'}
+                  </p>
+                </div>
+                {(braceletCode || braceletStatus !== 'idle') && (
+                  <button
+                    type="button"
+                    onClick={clearBracelet}
+                    aria-label="Limpar leitura da pulseira"
+                    title="Limpar leitura"
+                    className="ml-auto shrink-0 rounded-md px-1.5 py-0.5 text-xs text-gray-300 transition hover:bg-white/10 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.8fr)] lg:grid-rows-[minmax(0,1fr)]">
