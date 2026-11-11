@@ -39,6 +39,12 @@ function normalizeApiUrl(value: string | undefined | null) {
   const rawValue = String(value || '').trim();
   if (!rawValue) return null;
 
+  // Caminho relativo (ex.: "/api"): usa a mesma origem da página (site servido pelo nginx).
+  if (rawValue.startsWith('/')) {
+    if (typeof window === 'undefined') return null;
+    return `${window.location.origin}${rawValue}`.replace(/\/+$/, '');
+  }
+
   try {
     // "/api" (API no mesmo endereco do site, como no IIS): resolve contra o endereco da pagina. Sem isso o "https:///api"
     // viraria o servidor "api".

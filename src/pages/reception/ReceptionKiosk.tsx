@@ -10,11 +10,12 @@ import { useNFCOtimizado } from '../../hooks/useNFCReader_otimizado';
 import { useDeviceNFC } from '../../hooks/useDeviceNFC';
 import { api } from '../../services/api';
 import Avatar from '../../components/ui/Avatar';
-import AvatarSelector from '../../components/ui/AvatarSelector';
+import AvatarBuilder from '../../components/ui/AvatarBuilder';
 import CorSelector from '../../components/ui/CorSelector';
 import { primeiraCorLivre } from '../../utils/coresParticipante';
 import { mascaraData, dataDeDigitos, erroNascimentoSemLimite, idadeDeNascimento } from '../../utils/nascimento';
-import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID, primeiroAvatarLivre } from '../../avatar/adventurerAvatars';
+import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
+import { decodeAvatar, newAvatarCode } from '../../avatar/builder/code';
 import StatusDot from '../../components/ui/StatusDot';
 import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
 import VirtualKeyboardOtimizado from '../../components/ui/VirtualKeyboardOtimizado';
@@ -27,8 +28,9 @@ const AVATAR_OPTIONS = ADVENTURER_AVATARS.map(option => ({
 }));
 
 // Cadastros antigos podem ter um avatar que não existe mais; o Kiosk usa o padrão nesses casos.
+// Avatares montados (código pulyn1-...) são válidos quando o código decodifica.
 const profileAvatar = (avatar: string) =>
-  AVATAR_OPTIONS.some(option => option.emoji === avatar) ? avatar : DEFAULT_AVATAR_ID;
+  AVATAR_OPTIONS.some(option => option.emoji === avatar) || decodeAvatar(avatar) ? avatar : DEFAULT_AVATAR_ID;
 
 const normalizeUid = (value: string) =>
   value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
@@ -128,9 +130,8 @@ export default function ReceptionKioskOtimizado() {
   const [message, setMessage] = useState('Encoste a pulseira no leitor abaixo da tela para começar');
   const [braceletCode, setBraceletCode] = useState('');
   // nascimento: os dígitos da data (DDMMAAAA); aparece como dd/mm/aaaa
-  const [form, setForm] = useState({ name: '', nickname: '', nascimento: '', avatar: DEFAULT_AVATAR_ID, cor: primeiraCorLivre([]) });
-  // Avatares que os outros participantes do evento já usam: ficam indisponíveis e o cadastro começa num livre
-  const [avataresEmUso, setAvataresEmUso] = useState<string[]>([]);
+  // avatar: código do personagem montado pela criança (cada um é único, não há "avatar já escolhido")
+  const [form, setForm] = useState(() => ({ name: '', nickname: '', nascimento: '', avatar: newAvatarCode(), cor: primeiraCorLivre([]) }));
   const [coresEmUso, setCoresEmUso] = useState<string[]>([]);
   const [successData, setSuccessData] = useState<{ name: string; avatar: string; returning: boolean } | null>(null);
   const [mode, setMode] = useState<KioskMode>('choose');
@@ -151,7 +152,6 @@ export default function ReceptionKioskOtimizado() {
   const kioskStateRef = useRef<KioskState>('waiting');
 
   // Cache para evitar renders desnecessários
-  const selectedAvatar = AVATAR_OPTIONS.find(option => option.emoji === form.avatar) || AVATAR_OPTIONS[0];
   const selectedEvent = events.find(event => String(event.eventoId) === String(selectedEventId));
   
   // DEBOUNCE para evitar renders rápidos
@@ -200,13 +200,11 @@ export default function ReceptionKioskOtimizado() {
 
   const carregarAvatares = useCallback(async () => {
     if (!selectedEventId) {
-      setAvataresEmUso([]);
       setCoresEmUso([]);
       return;
     }
     try {
       const emUso = await api.getKioskAvatarsInUse(selectedEventId);
-      setAvataresEmUso(emUso.avatares);
       setCoresEmUso(emUso.cores);
     } catch (error) {
       console.error('Erro ao carregar os avatares em uso:', error);
@@ -220,12 +218,6 @@ export default function ReceptionKioskOtimizado() {
     return () => window.clearInterval(timer);
   }, [selectedEventId, carregarAvatares]);
   useEffect(() => {
-    // O avatar do formulário é de outro participante do evento (a lista mudou, o evento mudou ou o formulário foi zerado): troca por um livre
-    // Quem já foi cadastrado neste evento pela recepção mantém o próprio avatar (a lista de "em uso" inclui o dele)
-    if (selectedProfile?.jaNoEvento) return;
-    if (avataresEmUso.includes(form.avatar)) setForm(prev => ({ ...prev, avatar: primeiroAvatarLivre(avataresEmUso) }));
-  }, [avataresEmUso, form.avatar, selectedProfile]);
-  useEffect(() => {
     // Mesma regra para a cor
     // A cor de quem já foi cadastrado neste evento é dele mesmo, mesmo aparecendo na lista de cores em uso
     if (selectedProfile?.jaNoEvento) return;
@@ -238,7 +230,7 @@ export default function ReceptionKioskOtimizado() {
     lastReadRef.current = null;
     kioskStateRef.current = 'waiting';
     setBraceletCode('');
-    setForm({ name: '', nickname: '', nascimento: '', avatar: DEFAULT_AVATAR_ID, cor: primeiraCorLivre([]) });
+    setForm({ name: '', nickname: '', nascimento: '', avatar: newAvatarCode(), cor: primeiraCorLivre([]) });
     setMode('choose');
     setNewStep('avatar');
     setFocusField('name');
@@ -866,19 +858,17 @@ export default function ReceptionKioskOtimizado() {
                               Etapa 1 de 2 • Aparência
                             </p>
                             <h3 className="mt-1 font-display text-2xl font-bold text-white">
-                              Escolha seu personagem
+                              Crie seu personagem
                             </h3>
                           </div>
                           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-4 border-cyan-300/40 bg-cyan-300/10 p-1">
-                            <Avatar emoji={selectedAvatar.emoji} size="md" bgColor={selectedAvatar.color} />
+                            <Avatar emoji={form.avatar} size="md" bgColor="bg-primary/20" />
                           </div>
                         </div>
-                        <AvatarSelector
+                        <AvatarBuilder
                           value={form.avatar}
                           onChange={handleAvatarChange}
                           disabled={!canInteract}
-                          wide
-                          indisponiveis={avataresEmUso}
                         />
                         <div className="mt-4 border-t border-cyan-300/10 pt-4">
                           <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">Escolha a sua cor</p>
@@ -890,7 +880,7 @@ export default function ReceptionKioskOtimizado() {
                       <section className="mx-auto flex w-full max-w-3xl flex-col rounded-[1.75rem] border border-fuchsia-300/25 bg-[#1b0f38] p-4 shadow-lg backdrop-blur sm:p-5 lg:col-span-2">
                         <div className="mb-3 flex items-center gap-3 rounded-3xl border border-fuchsia-300/20 bg-gradient-to-r from-fuchsia-300/10 to-transparent p-3">
                           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-4 border-fuchsia-300/50 bg-fuchsia-300/10 p-1.5 shadow-md">
-                            <Avatar emoji={selectedAvatar.emoji} size="md" bgColor={selectedAvatar.color} />
+                            <Avatar emoji={form.avatar} size="md" bgColor="bg-primary/20" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">
@@ -1085,13 +1075,11 @@ export default function ReceptionKioskOtimizado() {
                             <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">
                               Quer mudar o personagem?
                             </p>
-                            <AvatarSelector
+                            <AvatarBuilder
                               value={form.avatar}
-                              onChange={handleAvatarChange}
-                              disabled={!canInteract || state === 'saving'}
-                              wide
-                              indisponiveis={selectedProfile?.jaNoEvento ? avataresEmUso.filter(id => id !== profileAvatar(selectedProfile.avatar)) : avataresEmUso}
-                            />
+                          onChange={handleAvatarChange}
+                          disabled={!canInteract || state === 'saving'}
+                        />
                             <p className="mb-2 mt-4 text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">E a sua cor?</p>
                             <CorSelector value={form.cor} onChange={handleCorChange} disabled={!canInteract || state === 'saving'} indisponiveis={selectedProfile?.jaNoEvento && selectedProfile.cor ? coresEmUso.filter(c => c.toUpperCase() !== String(selectedProfile.cor).toUpperCase()) : coresEmUso} />
                           </div>
@@ -1117,9 +1105,8 @@ export default function ReceptionKioskOtimizado() {
                                     type="button"
                                     onClick={() => {
                                       setSelectedProfile(profile);
-                                      // Se outro participante já usa o avatar do cadastro, a criança começa com um livre.
-                                      // Quem já foi cadastrada neste evento mantém o próprio avatar (ele aparece "em uso" por ela mesma).
-                                      setForm(prev => ({ ...prev, ...(profile.jaNoEvento && profile.cor ? { cor: profile.cor } : {}), avatar: !profile.jaNoEvento && avataresEmUso.includes(profileAvatar(profile.avatar)) ? primeiroAvatarLivre(avataresEmUso) : profileAvatar(profile.avatar) }));
+                                      // A criança começa com o avatar do cadastro dela e pode montar outro logo abaixo.
+                                      setForm(prev => ({ ...prev, ...(profile.jaNoEvento && profile.cor ? { cor: profile.cor } : {}), avatar: profileAvatar(profile.avatar) }));
                                     }}
                                     disabled={!canInteract}
                                     className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-[#120a27]/70 p-2.5 text-left transition hover:border-fuchsia-300/50 hover:bg-fuchsia-300/10 active:scale-[0.99]"

@@ -49,6 +49,11 @@ interface SidebarProps {
   onToggleCollapse: () => void;
   title?: string;
   accentColor?: string;
+  /**
+   * Menu que abre quando o mouse (ou o teclado) chega nele e fecha quando sai. Fica recolhido em repouso
+   * e abre POR CIMA do conteúdo, sem empurrar a tela. Ignora `collapsed` e esconde o botão de recolher.
+   */
+  hoverExpand?: boolean;
 }
 
 export default function Sidebar({
@@ -57,9 +62,32 @@ export default function Sidebar({
   collapsed,
   onToggleCollapse,
   accentColor = '#1E9BD7',
+  hoverExpand = false,
 }: SidebarProps) {
   const { user, logout, trocarArea, atualizarAreas } = useAuth();
   const navigate = useNavigate();
+
+  // Menu com hover: abre e fecha só com CSS (:hover e foco de teclado), sem estado nem temporizadores.
+  // `group-has-[:focus-visible]` mantém o menu aberto para quem navega por teclado, mas não depois de um clique do mouse.
+  //
+  // Animação (só no modo hover): curva de desaceleração suave (easeOutQuint) e tudo no mesmo ritmo:
+  //  - ao abrir: a largura começa quase na hora, e os nomes aparecem DEPOIS, quando já há espaço para eles;
+  //  - ao fechar: espera um instante (o mouse pode só ter roçado a borda), os nomes somem rápido e a largura recolhe.
+  const EASE = 'ease-[cubic-bezier(0.22,1,0.36,1)]';
+  const SLOW_CLOSE = 'delay-[160ms] group-hover/side:delay-[40ms] group-has-[:focus-visible]/side:delay-0';
+  const fade = hoverExpand
+    ? `-translate-x-1 opacity-0 transition-[opacity,transform] duration-100 ease-out delay-[160ms] motion-reduce:transition-none group-hover/side:translate-x-0 group-hover/side:opacity-100 group-hover/side:duration-200 group-hover/side:delay-[120ms] group-has-[:focus-visible]/side:translate-x-0 group-has-[:focus-visible]/side:opacity-100 group-has-[:focus-visible]/side:delay-0`
+    : `transition-opacity duration-300 ${collapsed ? 'opacity-0' : 'opacity-100'}`;
+  // Recolhido (47px úteis) o círculo de 32px fica centralizado; aberto volta ao recuo de 16px (e desliza, sem "pular")
+  const sidePadding = hoverExpand
+    ? `pl-[7px] pr-0 transition-[padding] duration-[280ms] ${EASE} ${SLOW_CLOSE} motion-reduce:transition-none group-hover/side:pl-4 group-has-[:focus-visible]/side:pl-4`
+    : 'px-4';
+  // "Outras áreas": em vez de aparecer de repente, abrem em altura e opacidade
+  const areasWrap = hoverExpand
+    ? `grid grid-rows-[0fr] opacity-0 transition-[grid-template-rows,opacity] duration-[280ms] ${EASE} ${SLOW_CLOSE} motion-reduce:transition-none group-hover/side:grid-rows-[1fr] group-hover/side:opacity-100 group-has-[:focus-visible]/side:grid-rows-[1fr] group-has-[:focus-visible]/side:opacity-100`
+    : '';
+  const areasInner = hoverExpand ? 'min-h-0 overflow-hidden' : '';
+
 
   // Só a equipe acumula áreas. Quem ganhou uma área nova vê o menu mudar ao abrir a tela ou voltar para a aba,
   // sem sair e entrar de novo.
@@ -137,19 +165,25 @@ export default function Sidebar({
     navigate('/login');
   };
 
-  return (
+  const aside = (
     <aside
-      className="flex h-screen shrink-0 flex-col overflow-hidden border-r border-white/[0.08] bg-gradient-to-br from-dark/90 via-dark-card to-dark-surface/80 px-3 py-2.5 shadow-[8px_0_30px_rgba(2,10,24,0.18)] transition-all duration-300 ease-in-out"
-      style={{ width: collapsed ? 72 : 256 }}
+      className={`flex h-screen flex-col overflow-hidden border-r border-white/[0.08] bg-gradient-to-br px-3 py-2.5 ${
+        hoverExpand
+          // Abre por cima do conteúdo (fundo opaco); o pequeno atraso ao fechar evita que ele "pisque" quando o mouse só roça a borda
+          ? `group/side absolute inset-y-0 left-0 z-40 w-[72px] from-dark via-dark-card to-dark-surface shadow-[8px_0_30px_rgba(2,10,24,0.18)] transition-[width,box-shadow] duration-[280ms] ${EASE} will-change-[width] [contain:layout_style] motion-reduce:transition-none delay-[160ms] hover:w-64 hover:shadow-[14px_0_44px_rgba(2,10,24,0.55)] hover:delay-[40ms] has-[:focus-visible]:w-64 has-[:focus-visible]:delay-0`
+          : 'shrink-0 from-dark/90 via-dark-card to-dark-surface/80 shadow-[8px_0_30px_rgba(2,10,24,0.18)] transition-all duration-300 ease-in-out'
+      }`}
+      style={hoverExpand ? undefined : { width: collapsed ? 72 : 256 }}
     >
       {/* Logo */}
-      <div className="flex items-center justify-center px-4 h-16 border-b border-dark-border overflow-hidden">
-        <PulynLogo size="md" clickable={false} />
+      <div className={`flex items-center justify-center ${hoverExpand ? 'px-0' : 'px-4'} h-16 border-b border-dark-border overflow-hidden`}>
+        {/* Recolhido a logo usa toda a largura da faixa (antes era espremida a 15px e sumia) */}
+        <PulynLogo size="md" clickable={false} className="min-w-0 max-w-full" />
       </div>
 
       {/* User Info */}
       {user && (
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-dark-border overflow-hidden">
+        <div className={`flex items-center gap-3 ${sidePadding} py-3 border-b border-dark-border overflow-hidden`}>
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden text-white font-bold text-sm"
             style={{
@@ -157,14 +191,13 @@ export default function Sidebar({
             }}
           >
             {logoUrl ? (
-              <img src={logoUrl} alt={`Logo de ${displayName}`} className="h-full w-full object-cover" />
+              <img src={logoUrl} alt={`Logo de ${displayName}`} className="h-full w-full object-contain p-0.5" />
             ) : (
               displayName.charAt(0)
             )}
           </div>
           <div
-            className="min-w-0 transition-opacity duration-300"
-            style={{ opacity: collapsed ? 0 : 1 }}
+            className={`min-w-0 ${fade}`}
           >
             <p className="text-sm font-medium text-white truncate" title={displayName}>{displayName}</p>
             <p className="text-xs truncate" style={{ color: '#6B8BA4' }}>
@@ -188,7 +221,7 @@ export default function Sidebar({
               to={item.path}
               // Estando numa tela de outra área, voltar a um item da principal pede o acesso dela antes de abrir
               onClick={variasAreas && user?.role !== areaPrincipal ? (e) => { e.preventDefault(); irParaArea(areaPrincipal, item.path); } : undefined}
-              title={collapsed ? item.label : undefined}
+              title={!hoverExpand && collapsed ? item.label : undefined}
               className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60 ${
                 isActive
                   ? 'bg-primary-500/10 text-primary-300 shadow-[inset_3px_0_0_currentColor]'
@@ -198,8 +231,7 @@ export default function Sidebar({
             >
               <span className="shrink-0">{item.icon}</span>
               <span
-                className="whitespace-nowrap transition-opacity duration-300"
-                style={{ opacity: collapsed ? 0 : 1 }}
+                className={`whitespace-nowrap ${fade}`}
               >
                 {item.label}
               </span>
@@ -208,12 +240,13 @@ export default function Sidebar({
         })}
 
         {/* Outras áreas da conta: só com o menu aberto, para não trocar de área por engano */}
-        {!collapsed && outrasAreas.length > 0 && (
-          <div className="mt-5 px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-            Outras áreas
-          </div>
-        )}
-        {!collapsed && outrasAreas.map((area) => {
+        {(hoverExpand || !collapsed) && outrasAreas.length > 0 && (
+          <div className={areasWrap}>
+            <div className={areasInner}>
+              <div className="mt-5 px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-500">
+                Outras áreas
+              </div>
+        {outrasAreas.map((area) => {
           const aberta = areaEstaAberta(area.role, area.items);
           const cor = AREA_COR[area.role] || '#1E9BD7';
           return (
@@ -264,6 +297,9 @@ export default function Sidebar({
             </div>
           );
         })}
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Logout Button */}
@@ -275,15 +311,15 @@ export default function Sidebar({
         >
           <LogOut className="w-5 h-5 shrink-0" />
           <span
-            className="text-sm whitespace-nowrap transition-opacity duration-300"
-            style={{ opacity: collapsed ? 0 : 1 }}
+            className={`text-sm whitespace-nowrap ${fade}`}
           >
             Sair
           </span>
         </button>
       </div>
 
-      {/* Toggle Button */}
+      {/* Toggle Button (o menu com hover não precisa dele) */}
+      {!hoverExpand && (
       <div className="p-3 border-t border-dark-border">
         <button
           aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
@@ -302,13 +338,20 @@ export default function Sidebar({
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
           <span
-            className="text-sm whitespace-nowrap transition-opacity duration-300"
-            style={{ opacity: collapsed ? 0 : 1 }}
+            className={`text-sm whitespace-nowrap ${fade}`}
           >
             Recolher
           </span>
         </button>
       </div>
+      )}
     </aside>
   );
+
+  // Em repouso o menu ocupa só 72px do layout; ao abrir ele cresce por cima do conteúdo.
+  return hoverExpand ? (
+    <div className="relative h-screen shrink-0" style={{ width: 72 }}>
+      {aside}
+    </div>
+  ) : aside;
 }

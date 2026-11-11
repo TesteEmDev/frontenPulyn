@@ -1,0 +1,12 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["YD26WN2P3P.com.pulyn.pulynApp"],
+        "components": [
+          { "/": "/family/invite/*" }
+        ]
+      }
+    ]
+  }
+}
