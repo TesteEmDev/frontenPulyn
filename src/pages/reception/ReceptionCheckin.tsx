@@ -12,11 +12,9 @@ import StatusDot from '../../components/ui/StatusDot';
 import Avatar from '../../components/ui/Avatar';
 import AvatarBuilder from '../../components/ui/AvatarBuilder';
 import AvatarPreview from '../../components/ui/AvatarPreview';
-import CorSelector from '../../components/ui/CorSelector';
-import { primeiraCorLivre } from '../../utils/coresParticipante';
 import { erroNascimentoSemLimite, hojeIso } from '../../utils/nascimento';
 import { ADVENTURER_AVATARS } from '../../avatar/adventurerAvatars';
-import { isAvatarCode, newAvatarCode } from '../../avatar/builder/code';
+import { corDoAvatar, isAvatarCode, newAvatarCode } from '../../avatar/builder/code';
 import { useAvatarUnico, MENSAGEM_AVATAR_REPETIDO } from '../../hooks/useAvatarUnico';
 
 const normalizeUid = (value: string) => value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
@@ -49,7 +47,6 @@ export default function ReceptionCheckin() {
     nickname: '',
     nascimento: '',   // AAAA-MM-DD
     avatar: newAvatarCode(),
-    cor: primeiraCorLivre([]),
   }));
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [braceletCode, setBraceletCode] = useState('');
@@ -162,19 +159,16 @@ export default function ReceptionCheckin() {
   }, [eventoAtualId, loadEventos, setEventoAtual]);
 
   // Avatares que os outros participantes do evento já usam: ficam indisponíveis e o cadastro começa num livre
-  const [coresEmUso, setCoresEmUso] = useState<string[]>([]);
   const [avataresEmUso, setAvataresEmUso] = useState<string[]>([]);
   const trocarAvatar = useCallback((avatar: string) => setForm(previous => ({ ...previous, avatar })), []);
   const { repetido: avatarRepetido, marcarEscolhido: marcarAvatarEscolhido, reiniciar: reiniciarAvatar } = useAvatarUnico(avataresEmUso, form.avatar, trocarAvatar);
   const carregarAvatares = useCallback(async () => {
     if (!selectedEventId) {
-      setCoresEmUso([]);
       setAvataresEmUso([]);
       return;
     }
     try {
       const emUso = await api.getAvataresEmUso(selectedEventId);
-      setCoresEmUso(emUso.cores);
       setAvataresEmUso(emUso.avatares);
     } catch (error) {
       console.error('Erro ao carregar os avatares em uso:', error);
@@ -187,10 +181,6 @@ export default function ReceptionCheckin() {
     const timer = window.setInterval(carregarAvatares, 8000);
     return () => window.clearInterval(timer);
   }, [selectedEventId, carregarAvatares]);
-  useEffect(() => {
-    // Mesma regra para a cor
-    if (coresEmUso.some(cor => cor.toUpperCase() === form.cor.toUpperCase())) setForm(previous => ({ ...previous, cor: primeiraCorLivre(coresEmUso) }));
-  }, [coresEmUso, form.cor]);
 
   useEffect(() => {
     if (!selectedEventId) {
@@ -249,7 +239,8 @@ export default function ReceptionCheckin() {
         apelido: form.nickname.trim() || form.name.trim().split(/\s+/)[0],
         dataNascimento: form.nascimento,
         avatar: form.avatar,
-        cor: form.cor,
+        // A cor do participante é a cor de fundo do avatar
+        cor: corDoAvatar(form.avatar) ?? undefined,
         ...(normalizedCode ? { braceletCode: normalizedCode } : {}),
         ...(selectedTeam ? { timeId: selectedTeam } : {}),
       });
@@ -258,7 +249,7 @@ export default function ReceptionCheckin() {
       const teamName = selectedTeam ? teams.find(team => String(team.id) === String(selectedTeam))?.name || 'time selecionado' : null;
       showToast(`${form.name.trim()} foi cadastrado(a)${teamName ? ` no ${teamName}` : ' sem time'}${normalizedCode ? ' e a pulseira foi vinculada' : ' (sem pulseira por enquanto)'}.`);
       reiniciarAvatar();
-      setForm({ name: '', nickname: '', nascimento: '', avatar: newAvatarCode(), cor: primeiraCorLivre([]) });
+      setForm({ name: '', nickname: '', nascimento: '', avatar: newAvatarCode() });
       setSelectedTeam(null);
       clearBracelet();
       carregarAvatares();
@@ -391,11 +382,6 @@ export default function ReceptionCheckin() {
                   ) : (
                     <p className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">Nenhum time cadastrado para este evento. Você pode cadastrar o participante mesmo assim.</p>
                   )}
-                </div>
-
-                <div className="shrink-0">
-                  <h3 className="mb-2 text-sm font-semibold text-gray-200">Escolha a cor do participante</h3>
-                  <CorSelector className="[&_button]:!h-10 [&_button]:!w-10" value={form.cor} onChange={cor => setForm(previous => ({ ...previous, cor }))} indisponiveis={coresEmUso} />
                 </div>
 
                 {/* Desktop: a foto do personagem fica embaixo dos dados; no lado direito ficam só as peças. */}

@@ -142,6 +142,28 @@ const Thumb = memo(function Thumb({ config, selected, label, disabled, onPick }:
   );
 });
 
+// Botão "cor personalizada": abre o seletor de cores do aparelho. A cor escolhida vira o fundo do avatar (e a cor do participante).
+function CorPersonalizada({ value, selecionada, disabled, onChange }: { value: string; selecionada: boolean; disabled: boolean; onChange: (cor: string) => void }) {
+  return (
+    <label
+      className={`relative flex h-11 cursor-pointer items-center gap-2 rounded-full border-2 px-3 text-xs font-bold text-white transition active:scale-95 ${
+        selecionada ? 'border-white ring-4 ring-fuchsia-300/60' : 'border-white/30'
+      } ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+      style={selecionada ? { backgroundColor: value } : { background: 'conic-gradient(#ef4444, #eab308, #22c55e, #06b6d4, #8b5cf6, #ec4899, #ef4444)' }}
+    >
+      <span className="rounded-full bg-black/55 px-2 py-0.5">🎨 Cor personalizada</span>
+      <input
+        type="color"
+        value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#6ec6ff'}
+        onChange={e => onChange(e.target.value.toLowerCase())}
+        disabled={disabled}
+        aria-label="Escolher uma cor de fundo personalizada"
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+      />
+    </label>
+  );
+}
+
 function AvatarBuilder({ value, onChange, disabled = false, className = '', layout = 'responsive', previewClassName = '' }: AvatarBuilderProps) {
   const L = LAYOUT[layout];
   const [tabId, setTabId] = useState(TABS[0].id);
@@ -250,6 +272,14 @@ function AvatarBuilder({ value, onChange, disabled = false, className = '', layo
                       }`}
                     />
                   ))}
+                  {section.key === 'bg' && (
+                    <CorPersonalizada
+                      value={config.bg}
+                      selecionada={!section.colors.includes(config.bg)}
+                      disabled={disabled}
+                      onChange={cor => update({ bg: cor })}
+                    />
+                  )}
                 </div>
               )}
               {section.kind === 'flags' && (

@@ -1,6 +1,7 @@
 // Código curto do avatar montado: é o valor salvo em criancas.avatar (coluna varchar de 64).
 //
 //   pulyn1-<13 letras/dígitos: posição de cada peça e cor><2: flags>   → 22 caracteres
+//   Com cor de fundo personalizada (fora da paleta) leva mais 6 dígitos hexadecimais no fim (a cor)   → 28 caracteres
 //
 // O desenho é refeito a partir do código, então nada de imagem no banco e dá para editar depois.
 // Decodificar valida cada posição: um código adulterado ou desconhecido vira null (o app usa o avatar padrão).
@@ -15,6 +16,7 @@ export const AVATAR_CODE_PREFIX = 'pulyn1-';
 const LIST_LENGTH = 13;
 const FLAGS_LENGTH = 2;
 export const AVATAR_CODE_LENGTH = AVATAR_CODE_PREFIX.length + LIST_LENGTH + FLAGS_LENGTH;
+const CUSTOM_BG_LENGTH = 6;
 
 type ListField = Exclude<keyof AvatarConfig, 'look' | 'shape' | 'glasses' | 'lashes' | 'chibi' | 'blush' | 'freckles' | 'earring'>;
 const values = (list: readonly { value: string }[]) => list.map(item => item.value);
@@ -54,12 +56,19 @@ export function encodeAvatar(config: AvatarConfig): string {
     code += (index < 0 ? 0 : index).toString(36);
   }
   const mask = FLAGS.reduce((bits, flag, bit) => (config[flag.key] ? bits | (1 << bit) : bits), 0);
-  return code + mask.toString(36).padStart(FLAGS_LENGTH, '0');
+  code += mask.toString(36).padStart(FLAGS_LENGTH, '0');
+  // Fundo fora da paleta (cor personalizada): a cor vai no fim do código
+  if (!BG_COLORS.includes(config.bg) && /^#[0-9a-f]{6}$/i.test(config.bg)) code += config.bg.slice(1).toLowerCase();
+  return code;
 }
 
 export function decodeAvatar(code: unknown): AvatarConfig | null {
-  if (!isAvatarCode(code) || code.length !== AVATAR_CODE_LENGTH) return null;
-  const body = code.slice(AVATAR_CODE_PREFIX.length);
+  if (!isAvatarCode(code)) return null;
+  const comCorPropria = code.length === AVATAR_CODE_LENGTH + CUSTOM_BG_LENGTH;
+  if (code.length !== AVATAR_CODE_LENGTH && !comCorPropria) return null;
+  const corPropria = comCorPropria ? code.slice(AVATAR_CODE_LENGTH) : null;
+  if (corPropria !== null && !/^[0-9a-f]{6}$/.test(corPropria)) return null;
+  const body = code.slice(AVATAR_CODE_PREFIX.length, AVATAR_CODE_LENGTH);
   const config: AvatarConfig = { ...DEFAULT_AVATAR_CONFIG };
   for (let i = 0; i < FIELDS.length; i += 1) {
     const [key, list] = FIELDS[i];
@@ -70,7 +79,15 @@ export function decodeAvatar(code: unknown): AvatarConfig | null {
   const mask = parseInt(body.slice(LIST_LENGTH), 36);
   if (!Number.isInteger(mask) || mask >= 1 << FLAGS.length) return null;
   FLAGS.forEach((flag, bit) => { config[flag.key] = Boolean(mask & (1 << bit)); });
+  if (corPropria) config.bg = `#${corPropria}`;
   return config;
+}
+
+// Cor de fundo do avatar montado (#RRGGBB em maiúsculas); null se não for um código válido.
+// É também a cor do participante nos mapas e rankings.
+export function corDoAvatar(code: unknown): string | null {
+  const config = decodeAvatar(code);
+  return config ? config.bg.toUpperCase() : null;
 }
 
 const pick = <T,>(list: readonly T[]): T => list[Math.floor(Math.random() * list.length)];
