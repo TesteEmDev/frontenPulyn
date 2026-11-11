@@ -8,6 +8,7 @@ import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
+import Select from '../../components/ui/Select';
 import StatusDot from '../../components/ui/StatusDot';
 import Avatar from '../../components/ui/Avatar';
 import AvatarBuilder from '../../components/ui/AvatarBuilder';
@@ -17,6 +18,14 @@ import { ADVENTURER_AVATARS } from '../../avatar/adventurerAvatars';
 import { corDoAvatar, isAvatarCode, newAvatarCode } from '../../avatar/builder/code';
 import { useAvatarUnico, MENSAGEM_AVATAR_REPETIDO } from '../../hooks/useAvatarUnico';
 import { CHAVE_RASCUNHO_CHECKIN, lerAvatarRascunho, salvarAvatarRascunho } from '../../avatar/builder/rascunho';
+
+// Quem trouxe a criança: os de família e também outras pessoas de confiança
+const PARENTESCOS = [
+  'Pai', 'Mãe', 'Padrasto', 'Madrasta', 'Avô', 'Avó', 'Tio', 'Tia', 'Irmão', 'Irmã', 'Primo(a)',
+  'Padrinho', 'Madrinha', 'Responsável legal', 'Professor(a)', 'Vizinho(a)', 'Amigo(a) da família',
+  'Babá / cuidador(a)', 'Outro',
+];
+const PARENTESCO_OPCOES = [{ value: '', label: 'Selecione…' }, ...PARENTESCOS.map(valor => ({ value: valor, label: valor }))];
 
 const normalizeUid = (value: string) => value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
 
@@ -46,6 +55,7 @@ export default function ReceptionCheckin() {
     nickname: '',
     nascimento: '',   // AAAA-MM-DD
     responsavel: '',  // nome do pai ou responsável
+    parentesco: '',   // grau de parentesco / relação com a criança
     // O personagem em montagem fica salvo no aparelho: atualizar a página não perde o avatar
     avatar: lerAvatarRascunho(CHAVE_RASCUNHO_CHECKIN),
   }));
@@ -202,6 +212,10 @@ export default function ReceptionCheckin() {
       showToast('Preencha o nome do pai ou responsável.', 'error');
       return;
     }
+    if (!form.parentesco) {
+      showToast('Escolha o grau de parentesco do responsável.', 'error');
+      return;
+    }
     const erroDaData = erroNascimentoSemLimite(form.nascimento || null);
     if (erroDaData) {
       showToast(erroDaData, 'error');
@@ -233,6 +247,7 @@ export default function ReceptionCheckin() {
         apelido: form.nickname.trim() || form.name.trim().split(/\s+/)[0],
         dataNascimento: form.nascimento,
         nomeResponsavel: form.responsavel.trim(),
+        parentescoResponsavel: form.parentesco,
         avatar: form.avatar,
         // A cor do participante é a cor de fundo do avatar
         cor: corDoAvatar(form.avatar) ?? undefined,
@@ -242,7 +257,7 @@ export default function ReceptionCheckin() {
 
       showToast(`${form.name.trim()} foi cadastrado(a)${normalizedCode ? ' e a pulseira foi vinculada' : ' (sem pulseira por enquanto)'}.`);
       reiniciarAvatar();
-      setForm({ name: '', nickname: '', nascimento: '', responsavel: '', avatar: newAvatarCode() });
+      setForm({ name: '', nickname: '', nascimento: '', responsavel: '', parentesco: '', avatar: newAvatarCode() });
       clearBracelet();
       carregarAvatares();
     } catch (error: unknown) {
@@ -261,6 +276,7 @@ export default function ReceptionCheckin() {
     !selectedEventId && 'escolha o evento',
     !form.name.trim() && 'informe o nome',
     !form.responsavel.trim() && 'informe o nome do pai ou responsável',
+    !form.parentesco && 'escolha o grau de parentesco',
     erroDaDataAtual && (form.nascimento ? erroDaDataAtual.replace(/\.$/, '').toLowerCase() : 'informe a data de nascimento'),
     avatarRepetido && 'mude alguma peça do avatar (já existe um igual)',
     Boolean(braceletCode) && braceletStatus === 'registered' && 'a pulseira lida já está vinculada: aproxime outra',
@@ -412,7 +428,10 @@ export default function ReceptionCheckin() {
                   <Input label="Apelido" placeholder="Ex: Pedrinho" value={form.nickname} onChange={handleChange('nickname')} />
                   <Input label="Data de nascimento *" type="date" max={hojeIso()} value={form.nascimento} onChange={handleChange('nascimento')} />
                 </div>
-                <Input label="Nome do pai ou responsável *" placeholder="Ex: Carlos Almeida" value={form.responsavel} onChange={handleChange('responsavel')} />
+                <div className="grid gap-3 sm:grid-cols-[1fr_220px]">
+                  <Input label="Nome do pai ou responsável *" placeholder="Ex: Carlos Almeida" value={form.responsavel} onChange={handleChange('responsavel')} />
+                  <Select label="Parentesco *" options={PARENTESCO_OPCOES} value={form.parentesco} onChange={e => setForm(previous => ({ ...previous, parentesco: e.target.value }))} />
+                </div>
 
                 {/* Desktop: a foto do personagem fica embaixo dos dados; no lado direito ficam só as peças. */}
                 <div className="hidden min-h-0 lg:flex lg:min-h-[150px] lg:flex-1">
@@ -448,7 +467,7 @@ export default function ReceptionCheckin() {
               variant="primary"
               size="lg"
               onClick={handleSubmit}
-              disabled={!selectedEventId || !form.name.trim() || !form.responsavel.trim() || Boolean(erroNascimentoSemLimite(form.nascimento || null)) || (Boolean(braceletCode) && braceletStatus === 'registered') || avatarRepetido || saving}
+              disabled={!selectedEventId || !form.name.trim() || !form.responsavel.trim() || !form.parentesco || Boolean(erroNascimentoSemLimite(form.nascimento || null)) || (Boolean(braceletCode) && braceletStatus === 'registered') || avatarRepetido || saving}
               className="w-full"
             >
               {saving ? 'Cadastrando participante...' : braceletCode ? 'Cadastrar participante e vincular pulseira' : 'Cadastrar participante sem pulseira'}
