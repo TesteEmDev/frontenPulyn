@@ -15,6 +15,7 @@ import { mascaraData, dataDeDigitos, erroNascimentoSemLimite, idadeDeNascimento 
 import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
 import { corDoAvatar, decodeAvatar, newAvatarCode } from '../../avatar/builder/code';
 import { useAvatarUnico, MENSAGEM_AVATAR_REPETIDO } from '../../hooks/useAvatarUnico';
+import { CHAVE_RASCUNHO_KIOSK, lerAvatarRascunho, salvarAvatarRascunho } from '../../avatar/builder/rascunho';
 import StatusDot from '../../components/ui/StatusDot';
 import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
 import VirtualKeyboardOtimizado from '../../components/ui/VirtualKeyboardOtimizado';
@@ -130,7 +131,9 @@ export default function ReceptionKioskOtimizado() {
   const [braceletCode, setBraceletCode] = useState('');
   // nascimento: os dígitos da data (DDMMAAAA); aparece como dd/mm/aaaa
   // avatar: código do personagem montado pela criança (cada um é único, não há "avatar já escolhido")
-  const [form, setForm] = useState(() => ({ name: '', nickname: '', nascimento: '', avatar: newAvatarCode() }));
+  // O personagem em montagem fica salvo no aparelho: atualizar a página não perde o avatar
+  const [form, setForm] = useState(() => ({ name: '', nickname: '', nascimento: '', avatar: lerAvatarRascunho(CHAVE_RASCUNHO_KIOSK) }));
+  useEffect(() => { salvarAvatarRascunho(CHAVE_RASCUNHO_KIOSK, form.avatar); }, [form.avatar]);
   const [successData, setSuccessData] = useState<{ name: string; avatar: string; returning: boolean } | null>(null);
   const [mode, setMode] = useState<KioskMode>('choose');
   const [newStep, setNewStep] = useState<NewStep>('avatar');

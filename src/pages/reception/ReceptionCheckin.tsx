@@ -16,6 +16,7 @@ import { erroNascimentoSemLimite, hojeIso } from '../../utils/nascimento';
 import { ADVENTURER_AVATARS } from '../../avatar/adventurerAvatars';
 import { corDoAvatar, isAvatarCode, newAvatarCode } from '../../avatar/builder/code';
 import { useAvatarUnico, MENSAGEM_AVATAR_REPETIDO } from '../../hooks/useAvatarUnico';
+import { CHAVE_RASCUNHO_CHECKIN, lerAvatarRascunho, salvarAvatarRascunho } from '../../avatar/builder/rascunho';
 
 const normalizeUid = (value: string) => value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
 
@@ -46,7 +47,8 @@ export default function ReceptionCheckin() {
     name: '',
     nickname: '',
     nascimento: '',   // AAAA-MM-DD
-    avatar: newAvatarCode(),
+    // O personagem em montagem fica salvo no aparelho: atualizar a página não perde o avatar
+    avatar: lerAvatarRascunho(CHAVE_RASCUNHO_CHECKIN),
   }));
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [braceletCode, setBraceletCode] = useState('');
@@ -160,6 +162,7 @@ export default function ReceptionCheckin() {
 
   // Avatares que os outros participantes do evento já usam: ficam indisponíveis e o cadastro começa num livre
   const [avataresEmUso, setAvataresEmUso] = useState<string[]>([]);
+  useEffect(() => { salvarAvatarRascunho(CHAVE_RASCUNHO_CHECKIN, form.avatar); }, [form.avatar]);
   const trocarAvatar = useCallback((avatar: string) => setForm(previous => ({ ...previous, avatar })), []);
   const { repetido: avatarRepetido, marcarEscolhido: marcarAvatarEscolhido, reiniciar: reiniciarAvatar } = useAvatarUnico(avataresEmUso, form.avatar, trocarAvatar);
   const carregarAvatares = useCallback(async () => {
