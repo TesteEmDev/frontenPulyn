@@ -200,10 +200,6 @@ export default function ReceptionCheckin() {
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    if (!selectedEventId) {
-      showToast('Selecione um evento antes de cadastrar.', 'error');
-      return;
-    }
     if (!form.name.trim()) {
       showToast('Preencha o nome da criança.', 'error');
       return;
@@ -227,7 +223,8 @@ export default function ReceptionCheckin() {
     try {
       // A pulseira é opcional: sem ela o participante é cadastrado e a pulseira pode ser vinculada depois
       let normalizedCode: string | null = null;
-      if (braceletCode) {
+      // Sem evento escolhido não há pulseira para vincular: o cadastro fica salvo e a criança se vincula depois
+      if (selectedEventId && braceletCode) {
         normalizedCode = normalizeUid(braceletCode);
         const pulseiras = await api.getPulseiras();
         let pulseira = pulseiras.find(item => normalizeUid(String(item.codigo || '')) === normalizedCode);
@@ -242,20 +239,27 @@ export default function ReceptionCheckin() {
         }
       }
 
-      await api.createCrianca(selectedEventId, {
+      const dados = {
         nome: form.name.trim(),
         apelido: form.nickname.trim() || form.name.trim().split(/\s+/)[0],
         dataNascimento: form.nascimento,
         nomeResponsavel: form.responsavel.trim(),
         parentescoResponsavel: form.parentesco,
         avatar: form.avatar,
-        // A cor do participante é a cor de fundo do avatar
-        cor: corDoAvatar(form.avatar) ?? undefined,
-        ...(normalizedCode ? { braceletCode: normalizedCode } : {}),
-      });
+      };
+      if (selectedEventId) {
+        await api.createCrianca(selectedEventId, {
+          ...dados,
+          // A cor do participante é a cor de fundo do avatar
+          cor: corDoAvatar(form.avatar) ?? undefined,
+          ...(normalizedCode ? { braceletCode: normalizedCode } : {}),
+        });
+      } else {
+        await api.createPerfilCrianca(dados);
+      }
       await loadChildren();
 
-      showToast(`${form.name.trim()} foi cadastrado(a)${normalizedCode ? ' e a pulseira foi vinculada' : ' (sem pulseira por enquanto)'}.`);
+      showToast(`${form.name.trim()} foi cadastrado(a)${!selectedEventId ? '. Ela se vincula ao evento depois, pelo autoatendimento' : normalizedCode ? ' e a pulseira foi vinculada' : ' (sem pulseira por enquanto)'}.`);
       reiniciarAvatar();
       setForm({ name: '', nickname: '', nascimento: '', responsavel: '', parentesco: '', avatar: newAvatarCode() });
       clearBracelet();
@@ -273,7 +277,6 @@ export default function ReceptionCheckin() {
   // O que ainda impede o cadastro (aparece embaixo do botão, que fica desativado enquanto algo faltar)
   const erroDaDataAtual = erroNascimentoSemLimite(form.nascimento || null);
   const pendencias = [
-    !selectedEventId && 'escolha o evento',
     !form.name.trim() && 'informe o nome',
     !form.responsavel.trim() && 'informe o nome do pai ou responsável',
     !form.parentesco && 'escolha o grau de parentesco',
@@ -306,13 +309,13 @@ export default function ReceptionCheckin() {
             title="Check-in"
             stackBelow="lg"
             compact
-            description="Confira a pulseira e cadastre o participante no evento"
+            description="Cadastre o participante e, se houver evento, vincule a pulseira"
             action={
               <div className="relative w-full max-w-md lg:w-80 xl:w-96">
                 {/* Alerta curto: por cima do seletor em telas largas (não aumenta a altura do cabeçalho) */}
                 {events.length === 0 && (
                   <p className="mb-1 truncate rounded-md border border-warning/30 bg-warning/10 px-2 py-0.5 text-[10px] leading-tight text-warning lg:absolute lg:inset-x-0 lg:bottom-full lg:mb-1" role="status">
-                    Nenhum evento aberto. Peça ao admin para criar um.
+                    Nenhum evento aberto: o cadastro fica salvo e a criança se vincula depois.
                   </p>
                 )}
                 <div className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-dark-card/70 px-3 py-1.5">
@@ -334,7 +337,7 @@ export default function ReceptionCheckin() {
                     }}
                     className="min-w-0 flex-1 rounded-lg border border-dark-border bg-dark-surface px-3 py-1.5 text-sm text-white focus:border-primary focus:outline-none"
                   >
-                    <option value="">Selecione um evento</option>
+                    <option value="">Sem evento (só cadastro)</option>
                     {events.map(event => (
                       <option key={event.eventoId} value={event.eventoId}>
                         {event.nome} - {new Date(event.data).toLocaleDateString('pt-BR')}
@@ -467,7 +470,7 @@ export default function ReceptionCheckin() {
               variant="primary"
               size="lg"
               onClick={handleSubmit}
-              disabled={!selectedEventId || !form.name.trim() || !form.responsavel.trim() || !form.parentesco || Boolean(erroNascimentoSemLimite(form.nascimento || null)) || (Boolean(braceletCode) && braceletStatus === 'registered') || avatarRepetido || saving}
+              disabled={!form.name.trim() || !form.responsavel.trim() || !form.parentesco || Boolean(erroNascimentoSemLimite(form.nascimento || null)) || (Boolean(braceletCode) && braceletStatus === 'registered') || avatarRepetido || saving}
               className="w-full"
             >
               {saving ? 'Cadastrando participante...' : braceletCode ? 'Cadastrar participante e vincular pulseira' : 'Cadastrar participante sem pulseira'}

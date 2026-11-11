@@ -17,6 +17,7 @@ import Modal from '../../components/ui/Modal';
 import QRCodeModal from '../../components/ui/QRCodeModal';
 import StatusDot from '../../components/ui/StatusDot';
 import { avisar } from '../../components/ui/dialogo';
+import ListaCadastros, { type ModoLista } from './ListaCadastros';
 
 type FilterTab = 'all' | 'with-bracelet' | 'without-bracelet' | 'by-team';
 
@@ -47,6 +48,9 @@ export default function ReceptionParticipants() {
   const [selectedTeam, setSelectedTeam] = useState<string>('');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [events, setEvents] = useState<any[]>([]);
+  // 'todos' / 'sem': lista dos cadastros permanentes das crianças (sem um evento escolhido)
+  const [modoLista, setModoLista] = useState<ModoLista | null>(null);
+  const [totalLista, setTotalLista] = useState<number | null>(null);
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
   const [teamsData, setTeamsData] = useState<Team[]>([]);
@@ -115,6 +119,9 @@ export default function ReceptionParticipants() {
         });
         if (eventToSelect) {
           setEventoAtual(eventToSelect.eventoId);
+        } else {
+          // Sem evento rolando: mostra os cadastros de todas as crianças
+          setModoLista(modo => modo ?? 'todos');
         }
       } catch (err) {
         console.error('❌ Erro ao carregar eventos:', err);
@@ -443,7 +450,9 @@ export default function ReceptionParticipants() {
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Participantes"
-            description={`${children.length} crianças cadastradas`}
+            description={modoLista
+              ? `${totalLista ?? 0} ${modoLista === 'sem' ? 'crianças cadastradas sem evento' : 'crianças cadastradas (todos os eventos)'}`
+              : `${children.length} crianças cadastradas`}
             icon={
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -451,31 +460,39 @@ export default function ReceptionParticipants() {
             }
           />
 
-          {/* Seletor de Evento */}
-          {events.length > 0 && (
-            <Card>
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-semibold text-gray-300 whitespace-nowrap">Evento:</label>
-                <select
-                  value={selectedEventId || ''}
-                  onChange={e => {
-                    setSelectedEventId(e.target.value);
-                    setEventoAtual(e.target.value);
-                  }}
-                  className="flex-1 px-4 py-2 rounded-lg bg-dark-surface border border-dark-border text-white focus:outline-none focus:border-primary"
-                >
-                  <option value="">Selecione um evento</option>
-                  {events.map(event => (
-                    <option key={event.eventoId} value={event.eventoId}>
-                      {event.nome} - {new Date(event.data).toLocaleDateString('pt-BR')}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </Card>
-          )}
+          {/* Seletor de Evento: um evento, todos os eventos ou só quem foi cadastrado sem evento */}
+          <Card>
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-semibold text-gray-300 whitespace-nowrap">Evento:</label>
+              <select
+                value={modoLista ?? selectedEventId ?? ''}
+                onChange={e => {
+                  const valor = e.target.value;
+                  if (valor === 'todos' || valor === 'sem') {
+                    setModoLista(valor);
+                    return;
+                  }
+                  setModoLista(null);
+                  setSelectedEventId(valor);
+                  setEventoAtual(valor);
+                }}
+                className="flex-1 px-4 py-2 rounded-lg bg-dark-surface border border-dark-border text-white focus:outline-none focus:border-primary"
+              >
+                <option value="">Selecione um evento</option>
+                <option value="todos">Todos os eventos (mostra o último evento de cada criança)</option>
+                <option value="sem">Sem evento (só cadastro)</option>
+                {events.map(event => (
+                  <option key={event.eventoId} value={event.eventoId}>
+                    {event.nome} - {new Date(event.data).toLocaleDateString('pt-BR')}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </Card>
 
-          {!selectedEventId ? (
+          {modoLista ? (
+            <ListaCadastros modo={modoLista} onContagem={setTotalLista} />
+          ) : !selectedEventId ? (
             <Card className="flex flex-col items-center justify-center py-16 text-center">
               <span className="text-5xl mb-4">📅</span>
               <h3 className="font-display text-lg text-white mb-2">Nenhum evento selecionado</h3>
