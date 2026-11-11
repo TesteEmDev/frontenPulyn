@@ -81,9 +81,11 @@ function hairBack(s: AvatarConfig){
 const CURLS: Array<[number, number, number]> = [[105,135,40],[150,98,42],[205,86,44],[258,98,42],[298,135,40],[92,185,34],[308,185,34],[175,125,36],[230,125,36]];
 function hairFront(s: AvatarConfig){
   const base = hairFrontBase(s);
+  // O brilho (risco branco) é só do Careca, na própria cabeça; os outros penteados não têm brilho
+  if (s.hairStyle === 'bald') return `<path d="M 136 114 Q 156 94 192 88" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="11" stroke-linecap="round"/><circle cx="122" cy="132" r="5" fill="#fff" fill-opacity=".5"/>`;
   if (!base) return '';
   const strands = ['M 140 70 Q 122 108 128 150','M 205 58 Q 196 100 204 146','M 262 70 Q 280 108 272 150'].map(d=>`<path d="${d}" fill="none" stroke="#000" stroke-opacity=".13" stroke-width="5" stroke-linecap="round"/>`).join('');
-  return base + `<clipPath id="gh">${base}</clipPath><g clip-path="url(#gh)"><rect x="40" y="30" width="320" height="170" fill="url(#gl)"/>${strands}<path d="M 118 112 Q 140 84 182 74" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="11" stroke-linecap="round"/><circle cx="104" cy="140" r="5" fill="#fff" fill-opacity=".5"/></g>`;
+  return base + `<clipPath id="gh">${base}</clipPath><g clip-path="url(#gh)"><rect x="40" y="30" width="320" height="170" fill="url(#gl)"/>${strands}</g>`;
 }
 function acc(s: AvatarConfig){
   const c = s.accColor, f = `fill="${c}" ${K}`;
@@ -118,7 +120,7 @@ function hairFrontBase(s: AvatarConfig){
       const stroked = CURLS.map(([x,y,r])=>`<circle cx="${x}" cy="${y}" r="${r}" fill="${s.hair}" stroke="${INK}" stroke-width="10"/>`).join('');
       const fills = CURLS.map(([x,y,r])=>`<circle cx="${x}" cy="${y}" r="${r}" fill="${s.hair}"/>`).join('');
       // espiral e brilho em cada cacho
-      const swirl = CURLS.map(([x,y,r])=>`<path d="M ${x-r*.5} ${y+r*.15} C ${x-r*.5} ${y-r*.6} ${x+r*.5} ${y-r*.6} ${x+r*.45} ${y} C ${x+r*.4} ${y+r*.45} ${x-r*.1} ${y+r*.45} ${x-r*.05} ${y+r*.08}" fill="none" stroke="${mix(s.hair,'#000000',.3)}" stroke-width="4.5" stroke-linecap="round"/><circle cx="${x-r*.35}" cy="${y-r*.5}" r="${r*.13}" fill="#fff" fill-opacity=".35"/>`).join('');
+      const swirl = CURLS.map(([x,y,r])=>`<path d="M ${x-r*.5} ${y+r*.15} C ${x-r*.5} ${y-r*.6} ${x+r*.5} ${y-r*.6} ${x+r*.45} ${y} C ${x+r*.4} ${y+r*.45} ${x-r*.1} ${y+r*.45} ${x-r*.05} ${y+r*.08}" fill="none" stroke="${mix(s.hair,'#000000',.3)}" stroke-width="4.5" stroke-linecap="round"/>`).join('');
       return stroked + fills + swirl;
     }
     // Chanel e longo: franja reta, com repartido de mechas
