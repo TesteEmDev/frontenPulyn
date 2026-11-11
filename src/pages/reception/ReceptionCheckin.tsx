@@ -34,8 +34,6 @@ const isOpenEvent = (event: any) => !CLOSED_EVENT_STATUSES.includes(String(event
 
 export default function ReceptionCheckin() {
   const {
-    teams = [],
-    loadTeams,
     loadChildren,
     loadEventos,
     eventoAtualId,
@@ -50,7 +48,6 @@ export default function ReceptionCheckin() {
     // O personagem em montagem fica salvo no aparelho: atualizar a página não perde o avatar
     avatar: lerAvatarRascunho(CHAVE_RASCUNHO_CHECKIN),
   }));
-  const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [braceletCode, setBraceletCode] = useState('');
   const [braceletStatus, setBraceletStatus] = useState<BraceletStatus>('idle');
   const [lastReadAt, setLastReadAt] = useState<Date | null>(null);
@@ -185,17 +182,6 @@ export default function ReceptionCheckin() {
     return () => window.clearInterval(timer);
   }, [selectedEventId, carregarAvatares]);
 
-  useEffect(() => {
-    if (!selectedEventId) {
-      setSelectedTeam(null);
-      return;
-    }
-    loadTeams().catch(error => {
-      console.error('Erro ao carregar times:', error);
-      showToast('Não foi possível carregar os times do evento.', 'error');
-    });
-  }, [selectedEventId, loadTeams, showToast]);
-
   const handleChange = useCallback((field: 'name' | 'nickname' | 'nascimento') => (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -245,15 +231,12 @@ export default function ReceptionCheckin() {
         // A cor do participante é a cor de fundo do avatar
         cor: corDoAvatar(form.avatar) ?? undefined,
         ...(normalizedCode ? { braceletCode: normalizedCode } : {}),
-        ...(selectedTeam ? { timeId: selectedTeam } : {}),
       });
-      await Promise.all([loadTeams(), loadChildren()]);
+      await loadChildren();
 
-      const teamName = selectedTeam ? teams.find(team => String(team.id) === String(selectedTeam))?.name || 'time selecionado' : null;
-      showToast(`${form.name.trim()} foi cadastrado(a)${teamName ? ` no ${teamName}` : ' sem time'}${normalizedCode ? ' e a pulseira foi vinculada' : ' (sem pulseira por enquanto)'}.`);
+      showToast(`${form.name.trim()} foi cadastrado(a)${normalizedCode ? ' e a pulseira foi vinculada' : ' (sem pulseira por enquanto)'}.`);
       reiniciarAvatar();
       setForm({ name: '', nickname: '', nascimento: '', avatar: newAvatarCode() });
-      setSelectedTeam(null);
       clearBracelet();
       carregarAvatares();
     } catch (error: unknown) {
@@ -264,7 +247,7 @@ export default function ReceptionCheckin() {
     } finally {
       setSaving(false);
     }
-  }, [braceletCode, carregarAvatares, clearBracelet, form, loadChildren, loadTeams, saving, selectedEventId, selectedTeam, showToast, teams]);
+  }, [braceletCode, carregarAvatares, clearBracelet, form, loadChildren, saving, selectedEventId, showToast]);
 
   // O que ainda impede o cadastro (aparece embaixo do botão, que fica desativado enquanto algo faltar)
   const erroDaDataAtual = erroNascimentoSemLimite(form.nascimento || null);
@@ -297,7 +280,7 @@ export default function ReceptionCheckin() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 lg:p-6">
           <PageHeader
-            title="Check-in de pulseiras"
+            title="Check-in"
             stackBelow="lg"
             compact
             description="Confira a pulseira e cadastre o participante no evento"
@@ -423,31 +406,6 @@ export default function ReceptionCheckin() {
                   <Input label="Data de nascimento *" type="date" max={hojeIso()} value={form.nascimento} onChange={handleChange('nascimento')} />
                 </div>
 
-                <div>
-                  <h3 className="mb-2 text-sm font-semibold text-gray-200">Escolha o time <span className="font-normal text-gray-400">(opcional: clique de novo para tirar)</span></h3>
-                  {teams.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-                      {teams.map(team => {
-                        const isSelected = String(selectedTeam) === String(team.id);
-                        return (
-                          <button
-                            key={team.id}
-                            type="button"
-                            onClick={() => setSelectedTeam(isSelected ? null : team.id)}
-                            className={`rounded-xl border px-3 py-2 text-left transition lg:flex lg:items-center lg:gap-2 ${isSelected ? 'ring-2 ring-primary/70' : 'border-white/10 hover:border-primary/60'}`}
-                            style={{ borderColor: isSelected ? team.color : undefined, backgroundColor: isSelected ? `${team.color || '#8b5cf6'}22` : undefined }}
-                          >
-                            <span className="block h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: team.color || '#8b5cf6' }} />
-                            <span className="mt-2 block truncate lg:mt-0 text-sm font-semibold text-white">{team.name}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">Nenhum time cadastrado para este evento. Você pode cadastrar o participante mesmo assim.</p>
-                  )}
-                </div>
-
                 {/* Desktop: a foto do personagem fica embaixo dos dados; no lado direito ficam só as peças. */}
                 <div className="hidden min-h-0 lg:flex lg:min-h-[150px] lg:flex-1">
                   <AvatarPreview fill className="w-full" value={form.avatar} onChange={avatar => setForm(previous => ({ ...previous, avatar }))} />
@@ -491,7 +449,7 @@ export default function ReceptionCheckin() {
           </Card>
 
           <p className="hidden shrink-0 text-center text-xs text-gray-500 [@media(min-height:960px)]:block">
-            O cadastro também pode ser realizado no Kiosk. Nesta tela, a recepção pode cadastrar nome, avatar, data de nascimento, time e pulseira.
+            O cadastro também pode ser realizado no Kiosk. Nesta tela, a recepção pode cadastrar nome, avatar, data de nascimento e pulseira.
           </p>
           </div>
 
