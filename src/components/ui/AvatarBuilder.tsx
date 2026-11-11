@@ -81,7 +81,7 @@ const LAYOUT = {
     hint: 'text-[11px] leading-snug text-gray-400 sm:text-center sm:text-xs',
     random: 'w-full rounded-full bg-gradient-to-r from-fuchsia-500 to-violet-500 px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_6px_16px_rgba(168,85,247,0.45)] transition hover:brightness-110 active:scale-95 disabled:opacity-50 sm:py-3',
     tabsBox: 'sticky top-[88px] z-10 -mx-1 mb-3 bg-[#0a1226]/95 px-1 pb-2 pt-1 backdrop-blur max-sm:[@media(max-height:520px)]:static sm:static sm:bg-transparent sm:p-0 sm:backdrop-blur-none',
-    tabs: 'flex snap-x gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:overflow-visible',
+    tabs: 'flex snap-x gap-2.5 overflow-x-auto px-0.5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:overflow-visible',
     tab: 'sm:min-w-[72px] sm:px-3 sm:py-2',
     tabIcon: 'text-lg sm:text-xl',
     list: 'space-y-5 sm:max-h-[min(62dvh,600px)] sm:overflow-y-auto sm:overscroll-contain sm:rounded-3xl sm:border sm:border-white/[0.07] sm:bg-white/[0.03] sm:p-3 sm:scrollbar-thin sm:scrollbar-thumb-primary/50 sm:scrollbar-track-white/5',
@@ -96,8 +96,8 @@ const LAYOUT = {
     side: 'flex min-w-0 flex-1 flex-col gap-1.5',
     hint: 'text-[11px] leading-snug text-gray-400',
     random: 'w-full rounded-full bg-gradient-to-r from-fuchsia-500 to-violet-500 px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_6px_16px_rgba(168,85,247,0.45)] transition hover:brightness-110 active:scale-95 disabled:opacity-50',
-    tabsBox: 'mb-0 shrink-0',
-    tabs: 'flex snap-x gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+    tabsBox: 'mb-2.5 shrink-0',
+    tabs: 'flex snap-x gap-2.5 overflow-x-auto px-0.5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
     tab: '',
     tabIcon: 'text-lg',
     list: 'min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain rounded-3xl border border-white/[0.07] bg-white/[0.03] p-3 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5',
@@ -111,8 +111,8 @@ const LAYOUT = {
     side: 'flex min-w-0 flex-1 flex-col gap-1.5',
     hint: 'text-[11px] leading-snug text-gray-400',
     random: 'w-full rounded-full bg-gradient-to-r from-fuchsia-500 to-violet-500 px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_6px_16px_rgba(168,85,247,0.45)] transition hover:brightness-110 active:scale-95 disabled:opacity-50',
-    tabsBox: 'mb-3',
-    tabs: 'flex snap-x gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+    tabsBox: 'mb-3.5',
+    tabs: 'flex snap-x gap-2.5 overflow-x-auto px-0.5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
     tab: '',
     tabIcon: 'text-lg',
     list: 'max-h-[50dvh] space-y-5 overflow-y-auto overscroll-contain rounded-3xl border border-white/[0.07] bg-white/[0.03] p-3 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5',
@@ -248,13 +248,16 @@ function AvatarBuilder({ value, onChange, disabled = false, className = '', layo
 
         {/* Peças da aba: no celular a própria página rola; em telas largas a lista tem rolagem própria */}
         <div className={L.list}>
-          {tab.sections.map(section => (
+          {tab.sections.map((section, indice) => (
             <section key={section.title}>
+              {/* A primeira seção só repete o nome da aba (já clicado): sem título. As demais (cor, nariz, fundo...) ficam com ele. */}
+              {indice > 0 && (
               <h4 className="mb-2.5 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.2em] text-fuchsia-200">
                 <span aria-hidden="true" className="h-3.5 w-1 rounded-full bg-gradient-to-b from-fuchsia-300 to-violet-400" />
                 {section.title}
                 <span aria-hidden="true" className="h-px flex-1 bg-gradient-to-r from-fuchsia-300/30 to-transparent" />
               </h4>
+              )}
               {section.kind === 'options' && (
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-2.5">
                   {section.options.map(option => (
