@@ -161,29 +161,29 @@ const Thumb = memo(function Thumb({ config, selected, label, disabled, onPick }:
   );
 });
 
-// Botão "cor personalizada": abre o seletor de cor do Pulyn (SeletorDeCor). A cor escolhida vira o fundo do avatar (e a cor do participante).
+// Botão "cor personalizada": abre ali mesmo, embaixo, uma roda de cores (SeletorDeCor). A cor vale na hora e vira o fundo do
+// avatar (e a cor do participante). Tocar de novo no botão recolhe a roda.
 function CorPersonalizada({ value, selecionada, disabled, onChange }: { value: string; selecionada: boolean; disabled: boolean; onChange: (cor: string) => void }) {
   const [aberto, setAberto] = useState(false);
   return (
     <>
       <button
         type="button"
-        onClick={() => setAberto(true)}
+        onClick={() => setAberto(atual => !atual)}
         disabled={disabled}
-        aria-haspopup="dialog"
+        aria-expanded={aberto}
         className={`flex h-11 items-center gap-2 rounded-full border-2 px-3 text-xs font-bold text-white transition active:scale-95 disabled:opacity-50 ${
-          selecionada ? 'border-white ring-4 ring-fuchsia-300/60' : 'border-white/30'
+          selecionada || aberto ? 'border-white ring-4 ring-fuchsia-300/60' : 'border-white/30'
         }`}
         style={selecionada ? { backgroundColor: value } : { background: 'conic-gradient(#ef4444, #eab308, #22c55e, #06b6d4, #8b5cf6, #ec4899, #ef4444)' }}
       >
-        <span className="rounded-full bg-black/55 px-2 py-0.5">🎨 Cor personalizada</span>
+        <span className="rounded-full bg-black/55 px-2 py-0.5">🎨 Cor personalizada {aberto ? '▴' : '▾'}</span>
       </button>
-      <SeletorDeCor
-        aberto={aberto}
-        valor={/^#[0-9a-f]{6}$/i.test(value) ? value : '#6ec6ff'}
-        onFechar={() => setAberto(false)}
-        onUsar={cor => { onChange(cor.toLowerCase()); setAberto(false); }}
-      />
+      {aberto && (
+        <div className="basis-full">
+          <SeletorDeCor valor={/^#[0-9a-f]{6}$/i.test(value) ? value : '#6ec6ff'} onChange={cor => onChange(cor.toLowerCase())} disabled={disabled} className="animate-slide-up" />
+        </div>
+      )}
     </>
   );
 }

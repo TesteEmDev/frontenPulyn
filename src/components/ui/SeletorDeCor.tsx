@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-// Seletor de cor do Pulyn: no lugar da janela padrão do navegador, um painel próprio com uma roda de cores (o giro escolhe a cor,
-// a distância do centro escolhe a intensidade), faixa de brilho, campo de código, cores rápidas e pré-visualização. A cor só vale ao tocar em "Usar esta cor".
+// Roda de cores do Pulyn: sobe ali mesmo, embaixo do botão "Cor personalizada", sem janela no meio da tela.
+// O giro escolhe a cor, a distância do centro escolhe a intensidade e a faixa de baixo escolhe o brilho.
+// A cor vale na hora (não há botão de confirmar).
 
 interface Hsv { h: number; s: number; v: number }
 
@@ -30,44 +31,31 @@ function hsvParaHex({ h, s, v }: Hsv): string {
   return `#${hex(r)}${hex(g)}${hex(b)}`;
 }
 
-// Cores rápidas: vivas e fáceis de escolher com o dedo
-const CORES_RAPIDAS = [
-  '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4',
-  '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#f43f5e', '#ffffff', '#111827',
-];
-
 interface Props {
-  aberto: boolean;
+  /** Cor atual (#rrggbb) */
   valor: string;
-  titulo?: string;
-  onUsar: (cor: string) => void;
-  onFechar: () => void;
+  /** Chamado a cada mudança, com a nova cor (#rrggbb) */
+  onChange: (cor: string) => void;
+  disabled?: boolean;
+  className?: string;
 }
 
-export default function SeletorDeCor({ aberto, valor, titulo = 'Escolha a cor do fundo', onUsar, onFechar }: Props) {
+export default function SeletorDeCor({ valor, onChange, disabled = false, className = '' }: Props) {
   const [hsv, setHsv] = useState<Hsv>(() => hexParaHsv(valor));
-  const [texto, setTexto] = useState(valor.toLowerCase());
   const area = useRef<HTMLDivElement>(null);
   const cor = hsvParaHex(hsv);
 
-  // Ao abrir, começa da cor atual do avatar
+  // Se a cor mudou por fora (ex.: o personagem sorteado), acompanha; mudanças que vieram daqui não mexem no giro da roda
   useEffect(() => {
-    if (!aberto) return;
-    setHsv(hexParaHsv(valor));
-    setTexto(valor.toLowerCase());
-  }, [aberto, valor]);
-
-  useEffect(() => {
-    if (!aberto) return undefined;
-    const aoTeclar = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar(); };
-    document.addEventListener('keydown', aoTeclar);
-    return () => document.removeEventListener('keydown', aoTeclar);
-  }, [aberto, onFechar]);
+    if (valor.toLowerCase() !== hsvParaHex(hsv)) setHsv(hexParaHsv(valor));
+    // só quando a cor de fora muda
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valor]);
 
   const mudar = useCallback((novo: Hsv) => {
     setHsv(novo);
-    setTexto(hsvParaHex(novo));
-  }, []);
+    onChange(hsvParaHex(novo));
+  }, [onChange]);
 
   // Roda: o ângulo (de cima, no sentido horário) é a cor; a distância do centro é a intensidade
   const arrastar = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -75,12 +63,11 @@ export default function SeletorDeCor({ aberto, valor, titulo = 'Escolha a cor do
     if (!caixa) return;
     const dx = e.clientX - (caixa.left + caixa.width / 2);
     const dy = e.clientY - (caixa.top + caixa.height / 2);
-    const raio = caixa.width / 2;
     const angulo = (Math.atan2(dx, -dy) * 180) / Math.PI;
-    mudar({ ...hsv, h: Math.round((angulo + 360) % 360), s: clamp(Math.hypot(dx, dy) / raio, 0, 1) });
+    mudar({ ...hsv, h: Math.round((angulo + 360) % 360), s: clamp(Math.hypot(dx, dy) / (caixa.width / 2), 0, 1) });
   };
 
-  const aoTeclarNaRoda = (e: React.KeyboardEvent) => {
+  const aoTeclar = (e: React.KeyboardEvent) => {
     const passo = e.shiftKey ? 10 : 3;
     if (e.key === 'ArrowLeft') mudar({ ...hsv, h: (hsv.h - passo + 360) % 360 });
     else if (e.key === 'ArrowRight') mudar({ ...hsv, h: (hsv.h + passo) % 360 });
@@ -90,120 +77,47 @@ export default function SeletorDeCor({ aberto, valor, titulo = 'Escolha a cor do
     e.preventDefault();
   };
 
-  const aoDigitar = (valorDigitado: string) => {
-    const limpo = valorDigitado.trim().toLowerCase().replace(/[^#0-9a-f]/g, '').slice(0, 7);
-    setTexto(limpo);
-    if (/^#[0-9a-f]{6}$/.test(limpo)) setHsv(hexParaHsv(limpo));
-  };
-
-  if (!aberto) return null;
-
-  const claro = hsv.v > 0.8 && hsv.s < 0.25;
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center p-3 sm:items-center" role="dialog" aria-modal="true" aria-label={titulo}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onFechar} />
-      <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-3xl border border-fuchsia-300/25 bg-gradient-to-b from-[#1b1240] to-[#0a1226] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:p-5">
-        {/* Faixa de cor ao vivo no topo */}
-        <div className="absolute inset-x-0 top-0 h-1.5 transition-colors" style={{ backgroundColor: cor }} aria-hidden="true" />
-
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="font-display text-lg text-white">🎨 {titulo}</h3>
-          <button type="button" onClick={onFechar} aria-label="Fechar" className="rounded-full bg-white/10 px-2.5 py-1 text-sm text-gray-300 transition hover:bg-white/20 hover:text-white">✕</button>
-        </div>
-
-        {/* Roda de cores */}
-        <div
-          ref={area}
-          role="slider"
-          tabIndex={0}
-          aria-label="Cor e intensidade"
-          aria-valuetext={`Cor ${cor}`}
-          aria-valuenow={Math.round(hsv.h)}
-          aria-valuemin={0}
-          aria-valuemax={360}
-          onKeyDown={aoTeclarNaRoda}
-          onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); arrastar(e); }}
-          onPointerMove={e => { if (e.currentTarget.hasPointerCapture(e.pointerId)) arrastar(e); }}
-          className="relative mx-auto aspect-square w-full max-w-[220px] cursor-crosshair touch-none select-none rounded-full border-4 border-white/25 shadow-[0_8px_26px_rgba(0,0,0,0.5)] focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300"
-          style={{ backgroundImage: 'radial-gradient(circle closest-side, #fff, rgba(255,255,255,0)), conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)' }}
-        >
-          {/* Escurece a roda conforme o brilho */}
-          <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-full bg-black" style={{ opacity: 1 - hsv.v }} />
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow-[0_0_0_2px_rgba(0,0,0,0.35),0_4px_10px_rgba(0,0,0,0.5)]"
-            style={{
-              left: `${50 + hsv.s * 50 * Math.sin((hsv.h * Math.PI) / 180)}%`,
-              top: `${50 - hsv.s * 50 * Math.cos((hsv.h * Math.PI) / 180)}%`,
-              backgroundColor: cor,
-            }}
-          />
-        </div>
-
-        {/* Brilho: do escuro até a cor escolhida */}
-        <label className="mt-4 block text-[10px] font-bold uppercase tracking-[0.2em] text-fuchsia-200">
-          Brilho
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={Math.round(hsv.v * 100)}
-            onChange={e => mudar({ ...hsv, v: Number(e.target.value) / 100 })}
-            aria-label="Brilho"
-            className="seletor-cor-matiz mt-1.5 h-4 w-full cursor-pointer appearance-none rounded-full"
-            style={{ background: `linear-gradient(to right, #000, ${hsvParaHex({ ...hsv, v: 1 })})` }}
-          />
-        </label>
-
-        {/* Cores rápidas */}
-        <div className="mt-4 grid grid-cols-8 gap-2" role="group" aria-label="Cores rápidas">
-          {CORES_RAPIDAS.map(rapida => (
-            <button
-              key={rapida}
-              type="button"
-              onClick={() => mudar(hexParaHsv(rapida))}
-              aria-label={`Cor ${rapida}`}
-              aria-pressed={rapida === cor}
-              style={{ backgroundColor: rapida }}
-              className={`aspect-square rounded-full border-2 transition hover:scale-110 active:scale-90 ${rapida === cor ? 'border-white ring-2 ring-fuchsia-300/70' : 'border-white/25'}`}
-            />
-          ))}
-        </div>
-
-        {/* Pré-visualização e código */}
-        <div className="mt-4 flex items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border-2 border-white/40 shadow-md transition-colors" style={{ backgroundColor: cor }} aria-hidden="true">
-            <span className={`text-lg ${claro ? 'text-black/50' : 'text-white/70'}`}>🎨</span>
-          </div>
-          <label className="flex min-w-0 flex-1 flex-col gap-1 text-[10px] font-bold uppercase tracking-[0.2em] text-fuchsia-200">
-            Código da cor
-            <input
-              type="text"
-              value={texto}
-              onChange={e => aoDigitar(e.target.value)}
-              spellCheck={false}
-              autoComplete="off"
-              maxLength={7}
-              aria-label="Código da cor"
-              className="w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 font-mono text-sm normal-case tracking-normal text-white focus:border-fuchsia-300 focus:outline-none"
-            />
-          </label>
-        </div>
-
-        <div className="mt-5 flex gap-3">
-          <button type="button" onClick={onFechar} className="flex-1 rounded-full border border-white/15 px-4 py-3 text-sm font-bold text-gray-300 transition hover:bg-white/10 hover:text-white">
-            Cancelar
-          </button>
-          <button
-            type="button"
-            // Sem mexer: devolve a cor exatamente como veio (a conversão para HSV arredonda 1 ponto em algumas cores)
-            onClick={() => onUsar(hsvParaHex(hexParaHsv(valor)) === cor ? valor : cor)}
-            className="flex-[1.4] rounded-full bg-gradient-to-r from-fuchsia-500 to-violet-500 px-4 py-3 text-sm font-extrabold text-white shadow-[0_6px_18px_rgba(168,85,247,0.5)] transition hover:brightness-110 active:scale-95"
-          >
-            Usar esta cor
-          </button>
-        </div>
+    <div className={`flex flex-col items-center gap-3 rounded-3xl border border-fuchsia-300/25 bg-gradient-to-b from-[#1b1240]/80 to-[#0a1226]/80 p-3 ${disabled ? 'pointer-events-none opacity-50' : ''} ${className}`}>
+      <div
+        ref={area}
+        role="slider"
+        tabIndex={0}
+        aria-label="Cor e intensidade"
+        aria-valuetext={`Cor ${cor}`}
+        aria-valuenow={Math.round(hsv.h)}
+        aria-valuemin={0}
+        aria-valuemax={360}
+        onKeyDown={aoTeclar}
+        onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); arrastar(e); }}
+        onPointerMove={e => { if (e.currentTarget.hasPointerCapture(e.pointerId)) arrastar(e); }}
+        className="relative aspect-square w-full max-w-[200px] cursor-crosshair touch-none select-none rounded-full border-4 border-white/25 shadow-[0_8px_22px_rgba(0,0,0,0.5)] focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300"
+        style={{ backgroundImage: 'radial-gradient(circle closest-side, #fff, rgba(255,255,255,0)), conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)' }}
+      >
+        {/* Escurece a roda conforme o brilho */}
+        <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-full bg-black" style={{ opacity: 1 - hsv.v }} />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow-[0_0_0_2px_rgba(0,0,0,0.35),0_4px_10px_rgba(0,0,0,0.5)]"
+          style={{
+            left: `${50 + hsv.s * 50 * Math.sin((hsv.h * Math.PI) / 180)}%`,
+            top: `${50 - hsv.s * 50 * Math.cos((hsv.h * Math.PI) / 180)}%`,
+            backgroundColor: cor,
+          }}
+        />
       </div>
+
+      {/* Brilho: do escuro até a cor escolhida */}
+      <input
+        type="range"
+        min={0}
+        max={100}
+        value={Math.round(hsv.v * 100)}
+        onChange={e => mudar({ ...hsv, v: Number(e.target.value) / 100 })}
+        aria-label="Brilho"
+        className="seletor-cor-matiz h-4 w-full max-w-[200px] cursor-pointer appearance-none rounded-full"
+        style={{ background: `linear-gradient(to right, #000, ${hsvParaHex({ ...hsv, v: 1 })})` }}
+      />
     </div>
   );
 }
