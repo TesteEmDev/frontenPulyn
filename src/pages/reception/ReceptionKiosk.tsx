@@ -143,6 +143,11 @@ export default function ReceptionKioskOtimizado() {
     () => typeof window === 'undefined' || window.matchMedia('(min-width: 768px)').matches,
   );
   const [profileSearch, setProfileSearch] = useState('');
+  // Data de nascimento da busca (dígitos DDMMAAAA): só aparece o cadastro com nome e data iguais
+  const [searchBirth, setSearchBirth] = useState('');
+  // Nome do pai ou responsável: o cadastro só aparece com nome, data de nascimento e responsável iguais
+  const [searchParent, setSearchParent] = useState('');
+  const [searchFocus, setSearchFocus] = useState<'text' | 'parent' | 'birth'>('text');
   const [profileResults, setProfileResults] = useState<KioskProfile[]>([]);
   const [profileLoading, setProfileLoading] = useState(false);
   // Falha na busca (rede, permissão, rota) — sem isso ela parecia "não encontrado".
@@ -157,6 +162,10 @@ export default function ReceptionKioskOtimizado() {
   
   // DEBOUNCE para evitar renders rápidos
   const debouncedProfileSearch = useDebounce(profileSearch, 300);
+  const debouncedSearchParent = useDebounce(searchParent, 300);
+  const searchBirthIso = dataDeDigitos(searchBirth);
+  const searchBirthError = searchBirth.length === 8 ? erroNascimentoSemLimite(searchBirthIso) : '';
+  const searchBirthValid = searchBirth.length === 8 && Boolean(searchBirthIso) && !searchBirthError;
 
   const nascimentoIso = dataDeDigitos(form.nascimento);
   const erroDoNascimento = form.nascimento.length === 8 ? erroNascimentoSemLimite(nascimentoIso) : '';
@@ -482,6 +491,21 @@ export default function ReceptionKioskOtimizado() {
     setProfileSearch(value);
   }, []);
 
+  const handleSearchBirthChange = useCallback((value: string) => {
+    setSelectedProfile(null);
+    setSearchBirth(value.replace(/\D/g, '').slice(0, 8));
+  }, []);
+
+  const handleSearchNumberKey = useCallback((key: string) => {
+    if (!canInteract || state === 'saving') return;
+    setSelectedProfile(null);
+    setSearchBirth(prev => {
+      if (key === '⌫') return prev.slice(0, -1);
+      if (prev.length >= 8) return prev;
+      return `${prev}${key}`;
+    });
+  }, [canInteract, state]);
+
   // Teclado da tela: digita no campo que está em foco (nome completo ou apelido).
   const handleVirtualKey = useCallback((key: string) => {
     if (!canInteract || state === 'saving') return;
@@ -509,13 +533,16 @@ export default function ReceptionKioskOtimizado() {
   const handleSearchKey = useCallback((key: string) => {
     if (!canInteract || state === 'saving') return;
     setSelectedProfile(null);
-    setProfileSearch(prev => {
+    const limite = searchFocus === 'parent' ? 40 : 24;
+    const digitar = (prev: string) => {
       if (key === '⌫') return prev.slice(0, -1);
-      if (prev.length >= 24) return prev;
+      if (prev.length >= limite) return prev;
       if (key === 'ESPAÇO') return prev && !prev.endsWith(' ') ? `${prev} ` : prev;
       return `${prev}${key}`;
-    });
-  }, [canInteract, state]);
+    };
+    if (searchFocus === 'parent') setSearchParent(digitar);
+    else setProfileSearch(digitar);
+  }, [canInteract, searchFocus, state]);
 
   // Enter no teclado envia o formulário (os botões de ação continuam funcionando).
   const handleFormSubmit = useCallback((event: FormEvent) => {
@@ -528,6 +555,9 @@ export default function ReceptionKioskOtimizado() {
     setNewStep('avatar');
     setSelectedProfile(null);
     setProfileSearch('');
+    setSearchBirth('');
+    setSearchParent('');
+    setSearchFocus('text');
     setProfileResults([]);
   }, []);
 
@@ -557,7 +587,8 @@ export default function ReceptionKioskOtimizado() {
   useEffect(() => {
     if (mode !== 'existing' || !selectedEventId) return;
     const term = debouncedProfileSearch.trim();
-    if (term.length < 2) {
+    const parent = debouncedSearchParent.trim();
+    if (term.length < 2 || parent.length < 2 || !searchBirthValid || !searchBirthIso) {
       setProfileResults([]);
       setProfileLoading(false);
       setProfileError(null);
@@ -566,7 +597,7 @@ export default function ReceptionKioskOtimizado() {
     let active = true;
     setProfileLoading(true);
     setProfileError(null);
-    api.searchKioskProfiles(selectedEventId, term)
+    api.searchKioskProfiles(selectedEventId, term, searchBirthIso, parent)
       .then(result => { if (active) setProfileResults(Array.isArray(result) ? result : []); })
       .catch((err: unknown) => {
         if (!active) return;
@@ -576,7 +607,7 @@ export default function ReceptionKioskOtimizado() {
       })
       .finally(() => { if (active) setProfileLoading(false); });
     return () => { active = false; };
-  }, [debouncedProfileSearch, mode, selectedEventId]);
+  }, [debouncedProfileSearch, debouncedSearchParent, mode, selectedEventId, searchBirthValid, searchBirthIso]);
 
   // LOADING STATE
   if (loading) {
@@ -804,7 +835,7 @@ export default function ReceptionKioskOtimizado() {
 
             {/* CADASTRO - APENAS QUANDO VISÍVEL */}
             {registrationVisible && (
-              <div className="animate-in motion-reduce:animate-none relative z-10 grid gap-3 rounded-[2rem] border border-fuchsia-300/20 bg-[#0c1328] p-2 shadow-xl sm:p-5 lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:grid-cols-[minmax(260px,0.72fr)_minmax(420px,1.28fr)] lg:p-3">
+              <div className="animate-in motion-reduce:animate-none relative z-10 grid grid-cols-1 gap-3 rounded-[2rem] border border-fuchsia-300/20 bg-[#0c1328] p-2 shadow-xl sm:p-5 lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:grid-cols-[minmax(260px,0.72fr)_minmax(420px,1.28fr)] lg:p-3">
                 {mode === 'choose' && (
                   <section className="flex flex-col items-center justify-center gap-6 rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-6 text-center shadow-lg sm:p-10 lg:col-span-2">
                     <div>
@@ -851,7 +882,7 @@ export default function ReceptionKioskOtimizado() {
                   <>
                     {newStep === 'avatar' ? (
                       /* ETAPA 1: AVATAR */
-                      <section className="flex flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-4 shadow-lg backdrop-blur sm:p-5 lg:col-span-2">
+                      <section className="flex min-w-0 flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-4 shadow-lg backdrop-blur sm:p-5 lg:col-span-2">
                         <div className="mb-4 flex items-center justify-between gap-3 border-b border-cyan-300/10 pb-3">
                           <div>
                             <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">
@@ -869,6 +900,7 @@ export default function ReceptionKioskOtimizado() {
                           value={form.avatar}
                           onChange={handleAvatarChange}
                           disabled={!canInteract}
+                          duasLinhas
                         />
                         {avatarRepetido && <p role="alert" className="mt-2 rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-200">{MENSAGEM_AVATAR_REPETIDO}</p>}
                       </section>
@@ -968,7 +1000,7 @@ export default function ReceptionKioskOtimizado() {
                       </section>
                     )}
 
-                    <section className="rounded-[1.75rem] border border-white/[0.1] bg-dark-card/90 p-4 shadow-lg backdrop-blur sm:p-5 lg:col-span-2">
+                    <section className="sticky bottom-0 z-20 rounded-[1.75rem] border border-white/[0.1] bg-[#0f1a33] p-4 shadow-lg sm:p-5 lg:col-span-2">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex gap-2">
                           <button
@@ -1018,13 +1050,13 @@ export default function ReceptionKioskOtimizado() {
                 {mode === 'existing' && (
                   <>
                     {/* BUSCA */}
-                    <section className="flex flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-4 shadow-lg backdrop-blur sm:p-5 lg:p-3">
+                    <section className="flex min-w-0 flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-4 shadow-lg backdrop-blur sm:p-5 lg:p-3">
                       <div className="mb-3 border-b border-cyan-300/10 pb-3">
                         <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">
                           Já tenho cadastro
                         </p>
                         <h3 className="mt-1 font-display text-2xl font-bold text-white">
-                          Digite seu apelido ou nome
+                          Digite seu apelido ou nome, a data de nascimento e o nome do seu pai ou responsável
                         </h3>
                       </div>
                       <input
@@ -1032,6 +1064,7 @@ export default function ReceptionKioskOtimizado() {
                         value={profileSearch}
                         onChange={event => handleSearchChange(event.target.value)}
                         maxLength={24}
+                        onFocus={() => setSearchFocus('text')}
                         placeholder="Toque e digite para procurar"
                         aria-label="Apelido ou nome"
                         autoComplete="off"
@@ -1041,13 +1074,51 @@ export default function ReceptionKioskOtimizado() {
                         disabled={!canInteract || state === 'saving'}
                         className="mb-3 block min-h-[58px] w-full min-w-0 rounded-2xl border-2 border-cyan-300/50 bg-[#050d1c] px-4 text-center font-display text-xl text-white placeholder:text-sm placeholder:font-normal placeholder:text-gray-500 focus:border-cyan-200 focus:outline-none focus:ring-4 focus:ring-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-50"
                       />
+                      <label className="mb-3 block min-w-0">
+                        <span className={KIOSK_LABEL_CLASS}>Nome do pai ou responsável</span>
+                        <input
+                          type="text"
+                          value={searchParent}
+                          onChange={event => { setSelectedProfile(null); setSearchParent(event.target.value.slice(0, 40)); }}
+                          onFocus={() => setSearchFocus('parent')}
+                          maxLength={40}
+                          placeholder="Ex.: Carlos Almeida"
+                          autoComplete="off"
+                          autoCapitalize="words"
+                          inputMode={screenKeyboard ? 'none' : 'text'}
+                          aria-label="Nome do pai ou responsável"
+                          disabled={!canInteract || state === 'saving'}
+                          className={kioskInputClass(searchFocus === 'parent')}
+                        />
+                      </label>
+                      <label className="mb-3 block min-w-0">
+                        <span className={KIOSK_LABEL_CLASS}>Data de nascimento</span>
+                        <input
+                          type="text"
+                          inputMode={screenKeyboard ? 'none' : 'numeric'}
+                          pattern="[0-9/]*"
+                          value={mascaraData(searchBirth)}
+                          onChange={event => handleSearchBirthChange(event.target.value)}
+                          onFocus={() => setSearchFocus('birth')}
+                          placeholder="dd/mm/aaaa"
+                          autoComplete="off"
+                          aria-label="Data de nascimento"
+                          disabled={!canInteract || state === 'saving'}
+                          className={kioskInputClass(searchFocus === 'birth')}
+                        />
+                        {searchBirthError && <span className="mt-1 block text-xs text-danger">{searchBirthError}</span>}
+                      </label>
                       <div className="mb-2 flex justify-end">{screenKeyboardToggle}</div>
                       {screenKeyboard && (
-                        <VirtualKeyboardOtimizado
-                          onKeyPress={handleSearchKey}
-                          disabled={!canInteract || state === 'saving'}
-                          compact={true}
-                        />
+                        searchFocus === 'birth' ? (
+                          <KioskNumberPad onKeyPress={handleSearchNumberKey} disabled={!canInteract || state === 'saving'} />
+                        ) : (
+                          <VirtualKeyboardOtimizado
+                            onKeyPress={handleSearchKey}
+                            disabled={!canInteract || state === 'saving'}
+                            compact={true}
+                          />
+                        )
                       )}
                     </section>
 
@@ -1076,6 +1147,7 @@ export default function ReceptionKioskOtimizado() {
                               value={form.avatar}
                           onChange={handleAvatarChange}
                           disabled={!canInteract || state === 'saving'}
+                          duasLinhas
                         />
                             {avatarRepetido && <p role="alert" className="mt-2 rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-200">{MENSAGEM_AVATAR_REPETIDO}</p>}
                           </div>
@@ -1130,11 +1202,15 @@ export default function ReceptionKioskOtimizado() {
                             <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-gray-400">
                               {profileSearch.trim().length < 2
                                 ? 'Digite pelo menos 2 letras do seu apelido ou nome.'
+                                : !searchBirthValid
+                                ? 'Digite também a data de nascimento (dia, mês e ano).'
+                                : searchParent.trim().length < 2
+                                ? 'Digite também o nome do seu pai ou responsável.'
                                 : profileLoading
                                 ? 'Procurando...'
                                 : profileError
                                 ? <span className="text-rose-300">Não foi possível buscar agora ({profileError}). Confira a conexão e digite de novo.</span>
-                                : 'Não encontramos esse cadastro. Confira as letras ou volte e escolha "Sou novo!".'}
+                                : 'Não encontramos esse cadastro. Confira o nome, a data de nascimento e o nome do pai ou responsável, ou volte e escolha "Sou novo!".'}
                             </div>
                           )}
                         </>
