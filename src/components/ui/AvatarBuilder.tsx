@@ -263,7 +263,8 @@ function AvatarBuilder({ value, onChange, disabled = false, className = '', layo
         </div>
 
         {/* Peças da aba: no celular a própria página rola; em telas largas a lista tem rolagem própria */}
-        <div className={L.list}>
+        {/* duasLinhas (autoatendimento): altura fixa em todas as abas, para a lista não crescer nem encolher ao trocar de aba; o que passar disso rola dentro dela */}
+        <div className={`${L.list} ${duasLinhas ? 'h-[min(62dvh,600px)] overflow-y-auto overscroll-contain' : ''}`}>
           {tab.sections.map(section => (
             <section key={section.title}>
               {!section.semTitulo && (
