@@ -29,7 +29,7 @@ const TABS: ReadonlyArray<{ id: string; label: string; icon: string; sections: r
   { id: 'face', label: 'Rosto', icon: '🙂', sections: [
     { kind: 'options', key: 'face', title: 'Formato do rosto', options: FACES, semTitulo: true },
     { kind: 'colors', key: 'skin', title: 'Cor da pele', colors: SKIN_COLORS },
-    { kind: 'flags', title: 'Detalhes do rosto', keys: ['blush', 'freckles', 'mole', 'bandaid'] },
+    { kind: 'flags', title: 'Detalhes do rosto', keys: ['blush', 'freckles', 'mole', 'bandaid', 'chibi'] },
   ] },
   { id: 'hair', label: 'Cabelo', icon: '💇', sections: [
     { kind: 'options', key: 'hairStyle', title: 'Penteado', options: HAIR_STYLES, semTitulo: true },
@@ -58,9 +58,8 @@ const TABS: ReadonlyArray<{ id: string; label: string; icon: string; sections: r
     { kind: 'options', key: 'earringStyle', title: 'Brinco', options: EARRINGS },
     { kind: 'colors', key: 'gearColor', title: 'Cor dos acessórios', colors: CLOTH_COLORS },
   ] },
-  { id: 'extras', label: 'Extras', icon: '✨', sections: [
-    { kind: 'flags', title: 'Detalhes', keys: ['chibi'], semTitulo: true },
-    { kind: 'colors', key: 'bg', title: 'Cor do fundo', colors: BG_COLORS },
+  { id: 'extras', label: 'Fundo', icon: '🎨', sections: [
+    { kind: 'colors', key: 'bg', title: 'Cor do fundo', colors: BG_COLORS, semTitulo: true },
   ] },
 ];
 
