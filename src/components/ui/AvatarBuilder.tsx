@@ -10,46 +10,55 @@ import {
 } from '../../avatar/builder/code';
 import type { AvatarConfig } from '../../avatar/builder/config';
 import {
-  ACCESSORIES, BG_COLORS, CLOTHES, CLOTH_COLORS, EYES, EYE_COLORS, FACES, FLAGS, HAIR_COLORS, HAIR_STYLES,
-  MOUTHS, NOSES, SKIN_COLORS, type FlagKey, type Option,
+  ACCESSORIES, BG_COLORS, CLOTHES, CLOTH_COLORS, EARRINGS, EYES, EYE_COLORS, FACES, FLAGS, GLASSES, HAIR_COLORS, HAIR_STYLES,
+  MOUTHS, NECKLACES, NOSES, SKIN_COLORS, type FlagKey, type Option,
 } from '../../avatar/builder/parts';
 
 // Cada aba mostra grupos de peças (miniaturas) e grupos de cores.
-type OptionKey = 'face' | 'hairStyle' | 'eyes' | 'mouth' | 'nose' | 'cloth' | 'acc';
-type ColorKey = 'skin' | 'hair' | 'eyeColor' | 'clothColor' | 'accColor' | 'bg';
+type OptionKey = 'face' | 'hairStyle' | 'eyes' | 'mouth' | 'nose' | 'cloth' | 'acc' | 'glassesStyle' | 'neck' | 'earringStyle';
+type ColorKey = 'skin' | 'hair' | 'eyeColor' | 'clothColor' | 'accColor' | 'gearColor' | 'bg';
 
+// semTitulo: a seção só repetiria o nome da aba (ex.: aba Rosto > "Formato do rosto"), então o título some.
 type Section =
-  | { kind: 'options'; key: OptionKey; title: string; options: readonly Option[] }
-  | { kind: 'colors'; key: ColorKey; title: string; colors: readonly string[] }
-  | { kind: 'flags'; title: string };
+  | { kind: 'options'; key: OptionKey; title: string; options: readonly Option[]; semTitulo?: boolean }
+  | { kind: 'colors'; key: ColorKey; title: string; colors: readonly string[]; semTitulo?: boolean }
+  | { kind: 'flags'; title: string; keys: readonly FlagKey[]; semTitulo?: boolean };
 
 const TABS: ReadonlyArray<{ id: string; label: string; icon: string; sections: readonly Section[] }> = [
   { id: 'face', label: 'Rosto', icon: '🙂', sections: [
-    { kind: 'options', key: 'face', title: 'Formato do rosto', options: FACES },
+    { kind: 'options', key: 'face', title: 'Formato do rosto', options: FACES, semTitulo: true },
     { kind: 'colors', key: 'skin', title: 'Cor da pele', colors: SKIN_COLORS },
+    { kind: 'flags', title: 'Detalhes do rosto', keys: ['blush', 'freckles', 'mole', 'bandaid'] },
   ] },
   { id: 'hair', label: 'Cabelo', icon: '💇', sections: [
-    { kind: 'options', key: 'hairStyle', title: 'Penteado', options: HAIR_STYLES },
+    { kind: 'options', key: 'hairStyle', title: 'Penteado', options: HAIR_STYLES, semTitulo: true },
     { kind: 'colors', key: 'hair', title: 'Cor do cabelo', colors: HAIR_COLORS },
   ] },
   { id: 'eyes', label: 'Olhos', icon: '👀', sections: [
-    { kind: 'options', key: 'eyes', title: 'Olhos', options: EYES },
+    { kind: 'options', key: 'eyes', title: 'Olhos', options: EYES, semTitulo: true },
     { kind: 'colors', key: 'eyeColor', title: 'Cor dos olhos', colors: EYE_COLORS },
+    { kind: 'flags', title: 'Detalhes dos olhos', keys: ['lashes'] },
   ] },
   { id: 'mouth', label: 'Boca', icon: '👄', sections: [
-    { kind: 'options', key: 'mouth', title: 'Boca', options: MOUTHS },
+    { kind: 'options', key: 'mouth', title: 'Boca', options: MOUTHS, semTitulo: true },
     { kind: 'options', key: 'nose', title: 'Nariz', options: NOSES },
   ] },
   { id: 'cloth', label: 'Roupa', icon: '👕', sections: [
-    { kind: 'options', key: 'cloth', title: 'Roupa', options: CLOTHES },
+    { kind: 'options', key: 'cloth', title: 'Roupa', options: CLOTHES, semTitulo: true },
     { kind: 'colors', key: 'clothColor', title: 'Cor da roupa', colors: CLOTH_COLORS },
   ] },
   { id: 'acc', label: 'Chapéu', icon: '🎩', sections: [
-    { kind: 'options', key: 'acc', title: 'Acessório', options: ACCESSORIES },
-    { kind: 'colors', key: 'accColor', title: 'Cor do acessório', colors: CLOTH_COLORS },
+    { kind: 'options', key: 'acc', title: 'Chapéu e adereços de cabeça', options: ACCESSORIES, semTitulo: true },
+    { kind: 'colors', key: 'accColor', title: 'Cor do chapéu', colors: CLOTH_COLORS },
+  ] },
+  { id: 'gear', label: 'Acessórios', icon: '🕶️', sections: [
+    { kind: 'options', key: 'glassesStyle', title: 'Óculos', options: GLASSES },
+    { kind: 'options', key: 'neck', title: 'Colar e lenço', options: NECKLACES },
+    { kind: 'options', key: 'earringStyle', title: 'Brinco', options: EARRINGS },
+    { kind: 'colors', key: 'gearColor', title: 'Cor dos acessórios', colors: CLOTH_COLORS },
   ] },
   { id: 'extras', label: 'Extras', icon: '✨', sections: [
-    { kind: 'flags', title: 'Detalhes' },
+    { kind: 'flags', title: 'Detalhes', keys: ['chibi'], semTitulo: true },
     { kind: 'colors', key: 'bg', title: 'Cor do fundo', colors: BG_COLORS },
   ] },
 ];
@@ -248,10 +257,9 @@ function AvatarBuilder({ value, onChange, disabled = false, className = '', layo
 
         {/* Peças da aba: no celular a própria página rola; em telas largas a lista tem rolagem própria */}
         <div className={L.list}>
-          {tab.sections.map((section, indice) => (
+          {tab.sections.map(section => (
             <section key={section.title}>
-              {/* A primeira seção só repete o nome da aba (já clicado): sem título. As demais (cor, nariz, fundo...) ficam com ele. */}
-              {indice > 0 && (
+              {!section.semTitulo && (
               <h4 className="mb-2.5 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.2em] text-fuchsia-200">
                 <span aria-hidden="true" className="h-3.5 w-1 rounded-full bg-gradient-to-b from-fuchsia-300 to-violet-400" />
                 {section.title}
@@ -302,7 +310,7 @@ function AvatarBuilder({ value, onChange, disabled = false, className = '', layo
               )}
               {section.kind === 'flags' && (
                 <div className="flex flex-wrap gap-2">
-                  {FLAGS.map(flag => (
+                  {FLAGS.filter(flag => section.keys.includes(flag.key)).map(flag => (
                     <button
                       key={flag.key}
                       type="button"

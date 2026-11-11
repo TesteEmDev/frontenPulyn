@@ -110,19 +110,45 @@ export const ACCESSORIES: readonly Option[] = [
   { value: 'wizard', label: 'Chapéu de mago' },
 ];
 
+export const GLASSES: readonly Option[] = [
+  { value: 'none', label: 'Sem óculos' },
+  { value: 'round', label: 'Redondo' },
+  { value: 'square', label: 'Quadrado' },
+  { value: 'sun', label: 'Escuros' },
+  { value: 'heart', label: 'Coração' },
+  { value: 'star', label: 'Estrela' },
+];
+
+export const NECKLACES: readonly Option[] = [
+  { value: 'none', label: 'Nenhum' },
+  { value: 'chain', label: 'Corrente' },
+  { value: 'pearls', label: 'Pérolas' },
+  { value: 'medal', label: 'Medalha' },
+  { value: 'scarf', label: 'Cachecol' },
+  { value: 'bandana', label: 'Lenço' },
+];
+
+export const EARRINGS: readonly Option[] = [
+  { value: 'none', label: 'Sem brinco' },
+  { value: 'ball', label: 'Bolinha' },
+  { value: 'hoop', label: 'Argola' },
+  { value: 'star', label: 'Estrela' },
+  { value: 'pearl', label: 'Pérola' },
+];
+
 export const SKIN_COLORS: readonly string[] = ['#fbe0c8', '#f1c9a5', '#e8ac80', '#c98a5b', '#a0653b', '#6f4326'];
 export const HAIR_COLORS: readonly string[] = ['#3aaa35', '#111111', '#2b1b12', '#7a4a21', '#e0b341', '#d9d9d9', '#e04a8a', '#3b82f6', '#e8541c', '#7c3aed'];
 export const EYE_COLORS: readonly string[] = ['#6b3e26', '#2e8b57', '#3b82f6', '#7a7a7a', '#8e44ad', '#111111'];
 export const CLOTH_COLORS: readonly string[] = ['#e63946', '#2f6fed', '#2a9d8f', '#f4b400', '#8e44ad', '#ffffff', '#222222', '#ff7f50'];
 export const BG_COLORS: readonly string[] = ['#ffb300', '#6ec6ff', '#ff8fa3', '#8be28b', '#c3a6ff', '#ffe082', '#cfd8dc', '#ff7043', '#ffffff', '#1e9be8', '#2ca02c'];
 
-export type FlagKey = 'glasses' | 'lashes' | 'blush' | 'freckles' | 'earring' | 'chibi';
-// A ordem também faz parte do código salvo (cada flag é um bit).
+// Detalhes liga/desliga. A posição de cada um no código salvo (bits) fica em code.ts (FLAG_BITS), não aqui.
+export type FlagKey = 'lashes' | 'blush' | 'freckles' | 'mole' | 'bandaid' | 'chibi';
 export const FLAGS: readonly { readonly key: FlagKey; readonly label: string }[] = [
-  { key: 'glasses', label: 'Óculos' },
-  { key: 'lashes', label: 'Cílios' },
   { key: 'blush', label: 'Bochechas' },
   { key: 'freckles', label: 'Sardas' },
-  { key: 'earring', label: 'Brinco' },
+  { key: 'mole', label: 'Pinta' },
+  { key: 'bandaid', label: 'Curativo' },
+  { key: 'lashes', label: 'Cílios' },
   { key: 'chibi', label: 'Cabeça grande' },
 ];

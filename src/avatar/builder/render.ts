@@ -28,12 +28,28 @@ function faceShape(s: AvatarConfig): FaceShape{
     default:       return {earX:80, chin:318, fit:[1,1], svg:`<ellipse cx="200" cy="200" rx="122" ry="118" ${f}/>`};
   }
 }
+function starPoints(cx: number, cy: number, R: number, r: number){
+  const pts: string[] = [];
+  for (let i = 0; i < 10; i += 1){ const a = -Math.PI / 2 + i * Math.PI / 5, rad = i % 2 ? r : R; pts.push(`${(cx + Math.cos(a) * rad).toFixed(1)},${(cy + Math.sin(a) * rad).toFixed(1)}`); }
+  return pts.join(' ');
+}
+// Brinco no lóbulo da orelha (cx = centro da orelha)
+function earringShape(s: AvatarConfig, cx: number){
+  const gold = '#ffd54f';
+  switch(s.earringStyle){
+    case 'ball': return `<circle cx="${cx}" cy="243" r="7" fill="${gold}" ${K} stroke-width="3"/>`;
+    case 'hoop': return `<circle cx="${cx}" cy="255" r="12" fill="none" stroke="${gold}" stroke-width="5" data-k="1"/>`;
+    case 'star': return `<polygon points="${starPoints(cx, 250, 11, 5)}" fill="${gold}" ${K} stroke-width="3"/>`;
+    case 'pearl': return `<circle cx="${cx}" cy="246" r="7.5" fill="#fff" ${K} stroke-width="3"/><circle cx="${cx-2}" cy="243.5" r="2" fill="#dfe6ee"/>`;
+    default: return '';
+  }
+}
 function ears(s: AvatarConfig, x: number){
   const f = `fill="${s.skin}" ${K}`;
   const inner = (cx: number, d: number)=> s.look==='flat' ? `<ellipse cx="${cx+d*3}" cy="216" rx="9" ry="12" fill="${mix(s.skin,'#000000',.14)}"/>` : `<path d="M ${cx+d*4} 205 q ${d*8} 8 0 18" fill="none" ${K} stroke-width="3"/>`;
   let out = `<circle cx="${x}" cy="215" r="22" ${f}/><circle cx="${400-x}" cy="215" r="22" ${f}/>`;
   out += inner(x,-1) + inner(400-x,1);
-  if (s.earring) out += `<circle cx="${400-x+2}" cy="243" r="7" fill="#ffd54f" ${K} stroke-width="3"/>`;
+  out += earringShape(s, x) + earringShape(s, 400 - x);
   return out;
 }
 const SHORT = `M 80 190 C 70 90 140 55 200 55 C 270 55 335 90 320 190 C 310 160 290 140 270 135 C 240 150 160 150 130 135 C 110 140 90 160 80 190 Z`;
@@ -122,6 +138,32 @@ function irisEye(s: AvatarConfig, cx: number, y: number, big: boolean){
   const rx = big ? 22 : 19, ry = big ? 26 : 21, ir = big ? 17 : 13.5, pr = big ? 8.5 : 6.5;
   return `<ellipse cx="${cx}" cy="${y}" rx="${rx}" ry="${ry}" fill="#fff" ${K} stroke-width="4"/><circle cx="${cx}" cy="${y+2}" r="${ir}" fill="url(#gi)"/><circle cx="${cx}" cy="${y+2}" r="${pr}" fill="${INK}"/><circle cx="${cx+5}" cy="${y-5}" r="${big ? 6 : 4.5}" fill="#fff"/><circle cx="${cx-5}" cy="${y+9}" r="${big ? 3 : 2}" fill="#fff" fill-opacity=".8"/><path d="M ${cx-rx} ${y-3} Q ${cx} ${y-(ry*2-3)} ${cx+rx} ${y-3}" fill="none" stroke="${INK}" stroke-width="4.5" stroke-linecap="round"/>` + (s.lashes ? `<path d="M ${cx+d*(rx-1)} ${y-6} L ${cx+d*(rx+8)} ${y-13} M ${cx+d*(rx+1)} ${y} L ${cx+d*(rx+10)} ${y-3}" fill="none" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>` : '');
 }
+// Óculos por cima dos olhos (a cor da armação vem de gearColor)
+function glassesLayer(s: AvatarConfig, L: number, R: number, y: number){
+  const c = s.gearColor;
+  const fr = `stroke="${c}" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" data-k="1"`;
+  const glass = 'fill="rgba(255,255,255,.25)"';
+  const bridge = (d: string) => `<path d="${d}" fill="none" ${fr}/>`;
+  switch(s.glassesStyle){
+    case 'round':
+      return `<circle cx="${L}" cy="${y}" r="34" ${glass} ${fr}/><circle cx="${R}" cy="${y}" r="34" ${glass} ${fr}/>` + bridge(`M ${L+34} ${y} L ${R-34} ${y}`);
+    case 'square':
+      return `<rect x="${L-37}" y="${y-28}" width="74" height="56" rx="13" ${glass} ${fr}/><rect x="${R-37}" y="${y-28}" width="74" height="56" rx="13" ${glass} ${fr}/>` + bridge(`M ${L+37} ${y-9} Q 200 ${y-17} ${R-37} ${y-9}`);
+    case 'sun': {
+      const lens = (cx: number) => `<path d="M ${cx-40} ${y-26} L ${cx+40} ${y-26} Q ${cx+45} ${y-26} ${cx+43} ${y-14} L ${cx+32} ${y+22} Q ${cx+27} ${y+31} ${cx+16} ${y+31} L ${cx-16} ${y+31} Q ${cx-27} ${y+31} ${cx-32} ${y+22} L ${cx-43} ${y-14} Q ${cx-45} ${y-26} ${cx-40} ${y-26} Z" fill="#15181e" fill-opacity=".92" ${fr}/><path d="M ${cx-26} ${y-15} L ${cx-8} ${y-15} L ${cx-22} ${y+7} Z" fill="#fff" fill-opacity=".28"/>`;
+      return lens(L) + lens(R) + bridge(`M ${L+42} ${y-18} Q 200 ${y-27} ${R-42} ${y-18}`);
+    }
+    case 'heart': {
+      const heart = (cx: number) => `<path d="M ${cx} ${y+27} C ${cx-54} ${y-6} ${cx-32} ${y-44} ${cx} ${y-15} C ${cx+32} ${y-44} ${cx+54} ${y-6} ${cx} ${y+27} Z" fill="rgba(255,105,140,.45)" ${fr}/>`;
+      return heart(L) + heart(R) + bridge(`M ${L+30} ${y-8} Q 200 ${y-16} ${R-30} ${y-8}`);
+    }
+    case 'star': {
+      const star = (cx: number) => `<polygon points="${starPoints(cx, y+1, 40, 18)}" fill="rgba(255,213,79,.5)" ${fr}/>`;
+      return star(L) + star(R) + bridge(`M ${L+30} ${y-4} Q 200 ${y-12} ${R-30} ${y-4}`);
+    }
+    default: return '';
+  }
+}
 function eyes(s: AvatarConfig){
   const L=150, R=250, y=205, out: string[]=[];
   const BC = s.look==='flat' ? mix(s.hair,'#2a1a12',.55) : INK;
@@ -158,7 +200,7 @@ function eyes(s: AvatarConfig){
       out.push(`<ellipse cx="${R}" cy="${y}" rx="26" ry="16" fill="#fff" ${K} stroke-width="4"/><ellipse cx="${R+10}" cy="${y}" rx="4" ry="9" fill="${INK}"/>`);
       out.push(brow(`M 108 172 L 180 194`,11), brow(`M 292 172 L 222 194`,11));
   }
-  if (s.glasses) out.push(`<circle cx="${L}" cy="${y}" r="34" data-k="1" fill="rgba(255,255,255,.25)" ${K} stroke-width="4"/><circle cx="${R}" cy="${y}" r="34" data-k="1" fill="rgba(255,255,255,.25)" ${K} stroke-width="4"/><path d="M ${L+34} ${y} L ${R-34} ${y}" ${K} stroke-width="4" fill="none"/>`);
+  out.push(glassesLayer(s, L, R, y));
   return out.join('');
 }
 function mouth(s: AvatarConfig){
@@ -183,8 +225,31 @@ function nose(s: AvatarConfig){
 function extras(s: AvatarConfig){
   let o = '';
   if (s.blush) o += `<ellipse cx="124" cy="244" rx="30" ry="20" fill="url(#gb)"/><ellipse cx="276" cy="244" rx="30" ry="20" fill="url(#gb)"/>`;
+  if (s.mole) o += `<circle cx="262" cy="262" r="4.5" fill="#4a2a18" opacity=".9"/>`;
+  if (s.bandaid) o += `<g transform="rotate(-28 132 254)"><rect x="104" y="244" width="56" height="20" rx="10" fill="#f6c9a0" stroke="#c9946a" stroke-width="2.5" data-k="1"/><rect x="124" y="244" width="16" height="20" fill="#ecb27f"/><circle cx="114" cy="254" r="1.8" fill="#c9946a"/><circle cx="150" cy="254" r="1.8" fill="#c9946a"/></g>`;
   if (s.freckles) o += [[165,236],[180,242],[155,246],[235,236],[220,242],[245,246]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="3" fill="#8a4b2a" opacity=".7"/>`).join('');
   return o;
+}
+// Colar, cachecol ou lenço: desenhado por cima da roupa (só aparece com roupa)
+function neckLayer(s: AvatarConfig){
+  const gold = '#ffd54f', c = s.gearColor;
+  const q = (t: number, a: number, b: number, d: number) => (1 - t) * (1 - t) * a + 2 * (1 - t) * t * b + t * t * d;
+  switch(s.neck){
+    case 'chain':
+      return `<path d="M 152 326 Q 200 392 248 326" fill="none" stroke="${gold}" stroke-width="7" stroke-dasharray="9 5" stroke-linecap="round" data-k="1"/><circle cx="200" cy="359" r="9" fill="${gold}" ${K} stroke-width="3"/>`;
+    case 'pearls': {
+      let o = '';
+      for (let i = 0; i <= 8; i += 1){ const t = i / 8; o += `<circle cx="${q(t,152,200,248).toFixed(1)}" cy="${q(t,326,386,326).toFixed(1)}" r="7.5" fill="#fff" stroke="#c9d1dc" stroke-width="2" data-k="1"/>`; }
+      return o;
+    }
+    case 'medal':
+      return `<path d="M 158 324 L 200 374 L 242 324" fill="none" stroke="#cfd8dc" stroke-width="5" stroke-linejoin="round" data-k="1"/><circle cx="200" cy="384" r="15" fill="${gold}" ${K} stroke-width="3.5"/><polygon points="${starPoints(200, 384, 9, 4)}" fill="#fff" fill-opacity=".85"/>`;
+    case 'scarf':
+      return `<path d="M 138 318 Q 200 356 262 318 L 270 348 Q 200 386 130 348 Z" fill="${c}" ${K}/><path d="M 148 330 Q 200 366 252 330" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="5" data-k="1"/><path d="M 228 356 L 256 414 L 222 420 L 206 366 Z" fill="${mix(c,'#000000',.15)}" ${K}/>`;
+    case 'bandana':
+      return `<path d="M 144 320 Q 200 350 256 320 L 200 396 Z" fill="${c}" ${K}/><circle cx="188" cy="352" r="3.5" fill="#fff" fill-opacity=".85"/><circle cx="212" cy="352" r="3.5" fill="#fff" fill-opacity=".85"/><circle cx="200" cy="370" r="3.5" fill="#fff" fill-opacity=".85"/>`;
+    default: return '';
+  }
 }
 const BASE = 'M 50 420 C 50 360 110 322 200 322 C 290 322 350 360 350 420 Z';
 function clothes(s: AvatarConfig){
@@ -281,7 +346,7 @@ export function renderAvatarSvg(s: AvatarConfig, only?: Set<string>){
   const shade = (flat && fb) ? `<clipPath id="fc">${fs.svg}</clipPath><clipPath id="gf" transform="translate(0 14) ${FT}">${fb}</clipPath><g clip-path="url(#fc)"><rect clip-path="url(#gf)" x="0" y="0" width="400" height="400" fill="#000" opacity=".1"/></g>` : '';
   const fit = (x: string) => `<g transform="${FT}">${x}</g>`;
   const inner = `<g transform="${HT}">${on('hairBack') ? fit(back) : ''}${withC && on('clothes') ? neck : ''}</g>
-${withC && on('clothes') ? `<g transform="translate(0 8)">${clothes(s)}${clothShade}</g>` : ''}
+${withC && on('clothes') ? `<g transform="translate(0 8)">${clothes(s)}${clothShade}${neckLayer(s)}</g>` : ''}
 <g transform="${HT}">${on('face') ? ears(s, fs.earX) + fs.svg + shade + fit(extras(s)) : ''}${on('nose') ? nose(s) : ''}${on('acc') ? fit(maskLayer(s)) : ''}${on('mouth') ? `<g transform="translate(200 272) scale(1.18) translate(-200 -272)">${mouth(s)}</g>` : ''}${on('eyes') ? `<g transform="translate(200 212) scale(1.28) translate(-200 -212)">${eyes(s)}</g>` : ''}${fit(hatDef + (on('hairFront') ? front : '') + (on('acc') ? acc(s) : ''))}</g>`;
   const circleContent = `<clipPath id="cc"><circle cx="200" cy="200" r="200"/></clipPath>${on('bg') ? '<circle cx="200" cy="200" r="200" fill="url(#gg)"/>' : ''}<g clip-path="url(#cc)"><g transform="translate(200 250) scale(1.04) translate(-200 -250)">${inner}</g></g>`;
   const popContent = `<clipPath id="cc"><circle cx="200" cy="232" r="166"/><rect x="0" y="0" width="400" height="232"/></clipPath>${on('bg') ? '<circle cx="200" cy="232" r="166" fill="url(#gg)"/>' : ''}<g clip-path="url(#cc)"><g transform="translate(200 250) scale(.88) translate(-200 -250)">${inner}</g></g>`;

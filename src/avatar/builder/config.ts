@@ -15,10 +15,15 @@ export interface AvatarConfig {
   bg: string;
   acc: string;
   accColor: string;
-  glasses: boolean;
+  // Acessórios (aba Acessórios): valores de parts.ts
+  glassesStyle: string;
+  neck: string;
+  earringStyle: string;
+  gearColor: string;
   lashes: boolean;
   chibi: boolean;
   blush: boolean;
   freckles: boolean;
-  earring: boolean;
+  mole: boolean;
+  bandaid: boolean;
 }
