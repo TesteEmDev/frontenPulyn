@@ -181,7 +181,7 @@ function CorPersonalizada({ value, selecionada, disabled, onChange }: { value: s
       </button>
       {aberto && (
         <div className="basis-full">
-          <SeletorDeCor valor={/^#[0-9a-f]{6}$/i.test(value) ? value : '#6ec6ff'} onChange={cor => onChange(cor.toLowerCase())} disabled={disabled} className="animate-slide-up" />
+          <SeletorDeCor valor={/^#[0-9a-f]{6}$/i.test(value) ? value : '#6ec6ff'} onChange={cor => onChange(cor.toLowerCase())} disabled={disabled} className="py-3" />
         </div>
       )}
     </>

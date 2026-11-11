@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-// Roda de cores do Pulyn: sobe ali mesmo, embaixo do botão "Cor personalizada", sem janela no meio da tela.
-// O giro escolhe a cor, a distância do centro escolhe a intensidade e a faixa de baixo escolhe o brilho.
-// A cor vale na hora (não há botão de confirmar).
+// Seletor de cor simples: um anel de cores (o marcador gira para escolher a cor) e uma barra embaixo, do escuro ao claro.
+// Sem moldura nem botão de confirmar: a cor vale na hora. Abre ali mesmo, embaixo do botão "Cor personalizada".
 
-interface Hsv { h: number; s: number; v: number }
+interface Hsl { h: number; s: number; l: number }
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
-function hexParaHsv(hex: string): Hsv {
+function hexParaHsl(hex: string): Hsl {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
   const n = parseInt(m ? m[1] : '6ec6ff', 16);
   const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
   const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  const l = (max + min) / 2;
   let h = 0;
   if (d) {
     if (max === r) h = ((g - b) / d) % 6;
@@ -21,13 +21,13 @@ function hexParaHsv(hex: string): Hsv {
     h = Math.round(h * 60);
     if (h < 0) h += 360;
   }
-  return { h, s: max === 0 ? 0 : d / max, v: max };
+  return { h, s: d === 0 ? 1 : d / (1 - Math.abs(2 * l - 1)), l };
 }
 
-function hsvParaHex({ h, s, v }: Hsv): string {
-  const c = v * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v - c;
+function hslParaHex({ h, s, l }: Hsl): string {
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
   const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
-  const hex = (n: number) => Math.round((n + m) * 255).toString(16).padStart(2, '0');
+  const hex = (n: number) => Math.round(clamp(n + m, 0, 1) * 255).toString(16).padStart(2, '0');
   return `#${hex(r)}${hex(g)}${hex(b)}`;
 }
 
@@ -40,83 +40,87 @@ interface Props {
   className?: string;
 }
 
-export default function SeletorDeCor({ valor, onChange, disabled = false, className = '' }: Props) {
-  const [hsv, setHsv] = useState<Hsv>(() => hexParaHsv(valor));
-  const area = useRef<HTMLDivElement>(null);
-  const cor = hsvParaHex(hsv);
+const TAMANHO = 168;   // diâmetro do anel (px)
+const ESPESSURA = 26;  // largura do anel (px)
 
-  // Se a cor mudou por fora (ex.: o personagem sorteado), acompanha; mudanças que vieram daqui não mexem no giro da roda
+export default function SeletorDeCor({ valor, onChange, disabled = false, className = '' }: Props) {
+  const [hsl, setHsl] = useState<Hsl>(() => hexParaHsl(valor));
+  const anel = useRef<HTMLDivElement>(null);
+  const cor = hslParaHex(hsl);
+
+  // Se a cor mudou por fora (ex.: personagem sorteado), acompanha; mudanças que vieram daqui não mexem no marcador
   useEffect(() => {
-    if (valor.toLowerCase() !== hsvParaHex(hsv)) setHsv(hexParaHsv(valor));
+    if (valor.toLowerCase() !== hslParaHex(hsl)) setHsl(hexParaHsl(valor));
     // só quando a cor de fora muda
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [valor]);
 
-  const mudar = useCallback((novo: Hsv) => {
-    setHsv(novo);
-    onChange(hsvParaHex(novo));
+  const mudar = useCallback((novo: Hsl) => {
+    setHsl(novo);
+    onChange(hslParaHex(novo));
   }, [onChange]);
 
-  // Roda: o ângulo (de cima, no sentido horário) é a cor; a distância do centro é a intensidade
+  // O ângulo do toque (de cima, no sentido horário) é a cor
   const arrastar = (e: React.PointerEvent<HTMLDivElement>) => {
-    const caixa = area.current?.getBoundingClientRect();
+    const caixa = anel.current?.getBoundingClientRect();
     if (!caixa) return;
     const dx = e.clientX - (caixa.left + caixa.width / 2);
     const dy = e.clientY - (caixa.top + caixa.height / 2);
-    const angulo = (Math.atan2(dx, -dy) * 180) / Math.PI;
-    mudar({ ...hsv, h: Math.round((angulo + 360) % 360), s: clamp(Math.hypot(dx, dy) / (caixa.width / 2), 0, 1) });
+    mudar({ ...hsl, h: Math.round(((Math.atan2(dx, -dy) * 180) / Math.PI + 360) % 360) });
   };
 
   const aoTeclar = (e: React.KeyboardEvent) => {
-    const passo = e.shiftKey ? 10 : 3;
-    if (e.key === 'ArrowLeft') mudar({ ...hsv, h: (hsv.h - passo + 360) % 360 });
-    else if (e.key === 'ArrowRight') mudar({ ...hsv, h: (hsv.h + passo) % 360 });
-    else if (e.key === 'ArrowUp') mudar({ ...hsv, s: clamp(hsv.s + passo / 100, 0, 1) });
-    else if (e.key === 'ArrowDown') mudar({ ...hsv, s: clamp(hsv.s - passo / 100, 0, 1) });
+    const passo = e.shiftKey ? 15 : 4;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') mudar({ ...hsl, h: (hsl.h - passo + 360) % 360 });
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') mudar({ ...hsl, h: (hsl.h + passo) % 360 });
     else return;
     e.preventDefault();
   };
 
+  const raioMarcador = TAMANHO / 2 - ESPESSURA / 2;
+  const rad = (hsl.h * Math.PI) / 180;
+  const puro = hslParaHex({ h: hsl.h, s: hsl.s, l: 0.5 });
   return (
-    <div className={`flex flex-col items-center gap-3 rounded-3xl border border-fuchsia-300/25 bg-gradient-to-b from-[#1b1240]/80 to-[#0a1226]/80 p-3 ${disabled ? 'pointer-events-none opacity-50' : ''} ${className}`}>
-      <div
-        ref={area}
-        role="slider"
-        tabIndex={0}
-        aria-label="Cor e intensidade"
-        aria-valuetext={`Cor ${cor}`}
-        aria-valuenow={Math.round(hsv.h)}
-        aria-valuemin={0}
-        aria-valuemax={360}
-        onKeyDown={aoTeclar}
-        onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); arrastar(e); }}
-        onPointerMove={e => { if (e.currentTarget.hasPointerCapture(e.pointerId)) arrastar(e); }}
-        className="relative aspect-square w-full max-w-[200px] cursor-crosshair touch-none select-none rounded-full border-4 border-white/25 shadow-[0_8px_22px_rgba(0,0,0,0.5)] focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300"
-        style={{ backgroundImage: 'radial-gradient(circle closest-side, #fff, rgba(255,255,255,0)), conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)' }}
-      >
-        {/* Escurece a roda conforme o brilho */}
-        <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-full bg-black" style={{ opacity: 1 - hsv.v }} />
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow-[0_0_0_2px_rgba(0,0,0,0.35),0_4px_10px_rgba(0,0,0,0.5)]"
+    <div className={`flex flex-col items-center gap-4 ${disabled ? 'pointer-events-none opacity-50' : ''} ${className}`}>
+      <div className="relative" style={{ width: TAMANHO, height: TAMANHO }}>
+        <div
+          ref={anel}
+          role="slider"
+          tabIndex={0}
+          aria-label="Cor"
+          aria-valuetext={`Cor ${cor}`}
+          aria-valuenow={hsl.h}
+          aria-valuemin={0}
+          aria-valuemax={360}
+          onKeyDown={aoTeclar}
+          onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); arrastar(e); }}
+          onPointerMove={e => { if (e.currentTarget.hasPointerCapture(e.pointerId)) arrastar(e); }}
+          className="absolute inset-0 cursor-pointer touch-none select-none rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           style={{
-            left: `${50 + hsv.s * 50 * Math.sin((hsv.h * Math.PI) / 180)}%`,
-            top: `${50 - hsv.s * 50 * Math.cos((hsv.h * Math.PI) / 180)}%`,
-            backgroundColor: cor,
+            background: 'conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)',
+            WebkitMask: `radial-gradient(farthest-side, transparent calc(100% - ${ESPESSURA}px), #000 calc(100% - ${ESPESSURA - 1}px))`,
+            mask: `radial-gradient(farthest-side, transparent calc(100% - ${ESPESSURA}px), #000 calc(100% - ${ESPESSURA - 1}px))`,
           }}
         />
+        {/* Marcador no anel e cor atual no meio (fora do elemento com máscara, para não serem cortados) */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute h-[22px] w-[22px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow-[0_0_0_1.5px_rgba(0,0,0,0.4),0_2px_6px_rgba(0,0,0,0.5)]"
+          style={{ left: TAMANHO / 2 + raioMarcador * Math.sin(rad), top: TAMANHO / 2 - raioMarcador * Math.cos(rad), backgroundColor: puro }}
+        />
+        <span aria-hidden="true" className="pointer-events-none absolute left-1/2 top-1/2 h-[64px] w-[64px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/60 shadow-md" style={{ backgroundColor: cor }} />
       </div>
 
-      {/* Brilho: do escuro até a cor escolhida */}
+      {/* Do escuro ao claro, na cor escolhida */}
       <input
         type="range"
         min={0}
         max={100}
-        value={Math.round(hsv.v * 100)}
-        onChange={e => mudar({ ...hsv, v: Number(e.target.value) / 100 })}
-        aria-label="Brilho"
-        className="seletor-cor-matiz h-4 w-full max-w-[200px] cursor-pointer appearance-none rounded-full"
-        style={{ background: `linear-gradient(to right, #000, ${hsvParaHex({ ...hsv, v: 1 })})` }}
+        value={Math.round(hsl.l * 100)}
+        onChange={e => mudar({ ...hsl, l: Number(e.target.value) / 100 })}
+        aria-label="Claro e escuro"
+        className="seletor-cor-matiz h-4 cursor-pointer appearance-none rounded-full"
+        style={{ width: TAMANHO, background: `linear-gradient(to right, #000, ${puro}, #fff)` }}
       />
     </div>
   );
