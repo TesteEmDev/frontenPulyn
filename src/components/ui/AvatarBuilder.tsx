@@ -141,7 +141,7 @@ const Thumb = memo(function Thumb({ config, selected, label, disabled, onPick }:
       disabled={disabled}
       aria-pressed={selected}
       aria-label={label}
-      className={`group relative flex flex-col items-center gap-1.5 rounded-3xl border-2 p-2 transition duration-200 active:scale-95 disabled:opacity-50 ${
+      className={`group relative flex snap-start flex-col items-center gap-1.5 rounded-3xl border-2 p-2 transition-[transform,border-color,background-color] duration-150 active:scale-95 disabled:opacity-50 ${
         selected
           ? 'border-fuchsia-300 bg-gradient-to-b from-fuchsia-400/25 to-violet-500/15 shadow-[0_8px_22px_rgba(217,70,239,0.35)]'
           : 'border-white/10 bg-gradient-to-b from-white/[0.06] to-black/20 hover:-translate-y-0.5 hover:border-fuchsia-300/50 hover:shadow-[0_8px_18px_rgba(0,0,0,0.35)]'
@@ -151,7 +151,6 @@ const Thumb = memo(function Thumb({ config, selected, label, disabled, onPick }:
         src={avatarImageUrl(config)}
         alt=""
         decoding="async"
-        loading="lazy"
         className={`aspect-square w-full rounded-full border-2 object-cover shadow-md transition duration-200 group-hover:scale-[1.03] ${selected ? 'border-white/80' : 'border-white/15'}`}
       />
       <span className={`w-full truncate text-center text-[11px] font-bold ${selected ? 'text-white' : 'text-gray-300'}`}>{label}</span>
@@ -266,7 +265,7 @@ function AvatarBuilder({ value, onChange, disabled = false, className = '', layo
         {/* duasLinhas (autoatendimento): altura fixa em todas as abas, para a lista não crescer nem encolher ao trocar de aba; o que passar disso rola dentro dela */}
         <div className={duasLinhas
           // Sem 'overscroll-contain': ao chegar no fim da lista a rolagem continua na tela (sem precisar tocar fora do quadro para rolar a página)
-          ? `${L.list.replace(/(sm:)?overscroll-contain/g, '')} h-[min(62dvh,600px)] overflow-y-auto`
+          ? `${L.list.replace(/(sm:)?overscroll-contain/g, '')} h-[min(62dvh,600px)] scroll-smooth overflow-y-auto`
           : L.list}>
           {tab.sections.map(section => (
             <section key={section.title}>
@@ -279,7 +278,7 @@ function AvatarBuilder({ value, onChange, disabled = false, className = '', layo
               )}
               {section.kind === 'options' && (
                 <div className={duasLinhas
-                  ? 'grid auto-cols-[92px] grid-flow-col grid-rows-2 gap-2.5 overflow-x-auto overscroll-x-contain pb-2 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5'
+                  ? 'grid auto-cols-[92px] snap-x snap-proximity scroll-smooth grid-flow-col grid-rows-2 gap-2.5 overflow-x-auto overscroll-x-contain pb-2 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5'
                   : 'grid grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-2.5'}>
                   {section.options.map(option => (
                     <Thumb
@@ -296,7 +295,7 @@ function AvatarBuilder({ value, onChange, disabled = false, className = '', layo
               {section.kind === 'colors' && (
                 // A cor personalizada abre o seletor logo abaixo do botão: por isso o fundo (que a tem) continua quebrando linha
                 <div className={duasLinhas && section.key !== 'bg'
-                  ? 'grid auto-cols-max grid-flow-col grid-rows-2 gap-2.5 overflow-x-auto overscroll-x-contain px-1 py-1 pb-2 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5'
+                  ? 'grid auto-cols-max snap-x snap-proximity scroll-smooth grid-flow-col grid-rows-2 gap-2.5 overflow-x-auto overscroll-x-contain px-1 py-1 pb-2 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5'
                   : 'flex flex-wrap gap-2.5'}>
                   {section.colors.map(color => (
                     <button
@@ -326,7 +325,7 @@ function AvatarBuilder({ value, onChange, disabled = false, className = '', layo
               )}
               {section.kind === 'flags' && (
                 <div className={duasLinhas
-                  ? 'grid auto-cols-max grid-flow-col grid-rows-2 gap-2 overflow-x-auto overscroll-x-contain pb-2 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5'
+                  ? 'grid auto-cols-max snap-x snap-proximity scroll-smooth grid-flow-col grid-rows-2 gap-2 overflow-x-auto overscroll-x-contain pb-2 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5'
                   : 'flex flex-wrap gap-2'}>
                   {FLAGS.filter(flag => section.keys.includes(flag.key)).map(flag => (
                     <button
