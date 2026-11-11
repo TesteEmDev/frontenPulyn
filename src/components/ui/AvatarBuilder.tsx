@@ -1,5 +1,6 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import Avatar from './Avatar';
+import SeletorDeCor from './SeletorDeCor';
 import {
   avatarImageUrl,
   decodeAvatar,
@@ -160,25 +161,30 @@ const Thumb = memo(function Thumb({ config, selected, label, disabled, onPick }:
   );
 });
 
-// Botão "cor personalizada": abre o seletor de cores do aparelho. A cor escolhida vira o fundo do avatar (e a cor do participante).
+// Botão "cor personalizada": abre o seletor de cor do Pulyn (SeletorDeCor). A cor escolhida vira o fundo do avatar (e a cor do participante).
 function CorPersonalizada({ value, selecionada, disabled, onChange }: { value: string; selecionada: boolean; disabled: boolean; onChange: (cor: string) => void }) {
+  const [aberto, setAberto] = useState(false);
   return (
-    <label
-      className={`relative flex h-11 cursor-pointer items-center gap-2 rounded-full border-2 px-3 text-xs font-bold text-white transition active:scale-95 ${
-        selecionada ? 'border-white ring-4 ring-fuchsia-300/60' : 'border-white/30'
-      } ${disabled ? 'pointer-events-none opacity-50' : ''}`}
-      style={selecionada ? { backgroundColor: value } : { background: 'conic-gradient(#ef4444, #eab308, #22c55e, #06b6d4, #8b5cf6, #ec4899, #ef4444)' }}
-    >
-      <span className="rounded-full bg-black/55 px-2 py-0.5">🎨 Cor personalizada</span>
-      <input
-        type="color"
-        value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#6ec6ff'}
-        onChange={e => onChange(e.target.value.toLowerCase())}
+    <>
+      <button
+        type="button"
+        onClick={() => setAberto(true)}
         disabled={disabled}
-        aria-label="Escolher uma cor de fundo personalizada"
-        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        aria-haspopup="dialog"
+        className={`flex h-11 items-center gap-2 rounded-full border-2 px-3 text-xs font-bold text-white transition active:scale-95 disabled:opacity-50 ${
+          selecionada ? 'border-white ring-4 ring-fuchsia-300/60' : 'border-white/30'
+        }`}
+        style={selecionada ? { backgroundColor: value } : { background: 'conic-gradient(#ef4444, #eab308, #22c55e, #06b6d4, #8b5cf6, #ec4899, #ef4444)' }}
+      >
+        <span className="rounded-full bg-black/55 px-2 py-0.5">🎨 Cor personalizada</span>
+      </button>
+      <SeletorDeCor
+        aberto={aberto}
+        valor={/^#[0-9a-f]{6}$/i.test(value) ? value : '#6ec6ff'}
+        onFechar={() => setAberto(false)}
+        onUsar={cor => { onChange(cor.toLowerCase()); setAberto(false); }}
       />
-    </label>
+    </>
   );
 }
 
