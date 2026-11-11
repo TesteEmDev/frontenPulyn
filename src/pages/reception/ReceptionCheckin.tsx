@@ -45,6 +45,7 @@ export default function ReceptionCheckin() {
     name: '',
     nickname: '',
     nascimento: '',   // AAAA-MM-DD
+    responsavel: '',  // nome do pai ou responsável
     // O personagem em montagem fica salvo no aparelho: atualizar a página não perde o avatar
     avatar: lerAvatarRascunho(CHAVE_RASCUNHO_CHECKIN),
   }));
@@ -182,7 +183,7 @@ export default function ReceptionCheckin() {
     return () => window.clearInterval(timer);
   }, [selectedEventId, carregarAvatares]);
 
-  const handleChange = useCallback((field: 'name' | 'nickname' | 'nascimento') => (
+  const handleChange = useCallback((field: 'name' | 'nickname' | 'nascimento' | 'responsavel') => (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     setForm(previous => ({ ...previous, [field]: event.target.value }));
@@ -195,6 +196,10 @@ export default function ReceptionCheckin() {
     }
     if (!form.name.trim()) {
       showToast('Preencha o nome da criança.', 'error');
+      return;
+    }
+    if (!form.responsavel.trim()) {
+      showToast('Preencha o nome do pai ou responsável.', 'error');
       return;
     }
     const erroDaData = erroNascimentoSemLimite(form.nascimento || null);
@@ -227,6 +232,7 @@ export default function ReceptionCheckin() {
         nome: form.name.trim(),
         apelido: form.nickname.trim() || form.name.trim().split(/\s+/)[0],
         dataNascimento: form.nascimento,
+        nomeResponsavel: form.responsavel.trim(),
         avatar: form.avatar,
         // A cor do participante é a cor de fundo do avatar
         cor: corDoAvatar(form.avatar) ?? undefined,
@@ -236,7 +242,7 @@ export default function ReceptionCheckin() {
 
       showToast(`${form.name.trim()} foi cadastrado(a)${normalizedCode ? ' e a pulseira foi vinculada' : ' (sem pulseira por enquanto)'}.`);
       reiniciarAvatar();
-      setForm({ name: '', nickname: '', nascimento: '', avatar: newAvatarCode() });
+      setForm({ name: '', nickname: '', nascimento: '', responsavel: '', avatar: newAvatarCode() });
       clearBracelet();
       carregarAvatares();
     } catch (error: unknown) {
@@ -254,6 +260,7 @@ export default function ReceptionCheckin() {
   const pendencias = [
     !selectedEventId && 'escolha o evento',
     !form.name.trim() && 'informe o nome',
+    !form.responsavel.trim() && 'informe o nome do pai ou responsável',
     erroDaDataAtual && (form.nascimento ? erroDaDataAtual.replace(/\.$/, '').toLowerCase() : 'informe a data de nascimento'),
     avatarRepetido && 'mude alguma peça do avatar (já existe um igual)',
     Boolean(braceletCode) && braceletStatus === 'registered' && 'a pulseira lida já está vinculada: aproxime outra',
@@ -405,6 +412,7 @@ export default function ReceptionCheckin() {
                   <Input label="Apelido" placeholder="Ex: Pedrinho" value={form.nickname} onChange={handleChange('nickname')} />
                   <Input label="Data de nascimento *" type="date" max={hojeIso()} value={form.nascimento} onChange={handleChange('nascimento')} />
                 </div>
+                <Input label="Nome do pai ou responsável *" placeholder="Ex: Carlos Almeida" value={form.responsavel} onChange={handleChange('responsavel')} />
 
                 {/* Desktop: a foto do personagem fica embaixo dos dados; no lado direito ficam só as peças. */}
                 <div className="hidden min-h-0 lg:flex lg:min-h-[150px] lg:flex-1">
@@ -440,7 +448,7 @@ export default function ReceptionCheckin() {
               variant="primary"
               size="lg"
               onClick={handleSubmit}
-              disabled={!selectedEventId || !form.name.trim() || Boolean(erroNascimentoSemLimite(form.nascimento || null)) || (Boolean(braceletCode) && braceletStatus === 'registered') || avatarRepetido || saving}
+              disabled={!selectedEventId || !form.name.trim() || !form.responsavel.trim() || Boolean(erroNascimentoSemLimite(form.nascimento || null)) || (Boolean(braceletCode) && braceletStatus === 'registered') || avatarRepetido || saving}
               className="w-full"
             >
               {saving ? 'Cadastrando participante...' : braceletCode ? 'Cadastrar participante e vincular pulseira' : 'Cadastrar participante sem pulseira'}
@@ -449,7 +457,7 @@ export default function ReceptionCheckin() {
           </Card>
 
           <p className="hidden shrink-0 text-center text-xs text-gray-500 [@media(min-height:960px)]:block">
-            O cadastro também pode ser realizado no Kiosk. Nesta tela, a recepção pode cadastrar nome, avatar, data de nascimento e pulseira.
+            O cadastro também pode ser realizado no Kiosk. Nesta tela, a recepção pode cadastrar nome, avatar, data de nascimento, nome do responsável e pulseira.
           </p>
           </div>
 
