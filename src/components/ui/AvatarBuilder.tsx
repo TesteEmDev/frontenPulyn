@@ -76,6 +76,8 @@ interface AvatarBuilderProps {
   layout?: 'responsive' | 'stacked' | 'fill';
   /** Classes extras da pré-visualização do próprio montador (ex.: 'lg:hidden' quando a foto fica em outro lugar da tela). */
   previewClassName?: string;
+  /** No máximo duas linhas de botões por seção: o que não cabe rola para o lado, em vez de para baixo (autoatendimento). */
+  duasLinhas?: boolean;
 }
 
 // Classes por layout (completas, para o Tailwind enxergar cada uma)
@@ -187,7 +189,7 @@ function CorPersonalizada({ value, selecionada, disabled, onChange }: { value: s
   );
 }
 
-function AvatarBuilder({ value, onChange, disabled = false, className = '', layout = 'responsive', previewClassName = '' }: AvatarBuilderProps) {
+function AvatarBuilder({ value, onChange, disabled = false, className = '', layout = 'responsive', previewClassName = '', duasLinhas = false }: AvatarBuilderProps) {
   const L = LAYOUT[layout];
   const [tabId, setTabId] = useState(TABS[0].id);
   const config = useMemo(() => decodeAvatar(value) ?? DEFAULT_AVATAR_CONFIG, [value]);
@@ -272,7 +274,9 @@ function AvatarBuilder({ value, onChange, disabled = false, className = '', layo
               </h4>
               )}
               {section.kind === 'options' && (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-2.5">
+                <div className={duasLinhas
+                  ? 'grid auto-cols-[92px] grid-flow-col grid-rows-2 gap-2.5 overflow-x-auto overscroll-x-contain pb-2 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5'
+                  : 'grid grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-2.5'}>
                   {section.options.map(option => (
                     <Thumb
                       key={option.value}
@@ -286,7 +290,10 @@ function AvatarBuilder({ value, onChange, disabled = false, className = '', layo
                 </div>
               )}
               {section.kind === 'colors' && (
-                <div className="flex flex-wrap gap-2.5">
+                // A cor personalizada abre o seletor logo abaixo do botão: por isso o fundo (que a tem) continua quebrando linha
+                <div className={duasLinhas && section.key !== 'bg'
+                  ? 'grid auto-cols-max grid-flow-col grid-rows-2 gap-2.5 overflow-x-auto overscroll-x-contain px-1 py-1 pb-2 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5'
+                  : 'flex flex-wrap gap-2.5'}>
                   {section.colors.map(color => (
                     <button
                       key={color}
@@ -314,7 +321,9 @@ function AvatarBuilder({ value, onChange, disabled = false, className = '', layo
                 </div>
               )}
               {section.kind === 'flags' && (
-                <div className="flex flex-wrap gap-2">
+                <div className={duasLinhas
+                  ? 'grid auto-cols-max grid-flow-col grid-rows-2 gap-2 overflow-x-auto overscroll-x-contain pb-2 scrollbar-thin scrollbar-thumb-primary/50 scrollbar-track-white/5'
+                  : 'flex flex-wrap gap-2'}>
                   {FLAGS.filter(flag => section.keys.includes(flag.key)).map(flag => (
                     <button
                       key={flag.key}

@@ -869,6 +869,7 @@ export default function ReceptionKioskOtimizado() {
                           value={form.avatar}
                           onChange={handleAvatarChange}
                           disabled={!canInteract}
+                          duasLinhas
                         />
                         {avatarRepetido && <p role="alert" className="mt-2 rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-200">{MENSAGEM_AVATAR_REPETIDO}</p>}
                       </section>
@@ -1076,6 +1077,7 @@ export default function ReceptionKioskOtimizado() {
                               value={form.avatar}
                           onChange={handleAvatarChange}
                           disabled={!canInteract || state === 'saving'}
+                          duasLinhas
                         />
                             {avatarRepetido && <p role="alert" className="mt-2 rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-200">{MENSAGEM_AVATAR_REPETIDO}</p>}
                           </div>
