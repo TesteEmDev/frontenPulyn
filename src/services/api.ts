@@ -1839,6 +1839,17 @@ export const api = {
     }
   },
 
+  // Check-in sem evento aberto: só o cadastro permanente da criança (vincula ao evento depois, pelo autoatendimento)
+  async createPerfilCrianca(data: any) {
+    const res = await fetch(`${API_URL}/criancas/perfil`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
   async getCriancaByBracelet(code: string) {
     const res = await fetch(`${API_URL}/criancas/crianca/by-bracelet/${encodeURIComponent(code)}`, {
       headers: getAuthHeaders(),
