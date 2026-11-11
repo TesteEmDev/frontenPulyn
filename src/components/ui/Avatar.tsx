@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   findAdventurerAvatar,
   getAvatarLabel,
   getDefaultAvatar,
 } from '../../avatar/adventurerAvatars';
+import { avatarCodeImageUrl } from '../../avatar/builder/code';
 
 type AvatarSize = 'sm' | 'md' | 'lg' | 'xl';
 type AvatarShape = 'circle' | 'square';
@@ -50,15 +51,20 @@ const Avatar: React.FC<AvatarProps> = ({
   const knownAvatar = findAdventurerAvatar(resolvedValue);
   const fallbackAvatar = getDefaultAvatar();
   const legacyEmoji = isLegacyEmoji(resolvedValue) ? resolvedValue : null;
-  const [imageSource, setImageSource] = useState(knownAvatar?.src || fallbackAvatar.src);
+  // Avatar montado pela criança (código pulyn1-...): o desenho é refeito a partir do código.
+  const customSource = useMemo(() => avatarCodeImageUrl(resolvedValue), [resolvedValue]);
+  const preferredSource = customSource || knownAvatar?.src || fallbackAvatar.src;
+  const [imageSource, setImageSource] = useState(preferredSource);
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
-    setImageSource(knownAvatar?.src || fallbackAvatar.src);
+    setImageSource(preferredSource);
     setImageFailed(false);
-  }, [knownAvatar?.id, knownAvatar?.src, fallbackAvatar.src]);
+  }, [preferredSource]);
 
-  const accessibleLabel = alt || (knownAvatar ? getAvatarLabel(knownAvatar.id) : legacyEmoji ? 'Avatar legado' : 'Avatar padrão');
+  const accessibleLabel = alt || (customSource
+    ? 'Avatar personalizado'
+    : knownAvatar ? getAvatarLabel(knownAvatar.id) : legacyEmoji ? 'Avatar legado' : 'Avatar padrão');
 
   return (
     <div

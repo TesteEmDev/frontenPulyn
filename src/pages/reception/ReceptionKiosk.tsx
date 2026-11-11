@@ -8,8 +8,9 @@ import { useNFCOtimizado } from '../../hooks/useNFCReader_otimizado';
 import { useDeviceNFC } from '../../hooks/useDeviceNFC';
 import { api } from '../../services/api';
 import Avatar from '../../components/ui/Avatar';
-import AvatarSelector from '../../components/ui/AvatarSelector';
+import AvatarBuilder from '../../components/ui/AvatarBuilder';
 import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
+import { decodeAvatar, newAvatarCode } from '../../avatar/builder/code';
 import StatusDot from '../../components/ui/StatusDot';
 import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
 import VirtualKeyboardOtimizado from '../../components/ui/VirtualKeyboardOtimizado';
@@ -22,8 +23,9 @@ const AVATAR_OPTIONS = ADVENTURER_AVATARS.map(option => ({
 }));
 
 // Cadastros antigos podem ter um avatar que não existe mais; o Kiosk usa o padrão nesses casos.
+// Avatares montados (código pulyn1-...) são válidos quando o código decodifica.
 const profileAvatar = (avatar: string) =>
-  AVATAR_OPTIONS.some(option => option.emoji === avatar) ? avatar : DEFAULT_AVATAR_ID;
+  AVATAR_OPTIONS.some(option => option.emoji === avatar) || decodeAvatar(avatar) ? avatar : DEFAULT_AVATAR_ID;
 
 const normalizeUid = (value: string) =>
   value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
@@ -119,7 +121,7 @@ export default function ReceptionKioskOtimizado() {
   const [state, setState] = useState<KioskState>('waiting');
   const [message, setMessage] = useState('Encoste a pulseira no leitor abaixo da tela para começar');
   const [braceletCode, setBraceletCode] = useState('');
-  const [form, setForm] = useState({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID });
+  const [form, setForm] = useState(() => ({ name: '', nickname: '', age: '', avatar: newAvatarCode() }));
   const [successData, setSuccessData] = useState<{ name: string; avatar: string; returning: boolean } | null>(null);
   const [mode, setMode] = useState<KioskMode>('choose');
   const [newStep, setNewStep] = useState<NewStep>('avatar');
@@ -139,7 +141,6 @@ export default function ReceptionKioskOtimizado() {
   const kioskStateRef = useRef<KioskState>('waiting');
 
   // Cache para evitar renders desnecessários
-  const selectedAvatar = AVATAR_OPTIONS.find(option => option.emoji === form.avatar) || AVATAR_OPTIONS[0];
   const selectedEvent = events.find(event => String(event.eventoId) === String(selectedEventId));
   
   // DEBOUNCE para evitar renders rápidos
@@ -190,7 +191,7 @@ export default function ReceptionKioskOtimizado() {
     lastReadRef.current = null;
     kioskStateRef.current = 'waiting';
     setBraceletCode('');
-    setForm({ name: '', nickname: '', age: '', avatar: DEFAULT_AVATAR_ID });
+    setForm({ name: '', nickname: '', age: '', avatar: newAvatarCode() });
     setMode('choose');
     setNewStep('avatar');
     setFocusField('name');
@@ -775,18 +776,17 @@ export default function ReceptionKioskOtimizado() {
                               Etapa 1 de 2 • Aparência
                             </p>
                             <h3 className="mt-1 font-display text-2xl font-bold text-white">
-                              Escolha seu personagem
+                              Crie seu personagem
                             </h3>
                           </div>
                           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-4 border-cyan-300/40 bg-cyan-300/10 p-1">
-                            <Avatar emoji={selectedAvatar.emoji} size="md" bgColor={selectedAvatar.color} />
+                            <Avatar emoji={form.avatar} size="md" bgColor="bg-primary/20" />
                           </div>
                         </div>
-                        <AvatarSelector
+                        <AvatarBuilder
                           value={form.avatar}
                           onChange={handleAvatarChange}
                           disabled={!canInteract}
-                          wide
                         />
                       </section>
                     ) : (
@@ -794,7 +794,7 @@ export default function ReceptionKioskOtimizado() {
                       <section className="mx-auto flex w-full max-w-3xl flex-col rounded-[1.75rem] border border-fuchsia-300/25 bg-[#1b0f38] p-4 shadow-lg backdrop-blur sm:p-5 lg:col-span-2">
                         <div className="mb-3 flex items-center gap-3 rounded-3xl border border-fuchsia-300/20 bg-gradient-to-r from-fuchsia-300/10 to-transparent p-3">
                           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-4 border-fuchsia-300/50 bg-fuchsia-300/10 p-1.5 shadow-md">
-                            <Avatar emoji={selectedAvatar.emoji} size="md" bgColor={selectedAvatar.color} />
+                            <Avatar emoji={form.avatar} size="md" bgColor="bg-primary/20" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">
@@ -984,12 +984,11 @@ export default function ReceptionKioskOtimizado() {
                             <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">
                               Quer mudar o personagem?
                             </p>
-                            <AvatarSelector
-                              value={form.avatar}
-                              onChange={handleAvatarChange}
-                              disabled={!canInteract || state === 'saving'}
-                              wide
-                            />
+                            <AvatarBuilder
+                          value={form.avatar}
+                          onChange={handleAvatarChange}
+                          disabled={!canInteract || state === 'saving'}
+                        />
                           </div>
                           <button
                             type="button"
