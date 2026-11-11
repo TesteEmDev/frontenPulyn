@@ -1846,6 +1846,26 @@ export const api = {
     return res.json();
   },
 
+  // Edita / exclui um cadastro que ainda não entrou em nenhum evento
+  async updatePerfilCrianca(perfilCriancaId: string, data: any) {
+    const res = await fetch(`${API_URL}/criancas/perfil/${encodeURIComponent(perfilCriancaId)}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  async deletePerfilCrianca(perfilCriancaId: string) {
+    const res = await fetch(`${API_URL}/criancas/perfil/${encodeURIComponent(perfilCriancaId)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
   // Check-in sem evento aberto: só o cadastro permanente da criança (vincula ao evento depois, pelo autoatendimento)
   async createPerfilCrianca(data: any) {
     const res = await fetch(`${API_URL}/criancas/perfil`, {

@@ -4,6 +4,12 @@ import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import Card from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
 import Avatar from '../../components/ui/Avatar';
+import Button from '../../components/ui/Button';
+import Modal from '../../components/ui/Modal';
+import Select from '../../components/ui/Select';
+import { avisar, confirmar } from '../../components/ui/dialogo';
+import { PARENTESCO_OPCOES } from '../../utils/parentesco';
+import { erroNascimentoSemLimite, hojeIso } from '../../utils/nascimento';
 
 // Lista dos cadastros permanentes das crianças (sem depender de um evento escolhido):
 // "todos": todo mundo, com o último evento em que a criança esteve; "sem": só quem ainda não entrou em nenhum evento.
@@ -14,6 +20,7 @@ interface Cadastro {
   nome: string;
   apelido?: string | null;
   idade?: number | null;
+  dataNascimento?: string | null;
   avatar?: string | null;
   nomeResponsavel?: string | null;
   parentescoResponsavel?: string | null;
@@ -36,6 +43,60 @@ export default function ListaCadastros({ modo, onContagem }: { modo: ModoLista; 
   const [busca, setBusca] = useState('');
   const [tick, setTick] = useState(0);
   useAutoRefresh(() => setTick(n => n + 1), { topicos: ['criancas'], intervaloMs: 15_000 });
+
+  // Edição / exclusão: só de quem ainda não entrou em nenhum evento
+  const [editando, setEditando] = useState<Cadastro | null>(null);
+  const [form, setForm] = useState({ nome: '', apelido: '', nascimento: '', responsavel: '', parentesco: '' });
+  const [salvando, setSalvando] = useState(false);
+
+  const mensagemDe = (e: unknown) => {
+    const bruto = e instanceof Error ? e.message : '';
+    try { return JSON.parse(bruto).error || bruto; } catch { return bruto || 'Não foi possível concluir.'; }
+  };
+
+  const abrirEdicao = (c: Cadastro) => {
+    setEditando(c);
+    setForm({
+      nome: c.nome,
+      apelido: c.apelido || '',
+      nascimento: (c.dataNascimento || '').slice(0, 10),
+      responsavel: c.nomeResponsavel || '',
+      parentesco: c.parentescoResponsavel || '',
+    });
+  };
+
+  const salvarEdicao = async () => {
+    if (!editando || salvando) return;
+    if (!form.nome.trim()) { await avisar('Preencha o nome da criança.'); return; }
+    const erro = erroNascimentoSemLimite(form.nascimento || null);
+    if (erro) { await avisar(erro); return; }
+    setSalvando(true);
+    try {
+      await api.updatePerfilCrianca(editando.perfilCriancaId, {
+        nome: form.nome.trim(),
+        apelido: form.apelido.trim(),
+        dataNascimento: form.nascimento,
+        nomeResponsavel: form.responsavel.trim(),
+        parentescoResponsavel: form.parentesco,
+      });
+      setEditando(null);
+      setTick(n => n + 1);
+    } catch (e) {
+      await avisar(mensagemDe(e));
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const excluir = async (c: Cadastro) => {
+    if (!(await confirmar(`Excluir o cadastro de ${c.nome}? Essa ação não pode ser desfeita.`))) return;
+    try {
+      await api.deletePerfilCrianca(c.perfilCriancaId);
+      setTick(n => n + 1);
+    } catch (e) {
+      await avisar(mensagemDe(e));
+    }
+  };
 
   useEffect(() => {
     let ativo = true;
@@ -92,6 +153,7 @@ export default function ListaCadastros({ modo, onContagem }: { modo: ModoLista; 
                   <th className={cabecalho}>Responsável</th>
                   <th className={cabecalho}>Último evento</th>
                   <th className={cabecalho}>Cadastrada em</th>
+                  <th className={`${cabecalho} text-right`}>Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-dark-border">
@@ -118,6 +180,16 @@ export default function ListaCadastros({ modo, onContagem }: { modo: ModoLista; 
                         : <span className="text-gray-500">Nenhum evento ainda</span>}
                     </td>
                     <td className="px-4 py-3 font-body text-sm text-gray-300">{data(c.criadoEm) || '-'}</td>
+                    <td className="px-4 py-3 text-right">
+                      {c.participacoes === 0 ? (
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => abrirEdicao(c)}>Editar</Button>
+                          <Button variant="ghost" size="sm" onClick={() => excluir(c)}>Excluir</Button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-500" title="Já entrou em um evento: edite pela lista do evento">-</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -125,6 +197,20 @@ export default function ListaCadastros({ modo, onContagem }: { modo: ModoLista; 
           </div>
         </Card>
       )}
+
+      <Modal isOpen={Boolean(editando)} onClose={() => setEditando(null)} title="Editar cadastro">
+        <div className="flex flex-col gap-3">
+          <Input label="Nome completo *" value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} />
+          <Input label="Apelido" value={form.apelido} onChange={e => setForm(f => ({ ...f, apelido: e.target.value }))} />
+          <Input label="Data de nascimento *" type="date" max={hojeIso()} value={form.nascimento} onChange={e => setForm(f => ({ ...f, nascimento: e.target.value }))} />
+          <Input label="Nome do pai ou responsável" value={form.responsavel} onChange={e => setForm(f => ({ ...f, responsavel: e.target.value }))} />
+          <Select label="Parentesco" options={PARENTESCO_OPCOES} value={form.parentesco} onChange={e => setForm(f => ({ ...f, parentesco: e.target.value }))} />
+          <div className="mt-2 flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setEditando(null)}>Cancelar</Button>
+            <Button variant="primary" onClick={salvarEdicao} disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar'}</Button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }
