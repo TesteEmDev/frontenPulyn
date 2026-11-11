@@ -393,6 +393,11 @@ export default function ReceptionCheckin() {
                   )}
                 </div>
 
+                <div className="shrink-0">
+                  <h3 className="mb-2 text-sm font-semibold text-gray-200">Escolha a cor do participante</h3>
+                  <CorSelector className="[&_button]:!h-10 [&_button]:!w-10" value={form.cor} onChange={cor => setForm(previous => ({ ...previous, cor }))} indisponiveis={coresEmUso} />
+                </div>
+
                 {/* Desktop: a foto do personagem fica embaixo dos dados; no lado direito ficam só as peças. */}
                 <div className="hidden min-h-0 lg:flex lg:min-h-[150px] lg:flex-1">
                   <AvatarPreview fill className="w-full" value={form.avatar} onChange={avatar => setForm(previous => ({ ...previous, avatar }))} />
@@ -414,8 +419,6 @@ export default function ReceptionCheckin() {
                 </div>
                 <AvatarBuilder value={form.avatar} onChange={avatar => { marcarAvatarEscolhido(); setForm(previous => ({ ...previous, avatar })); }} layout="fill" className="lg:min-h-0 lg:flex-1" previewClassName="lg:hidden" />
                 {avatarRepetido && <p role="alert" className="mt-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">{MENSAGEM_AVATAR_REPETIDO}</p>}
-                <h3 className="mb-2 mt-4 text-sm font-semibold text-gray-200">Escolha a cor do participante</h3>
-                <CorSelector value={form.cor} onChange={cor => setForm(previous => ({ ...previous, cor }))} indisponiveis={coresEmUso} />
               </div>
             </div>
 
