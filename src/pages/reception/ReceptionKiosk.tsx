@@ -804,7 +804,7 @@ export default function ReceptionKioskOtimizado() {
 
             {/* CADASTRO - APENAS QUANDO VISÍVEL */}
             {registrationVisible && (
-              <div className="animate-in motion-reduce:animate-none relative z-10 grid gap-3 rounded-[2rem] border border-fuchsia-300/20 bg-[#0c1328] p-2 shadow-xl sm:p-5 lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:grid-cols-[minmax(260px,0.72fr)_minmax(420px,1.28fr)] lg:p-3">
+              <div className="animate-in motion-reduce:animate-none relative z-10 grid grid-cols-1 gap-3 rounded-[2rem] border border-fuchsia-300/20 bg-[#0c1328] p-2 shadow-xl sm:p-5 lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:grid-cols-[minmax(260px,0.72fr)_minmax(420px,1.28fr)] lg:p-3">
                 {mode === 'choose' && (
                   <section className="flex flex-col items-center justify-center gap-6 rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-6 text-center shadow-lg sm:p-10 lg:col-span-2">
                     <div>
@@ -851,7 +851,7 @@ export default function ReceptionKioskOtimizado() {
                   <>
                     {newStep === 'avatar' ? (
                       /* ETAPA 1: AVATAR */
-                      <section className="flex flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-4 shadow-lg backdrop-blur sm:p-5 lg:col-span-2">
+                      <section className="flex min-w-0 flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-4 shadow-lg backdrop-blur sm:p-5 lg:col-span-2">
                         <div className="mb-4 flex items-center justify-between gap-3 border-b border-cyan-300/10 pb-3">
                           <div>
                             <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">
@@ -968,7 +968,7 @@ export default function ReceptionKioskOtimizado() {
                       </section>
                     )}
 
-                    <section className="rounded-[1.75rem] border border-white/[0.1] bg-dark-card/90 p-4 shadow-lg backdrop-blur sm:p-5 lg:col-span-2">
+                    <section className="sticky bottom-0 z-20 rounded-[1.75rem] border border-white/[0.1] bg-[#0f1a33] p-4 shadow-lg sm:p-5 lg:col-span-2">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex gap-2">
                           <button
@@ -1018,7 +1018,7 @@ export default function ReceptionKioskOtimizado() {
                 {mode === 'existing' && (
                   <>
                     {/* BUSCA */}
-                    <section className="flex flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-4 shadow-lg backdrop-blur sm:p-5 lg:p-3">
+                    <section className="flex min-w-0 flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-4 shadow-lg backdrop-blur sm:p-5 lg:p-3">
                       <div className="mb-3 border-b border-cyan-300/10 pb-3">
                         <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">
                           Já tenho cadastro
