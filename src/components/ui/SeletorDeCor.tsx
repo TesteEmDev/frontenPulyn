@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-// Seletor de cor do Pulyn: no lugar da janela padrão do navegador, um painel próprio com área de cor (saturação e brilho),
-// faixa de tonalidade, campo de código, cores rápidas e pré-visualização. A cor só vale ao tocar em "Usar esta cor".
+// Seletor de cor do Pulyn: no lugar da janela padrão do navegador, um painel próprio com uma roda de cores (o giro escolhe a cor,
+// a distância do centro escolhe a intensidade), faixa de brilho, campo de código, cores rápidas e pré-visualização. A cor só vale ao tocar em "Usar esta cor".
 
 interface Hsv { h: number; s: number; v: number }
 
@@ -69,18 +69,23 @@ export default function SeletorDeCor({ aberto, valor, titulo = 'Escolha a cor do
     setTexto(hsvParaHex(novo));
   }, []);
 
+  // Roda: o ângulo (de cima, no sentido horário) é a cor; a distância do centro é a intensidade
   const arrastar = (e: React.PointerEvent<HTMLDivElement>) => {
     const caixa = area.current?.getBoundingClientRect();
     if (!caixa) return;
-    mudar({ ...hsv, s: clamp((e.clientX - caixa.left) / caixa.width, 0, 1), v: 1 - clamp((e.clientY - caixa.top) / caixa.height, 0, 1) });
+    const dx = e.clientX - (caixa.left + caixa.width / 2);
+    const dy = e.clientY - (caixa.top + caixa.height / 2);
+    const raio = caixa.width / 2;
+    const angulo = (Math.atan2(dx, -dy) * 180) / Math.PI;
+    mudar({ ...hsv, h: Math.round((angulo + 360) % 360), s: clamp(Math.hypot(dx, dy) / raio, 0, 1) });
   };
 
-  const aoTeclarNaArea = (e: React.KeyboardEvent) => {
-    const passo = e.shiftKey ? 0.1 : 0.03;
-    if (e.key === 'ArrowLeft') mudar({ ...hsv, s: clamp(hsv.s - passo, 0, 1) });
-    else if (e.key === 'ArrowRight') mudar({ ...hsv, s: clamp(hsv.s + passo, 0, 1) });
-    else if (e.key === 'ArrowUp') mudar({ ...hsv, v: clamp(hsv.v + passo, 0, 1) });
-    else if (e.key === 'ArrowDown') mudar({ ...hsv, v: clamp(hsv.v - passo, 0, 1) });
+  const aoTeclarNaRoda = (e: React.KeyboardEvent) => {
+    const passo = e.shiftKey ? 10 : 3;
+    if (e.key === 'ArrowLeft') mudar({ ...hsv, h: (hsv.h - passo + 360) % 360 });
+    else if (e.key === 'ArrowRight') mudar({ ...hsv, h: (hsv.h + passo) % 360 });
+    else if (e.key === 'ArrowUp') mudar({ ...hsv, s: clamp(hsv.s + passo / 100, 0, 1) });
+    else if (e.key === 'ArrowDown') mudar({ ...hsv, s: clamp(hsv.s - passo / 100, 0, 1) });
     else return;
     e.preventDefault();
   };
@@ -106,38 +111,49 @@ export default function SeletorDeCor({ aberto, valor, titulo = 'Escolha a cor do
           <button type="button" onClick={onFechar} aria-label="Fechar" className="rounded-full bg-white/10 px-2.5 py-1 text-sm text-gray-300 transition hover:bg-white/20 hover:text-white">✕</button>
         </div>
 
-        {/* Área de saturação (esquerda → direita) e brilho (baixo → cima) */}
+        {/* Roda de cores */}
         <div
           ref={area}
           role="slider"
           tabIndex={0}
-          aria-label="Intensidade e brilho da cor"
+          aria-label="Cor e intensidade"
           aria-valuetext={`Cor ${cor}`}
-          aria-valuenow={Math.round(hsv.s * 100)}
-          onKeyDown={aoTeclarNaArea}
+          aria-valuenow={Math.round(hsv.h)}
+          aria-valuemin={0}
+          aria-valuemax={360}
+          onKeyDown={aoTeclarNaRoda}
           onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); arrastar(e); }}
           onPointerMove={e => { if (e.currentTarget.hasPointerCapture(e.pointerId)) arrastar(e); }}
-          className="relative h-44 w-full cursor-crosshair touch-none select-none rounded-2xl border border-white/20 shadow-inner focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300 sm:h-52"
-          style={{ backgroundColor: `hsl(${hsv.h} 100% 50%)`, backgroundImage: 'linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent)' }}
+          className="relative mx-auto aspect-square w-full max-w-[220px] cursor-crosshair touch-none select-none rounded-full border-4 border-white/25 shadow-[0_8px_26px_rgba(0,0,0,0.5)] focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300"
+          style={{ backgroundImage: 'radial-gradient(circle closest-side, #fff, rgba(255,255,255,0)), conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)' }}
         >
+          {/* Escurece a roda conforme o brilho */}
+          <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-full bg-black" style={{ opacity: 1 - hsv.v }} />
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute h-7 w-7 -translate-x-1/2 translate-y-1/2 rounded-full border-[3px] border-white shadow-[0_0_0_2px_rgba(0,0,0,0.35),0_4px_10px_rgba(0,0,0,0.5)]"
-            style={{ left: `${hsv.s * 100}%`, bottom: `${hsv.v * 100}%`, backgroundColor: cor }}
+            className="pointer-events-none absolute h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow-[0_0_0_2px_rgba(0,0,0,0.35),0_4px_10px_rgba(0,0,0,0.5)]"
+            style={{
+              left: `${50 + hsv.s * 50 * Math.sin((hsv.h * Math.PI) / 180)}%`,
+              top: `${50 - hsv.s * 50 * Math.cos((hsv.h * Math.PI) / 180)}%`,
+              backgroundColor: cor,
+            }}
           />
         </div>
 
-        {/* Tonalidade */}
-        <input
-          type="range"
-          min={0}
-          max={360}
-          value={hsv.h}
-          onChange={e => mudar({ ...hsv, h: Number(e.target.value) })}
-          aria-label="Tonalidade"
-          className="seletor-cor-matiz mt-4 h-4 w-full cursor-pointer appearance-none rounded-full"
-          style={{ background: 'linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)' }}
-        />
+        {/* Brilho: do escuro até a cor escolhida */}
+        <label className="mt-4 block text-[10px] font-bold uppercase tracking-[0.2em] text-fuchsia-200">
+          Brilho
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={Math.round(hsv.v * 100)}
+            onChange={e => mudar({ ...hsv, v: Number(e.target.value) / 100 })}
+            aria-label="Brilho"
+            className="seletor-cor-matiz mt-1.5 h-4 w-full cursor-pointer appearance-none rounded-full"
+            style={{ background: `linear-gradient(to right, #000, ${hsvParaHex({ ...hsv, v: 1 })})` }}
+          />
+        </label>
 
         {/* Cores rápidas */}
         <div className="mt-4 grid grid-cols-8 gap-2" role="group" aria-label="Cores rápidas">
