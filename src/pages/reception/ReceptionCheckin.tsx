@@ -17,6 +17,7 @@ import { primeiraCorLivre } from '../../utils/coresParticipante';
 import { erroNascimentoSemLimite, hojeIso } from '../../utils/nascimento';
 import { ADVENTURER_AVATARS } from '../../avatar/adventurerAvatars';
 import { isAvatarCode, newAvatarCode } from '../../avatar/builder/code';
+import { useAvatarUnico, MENSAGEM_AVATAR_REPETIDO } from '../../hooks/useAvatarUnico';
 
 const normalizeUid = (value: string) => value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
 
@@ -162,14 +163,19 @@ export default function ReceptionCheckin() {
 
   // Avatares que os outros participantes do evento já usam: ficam indisponíveis e o cadastro começa num livre
   const [coresEmUso, setCoresEmUso] = useState<string[]>([]);
+  const [avataresEmUso, setAvataresEmUso] = useState<string[]>([]);
+  const trocarAvatar = useCallback((avatar: string) => setForm(previous => ({ ...previous, avatar })), []);
+  const { repetido: avatarRepetido, marcarEscolhido: marcarAvatarEscolhido, reiniciar: reiniciarAvatar } = useAvatarUnico(avataresEmUso, form.avatar, trocarAvatar);
   const carregarAvatares = useCallback(async () => {
     if (!selectedEventId) {
       setCoresEmUso([]);
+      setAvataresEmUso([]);
       return;
     }
     try {
       const emUso = await api.getAvataresEmUso(selectedEventId);
       setCoresEmUso(emUso.cores);
+      setAvataresEmUso(emUso.avatares);
     } catch (error) {
       console.error('Erro ao carregar os avatares em uso:', error);
     }
@@ -251,6 +257,7 @@ export default function ReceptionCheckin() {
 
       const teamName = selectedTeam ? teams.find(team => String(team.id) === String(selectedTeam))?.name || 'time selecionado' : null;
       showToast(`${form.name.trim()} foi cadastrado(a)${teamName ? ` no ${teamName}` : ' sem time'}${normalizedCode ? ' e a pulseira foi vinculada' : ' (sem pulseira por enquanto)'}.`);
+      reiniciarAvatar();
       setForm({ name: '', nickname: '', nascimento: '', avatar: newAvatarCode(), cor: primeiraCorLivre([]) });
       setSelectedTeam(null);
       clearBracelet();
@@ -405,7 +412,8 @@ export default function ReceptionCheckin() {
                     <p className="text-xs text-gray-400">Avatar do participante</p>
                   </div>
                 </div>
-                <AvatarBuilder value={form.avatar} onChange={avatar => setForm(previous => ({ ...previous, avatar }))} layout="fill" className="lg:min-h-0 lg:flex-1" previewClassName="lg:hidden" />
+                <AvatarBuilder value={form.avatar} onChange={avatar => { marcarAvatarEscolhido(); setForm(previous => ({ ...previous, avatar })); }} layout="fill" className="lg:min-h-0 lg:flex-1" previewClassName="lg:hidden" />
+                {avatarRepetido && <p role="alert" className="mt-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">{MENSAGEM_AVATAR_REPETIDO}</p>}
                 <h3 className="mb-2 mt-4 text-sm font-semibold text-gray-200">Escolha a cor do participante</h3>
                 <CorSelector value={form.cor} onChange={cor => setForm(previous => ({ ...previous, cor }))} indisponiveis={coresEmUso} />
               </div>
@@ -416,7 +424,7 @@ export default function ReceptionCheckin() {
               variant="primary"
               size="lg"
               onClick={handleSubmit}
-              disabled={!selectedEventId || !form.name.trim() || Boolean(erroNascimentoSemLimite(form.nascimento || null)) || (Boolean(braceletCode) && braceletStatus === 'registered') || saving}
+              disabled={!selectedEventId || !form.name.trim() || Boolean(erroNascimentoSemLimite(form.nascimento || null)) || (Boolean(braceletCode) && braceletStatus === 'registered') || avatarRepetido || saving}
               className="w-full"
             >
               {saving ? 'Cadastrando participante...' : braceletCode ? 'Cadastrar participante e vincular pulseira' : 'Cadastrar participante sem pulseira'}

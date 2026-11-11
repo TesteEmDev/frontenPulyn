@@ -16,6 +16,7 @@ import { primeiraCorLivre } from '../../utils/coresParticipante';
 import { mascaraData, dataDeDigitos, erroNascimentoSemLimite, idadeDeNascimento } from '../../utils/nascimento';
 import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
 import { decodeAvatar, newAvatarCode } from '../../avatar/builder/code';
+import { useAvatarUnico, MENSAGEM_AVATAR_REPETIDO } from '../../hooks/useAvatarUnico';
 import StatusDot from '../../components/ui/StatusDot';
 import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
 import VirtualKeyboardOtimizado from '../../components/ui/VirtualKeyboardOtimizado';
@@ -198,14 +199,17 @@ export default function ReceptionKioskOtimizado() {
     };
   }, []);
 
+  const [avataresEmUso, setAvataresEmUso] = useState<string[]>([]);
   const carregarAvatares = useCallback(async () => {
     if (!selectedEventId) {
       setCoresEmUso([]);
+      setAvataresEmUso([]);
       return;
     }
     try {
       const emUso = await api.getKioskAvatarsInUse(selectedEventId);
       setCoresEmUso(emUso.cores);
+      setAvataresEmUso(emUso.avatares);
     } catch (error) {
       console.error('Erro ao carregar os avatares em uso:', error);
     }
@@ -230,6 +234,7 @@ export default function ReceptionKioskOtimizado() {
     lastReadRef.current = null;
     kioskStateRef.current = 'waiting';
     setBraceletCode('');
+    reiniciarAvatar();
     setForm({ name: '', nickname: '', nascimento: '', avatar: newAvatarCode(), cor: primeiraCorLivre([]) });
     setMode('choose');
     setNewStep('avatar');
@@ -464,9 +469,14 @@ export default function ReceptionKioskOtimizado() {
     setForm(prev => ({ ...prev, cor }));
   }, []);
 
+  // Avatar único no evento: o sorteado que já existe troca sozinho; o que a criança montou e já existe avisa e não deixa salvar
+  const trocarAvatar = useCallback((avatar: string) => setForm(prev => ({ ...prev, avatar })), []);
+  const avatarProprio = selectedProfile?.jaNoEvento ? profileAvatar(selectedProfile.avatar) : null;
+  const { repetido: avatarRepetido, marcarEscolhido: marcarAvatarEscolhido, reiniciar: reiniciarAvatar } = useAvatarUnico(avataresEmUso, form.avatar, trocarAvatar, avatarProprio);
   const handleAvatarChange = useCallback((avatar: string) => {
+    marcarAvatarEscolhido();
     setForm(prev => ({ ...prev, avatar }));
-  }, []);
+  }, [marcarAvatarEscolhido]);
 
   // Campos digitados pelo teclado do aparelho/físico. A data de nascimento aceita só dígitos (até 8: dia, mês e ano).
   const handleTextChange = useCallback((field: 'name' | 'nickname', value: string) => {
@@ -870,6 +880,7 @@ export default function ReceptionKioskOtimizado() {
                           onChange={handleAvatarChange}
                           disabled={!canInteract}
                         />
+                        {avatarRepetido && <p role="alert" className="mt-2 rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-200">{MENSAGEM_AVATAR_REPETIDO}</p>}
                         <div className="mt-4 border-t border-cyan-300/10 pt-4">
                           <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">Escolha a sua cor</p>
                           <CorSelector value={form.cor} onChange={handleCorChange} disabled={!canInteract} indisponiveis={coresEmUso} />
@@ -1002,7 +1013,7 @@ export default function ReceptionKioskOtimizado() {
                           <button
                             type="submit"
                             form="kiosk-new-form"
-                            disabled={!canInteract || state === 'saving' || !newFormValid}
+                            disabled={!canInteract || state === 'saving' || !newFormValid || avatarRepetido}
                             className="rounded-xl border border-success/40 bg-success/10 px-5 py-2.5 text-sm font-semibold text-success transition hover:bg-success/20 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {state === 'saving' ? 'Criando...' : 'Criar personagem'}
@@ -1080,6 +1091,7 @@ export default function ReceptionKioskOtimizado() {
                           onChange={handleAvatarChange}
                           disabled={!canInteract || state === 'saving'}
                         />
+                            {avatarRepetido && <p role="alert" className="mt-2 rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-200">{MENSAGEM_AVATAR_REPETIDO}</p>}
                             <p className="mb-2 mt-4 text-[10px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">E a sua cor?</p>
                             <CorSelector value={form.cor} onChange={handleCorChange} disabled={!canInteract || state === 'saving'} indisponiveis={selectedProfile?.jaNoEvento && selectedProfile.cor ? coresEmUso.filter(c => c.toUpperCase() !== String(selectedProfile.cor).toUpperCase()) : coresEmUso} />
                           </div>
@@ -1166,7 +1178,7 @@ export default function ReceptionKioskOtimizado() {
                         <button
                           type="button"
                           onClick={handleSubmit}
-                          disabled={!canInteract || state === 'saving' || !selectedProfile}
+                          disabled={!canInteract || state === 'saving' || !selectedProfile || avatarRepetido}
                           className="rounded-xl border border-success/40 bg-success/10 px-5 py-2.5 text-sm font-semibold text-success transition hover:bg-success/20 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {state === 'saving' ? 'Entrando...' : 'Entrar no evento'}
