@@ -20,11 +20,11 @@ function faceShape(s: AvatarConfig): FaceShape{
   const f = `fill="url(#gs)" ${K}`;
   switch(s.face){
     // chin = ponto mais baixo do queixo; fit = [largura, altura] do cabelo/acessórios em relação ao rosto redondo
-    case 'oval':   return {earX:97, chin:328, fit:[.86,1.06], svg:`<ellipse cx="200" cy="200" rx="105" ry="128" ${f}/>`};
-    case 'square': return {earX:92, chin:320, fit:[.9,1.02], svg:`<rect x="90" y="80" width="220" height="240" rx="72" ${f}/>`};
+    case 'oval':   return {earX:97, chin:328, fit:[.89,1.06], svg:`<ellipse cx="200" cy="200" rx="105" ry="128" ${f}/>`};
+    case 'square': return {earX:92, chin:320, fit:[.95,1.02], svg:`<rect x="90" y="80" width="220" height="240" rx="72" ${f}/>`};
     case 'heart':  return {earX:86, chin:330, fit:[.95,1], svg:`<path d="M 85 190 C 85 110 135 80 200 80 C 265 80 315 110 315 190 C 315 262 262 326 200 330 C 138 326 85 262 85 190 Z" ${f}/>`};
-    case 'wide':   return {earX:74, chin:312, fit:[1.06,.95], svg:`<ellipse cx="200" cy="202" rx="130" ry="112" ${f}/>`};
-    case 'pear':   return {earX:84, chin:326, fit:[.92,1], svg:`<path d="M 112 175 C 112 108 152 82 200 82 C 248 82 288 108 288 175 C 318 215 306 318 200 326 C 94 318 82 215 112 175 Z" ${f}/>`};
+    case 'wide':   return {earX:74, chin:312, fit:[1.09,.95], svg:`<ellipse cx="200" cy="202" rx="130" ry="112" ${f}/>`};
+    case 'pear':   return {earX:84, chin:326, fit:[.81,1], svg:`<path d="M 112 175 C 112 108 152 82 200 82 C 248 82 288 108 288 175 C 318 215 306 318 200 326 C 94 318 82 215 112 175 Z" ${f}/>`};
     default:       return {earX:80, chin:318, fit:[1,1], svg:`<ellipse cx="200" cy="200" rx="122" ry="118" ${f}/>`};
   }
 }
