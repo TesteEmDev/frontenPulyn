@@ -113,7 +113,7 @@ function maskLayer(s: AvatarConfig){
 function hairFrontBase(s: AvatarConfig){
   const f = `fill="${s.hair}" ${K}`;
   switch(s.hairStyle){
-    case 'spiky': return `<path d="M 80 192 L 66 146 L 60 108 L 94 124 L 90 78 L 122 102 L 134 50 L 160 92 L 180 34 L 200 84 L 222 26 L 238 84 L 266 40 L 272 96 L 304 62 L 304 116 L 338 100 L 322 148 L 322 192 C 312 164 292 142 272 138 L 254 156 L 236 136 L 218 160 L 200 138 L 182 160 L 164 136 L 146 156 L 130 138 C 110 142 92 164 80 192 Z" ${f}/><path d="M 100 112 L 108 140 M 128 70 L 138 112 M 178 52 L 186 100 M 224 46 L 216 98 M 270 62 L 262 106 M 304 90 L 292 124" fill="none" stroke="${mix(s.hair,'#000000',.32)}" stroke-width="5" stroke-linecap="round"/>`;
+    case 'spiky': return `<path d="M 80 206 L 66 150 L 60 108 L 94 124 L 90 78 L 122 102 L 134 50 L 160 92 L 180 34 L 200 84 L 222 26 L 238 84 L 266 40 L 272 96 L 304 62 L 304 116 L 338 100 L 322 150 L 320 206 C 316 178 296 148 272 140 L 254 158 L 236 138 L 218 162 L 200 140 L 182 162 L 164 138 L 146 158 L 130 140 C 106 148 86 178 80 206 Z" ${f}/><path d="M 100 112 L 108 140 M 128 70 L 138 112 M 178 52 L 186 100 M 224 46 L 216 98 M 270 62 L 262 106 M 304 90 L 292 124" fill="none" stroke="${mix(s.hair,'#000000',.32)}" stroke-width="5" stroke-linecap="round"/>`;
     case 'curly': case 'curlybob': {
       const stroked = CURLS.map(([x,y,r])=>`<circle cx="${x}" cy="${y}" r="${r}" fill="${s.hair}" stroke="${INK}" stroke-width="10"/>`).join('');
       const fills = CURLS.map(([x,y,r])=>`<circle cx="${x}" cy="${y}" r="${r}" fill="${s.hair}"/>`).join('');
@@ -123,13 +123,13 @@ function hairFrontBase(s: AvatarConfig){
     }
     // Chanel e longo: franja reta, com repartido de mechas
     case 'bob': case 'long': {
-      const bangs = `<path d="M 80 190 C 70 90 140 55 200 55 C 270 55 335 90 320 190 L 314 168 C 304 156 292 152 276 152 L 124 152 C 108 152 96 156 86 168 Z" ${f}/>`;
+      const bangs = `<path d="M 80 206 C 70 90 140 55 200 55 C 270 55 335 90 320 206 L 308 172 C 300 158 290 152 276 152 L 124 152 C 110 152 100 158 92 172 Z" ${f}/>`;
       const mechas = `<path d="M 150 64 Q 138 108 142 150 M 200 58 L 200 150 M 250 64 Q 262 108 258 150" fill="none" stroke="${mix(s.hair,'#000000',.28)}" stroke-width="4.5" stroke-linecap="round"/>`;
       return bangs + mechas;
     }
     // Afro: volume macio ao redor da testa
-    case 'afro': return cluster([[104,128,34],[142,100,38],[200,88,42],[258,100,38],[296,128,34],[86,170,24],[314,170,24]], s.hair)
-      + `<path d="M 120 150 Q 200 120 280 150" fill="none" stroke="${mix(s.hair,'#000000',.22)}" stroke-width="4" stroke-linecap="round"/>`;
+    case 'afro': return cluster([[200,76,50],[132,92,40],[268,92,40],[96,128,36],[304,128,36],[84,176,28],[316,176,28],[150,126,34],[250,126,34],[200,118,36]], s.hair)
+      + `<path d="M 168 88 q 8 -12 18 -2 M 214 80 q 8 -12 18 -2 M 120 112 q 8 -12 18 -2 M 262 110 q 8 -12 18 -2" fill="none" stroke="${mix(s.hair,'#000000',.25)}" stroke-width="4.5" stroke-linecap="round"/>`;
     case 'mohawk': return `<path d="M 172 150 C 158 112 160 72 176 56 C 180 30 220 30 224 56 C 240 72 242 112 228 150 C 215 135 185 135 172 150 Z" ${f}/>`;
     case 'messy': return `<path d="M 80 195 C 58 150 68 100 110 95 C 100 60 150 40 175 60 C 190 30 240 30 255 62 C 292 50 332 92 305 126 C 332 140 334 172 320 195 C 310 165 290 148 270 140 C 240 155 160 155 130 140 C 110 148 90 165 80 195 Z" ${f}/>`;
     case 'low': return `<path d="${SHORT}" ${f}/><circle cx="92" cy="186" r="9" fill="#e63946" ${K} stroke-width="4"/><circle cx="308" cy="186" r="9" fill="#e63946" ${K} stroke-width="4"/>`;
