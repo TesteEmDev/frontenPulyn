@@ -1299,8 +1299,8 @@ export const api = {
   },
 
   // Procura cadastros de crianças que já participaram de outros eventos da empresa.
-  async searchKioskProfiles(eventId: string, busca: string) {
-    const res = await fetch(`${API_URL}/kiosk/profiles?eventId=${encodeURIComponent(eventId)}&busca=${encodeURIComponent(busca)}`, {
+  async searchKioskProfiles(eventId: string, busca: string, dataNascimento: string) {
+    const res = await fetch(`${API_URL}/kiosk/profiles?eventId=${encodeURIComponent(eventId)}&busca=${encodeURIComponent(busca)}&dataNascimento=${encodeURIComponent(dataNascimento)}`, {
       headers: getAuthHeaders(),
     });
     const response = await res.json().catch(() => ([]));
