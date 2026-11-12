@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Watch, Check, X, Undo2, Inbox, PackageCheck, Radio, ScanLine, Plus } from 'lucide-react';
-import { api, API_URL, type PulseiraRecebida } from '../../services/api';
+import { api, API_URL } from '../../services/api';
 import { createAuthenticatedWebSocket, getWebSocketServerUrl } from '../../services/websocket';
 import { lerToken } from '../../utils/sessao';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
@@ -110,7 +110,6 @@ function useSelecao(codigos: string[]) {
 
 export default function AdminBracelets() {
   const [pendentes, setPendentes] = useState<Pendente[]>([]);
-  const [recebidas, setRecebidas] = useState<PulseiraRecebida[]>([]);
   const [todas, setTodas] = useState<PulseiraDoBuffet[]>([]);
   const [filtro, setFiltro] = useState<FiltroLista>('todas');
   const [busca, setBusca] = useState('');
@@ -123,7 +122,8 @@ export default function AdminBracelets() {
   const [digitado, setDigitado] = useState('');
   const [ultimaParaDevolver, setUltimaParaDevolver] = useState<{ codigo: string; marcada: boolean } | null>(null);
 
-  const livres = useMemo(() => recebidas.filter((p) => !p.emUso && p.status === 'disponivel'), [recebidas]);
+  // Qualquer pulseira livre do buffet pode ser devolvida ao master (recebida dele ou cadastrada antes)
+  const livres = useMemo(() => todas.filter((p) => situacaoDaPulseira(p) === 'livre'), [todas]);
   const selPendentes = useSelecao(useMemo(() => pendentes.map((p) => p.codigo), [pendentes]));
   // Pulseiras conferidas no leitor: a leitura confirma que a pulseira chegou e já deixa ela marcada para o aceite
   const [conferidas, setConferidas] = useState<Set<string>>(new Set());
@@ -134,9 +134,8 @@ export default function AdminBracelets() {
 
   const carregar = useCallback(async (silencioso = false) => {
     try {
-      const [aguardando, minhas, lista] = await Promise.all([api.pulseirasPendentes(), api.pulseirasRecebidasDoMaster(), api.getPulseiras()]);
+      const [aguardando, lista] = await Promise.all([api.pulseirasPendentes(), api.getPulseiras()]);
       setPendentes(aguardando);
-      setRecebidas(minhas);
       setTodas(lista as PulseiraDoBuffet[]);
     } catch (erro) {
       if (!silencioso) toast.error(erro instanceof Error ? erro.message : 'Não foi possível carregar as pulseiras');
@@ -426,10 +425,10 @@ export default function AdminBracelets() {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 className="flex items-center gap-2 font-display text-lg text-white">
                 <PackageCheck size={18} className="text-success" />
-                Recebidas da Pulyn <span className="text-sm text-gray-500">({recebidas.length})</span>
+                Pulseiras livres <span className="text-sm text-gray-500">({livres.length})</span>
               </h2>
               <div className="flex flex-wrap gap-2">
-                <Button title={livres.length === 0 && !modoDevolucao ? 'Você não tem pulseiras livres recebidas da Pulyn para devolver' : undefined} variant={modoDevolucao ? 'ghost' : 'primary'} className={modoDevolucao ? 'border border-border' : ''} disabled={ocupado || (livres.length === 0 && !modoDevolucao)} onClick={alternarModoDevolucao}>
+                <Button title={livres.length === 0 && !modoDevolucao ? 'Você não tem pulseiras livres para devolver' : undefined} variant={modoDevolucao ? 'ghost' : 'primary'} className={modoDevolucao ? 'border border-border' : ''} disabled={ocupado || (livres.length === 0 && !modoDevolucao)} onClick={alternarModoDevolucao}>
                   {modoDevolucao ? <X size={16} className="mr-1.5" /> : <Undo2 size={16} className="mr-1.5" />}
                   {modoDevolucao ? 'Sair do modo devolução' : 'Modo devolução'}
                 </Button>
@@ -494,8 +493,8 @@ export default function AdminBracelets() {
                 : 'Para devolver pulseiras livres ao master, ative o modo devolução.'}
             </p>
             <div className="max-h-96 overflow-y-auto">
-              {recebidas.length === 0 ? (
-                <p className="py-8 text-center text-gray-500">Você ainda não recebeu pulseiras da Pulyn.</p>
+              {livres.length === 0 ? (
+                <p className="py-8 text-center text-gray-500">Você não tem pulseiras livres no momento.</p>
               ) : (
                 <table className="w-full text-left">
                   <thead className="sticky top-0 bg-dark-card">
@@ -511,23 +510,18 @@ export default function AdminBracelets() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {recebidas.map((p) => {
-                      const livre = !p.emUso && p.status === 'disponivel';
-                      return (
-                        <tr key={p.codigo} className="hover:bg-surface/50 transition-colors">
-                          <td className="py-2.5 pr-2">
-                            {modoDevolucao && livre && (
-                              <input type="checkbox" checked={selLivres.marcado(p.codigo)} onChange={() => selLivres.alternar(p.codigo)} aria-label={`Selecionar ${p.codigo}`} className="h-4 w-4 cursor-pointer accent-primary" />
-                            )}
-                          </td>
-                          <td className="py-2.5 pr-4 font-mono text-sm text-white">{p.codigo}</td>
-                          <td className="py-2.5 pr-4">
-                            {livre ? <Badge variant="success">Livre</Badge> : p.emUso ? <Badge variant="primary">Em uso</Badge> : <Badge variant="warning">{p.status === 'perdida' ? 'Perdida' : p.status === 'bloqueada' ? 'Bloqueada' : p.status}</Badge>}
-                          </td>
-                          <td className="py-2.5 text-sm text-gray-400">{formatarData(p.recebidoDoMasterEm)}</td>
-                        </tr>
-                      );
-                    })}
+                    {livres.map((p) => (
+                      <tr key={p.codigo} className="hover:bg-surface/50 transition-colors">
+                        <td className="py-2.5 pr-2">
+                          {modoDevolucao && (
+                            <input type="checkbox" checked={selLivres.marcado(p.codigo)} onChange={() => selLivres.alternar(p.codigo)} aria-label={`Selecionar ${p.codigo}`} className="h-4 w-4 cursor-pointer accent-primary" />
+                          )}
+                        </td>
+                        <td className="py-2.5 pr-4 font-mono text-sm text-white">{p.codigo}</td>
+                        <td className="py-2.5 pr-4"><Badge variant="success">Livre</Badge></td>
+                        <td className="py-2.5 text-sm text-gray-400">{formatarData(p.recebidoDoMasterEm ?? null)}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               )}
