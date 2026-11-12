@@ -117,6 +117,9 @@ export default function AdminBracelets() {
   const [carregando, setCarregando] = useState(true);
   const [ocupado, setOcupado] = useState(false);
   const [devolvendo, setDevolvendo] = useState(false);
+  // Modo devolução: só com ele ligado a leitura marca pulseira para devolver e os controles de devolução aparecem
+  const [modoDevolucao, setModoDevolucao] = useState(false);
+  const modoDevolucaoRef = useRef(false);
   const [digitado, setDigitado] = useState('');
   const [ultimaParaDevolver, setUltimaParaDevolver] = useState<{ codigo: string; marcada: boolean } | null>(null);
 
@@ -144,6 +147,7 @@ export default function AdminBracelets() {
 
   useEffect(() => { pendentesRef.current = pendentes; }, [pendentes]);
   useEffect(() => { livresRef.current = livres.map((p) => p.codigo); }, [livres]);
+  useEffect(() => { modoDevolucaoRef.current = modoDevolucao; }, [modoDevolucao]);
   useEffect(() => { void carregar(); }, [carregar]);
   useAutoRefresh(() => carregar(true), { topicos: ['pulseiras'], pausado: ocupado });
 
@@ -151,13 +155,15 @@ export default function AdminBracelets() {
     const lista = pendentesRef.current;
     if (!lista.some((p) => p.codigo === codigo)) {
       // Fora da lista de aceite: se for uma pulseira livre recebida da Pulyn, a leitura marca ela para devolver
-      if (livresRef.current.includes(codigo)) {
+      if (modoDevolucaoRef.current && livresRef.current.includes(codigo)) {
         selLivres.marcar(codigo);
         setUltimaParaDevolver({ codigo, marcada: true });
         return;
       }
       setUltimaLeitura({ codigo, situacao: 'desconhecida' });
-      toast.error(`A pulseira ${codigo} não está esperando aceite nem está livre para devolver`);
+      toast.error(modoDevolucaoRef.current
+        ? `A pulseira ${codigo} não está esperando aceite nem está livre para devolver`
+        : `A pulseira ${codigo} não está na lista enviada pela Pulyn`);
       return;
     }
     setConferidas((atual) => {
@@ -197,12 +203,18 @@ export default function AdminBracelets() {
     if (!(await confirmar(`Recusar ${codigos.length} pulseira(s)? Elas voltam para o estoque do master.`, { titulo: 'Recusar pulseiras', confirmar: 'Recusar' }))) return;
     void executar(() => api.recusarPulseiras(codigos), `${codigos.length} pulseira(s) recusada(s)`, selPendentes.limpar);
   };
+  const alternarModoDevolucao = () => {
+    if (modoDevolucao) { selLivres.limpar(); setUltimaParaDevolver(null); setDigitado(''); }
+    setModoDevolucao(!modoDevolucao);
+  };
+
   const devolver = async () => {
     const codigos = selLivres.validos;
     if (codigos.length === 0) return;
     await executar(() => api.devolverPulseiras(codigos), `${codigos.length} pulseira(s) devolvida(s) ao master`, () => {
       selLivres.limpar();
       setDevolvendo(false);
+      setModoDevolucao(false);
     });
   };
 
@@ -416,11 +428,22 @@ export default function AdminBracelets() {
                 <PackageCheck size={18} className="text-success" />
                 Recebidas da Pulyn <span className="text-sm text-gray-500">({recebidas.length})</span>
               </h2>
-              <Button variant="primary" disabled={selLivres.validos.length === 0 || ocupado} onClick={() => setDevolvendo(true)}>
-                <Undo2 size={16} className="mr-1.5" />
-                Devolver{selLivres.validos.length > 0 ? ` ${selLivres.validos.length}` : ''} ao master
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {livres.length > 0 && (
+                  <Button variant={modoDevolucao ? 'ghost' : 'primary'} className={modoDevolucao ? 'border border-border' : ''} disabled={ocupado} onClick={alternarModoDevolucao}>
+                    {modoDevolucao ? <X size={16} className="mr-1.5" /> : <Undo2 size={16} className="mr-1.5" />}
+                    {modoDevolucao ? 'Sair do modo devolução' : 'Modo devolução'}
+                  </Button>
+                )}
+                {modoDevolucao && (
+                  <Button variant="primary" disabled={selLivres.validos.length === 0 || ocupado} onClick={() => setDevolvendo(true)}>
+                    <Undo2 size={16} className="mr-1.5" />
+                    Devolver{selLivres.validos.length > 0 ? ` ${selLivres.validos.length}` : ''} ao master
+                  </Button>
+                )}
+              </div>
             </div>
+            {modoDevolucao && (
             <div className="mb-3 flex flex-wrap items-start justify-between gap-4 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-3">
               <div className="min-w-0 text-sm">
                 <p className="flex items-center gap-2 font-medium text-gray-200">
@@ -466,7 +489,12 @@ export default function AdminBracelets() {
                 </Button>
               </form>
             </div>
-            <p className="mb-3 text-xs text-gray-500">Só dá para devolver as pulseiras livres: as que estão em uso por uma criança ou marcadas como perdidas ou bloqueadas ficam com você.</p>
+            )}
+            <p className="mb-3 text-xs text-gray-500">
+              {modoDevolucao
+                ? 'Só dá para devolver as pulseiras livres: as que estão em uso por uma criança ou marcadas como perdidas ou bloqueadas ficam com você.'
+                : 'Para devolver pulseiras livres ao master, ative o modo devolução.'}
+            </p>
             <div className="max-h-96 overflow-y-auto">
               {recebidas.length === 0 ? (
                 <p className="py-8 text-center text-gray-500">Você ainda não recebeu pulseiras da Pulyn.</p>
@@ -475,7 +503,7 @@ export default function AdminBracelets() {
                   <thead className="sticky top-0 bg-dark-card">
                     <tr className="border-b border-border">
                       <th className="w-10 pb-3 pr-2">
-                        {livres.length > 0 && (
+                        {modoDevolucao && livres.length > 0 && (
                           <input type="checkbox" checked={selLivres.todos} onChange={selLivres.alternarTodos} aria-label="Selecionar todas as pulseiras livres" className="h-4 w-4 cursor-pointer accent-primary" />
                         )}
                       </th>
@@ -490,7 +518,7 @@ export default function AdminBracelets() {
                       return (
                         <tr key={p.codigo} className="hover:bg-surface/50 transition-colors">
                           <td className="py-2.5 pr-2">
-                            {livre && (
+                            {modoDevolucao && livre && (
                               <input type="checkbox" checked={selLivres.marcado(p.codigo)} onChange={() => selLivres.alternar(p.codigo)} aria-label={`Selecionar ${p.codigo}`} className="h-4 w-4 cursor-pointer accent-primary" />
                             )}
                           </td>
