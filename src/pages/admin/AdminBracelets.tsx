@@ -15,7 +15,7 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import { confirmar } from '../../components/ui/dialogo';
 import Input from '../../components/ui/Input';
-import SolicitarEquipamentos from '../../components/checkpoints/SolicitarEquipamentos';
+import SolicitarPulseiras from '../../components/checkpoints/SolicitarPulseiras';
 
 type Pendente = { codigo: string; enviadoEm: string };
 
@@ -230,9 +230,9 @@ export default function AdminBracelets() {
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Pulseiras"
-            description="Veja todas as suas pulseiras e quais estão em uso, aceite as que a Pulyn enviou e peça mais quando precisar"
+            description="Veja todas as suas pulseiras e quais estão em uso, aceite as que a Pulyn enviou e peça mais pulseiras quando precisar"
             icon={<Watch size={28} />}
-            action={<SolicitarEquipamentos />}
+            action={<SolicitarPulseiras />}
           />
 
           <Card>
@@ -265,7 +265,7 @@ export default function AdminBracelets() {
                 <p className="py-8 text-center text-gray-500">Carregando...</p>
               ) : listaFiltrada.length === 0 ? (
                 <p className="py-8 text-center text-gray-500">
-                  {todas.length === 0 ? 'Você ainda não tem pulseiras. Use "Solicitar pulseiras e checkpoints" para pedir à Pulyn.' : 'Nenhuma pulseira nesse filtro.'}
+                  {todas.length === 0 ? 'Você ainda não tem pulseiras. Use "Solicitar pulseiras" para pedir à Pulyn.' : 'Nenhuma pulseira nesse filtro.'}
                 </p>
               ) : (
                 <table className="w-full text-left">
