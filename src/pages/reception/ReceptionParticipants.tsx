@@ -321,9 +321,13 @@ export default function ReceptionParticipants() {
           p.codigo.trim().toUpperCase() === normalizedInput
         );
 
-        if (!pulseira) {await api.createPulseira(normalizedInput);
-          pulseira = { code: normalizedInput, status: 'disponivel' };
-        }if (pulseira.status !== 'disponivel') {
+        // O cliente só usa pulseira que o master forneceu: não cadastra pulseira nova aqui
+        if (!pulseira) {
+          avisar('Esta pulseira não foi fornecida para este cliente.');
+          setSaving(false);
+          return;
+        }
+        if (pulseira.status !== 'disponivel') {
           console.error(`❌ Pulseira indisponível: ${pulseira.status}`);
           avisar(`Pulseira indisponível. Status: ${pulseira.status}`);
           setSaving(false);

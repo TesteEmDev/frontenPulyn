@@ -1971,7 +1971,10 @@ export const api = {
     
     if (!res.ok) {
       const error = await res.text();
-      throw new Error(error);
+      // O servidor responde {"error": "..."}: mostra só a mensagem (ex.: pulseira não fornecida pelo master)
+      let mensagem = error;
+      try { mensagem = JSON.parse(error)?.error || error; } catch { /* texto puro */ }
+      throw new Error(mensagem);
     }
     
     return res.json();

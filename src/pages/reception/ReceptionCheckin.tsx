@@ -88,7 +88,7 @@ export default function ReceptionCheckin() {
         const pulseira = pulseiras.find(item => normalizeUid(String(item.codigo || '')) === normalizedCode);
         if (!pulseira) {
           setBraceletStatus('not-found');
-          showToast('Pulseira nova detectada. Ela será cadastrada ao finalizar o participante.');
+          showToast('Esta pulseira não foi fornecida para este cliente.', 'error');
           return;
         }
         if (pulseira.status === 'disponivel') {
@@ -222,8 +222,11 @@ export default function ReceptionCheckin() {
         const pulseiras = await api.getPulseiras();
         let pulseira = pulseiras.find(item => normalizeUid(String(item.codigo || '')) === normalizedCode);
 
+        // O cliente só usa pulseira que o master forneceu: não cadastra pulseira nova aqui
         if (!pulseira) {
-          pulseira = await api.createPulseira(normalizedCode);
+          showToast('Esta pulseira não foi fornecida para este cliente.', 'error');
+          setBraceletStatus('not-found');
+          return;
         }
         if (pulseira.status !== 'disponivel') {
           showToast('Esta pulseira já está vinculada ou indisponível.', 'error');
@@ -395,7 +398,7 @@ export default function ReceptionCheckin() {
                   <p className="truncate text-[10px] text-gray-400">
                     {braceletStatus === 'available' ? 'Disponível para vincular' :
                       braceletStatus === 'registered' ? 'Já vinculada a outra criança' :
-                        braceletStatus === 'not-found' ? 'Nova: será cadastrada ao finalizar' :
+                        braceletStatus === 'not-found' ? 'Não fornecida a este cliente' :
                           braceletStatus === 'error' ? 'Conferência não concluída' :
                             braceletStatus === 'checking' ? 'Verificando pulseira...' :
                               nfcConnected ? 'Aproxime uma pulseira' : 'Conecte o leitor'}
