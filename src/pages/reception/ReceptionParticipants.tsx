@@ -317,7 +317,7 @@ export default function ReceptionParticipants() {
           return;
         }
 
-        const normalizedInput = inputValue.trim().toUpperCase();const pulseiras = await api.getPulseiras();let pulseira = pulseiras.find(p =>
+        const normalizedInput = inputValue.trim().toUpperCase();const pulseiras = await api.getPulseiras();const pulseira = pulseiras.find(p =>
           p.codigo.trim().toUpperCase() === normalizedInput
         );
 

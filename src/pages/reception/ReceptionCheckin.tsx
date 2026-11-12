@@ -220,7 +220,7 @@ export default function ReceptionCheckin() {
       if (selectedEventId && braceletCode) {
         normalizedCode = normalizeUid(braceletCode);
         const pulseiras = await api.getPulseiras();
-        let pulseira = pulseiras.find(item => normalizeUid(String(item.codigo || '')) === normalizedCode);
+        const pulseira = pulseiras.find(item => normalizeUid(String(item.codigo || '')) === normalizedCode);
 
         // O cliente só usa pulseira que o master forneceu: não cadastra pulseira nova aqui
         if (!pulseira) {
