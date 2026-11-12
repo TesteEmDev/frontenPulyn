@@ -429,12 +429,10 @@ export default function AdminBracelets() {
                 Recebidas da Pulyn <span className="text-sm text-gray-500">({recebidas.length})</span>
               </h2>
               <div className="flex flex-wrap gap-2">
-                {livres.length > 0 && (
-                  <Button variant={modoDevolucao ? 'ghost' : 'primary'} className={modoDevolucao ? 'border border-border' : ''} disabled={ocupado} onClick={alternarModoDevolucao}>
-                    {modoDevolucao ? <X size={16} className="mr-1.5" /> : <Undo2 size={16} className="mr-1.5" />}
-                    {modoDevolucao ? 'Sair do modo devolução' : 'Modo devolução'}
-                  </Button>
-                )}
+                <Button title={livres.length === 0 && !modoDevolucao ? 'Você não tem pulseiras livres recebidas da Pulyn para devolver' : undefined} variant={modoDevolucao ? 'ghost' : 'primary'} className={modoDevolucao ? 'border border-border' : ''} disabled={ocupado || (livres.length === 0 && !modoDevolucao)} onClick={alternarModoDevolucao}>
+                  {modoDevolucao ? <X size={16} className="mr-1.5" /> : <Undo2 size={16} className="mr-1.5" />}
+                  {modoDevolucao ? 'Sair do modo devolução' : 'Modo devolução'}
+                </Button>
                 {modoDevolucao && (
                   <Button variant="primary" disabled={selLivres.validos.length === 0 || ocupado} onClick={() => setDevolvendo(true)}>
                     <Undo2 size={16} className="mr-1.5" />
