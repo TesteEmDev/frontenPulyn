@@ -311,7 +311,9 @@ export default function ReceptionKioskOtimizado() {
         if (!pulseira.available) {
           kioskStateRef.current = 'error';
           setState('error');
-          setMessage(`Esta pulseira já está ${pulseira.status === 'em_uso' ? 'vinculada' : 'indisponível'}.`);
+          setMessage(pulseira.exists === false
+            ? 'Esta pulseira não foi fornecida para este cliente.'
+            : `Esta pulseira já está ${pulseira.status === 'em_uso' ? 'vinculada' : 'indisponível'}.`);
           return;
         }
         

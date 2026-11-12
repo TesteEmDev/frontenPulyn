@@ -34,8 +34,8 @@ interface Ticket {
   date: string;
   assignee: string;
   description: string;
-  tipoChamado?: 'chamado' | 'checkpoint';
-  itens?: Array<{ tipo: string; finalidade?: string; quantidade: number }>;
+  tipoChamado?: 'chamado' | 'checkpoint' | 'pulseira';
+  itens?: Array<{ tipo?: string; finalidade?: string; quantidade: number }>;
 }
 
 const tipoCheckpointLabel: Record<string, string> = { NFC: 'NFC/RFID', UHF: 'UHF longa distância' };
@@ -109,11 +109,11 @@ export default function MasterSupport() {
       String(ticket.client ?? '').toLowerCase().includes(search.toLowerCase()) ||
       String(ticket.id ?? '').toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'all' || ticket.status === filterStatus;
-    const matchTipo = filterTipo === 'all' || ticket.tipoChamado === 'checkpoint';
+    const matchTipo = filterTipo === 'all' || ticket.tipoChamado === 'checkpoint' || ticket.tipoChamado === 'pulseira';
     return matchSearch && matchStatus && matchTipo;
   });
 
-  const pedidosAbertos = tickets.filter(t => t.tipoChamado === 'checkpoint' && t.status !== 'resolvido').length;
+  const pedidosAbertos = tickets.filter(t => (t.tipoChamado === 'checkpoint' || t.tipoChamado === 'pulseira') && t.status !== 'resolvido').length;
   const openCount = tickets.filter(t => t.status === 'aberto').length;
   const inProgressCount = tickets.filter(t => t.status === 'em_andamento').length;
   const resolvedCount = tickets.filter(t => t.status === 'resolvido').length;
@@ -241,7 +241,7 @@ export default function MasterSupport() {
                   onClick={() => setFilterTipo(filterTipo === 'checkpoint' ? 'all' : 'checkpoint')}
                 >
                   <PackagePlus size={14} className="mr-1" />
-                  Pedidos de checkpoint{pedidosAbertos > 0 ? ` (${pedidosAbertos})` : ''}
+                  Pedidos de checkpoints e pulseiras{pedidosAbertos > 0 ? ` (${pedidosAbertos})` : ''}
                 </Button>
               </div>
             </div>
@@ -276,16 +276,18 @@ export default function MasterSupport() {
                       <td className="py-3 px-4 font-mono text-xs text-primary">{ticket.id}</td>
                       <td className="py-3 px-4 text-gray-300">{ticket.client}</td>
                       <td className="py-3 px-4 text-white font-semibold">
-                        {ticket.tipoChamado === 'checkpoint' ? (
+                        {ticket.tipoChamado === 'checkpoint' || ticket.tipoChamado === 'pulseira' ? (
                           <div>
                             <div className="flex items-center gap-2">
                               <PackagePlus size={14} className="text-primary" />
-                              <span>Pedido de checkpoints</span>
+                              <span>{ticket.tipoChamado === 'pulseira' ? 'Pedido de pulseiras' : 'Pedido de checkpoints'}</span>
                             </div>
                             <div className="mt-1 flex flex-wrap gap-1.5">
                               {(ticket.itens || []).map((item) => (
-                                <Badge key={`${item.tipo}-${item.finalidade}`} variant="secondary">
-                                  {item.quantidade} × {tipoCheckpointLabel[item.tipo] || item.tipo}{item.finalidade ? ` · ${finalidadeLabel[item.finalidade] || item.finalidade}` : ''}
+                                <Badge key={`${item.tipo}-${item.finalidade}-${item.quantidade}`} variant="secondary">
+                                  {ticket.tipoChamado === 'pulseira'
+                                    ? `${item.quantidade} ${item.quantidade === 1 ? 'pulseira' : 'pulseiras'}`
+                                    : <>{item.quantidade} × {(item.tipo && tipoCheckpointLabel[item.tipo]) || item.tipo}{item.finalidade ? ` · ${finalidadeLabel[item.finalidade] || item.finalidade}` : ''}</>}
                                 </Badge>
                               ))}
                             </div>
