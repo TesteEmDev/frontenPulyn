@@ -980,6 +980,20 @@ export const api = {
     return ticketParaTela(await res.json());
   },
 
+  // Admin do buffet pede pulseiras ao master (chamado do tipo 'pulseira' na central de suporte dele)
+  async solicitarPulseiras(itens: Array<{ tipo: string; quantidade: number }>, observacao: string) {
+    const res = await fetch(`${API_URL}/support/solicitar-pulseiras`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itens, observacao }),
+    });
+    if (!res.ok) {
+      const corpo = await res.json().catch(() => null);
+      throw new Error(corpo?.error || `Erro ao enviar a solicitação (${res.status})`);
+    }
+    return ticketParaTela(await res.json());
+  },
+
   async updateTicketStatus(id: string, status: string) {
     const res = await fetch(`${API_URL}/support/${id}/status`, {
       method: 'PUT',

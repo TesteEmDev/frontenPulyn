@@ -14,8 +14,31 @@ import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import { confirmar } from '../../components/ui/dialogo';
+import Input from '../../components/ui/Input';
+import SolicitarEquipamentos from '../../components/checkpoints/SolicitarEquipamentos';
 
 type Pendente = { codigo: string; enviadoEm: string };
+
+// Uma linha da lista completa: toda pulseira que está no cadastro do buffet
+type PulseiraDoBuffet = {
+  codigo: string;
+  status: string;
+  criancaId: string | null;
+  crianca_nome?: string | null;
+  crianca_apelido?: string | null;
+  evento_nome?: string | null;
+  recebidoDoMasterEm?: string | null;
+};
+type FiltroLista = 'todas' | 'em_uso' | 'livres' | 'outras';
+
+// Situação de uma pulseira para o admin: em uso por uma criança, livre, perdida ou bloqueada
+function situacaoDaPulseira(p: PulseiraDoBuffet): 'em_uso' | 'livre' | 'perdida' | 'bloqueada' | 'outra' {
+  if (p.criancaId || p.status === 'em_uso') return 'em_uso';
+  if (p.status === 'disponivel') return 'livre';
+  if (p.status === 'perdida') return 'perdida';
+  if (p.status === 'bloqueada') return 'bloqueada';
+  return 'outra';
+}
 
 const formatarData = (data: string | null) =>
   data ? new Date(data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -87,6 +110,9 @@ function useSelecao(codigos: string[]) {
 export default function AdminBracelets() {
   const [pendentes, setPendentes] = useState<Pendente[]>([]);
   const [recebidas, setRecebidas] = useState<PulseiraRecebida[]>([]);
+  const [todas, setTodas] = useState<PulseiraDoBuffet[]>([]);
+  const [filtro, setFiltro] = useState<FiltroLista>('todas');
+  const [busca, setBusca] = useState('');
   const [carregando, setCarregando] = useState(true);
   const [ocupado, setOcupado] = useState(false);
 
@@ -100,9 +126,10 @@ export default function AdminBracelets() {
 
   const carregar = useCallback(async (silencioso = false) => {
     try {
-      const [aguardando, minhas] = await Promise.all([api.pulseirasPendentes(), api.pulseirasRecebidasDoMaster()]);
+      const [aguardando, minhas, lista] = await Promise.all([api.pulseirasPendentes(), api.pulseirasRecebidasDoMaster(), api.getPulseiras()]);
       setPendentes(aguardando);
       setRecebidas(minhas);
+      setTodas(lista as PulseiraDoBuffet[]);
     } catch (erro) {
       if (!silencioso) toast.error(erro instanceof Error ? erro.message : 'Não foi possível carregar as pulseiras');
     } finally {
@@ -163,6 +190,36 @@ export default function AdminBracelets() {
     void executar(() => api.devolverPulseiras(codigos), `${codigos.length} pulseira(s) devolvida(s) ao master`, selLivres.limpar);
   };
 
+  const contagem = useMemo(() => {
+    const c = { em_uso: 0, livre: 0, outras: 0 };
+    for (const p of todas) {
+      const s = situacaoDaPulseira(p);
+      if (s === 'em_uso') c.em_uso += 1; else if (s === 'livre') c.livre += 1; else c.outras += 1;
+    }
+    return c;
+  }, [todas]);
+
+  const listaFiltrada = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    return todas.filter((p) => {
+      const s = situacaoDaPulseira(p);
+      if (filtro === 'em_uso' && s !== 'em_uso') return false;
+      if (filtro === 'livres' && s !== 'livre') return false;
+      if (filtro === 'outras' && (s === 'em_uso' || s === 'livre')) return false;
+      if (!termo) return true;
+      return p.codigo.toLowerCase().includes(termo)
+        || (p.crianca_nome || '').toLowerCase().includes(termo)
+        || (p.crianca_apelido || '').toLowerCase().includes(termo);
+    });
+  }, [todas, filtro, busca]);
+
+  const filtros: { chave: FiltroLista; rotulo: string; total: number }[] = [
+    { chave: 'todas', rotulo: 'Todas', total: todas.length },
+    { chave: 'em_uso', rotulo: 'Em uso', total: contagem.em_uso },
+    { chave: 'livres', rotulo: 'Livres', total: contagem.livre },
+    { chave: 'outras', rotulo: 'Perdidas / bloqueadas', total: contagem.outras },
+  ];
+
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">
       <AdminSidebar />
@@ -173,9 +230,76 @@ export default function AdminBracelets() {
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Pulseiras"
-            description="Aceite as pulseiras que a Pulyn enviou para o seu buffet ou devolva as que não vai usar"
+            description="Veja todas as suas pulseiras e quais estão em uso, aceite as que a Pulyn enviou e peça mais quando precisar"
             icon={<Watch size={28} />}
+            action={<SolicitarEquipamentos />}
           />
+
+          <Card>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 font-display text-lg text-white">
+                <Watch size={18} className="text-primary" />
+                Todas as pulseiras <span className="text-sm text-gray-500">({todas.length})</span>
+              </h2>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <Badge variant="primary">{contagem.em_uso} em uso</Badge>
+                <Badge variant="success">{contagem.livre} livres</Badge>
+                {contagem.outras > 0 && <Badge variant="warning">{contagem.outras} perdidas/bloqueadas</Badge>}
+                {pendentes.length > 0 && <Badge variant="secondary">{pendentes.length} aguardando aceite</Badge>}
+              </div>
+            </div>
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex flex-wrap gap-2">
+                {filtros.map((f) => (
+                  <Button key={f.chave} variant={filtro === f.chave ? 'primary' : 'ghost'} size="sm" onClick={() => setFiltro(f.chave)}>
+                    {f.rotulo} ({f.total})
+                  </Button>
+                ))}
+              </div>
+              <div className="sm:ml-auto sm:w-72">
+                <Input placeholder="Buscar por código ou criança..." value={busca} onChange={(e) => setBusca(e.target.value)} />
+              </div>
+            </div>
+            <div className="max-h-96 overflow-y-auto">
+              {carregando ? (
+                <p className="py-8 text-center text-gray-500">Carregando...</p>
+              ) : listaFiltrada.length === 0 ? (
+                <p className="py-8 text-center text-gray-500">
+                  {todas.length === 0 ? 'Você ainda não tem pulseiras. Use "Solicitar pulseiras e checkpoints" para pedir à Pulyn.' : 'Nenhuma pulseira nesse filtro.'}
+                </p>
+              ) : (
+                <table className="w-full text-left">
+                  <thead className="sticky top-0 bg-dark-card">
+                    <tr className="border-b border-border">
+                      <th className="pb-3 pr-4 text-sm font-body font-semibold text-gray-400">Código</th>
+                      <th className="pb-3 pr-4 text-sm font-body font-semibold text-gray-400">Situação</th>
+                      <th className="pb-3 pr-4 text-sm font-body font-semibold text-gray-400">Criança</th>
+                      <th className="pb-3 pr-4 text-sm font-body font-semibold text-gray-400">Evento</th>
+                      <th className="pb-3 text-sm font-body font-semibold text-gray-400">Recebida em</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {listaFiltrada.map((p) => {
+                      const s = situacaoDaPulseira(p);
+                      return (
+                        <tr key={p.codigo} className="hover:bg-surface/50 transition-colors">
+                          <td className="py-2.5 pr-4 font-mono text-sm text-white">{p.codigo}</td>
+                          <td className="py-2.5 pr-4">
+                            {s === 'em_uso' ? <Badge variant="primary">Em uso</Badge>
+                              : s === 'livre' ? <Badge variant="success">Livre</Badge>
+                                : <Badge variant="warning">{s === 'perdida' ? 'Perdida' : s === 'bloqueada' ? 'Bloqueada' : p.status}</Badge>}
+                          </td>
+                          <td className="py-2.5 pr-4 text-sm text-gray-300">{p.crianca_apelido || p.crianca_nome || '—'}</td>
+                          <td className="py-2.5 pr-4 text-sm text-gray-400">{p.evento_nome || '—'}</td>
+                          <td className="py-2.5 text-sm text-gray-400">{formatarData(p.recebidoDoMasterEm ?? null)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </Card>
 
           <Card>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
