@@ -981,11 +981,11 @@ export const api = {
   },
 
   // Admin do buffet pede pulseiras ao master (chamado do tipo 'pulseira' na central de suporte dele)
-  async solicitarPulseiras(itens: Array<{ tipo: string; quantidade: number }>, observacao: string) {
+  async solicitarPulseiras(quantidade: number, observacao: string) {
     const res = await fetch(`${API_URL}/support/solicitar-pulseiras`, {
       method: 'POST',
       headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itens, observacao }),
+      body: JSON.stringify({ quantidade, observacao }),
     });
     if (!res.ok) {
       const corpo = await res.json().catch(() => null);

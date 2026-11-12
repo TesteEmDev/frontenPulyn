@@ -35,7 +35,7 @@ interface Ticket {
   assignee: string;
   description: string;
   tipoChamado?: 'chamado' | 'checkpoint' | 'pulseira';
-  itens?: Array<{ tipo: string; finalidade?: string; quantidade: number }>;
+  itens?: Array<{ tipo?: string; finalidade?: string; quantidade: number }>;
 }
 
 const tipoCheckpointLabel: Record<string, string> = { NFC: 'NFC/RFID', UHF: 'UHF longa distância' };
@@ -284,8 +284,10 @@ export default function MasterSupport() {
                             </div>
                             <div className="mt-1 flex flex-wrap gap-1.5">
                               {(ticket.itens || []).map((item) => (
-                                <Badge key={`${item.tipo}-${item.finalidade}`} variant="secondary">
-                                  {item.quantidade} × {tipoCheckpointLabel[item.tipo] || item.tipo}{item.finalidade ? ` · ${finalidadeLabel[item.finalidade] || item.finalidade}` : ''}
+                                <Badge key={`${item.tipo}-${item.finalidade}-${item.quantidade}`} variant="secondary">
+                                  {ticket.tipoChamado === 'pulseira'
+                                    ? `${item.quantidade} ${item.quantidade === 1 ? 'pulseira' : 'pulseiras'}`
+                                    : <>{item.quantidade} × {(item.tipo && tipoCheckpointLabel[item.tipo]) || item.tipo}{item.finalidade ? ` · ${finalidadeLabel[item.finalidade] || item.finalidade}` : ''}</>}
                                 </Badge>
                               ))}
                             </div>
