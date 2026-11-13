@@ -10,7 +10,7 @@ import { api } from '../../services/api';
 import Avatar from '../../components/ui/Avatar';
 import AvatarBuilder from '../../components/ui/AvatarBuilder';
 import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
-import { decodeAvatar, newAvatarCode } from '../../avatar/builder/code';
+import { decodeAvatar, newAvatarCode } from '@pulyn/avatar';
 import StatusDot from '../../components/ui/StatusDot';
 import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
 import VirtualKeyboardOtimizado from '../../components/ui/VirtualKeyboardOtimizado';

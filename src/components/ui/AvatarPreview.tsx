@@ -1,4 +1,5 @@
 import { memo, useMemo } from 'react';
+import { Dices } from 'lucide-react';
 import Avatar from './Avatar';
 import {
   avatarImageUrl,
@@ -7,7 +8,7 @@ import {
   encodeAvatar,
   isAvatarCode,
   randomAvatarConfig,
-} from '../../avatar/builder/code';
+} from '@pulyn/avatar';
 
 interface AvatarPreviewProps {
   value: string;
@@ -48,9 +49,10 @@ function AvatarPreview({ value, onChange, disabled = false, className = '', fill
             type="button"
             onClick={() => onChange(encodeAvatar(randomAvatarConfig()))}
             disabled={disabled}
-            className="w-full max-w-[260px] rounded-xl border border-cyan-300/40 bg-cyan-300/10 px-4 py-3 text-sm font-bold text-cyan-100 transition hover:bg-cyan-300/20 active:scale-95 disabled:opacity-50"
+            className="flex w-full max-w-[260px] items-center justify-center gap-2 rounded-xl border border-cyan-300/40 bg-cyan-300/10 px-4 py-3 text-sm font-bold text-cyan-100 transition hover:bg-cyan-300/20 active:scale-95 disabled:opacity-50"
           >
-            🎲 Surpreenda-me
+            <Dices className="h-4 w-4 shrink-0" aria-hidden="true" />
+            Surpreenda-me
           </button>
         </div>
       </div>
@@ -81,9 +83,10 @@ function AvatarPreview({ value, onChange, disabled = false, className = '', fill
         type="button"
         onClick={() => onChange(encodeAvatar(randomAvatarConfig()))}
         disabled={disabled}
-        className="w-full max-w-[260px] shrink-0 rounded-xl border border-cyan-300/40 bg-cyan-300/10 px-4 py-3 text-sm font-bold text-cyan-100 transition hover:bg-cyan-300/20 active:scale-95 disabled:opacity-50"
+        className="flex w-full max-w-[260px] shrink-0 items-center justify-center gap-2 rounded-xl border border-cyan-300/40 bg-cyan-300/10 px-4 py-3 text-sm font-bold text-cyan-100 transition hover:bg-cyan-300/20 active:scale-95 disabled:opacity-50"
       >
-        🎲 Surpreenda-me
+        <Dices className="h-4 w-4 shrink-0" aria-hidden="true" />
+        Surpreenda-me
       </button>
     </div>
   );

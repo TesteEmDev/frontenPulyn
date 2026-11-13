@@ -4,7 +4,7 @@ import {
   getAvatarLabel,
   getDefaultAvatar,
 } from '../../avatar/adventurerAvatars';
-import { avatarCodeImageUrl } from '../../avatar/builder/code';
+import { avatarCodeImageUrl } from '@pulyn/avatar';
 
 type AvatarSize = 'sm' | 'md' | 'lg' | 'xl';
 type AvatarShape = 'circle' | 'square';

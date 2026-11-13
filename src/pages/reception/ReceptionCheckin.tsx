@@ -12,7 +12,7 @@ import Avatar from '../../components/ui/Avatar';
 import AvatarBuilder from '../../components/ui/AvatarBuilder';
 import AvatarPreview from '../../components/ui/AvatarPreview';
 import { ADVENTURER_AVATARS } from '../../avatar/adventurerAvatars';
-import { isAvatarCode, newAvatarCode } from '../../avatar/builder/code';
+import { isAvatarCode, newAvatarCode } from '@pulyn/avatar';
 
 const normalizeUid = (value: string) => value.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
 
