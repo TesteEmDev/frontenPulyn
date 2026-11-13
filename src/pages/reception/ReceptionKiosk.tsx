@@ -210,7 +210,9 @@ export default function ReceptionKioskOtimizado() {
   }, [resetKiosk, state]);
 
   // HANDLE BRACELET OTIMIZADO - COM CACHE
-  const braceletCache = useRef<Map<string, boolean>>(new Map());
+  // Guarda o resultado da conferência de cada pulseira (disponível ou não, e a mensagem para a tela).
+  // Pulseira fora do estoque do buffet NÃO fica guardada: se ela for cadastrada depois, o kiosk passa a aceitá-la.
+  const braceletCache = useRef<Map<string, { available: boolean; message: string }>>(new Map());
   const handleBraceletDetected = useMemoizedCallback((code: string) => {
     const normalizedCode = normalizeUid(code);
     const currentState = kioskStateRef.current;
@@ -235,14 +237,14 @@ export default function ReceptionKioskOtimizado() {
 
     // Verificar cache primeiro
     const cacheKey = normalizedCode;
-    if (braceletCache.current.has(cacheKey)) {
-      const isAvailable = braceletCache.current.get(cacheKey);
+    const cached = braceletCache.current.get(cacheKey);
+    if (cached) {
       if (lastReadRef.current?.code !== normalizedCode) return;
-      
-      if (!isAvailable) {
+
+      if (!cached.available) {
         kioskStateRef.current = 'error';
         setState('error');
-        setMessage('Esta pulseira já está vinculada.');
+        setMessage(cached.message);
         return;
       }
       
@@ -260,13 +262,19 @@ export default function ReceptionKioskOtimizado() {
         clearTimeout(timeoutId);
         if (lastReadRef.current?.code !== normalizedCode) return;
         
-        // Atualizar cache
-        braceletCache.current.set(cacheKey, pulseira.available);
-        
-        if (!pulseira.available) {
+        // O backend confere o estoque do buffet e diz o motivo (pulseira fora do estoque, já vinculada...).
+        // Sem "mensagem" (backend antigo) vale o texto de antes.
+        const result = {
+          available: Boolean(pulseira.available),
+          message: pulseira.mensagem
+            || `Esta pulseira já está ${pulseira.status === 'em_uso' ? 'vinculada' : 'indisponível'}.`,
+        };
+        if (pulseira.motivo !== 'fora_do_estoque') braceletCache.current.set(cacheKey, result);
+
+        if (!result.available) {
           kioskStateRef.current = 'error';
           setState('error');
-          setMessage(`Esta pulseira já está ${pulseira.status === 'em_uso' ? 'vinculada' : 'indisponível'}.`);
+          setMessage(result.message);
           return;
         }
         
@@ -364,7 +372,10 @@ export default function ReceptionKioskOtimizado() {
           });
 
       // Atualizar cache
-      braceletCache.current.set(braceletCode, false);
+      braceletCache.current.set(braceletCode, {
+        available: false,
+        message: 'Esta pulseira já está vinculada a outra criança. Aproxime outra pulseira.',
+      });
       
       setSuccessData({
         name: returning ? (selectedProfile!.apelido || selectedProfile!.nomeExibicao) : nickname,
