@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Watch, Check, X, Undo2, Inbox, PackageCheck, Radio, ScanLine } from 'lucide-react';
-import { api, API_URL, type PulseiraRecebida } from '../../services/api';
+import { Watch, Check, X, Undo2, Inbox, PackageCheck, Radio, ScanLine, Plus } from 'lucide-react';
+import { api, API_URL } from '../../services/api';
 import { createAuthenticatedWebSocket, getWebSocketServerUrl } from '../../services/websocket';
 import { lerToken } from '../../utils/sessao';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
@@ -13,6 +13,7 @@ import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
+import Modal from '../../components/ui/Modal';
 import { confirmar } from '../../components/ui/dialogo';
 import Input from '../../components/ui/Input';
 import SolicitarPulseiras from '../../components/checkpoints/SolicitarPulseiras';
@@ -109,26 +110,32 @@ function useSelecao(codigos: string[]) {
 
 export default function AdminBracelets() {
   const [pendentes, setPendentes] = useState<Pendente[]>([]);
-  const [recebidas, setRecebidas] = useState<PulseiraRecebida[]>([]);
   const [todas, setTodas] = useState<PulseiraDoBuffet[]>([]);
   const [filtro, setFiltro] = useState<FiltroLista>('todas');
   const [busca, setBusca] = useState('');
   const [carregando, setCarregando] = useState(true);
   const [ocupado, setOcupado] = useState(false);
+  const [devolvendo, setDevolvendo] = useState(false);
+  // Modo devolução: só com ele ligado a leitura marca pulseira para devolver e os controles de devolução aparecem
+  const [modoDevolucao, setModoDevolucao] = useState(false);
+  const modoDevolucaoRef = useRef(false);
+  const [digitado, setDigitado] = useState('');
+  const [ultimaParaDevolver, setUltimaParaDevolver] = useState<{ codigo: string; marcada: boolean } | null>(null);
 
-  const livres = useMemo(() => recebidas.filter((p) => !p.emUso && p.status === 'disponivel'), [recebidas]);
+  // Qualquer pulseira livre do buffet pode ser devolvida ao master (recebida dele ou cadastrada antes)
+  const livres = useMemo(() => todas.filter((p) => situacaoDaPulseira(p) === 'livre'), [todas]);
   const selPendentes = useSelecao(useMemo(() => pendentes.map((p) => p.codigo), [pendentes]));
   // Pulseiras conferidas no leitor: a leitura confirma que a pulseira chegou e já deixa ela marcada para o aceite
   const [conferidas, setConferidas] = useState<Set<string>>(new Set());
   const [ultimaLeitura, setUltimaLeitura] = useState<{ codigo: string; situacao: 'conferida' | 'repetida' | 'desconhecida' } | null>(null);
   const pendentesRef = useRef<Pendente[]>([]);
+  const livresRef = useRef<string[]>([]);
   const selLivres = useSelecao(useMemo(() => livres.map((p) => p.codigo), [livres]));
 
   const carregar = useCallback(async (silencioso = false) => {
     try {
-      const [aguardando, minhas, lista] = await Promise.all([api.pulseirasPendentes(), api.pulseirasRecebidasDoMaster(), api.getPulseiras()]);
+      const [aguardando, lista] = await Promise.all([api.pulseirasPendentes(), api.getPulseiras()]);
       setPendentes(aguardando);
-      setRecebidas(minhas);
       setTodas(lista as PulseiraDoBuffet[]);
     } catch (erro) {
       if (!silencioso) toast.error(erro instanceof Error ? erro.message : 'Não foi possível carregar as pulseiras');
@@ -138,14 +145,24 @@ export default function AdminBracelets() {
   }, []);
 
   useEffect(() => { pendentesRef.current = pendentes; }, [pendentes]);
+  useEffect(() => { livresRef.current = livres.map((p) => p.codigo); }, [livres]);
+  useEffect(() => { modoDevolucaoRef.current = modoDevolucao; }, [modoDevolucao]);
   useEffect(() => { void carregar(); }, [carregar]);
   useAutoRefresh(() => carregar(true), { topicos: ['pulseiras'], pausado: ocupado });
 
   const aoLerPulseira = useCallback((codigo: string) => {
     const lista = pendentesRef.current;
     if (!lista.some((p) => p.codigo === codigo)) {
+      // Fora da lista de aceite: se for uma pulseira livre recebida da Pulyn, a leitura marca ela para devolver
+      if (modoDevolucaoRef.current && livresRef.current.includes(codigo)) {
+        selLivres.marcar(codigo);
+        setUltimaParaDevolver({ codigo, marcada: true });
+        return;
+      }
       setUltimaLeitura({ codigo, situacao: 'desconhecida' });
-      toast.error(`A pulseira ${codigo} não está na lista enviada pela Pulyn`);
+      toast.error(modoDevolucaoRef.current
+        ? `A pulseira ${codigo} não está esperando aceite nem está livre para devolver`
+        : `A pulseira ${codigo} não está na lista enviada pela Pulyn`);
       return;
     }
     setConferidas((atual) => {
@@ -185,9 +202,31 @@ export default function AdminBracelets() {
     if (!(await confirmar(`Recusar ${codigos.length} pulseira(s)? Elas voltam para o estoque do master.`, { titulo: 'Recusar pulseiras', confirmar: 'Recusar' }))) return;
     void executar(() => api.recusarPulseiras(codigos), `${codigos.length} pulseira(s) recusada(s)`, selPendentes.limpar);
   };
-  const devolver = async (codigos: string[]) => {
-    if (!(await confirmar(`Devolver ${codigos.length} pulseira(s) ao master? Elas saem do seu cadastro.`, { titulo: 'Devolver pulseiras', confirmar: 'Devolver' }))) return;
-    void executar(() => api.devolverPulseiras(codigos), `${codigos.length} pulseira(s) devolvida(s) ao master`, selLivres.limpar);
+  const alternarModoDevolucao = () => {
+    if (modoDevolucao) { selLivres.limpar(); setUltimaParaDevolver(null); setDigitado(''); }
+    setModoDevolucao(!modoDevolucao);
+  };
+
+  const devolver = async () => {
+    const codigos = selLivres.validos;
+    if (codigos.length === 0) return;
+    await executar(() => api.devolverPulseiras(codigos), `${codigos.length} pulseira(s) devolvida(s) ao master`, () => {
+      selLivres.limpar();
+      setDevolvendo(false);
+      setModoDevolucao(false);
+    });
+  };
+
+  // Código digitado ou colado (um ou vários): marca para devolver as que estão livres
+  const adicionarDigitados = (texto: string) => {
+    const codigos = [...new Set(texto.split(/[\s,;]+/).map((c) => c.replace(/[^0-9a-f]/gi, '').toUpperCase()).filter(Boolean))];
+    const fora: string[] = [];
+    let marcadas = 0;
+    for (const codigo of codigos) {
+      if (livresRef.current.includes(codigo)) { selLivres.marcar(codigo); marcadas += 1; setUltimaParaDevolver({ codigo, marcada: true }); } else fora.push(codigo);
+    }
+    if (marcadas > 0) toast.success(marcadas === 1 ? 'Pulseira marcada para devolver' : `${marcadas} pulseiras marcadas para devolver`);
+    if (fora.length > 0) toast.error(`Não está livre para devolver: ${fora.join(', ')}`);
   };
 
   const contagem = useMemo(() => {
@@ -386,23 +425,82 @@ export default function AdminBracelets() {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 className="flex items-center gap-2 font-display text-lg text-white">
                 <PackageCheck size={18} className="text-success" />
-                Recebidas da Pulyn <span className="text-sm text-gray-500">({recebidas.length})</span>
+                Pulseiras livres <span className="text-sm text-gray-500">({livres.length})</span>
               </h2>
-              <Button variant="ghost" className="border border-border" disabled={selLivres.validos.length === 0 || ocupado} onClick={() => devolver(selLivres.validos)}>
-                <Undo2 size={16} className="mr-1.5" />
-                Devolver{selLivres.validos.length > 0 ? ` ${selLivres.validos.length}` : ''} ao master
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button title={livres.length === 0 && !modoDevolucao ? 'Você não tem pulseiras livres para devolver' : undefined} variant={modoDevolucao ? 'ghost' : 'primary'} className={modoDevolucao ? 'border border-border' : ''} disabled={ocupado || (livres.length === 0 && !modoDevolucao)} onClick={alternarModoDevolucao}>
+                  {modoDevolucao ? <X size={16} className="mr-1.5" /> : <Undo2 size={16} className="mr-1.5" />}
+                  {modoDevolucao ? 'Sair do modo devolução' : 'Modo devolução'}
+                </Button>
+                {modoDevolucao && (
+                  <Button variant="primary" disabled={selLivres.validos.length === 0 || ocupado} onClick={() => setDevolvendo(true)}>
+                    <Undo2 size={16} className="mr-1.5" />
+                    Devolver{selLivres.validos.length > 0 ? ` ${selLivres.validos.length}` : ''} ao master
+                  </Button>
+                )}
+              </div>
             </div>
-            <p className="mb-3 text-xs text-gray-500">Só dá para devolver as pulseiras livres: as que estão em uso por uma criança ou marcadas como perdidas ou bloqueadas ficam com você.</p>
+            {modoDevolucao && (
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-4 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-3">
+              <div className="min-w-0 text-sm">
+                <p className="flex items-center gap-2 font-medium text-gray-200">
+                  <Radio size={16} className={leitorConectado ? 'text-success' : 'text-gray-500'} />
+                  Ler pulseiras para devolver
+                </p>
+                <p className="mt-1 text-gray-400">
+                  {leitorConectado
+                    ? 'Passe a pulseira no leitor da recepção: ela fica marcada para devolver.'
+                    : 'Leitor sem conexão em tempo real. Reconectando... você ainda pode digitar os códigos ao lado ou marcar pela lista.'}
+                  {nfcDoAparelho.supported && ' Ou ative o NFC deste aparelho e encoste a pulseira nele.'}
+                </p>
+                <div className="mt-2">
+                  <DeviceNfcButton status={nfcDoAparelho.status} error={nfcDoAparelho.error} onStart={nfcDoAparelho.start} onStop={nfcDoAparelho.stop} />
+                  {nfcDoAparelho.error && <p role="alert" className="mt-1 text-xs text-warning">{nfcDoAparelho.error}</p>}
+                </div>
+                {ultimaParaDevolver && (
+                  <p className="mt-2" role="status">
+                    Última lida: <span className="font-mono text-white">{ultimaParaDevolver.codigo}</span>{' '}
+                    <Badge variant="success">marcada para devolver</Badge>
+                  </p>
+                )}
+              </div>
+              <form
+                className="flex w-full gap-2 sm:w-96"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!digitado.trim()) return;
+                  adicionarDigitados(digitado);
+                  setDigitado('');
+                }}
+              >
+                <input
+                  value={digitado}
+                  onChange={(e) => setDigitado(e.target.value)}
+                  placeholder="Digite ou cole um ou vários códigos"
+                  aria-label="Códigos das pulseiras a devolver"
+                  className="input-dark min-h-[44px] min-w-0 flex-1 rounded-xl border border-white/[0.10] bg-dark-card px-3.5 font-mono text-sm text-white placeholder-gray-500 focus:border-primary-400 focus:outline-none"
+                />
+                <Button type="submit" variant="ghost" className="border border-border">
+                  <Plus size={16} className="mr-1.5" />
+                  Adicionar
+                </Button>
+              </form>
+            </div>
+            )}
+            <p className="mb-3 text-xs text-gray-500">
+              {modoDevolucao
+                ? 'Só dá para devolver as pulseiras livres: as que estão em uso por uma criança ou marcadas como perdidas ou bloqueadas ficam com você.'
+                : 'Para devolver pulseiras livres ao master, ative o modo devolução.'}
+            </p>
             <div className="max-h-96 overflow-y-auto">
-              {recebidas.length === 0 ? (
-                <p className="py-8 text-center text-gray-500">Você ainda não recebeu pulseiras da Pulyn.</p>
+              {livres.length === 0 ? (
+                <p className="py-8 text-center text-gray-500">Você não tem pulseiras livres no momento.</p>
               ) : (
                 <table className="w-full text-left">
                   <thead className="sticky top-0 bg-dark-card">
                     <tr className="border-b border-border">
                       <th className="w-10 pb-3 pr-2">
-                        {livres.length > 0 && (
+                        {modoDevolucao && livres.length > 0 && (
                           <input type="checkbox" checked={selLivres.todos} onChange={selLivres.alternarTodos} aria-label="Selecionar todas as pulseiras livres" className="h-4 w-4 cursor-pointer accent-primary" />
                         )}
                       </th>
@@ -412,23 +510,18 @@ export default function AdminBracelets() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {recebidas.map((p) => {
-                      const livre = !p.emUso && p.status === 'disponivel';
-                      return (
-                        <tr key={p.codigo} className="hover:bg-surface/50 transition-colors">
-                          <td className="py-2.5 pr-2">
-                            {livre && (
-                              <input type="checkbox" checked={selLivres.marcado(p.codigo)} onChange={() => selLivres.alternar(p.codigo)} aria-label={`Selecionar ${p.codigo}`} className="h-4 w-4 cursor-pointer accent-primary" />
-                            )}
-                          </td>
-                          <td className="py-2.5 pr-4 font-mono text-sm text-white">{p.codigo}</td>
-                          <td className="py-2.5 pr-4">
-                            {livre ? <Badge variant="success">Livre</Badge> : p.emUso ? <Badge variant="primary">Em uso</Badge> : <Badge variant="warning">{p.status === 'perdida' ? 'Perdida' : p.status === 'bloqueada' ? 'Bloqueada' : p.status}</Badge>}
-                          </td>
-                          <td className="py-2.5 text-sm text-gray-400">{formatarData(p.recebidoDoMasterEm)}</td>
-                        </tr>
-                      );
-                    })}
+                    {livres.map((p) => (
+                      <tr key={p.codigo} className="hover:bg-surface/50 transition-colors">
+                        <td className="py-2.5 pr-2">
+                          {modoDevolucao && (
+                            <input type="checkbox" checked={selLivres.marcado(p.codigo)} onChange={() => selLivres.alternar(p.codigo)} aria-label={`Selecionar ${p.codigo}`} className="h-4 w-4 cursor-pointer accent-primary" />
+                          )}
+                        </td>
+                        <td className="py-2.5 pr-4 font-mono text-sm text-white">{p.codigo}</td>
+                        <td className="py-2.5 pr-4"><Badge variant="success">Livre</Badge></td>
+                        <td className="py-2.5 text-sm text-gray-400">{formatarData(p.recebidoDoMasterEm ?? null)}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               )}
@@ -436,6 +529,23 @@ export default function AdminBracelets() {
           </Card>
         </main>
       </div>
+
+      <Modal isOpen={devolvendo} onClose={() => { if (!ocupado) setDevolvendo(false); }} title={`Devolver ${selLivres.validos.length} pulseira(s)`} size="md">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-400">
+            As pulseiras voltam para o estoque da Pulyn e saem do seu cadastro. Para usá-las de novo, será preciso pedir e aceitar outra vez.
+          </p>
+          <div className="max-h-40 overflow-y-auto rounded-lg border border-white/10 bg-white/[0.03] p-2 font-mono text-xs text-gray-300">
+            {selLivres.validos.join('  ')}
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" disabled={ocupado} onClick={() => setDevolvendo(false)}>Cancelar</Button>
+            <Button variant="primary" onClick={() => void devolver()} disabled={ocupado || selLivres.validos.length === 0}>
+              {ocupado ? 'Devolvendo...' : 'Devolver'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
