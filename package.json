@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json"
   },
   "dependencies": {
-    "@pulyn/avatar": "github:TesteEmDev/Pulyn_avatar#v1.0.0",
+    "@pulyn/avatar": "github:TesteEmDev/Pulyn_avatar#v2.0.0",
     "@supabase/supabase-js": "^2.57.4",
     "@types/three": "0.180.0",
     "lucide-react": "^0.344.0",

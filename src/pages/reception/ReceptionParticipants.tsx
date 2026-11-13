@@ -1,8 +1,10 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { QrCode, Edit, RotateCw, Unlink } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useNFCReader } from '../../hooks/useNFCReader';
+import { ehLeituraDoBalcao } from '../../utils/recepcao';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import ReceptionSidebar from '../../components/layout/ReceptionSidebar';
 import ReceptionTopBar from '../../components/layout/ReceptionTopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -14,6 +16,8 @@ import Avatar from '../../components/ui/Avatar';
 import Modal from '../../components/ui/Modal';
 import QRCodeModal from '../../components/ui/QRCodeModal';
 import StatusDot from '../../components/ui/StatusDot';
+import { avisar } from '../../components/ui/dialogo';
+import ListaCadastros, { type ModoLista } from './ListaCadastros';
 
 type FilterTab = 'all' | 'with-bracelet' | 'without-bracelet' | 'by-team';
 
@@ -44,6 +48,9 @@ export default function ReceptionParticipants() {
   const [selectedTeam, setSelectedTeam] = useState<string>('');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [events, setEvents] = useState<any[]>([]);
+  // 'todos' / 'sem': lista dos cadastros permanentes das crianças (sem um evento escolhido)
+  const [modoLista, setModoLista] = useState<ModoLista | null>(null);
+  const [totalLista, setTotalLista] = useState<number | null>(null);
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
   const [teamsData, setTeamsData] = useState<Team[]>([]);
@@ -75,6 +82,9 @@ export default function ReceptionParticipants() {
     'checkin',
     selectedEventId,
     'reception',
+    true,
+    'kiosk',
+    ehLeituraDoBalcao, // o balcão só ouve o leitor R1; R2, R3... são das telas de autoatendimento
   );
 
   useEffect(() => {
@@ -109,6 +119,9 @@ export default function ReceptionParticipants() {
         });
         if (eventToSelect) {
           setEventoAtual(eventToSelect.eventoId);
+        } else {
+          // Sem evento rolando: mostra os cadastros de todas as crianças
+          setModoLista(modo => modo ?? 'todos');
         }
       } catch (err) {
         console.error('❌ Erro ao carregar eventos:', err);
@@ -119,6 +132,11 @@ export default function ReceptionParticipants() {
     loadEvents();
   }, [eventoAtualId, setEventoAtual]);
 
+  // Atualização automática: o contador faz o efeito abaixo recarregar a lista sem o "carregando" (sem piscar)
+  const [tickAuto, setTickAuto] = useState(0);
+  const cargaDoEvento = useRef<string | null>(null);
+  useAutoRefresh(() => setTickAuto((n) => n + 1), { topicos: ['criancas', 'pulseiras', 'times', 'leituras'], intervaloMs: 8_000, pausado: modalOpen || qrCodeModalOpen || saving });
+
   // Carregar crianças e times quando evento muda
   useEffect(() => {
     if (!selectedEventId) {
@@ -126,33 +144,42 @@ export default function ReceptionParticipants() {
       return;
     }
 
+    // Mesmo evento de antes (só atualizando): sem carregando, sem apagar a lista se falhar e sem desfazer o que
+    // a pessoa já escolheu nas listas de time
+    const silencioso = cargaDoEvento.current === selectedEventId;
+    cargaDoEvento.current = selectedEventId;
+
     const loadData = async () => {
       try {
-        setLoading(true);
+        if (!silencioso) setLoading(true);
         const [criancasData, timesData] = await Promise.all([
           api.getCriancas(selectedEventId),
           api.getTimes(selectedEventId),
         ]);
         setChildren(criancasData || []);
-        setTeamSelections(Object.fromEntries(
+        const doServidor = Object.fromEntries(
           (criancasData || []).map((child: Child) => [child.criancaId, child.timeId || ''])
-        ));
+        );
+        // Atualizando: crianças novas entram com o time do servidor; as que já estavam mantêm a escolha atual
+        setTeamSelections(silencioso ? (anterior) => ({ ...doServidor, ...anterior }) : doServidor);
         setTeamsData(timesData || []);
-        if (timesData?.length > 0) {
+        if (!silencioso && timesData?.length > 0) {
           setSelectedTeam(timesData[0].id);
         }
       } catch (err) {
         console.error('❌ Erro ao carregar dados:', err);
-        setChildren([]);
-        setTeamsData([]);
-        setTeamSelections({});
+        if (!silencioso) {
+          setChildren([]);
+          setTeamsData([]);
+          setTeamSelections({});
+        }
       } finally {
         setLoading(false);
       }
     };
 
     loadData();
-  }, [selectedEventId]);
+  }, [selectedEventId, tickAuto]);
 
   const tabs: { key: FilterTab; label: string }[] = [
     { key: 'all', label: 'Todos' },
@@ -261,14 +288,14 @@ export default function ReceptionParticipants() {
       } else if (modalAction === 'edit-name') {
         // Editar nome
         if (!editingName.trim()) {
-          alert('O nome não pode estar vazio');
+          avisar('O nome não pode estar vazio');
           setSaving(false);
           return;
         }
 
         const child = children.find(c => c.criancaId === modalChild);
         if (!child || !selectedEventId) {
-          alert('Erro ao atualizar criança');
+          avisar('Erro ao atualizar criança');
           setSaving(false);
           return;
         }
@@ -285,20 +312,24 @@ export default function ReceptionParticipants() {
         // Trocar pulseira - LÓGICA ORIGINAL
         const inputValue = braceletInput;if (!inputValue || !inputValue.trim()) {
           console.error(`❌ inputValue vazio: "${inputValue}"`);
-          alert('Leia a pulseira antes de confirmar');
+          avisar('Leia a pulseira antes de confirmar');
           setSaving(false);
           return;
         }
 
-        const normalizedInput = inputValue.trim().toUpperCase();const pulseiras = await api.getPulseiras();let pulseira = pulseiras.find(p =>
+        const normalizedInput = inputValue.trim().toUpperCase();const pulseiras = await api.getPulseiras();const pulseira = pulseiras.find(p =>
           p.codigo.trim().toUpperCase() === normalizedInput
         );
 
-        if (!pulseira) {await api.createPulseira(normalizedInput);
-          pulseira = { code: normalizedInput, status: 'disponivel' };
-        }if (pulseira.status !== 'disponivel') {
+        // O cliente só usa pulseira que o master forneceu: não cadastra pulseira nova aqui
+        if (!pulseira) {
+          avisar('Esta pulseira não foi fornecida para este cliente.');
+          setSaving(false);
+          return;
+        }
+        if (pulseira.status !== 'disponivel') {
           console.error(`❌ Pulseira indisponível: ${pulseira.status}`);
-          alert(`Pulseira indisponível. Status: ${pulseira.status}`);
+          avisar(`Pulseira indisponível. Status: ${pulseira.status}`);
           setSaving(false);
           return;
         }
@@ -306,14 +337,14 @@ export default function ReceptionParticipants() {
         const child = children.find(c => c.criancaId === modalChild);
         if (!child) {
           console.error('❌ Criança não encontrada');
-          alert('Criança não encontrada');
+          avisar('Criança não encontrada');
           setSaving(false);
           return;
         }
 
         if (!selectedEventId) {
           console.error('❌ Evento não selecionado');
-          alert('Evento não selecionado');
+          avisar('Evento não selecionado');
           setSaving(false);
           return;
         }if (child.codigoPulseira && child.codigoPulseira.trim().toUpperCase() !== normalizedInput) {await api.unassignBracelet(modalChild);
@@ -344,10 +375,10 @@ export default function ReceptionParticipants() {
       setEditingNickname('');
       setModalChild(null);
       setModalAction(null);
-      alert('✅ Ação realizada com sucesso!');
+      avisar('✅ Ação realizada com sucesso!');
     } catch (error: any) {
       console.error('❌ Erro:', error);
-      alert(`Erro ao processar ação: ${error.message || 'Tente novamente'}`);
+      avisar(`Erro ao processar ação: ${error.message || 'Tente novamente'}`);
     } finally {
       setSaving(false);
     }
@@ -355,7 +386,7 @@ export default function ReceptionParticipants() {
 
   const handleTeamChange = useCallback(async (child: Child, timeId: string) => {
     if (!selectedEventId) {
-      alert('Selecione um evento antes de definir o time');
+      avisar('Selecione um evento antes de definir o time');
       return;
     }
 
@@ -381,7 +412,7 @@ export default function ReceptionParticipants() {
     } catch (error: any) {
       setTeamSelections((current) => ({ ...current, [child.criancaId]: previousTimeId }));
       console.error('❌ Erro ao atualizar time da criança:', error);
-      alert(`Não foi possível atualizar o time: ${error.message || 'Tente novamente.'}`);
+      avisar(`Não foi possível atualizar o time: ${error.message || 'Tente novamente.'}`);
     } finally {
       setSavingTeamId(null);
     }
@@ -423,7 +454,9 @@ export default function ReceptionParticipants() {
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           <PageHeader
             title="Participantes"
-            description={`${children.length} crianças cadastradas`}
+            description={modoLista
+              ? `${totalLista ?? 0} ${modoLista === 'sem' ? 'crianças cadastradas sem evento' : 'crianças cadastradas (todos os eventos)'}`
+              : `${children.length} crianças cadastradas`}
             icon={
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -431,31 +464,39 @@ export default function ReceptionParticipants() {
             }
           />
 
-          {/* Seletor de Evento */}
-          {events.length > 0 && (
-            <Card>
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-semibold text-gray-300 whitespace-nowrap">Evento:</label>
-                <select
-                  value={selectedEventId || ''}
-                  onChange={e => {
-                    setSelectedEventId(e.target.value);
-                    setEventoAtual(e.target.value);
-                  }}
-                  className="flex-1 px-4 py-2 rounded-lg bg-dark-surface border border-dark-border text-white focus:outline-none focus:border-primary"
-                >
-                  <option value="">Selecione um evento</option>
-                  {events.map(event => (
-                    <option key={event.eventoId} value={event.eventoId}>
-                      {event.nome} - {new Date(event.data).toLocaleDateString('pt-BR')}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </Card>
-          )}
+          {/* Seletor de Evento: um evento, todos os eventos ou só quem foi cadastrado sem evento */}
+          <Card>
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-semibold text-gray-300 whitespace-nowrap">Evento:</label>
+              <select
+                value={modoLista ?? selectedEventId ?? ''}
+                onChange={e => {
+                  const valor = e.target.value;
+                  if (valor === 'todos' || valor === 'sem') {
+                    setModoLista(valor);
+                    return;
+                  }
+                  setModoLista(null);
+                  setSelectedEventId(valor);
+                  setEventoAtual(valor);
+                }}
+                className="flex-1 px-4 py-2 rounded-lg bg-dark-surface border border-dark-border text-white focus:outline-none focus:border-primary"
+              >
+                <option value="">Selecione um evento</option>
+                <option value="todos">Todos os eventos (mostra o último evento de cada criança)</option>
+                <option value="sem">Sem evento (só cadastro)</option>
+                {events.map(event => (
+                  <option key={event.eventoId} value={event.eventoId}>
+                    {event.nome} - {new Date(event.data).toLocaleDateString('pt-BR')}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </Card>
 
-          {!selectedEventId ? (
+          {modoLista ? (
+            <ListaCadastros modo={modoLista} onContagem={setTotalLista} />
+          ) : !selectedEventId ? (
             <Card className="flex flex-col items-center justify-center py-16 text-center">
               <span className="text-5xl mb-4">📅</span>
               <h3 className="font-display text-lg text-white mb-2">Nenhum evento selecionado</h3>

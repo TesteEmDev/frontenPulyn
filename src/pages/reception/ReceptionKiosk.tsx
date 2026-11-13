@@ -2,6 +2,8 @@
 // Performance: <300ms troca de tela, 50+ FPS
 
 import { useCallback, useEffect, useRef, useState, memo, type FormEvent } from 'react';
+import { useParams } from 'react-router-dom';
+import { LEITOR_DO_BALCAO, ehLeituraDeAutoatendimento } from '../../utils/recepcao';
 import { useAuth } from '../../hooks/useAuth';
 import { usePulynStore } from '../../store/mockData';
 import { useNFCOtimizado } from '../../hooks/useNFCReader_otimizado';
@@ -9,8 +11,11 @@ import { useDeviceNFC } from '../../hooks/useDeviceNFC';
 import { api } from '../../services/api';
 import Avatar from '../../components/ui/Avatar';
 import AvatarBuilder from '../../components/ui/AvatarBuilder';
+import { mascaraData, dataDeDigitos, erroNascimentoSemLimite, idadeDeNascimento } from '../../utils/nascimento';
 import { ADVENTURER_AVATARS, DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
-import { decodeAvatar, newAvatarCode } from '@pulyn/avatar';
+import { corDoAvatar, decodeAvatar, newAvatarCode } from '@pulyn/avatar';
+import { useAvatarUnico, MENSAGEM_AVATAR_REPETIDO } from '../../hooks/useAvatarUnico';
+import { CHAVE_RASCUNHO_KIOSK, lerAvatarRascunho, salvarAvatarRascunho } from '../../avatar/builder/rascunho';
 import StatusDot from '../../components/ui/StatusDot';
 import DeviceNfcButton from '../../components/ui/DeviceNfcButton';
 import VirtualKeyboardOtimizado from '../../components/ui/VirtualKeyboardOtimizado';
@@ -68,7 +73,7 @@ const BraceletReaderIllustration = memo(({ active = false }: { active?: boolean 
 });
 BraceletReaderIllustration.displayName = 'BraceletReaderIllustration';
 
-// Teclado numérico da idade (o teclado de letras do Kiosk não tem dígitos).
+// Teclado numérico da data de nascimento (o teclado de letras do Kiosk não tem dígitos).
 const KioskNumberPad = memo(({ onKeyPress, disabled }: { onKeyPress: (key: string) => void; disabled: boolean }) => (
   <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/[0.06] bg-black/15 p-2 sm:p-3">
     {['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0'].map(key => (
@@ -106,6 +111,9 @@ interface KioskProfile {
   apelido: string;
   idade: number | null;
   avatar: string;
+  // Já cadastrada neste evento pela recepção (check-in), só falta a pulseira
+  jaNoEvento?: boolean;
+  cor?: string | null;
 }
 
 type KioskState = 'waiting' | 'reading' | 'ready' | 'saving' | 'success' | 'error';
@@ -121,7 +129,11 @@ export default function ReceptionKioskOtimizado() {
   const [state, setState] = useState<KioskState>('waiting');
   const [message, setMessage] = useState('Encoste a pulseira no leitor abaixo da tela para começar');
   const [braceletCode, setBraceletCode] = useState('');
-  const [form, setForm] = useState(() => ({ name: '', nickname: '', age: '', avatar: newAvatarCode() }));
+  // nascimento: os dígitos da data (DDMMAAAA); aparece como dd/mm/aaaa
+  // avatar: código do personagem montado pela criança (cada um é único, não há "avatar já escolhido")
+  // O personagem em montagem fica salvo no aparelho: atualizar a página não perde o avatar
+  const [form, setForm] = useState(() => ({ name: '', nickname: '', nascimento: '', avatar: lerAvatarRascunho(CHAVE_RASCUNHO_KIOSK) }));
+  useEffect(() => { salvarAvatarRascunho(CHAVE_RASCUNHO_KIOSK, form.avatar); }, [form.avatar]);
   const [successData, setSuccessData] = useState<{ name: string; avatar: string; returning: boolean } | null>(null);
   const [mode, setMode] = useState<KioskMode>('choose');
   const [newStep, setNewStep] = useState<NewStep>('avatar');
@@ -131,6 +143,11 @@ export default function ReceptionKioskOtimizado() {
     () => typeof window === 'undefined' || window.matchMedia('(min-width: 768px)').matches,
   );
   const [profileSearch, setProfileSearch] = useState('');
+  // Data de nascimento da busca (dígitos DDMMAAAA): só aparece o cadastro com nome e data iguais
+  const [searchBirth, setSearchBirth] = useState('');
+  // Nome do pai ou responsável: o cadastro só aparece com nome, data de nascimento e responsável iguais
+  const [searchParent, setSearchParent] = useState('');
+  const [searchFocus, setSearchFocus] = useState<'text' | 'parent' | 'birth'>('text');
   const [profileResults, setProfileResults] = useState<KioskProfile[]>([]);
   const [profileLoading, setProfileLoading] = useState(false);
   // Falha na busca (rede, permissão, rota) — sem isso ela parecia "não encontrado".
@@ -145,9 +162,15 @@ export default function ReceptionKioskOtimizado() {
   
   // DEBOUNCE para evitar renders rápidos
   const debouncedProfileSearch = useDebounce(profileSearch, 300);
+  const debouncedSearchParent = useDebounce(searchParent, 300);
+  const searchBirthIso = dataDeDigitos(searchBirth);
+  const searchBirthError = searchBirth.length === 8 ? erroNascimentoSemLimite(searchBirthIso) : '';
+  const searchBirthValid = searchBirth.length === 8 && Boolean(searchBirthIso) && !searchBirthError;
 
-  const ageNumber = parseInt(form.age, 10);
-  const newFormValid = form.name.trim().length >= 2 && ageNumber >= 1;
+  const nascimentoIso = dataDeDigitos(form.nascimento);
+  const erroDoNascimento = form.nascimento.length === 8 ? erroNascimentoSemLimite(nascimentoIso) : '';
+  const idadeCalculada = nascimentoIso && !erroDoNascimento ? idadeDeNascimento(nascimentoIso) : null;
+  const newFormValid = form.name.trim().length >= 2 && Boolean(nascimentoIso) && !erroDoNascimento;
 
   useEffect(() => {
     kioskStateRef.current = state;
@@ -185,13 +208,35 @@ export default function ReceptionKioskOtimizado() {
     };
   }, []);
 
+  const [avataresEmUso, setAvataresEmUso] = useState<string[]>([]);
+  const carregarAvatares = useCallback(async () => {
+    if (!selectedEventId) {
+      setAvataresEmUso([]);
+      return;
+    }
+    try {
+      const emUso = await api.getKioskAvatarsInUse(selectedEventId);
+      setAvataresEmUso(emUso.avatares);
+    } catch (error) {
+      console.error('Erro ao carregar os avatares em uso:', error);
+    }
+  }, [selectedEventId]);
+  useEffect(() => { carregarAvatares(); }, [carregarAvatares]);
+  // Outro kiosk ou a recepção pode cadastrar alguém nesse meio tempo: relê de tempos em tempos para não oferecer o que já foi escolhido
+  useEffect(() => {
+    if (!selectedEventId) return undefined;
+    const timer = window.setInterval(carregarAvatares, 8000);
+    return () => window.clearInterval(timer);
+  }, [selectedEventId, carregarAvatares]);
+
   // RESET KIOSK OTIMIZADO
   const resetKiosk = useCallback(() => {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
     lastReadRef.current = null;
     kioskStateRef.current = 'waiting';
     setBraceletCode('');
-    setForm({ name: '', nickname: '', age: '', avatar: newAvatarCode() });
+    reiniciarAvatar();
+    setForm({ name: '', nickname: '', nascimento: '', avatar: newAvatarCode() });
     setMode('choose');
     setNewStep('avatar');
     setFocusField('name');
@@ -266,7 +311,9 @@ export default function ReceptionKioskOtimizado() {
         if (!pulseira.available) {
           kioskStateRef.current = 'error';
           setState('error');
-          setMessage(`Esta pulseira já está ${pulseira.status === 'em_uso' ? 'vinculada' : 'indisponível'}.`);
+          setMessage(pulseira.exists === false
+            ? 'Esta pulseira não foi fornecida para este cliente.'
+            : `Esta pulseira já está ${pulseira.status === 'em_uso' ? 'vinculada' : 'indisponível'}.`);
           return;
         }
         
@@ -284,6 +331,31 @@ export default function ReceptionKioskOtimizado() {
 
   const registrationVisible = Boolean(braceletCode && (state === 'ready' || state === 'saving'));
 
+  // Várias telas de autoatendimento: /reception/kiosk/2 só ouve o leitor de recepção R2. Sem número, ouve qualquer leitor.
+  const { numero: numeroDaTela } = useParams<{ numero?: string }>();
+  const numCheckDaTela = numeroDaTela && /^\d{1,3}$/.test(numeroDaTela) ? `R${Number(numeroDaTela)}` : null;
+  // O R1 é do balcão: a tela 1 não existe como autoatendimento
+  const telaDoBalcao = numCheckDaTela === LEITOR_DO_BALCAO;
+  const soDoLeitorDaTela = useCallback(
+    (leitura: { numCheck?: string | null }) => {
+      if (!ehLeituraDeAutoatendimento(leitura)) return false;
+      return !numCheckDaTela || String(leitura?.numCheck || '').toUpperCase() === numCheckDaTela;
+    },
+    [numCheckDaTela],
+  );
+  // Esse leitor está cadastrado e ligado? (avisa no topo da tela quando não)
+  const [leitorDaTela, setLeitorDaTela] = useState<{ online: boolean } | null | undefined>(undefined);
+  useEffect(() => {
+    if (!numCheckDaTela) { setLeitorDaTela(undefined); return undefined; }
+    let vivo = true;
+    const conferir = () => api.getLeitoresDeRecepcao()
+      .then((lista) => { if (vivo) setLeitorDaTela(lista.find((item) => item.numCheck === numCheckDaTela) ?? null); })
+      .catch(() => undefined);
+    void conferir();
+    const intervalo = window.setInterval(conferir, 30_000);
+    return () => { vivo = false; window.clearInterval(intervalo); };
+  }, [numCheckDaTela]);
+
   // NFC READER OTIMIZADO
   const { isConnected } = useNFCOtimizado(
     handleBraceletDetected,
@@ -291,6 +363,8 @@ export default function ReceptionKioskOtimizado() {
     selectedEventId || null,
     'reception',
     !registrationVisible && state !== 'saving' && state !== 'success',
+    'kiosk',
+    soDoLeitorDaTela,
   );
 
   // Leitura alternativa pelo NFC do próprio tablet/celular usado como totem.
@@ -336,7 +410,7 @@ export default function ReceptionKioskOtimizado() {
     if (!braceletCode) return setMessage('Aproxime uma pulseira primeiro.');
     const returning = mode === 'existing';
     if (returning && !selectedProfile) return setMessage('Escolha o seu cadastro na lista.');
-    if (!returning && !newFormValid) return setMessage('Preencha o nome completo e a idade da criança.');
+    if (!returning && !newFormValid) return setMessage('Preencha o nome completo e a data de nascimento da criança.');
     if (state === 'saving') return;
 
     kioskStateRef.current = 'saving';
@@ -353,13 +427,17 @@ export default function ReceptionKioskOtimizado() {
             perfilCriancaId: selectedProfile!.perfilCriancaId,
             apelido: selectedProfile!.apelido,
             avatar,
+            // A cor do participante é a cor de fundo do avatar
+            cor: corDoAvatar(avatar) ?? selectedProfile?.cor ?? undefined,
             braceletCode,
           }
         : {
             nome: form.name.trim(),
             apelido: nickname,
-            idade: ageNumber,
+            dataNascimento: nascimentoIso,
             avatar,
+            // A cor do participante é a cor de fundo do avatar
+            cor: corDoAvatar(avatar) ?? selectedProfile?.cor ?? undefined,
             braceletCode,
           });
 
@@ -374,14 +452,16 @@ export default function ReceptionKioskOtimizado() {
       
       kioskStateRef.current = 'success';
       setState('success');
+      carregarAvatares();
       setMessage(returning ? 'Cadastro encontrado!' : 'Personagem criado!');
       successTimerRef.current = setTimeout(resetKiosk, 4000); // Reduzido de 5000
     } catch (error) {
       kioskStateRef.current = 'error';
       setState('error');
       setMessage(getErrorMessage(error));
+      carregarAvatares();
     }
-  }, [braceletCode, form, mode, newFormValid, ageNumber, resetKiosk, selectedEventId, selectedProfile, state]);
+  }, [braceletCode, carregarAvatares, form, mode, newFormValid, nascimentoIso, resetKiosk, selectedEventId, selectedProfile, state]);
 
   useEffect(() => () => {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
@@ -390,23 +470,43 @@ export default function ReceptionKioskOtimizado() {
   const canInteract = Boolean(selectedEventId && state === 'ready');
 
   // HANDLERS OTIMIZADOS
+  // Avatar único no evento: o sorteado que já existe troca sozinho; o que a criança montou e já existe avisa e não deixa salvar
+  const trocarAvatar = useCallback((avatar: string) => setForm(prev => ({ ...prev, avatar })), []);
+  const avatarProprio = selectedProfile?.jaNoEvento ? profileAvatar(selectedProfile.avatar) : null;
+  const { repetido: avatarRepetido, marcarEscolhido: marcarAvatarEscolhido, reiniciar: reiniciarAvatar } = useAvatarUnico(avataresEmUso, form.avatar, trocarAvatar, avatarProprio);
   const handleAvatarChange = useCallback((avatar: string) => {
+    marcarAvatarEscolhido();
     setForm(prev => ({ ...prev, avatar }));
-  }, []);
+  }, [marcarAvatarEscolhido]);
 
-  // Campos digitados pelo teclado do aparelho/físico. A idade aceita só dígitos, sem limite máximo.
+  // Campos digitados pelo teclado do aparelho/físico. A data de nascimento aceita só dígitos (até 8: dia, mês e ano).
   const handleTextChange = useCallback((field: 'name' | 'nickname', value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
   }, []);
 
-  const handleAgeChange = useCallback((value: string) => {
-    setForm(prev => ({ ...prev, age: value.replace(/\D/g, '').replace(/^0+/, '').slice(0, 3) }));
+  const handleNascimentoChange = useCallback((value: string) => {
+    setForm(prev => ({ ...prev, nascimento: value.replace(/\D/g, '').slice(0, 8) }));
   }, []);
 
   const handleSearchChange = useCallback((value: string) => {
     setSelectedProfile(null);
     setProfileSearch(value);
   }, []);
+
+  const handleSearchBirthChange = useCallback((value: string) => {
+    setSelectedProfile(null);
+    setSearchBirth(value.replace(/\D/g, '').slice(0, 8));
+  }, []);
+
+  const handleSearchNumberKey = useCallback((key: string) => {
+    if (!canInteract || state === 'saving') return;
+    setSelectedProfile(null);
+    setSearchBirth(prev => {
+      if (key === '⌫') return prev.slice(0, -1);
+      if (prev.length >= 8) return prev;
+      return `${prev}${key}`;
+    });
+  }, [canInteract, state]);
 
   // Teclado da tela: digita no campo que está em foco (nome completo ou apelido).
   const handleVirtualKey = useCallback((key: string) => {
@@ -426,22 +526,25 @@ export default function ReceptionKioskOtimizado() {
   const handleNumberKey = useCallback((key: string) => {
     if (!canInteract || state === 'saving') return;
     setForm(prev => {
-      if (key === '⌫') return { ...prev, age: prev.age.slice(0, -1) };
-      if (prev.age.length >= 3 || (key === '0' && !prev.age)) return prev;
-      return { ...prev, age: `${prev.age}${key}` };
+      if (key === '⌫') return { ...prev, nascimento: prev.nascimento.slice(0, -1) };
+      if (prev.nascimento.length >= 8) return prev;
+      return { ...prev, nascimento: `${prev.nascimento}${key}` };
     });
   }, [canInteract, state]);
 
   const handleSearchKey = useCallback((key: string) => {
     if (!canInteract || state === 'saving') return;
     setSelectedProfile(null);
-    setProfileSearch(prev => {
+    const limite = searchFocus === 'parent' ? 40 : 24;
+    const digitar = (prev: string) => {
       if (key === '⌫') return prev.slice(0, -1);
-      if (prev.length >= 24) return prev;
+      if (prev.length >= limite) return prev;
       if (key === 'ESPAÇO') return prev && !prev.endsWith(' ') ? `${prev} ` : prev;
       return `${prev}${key}`;
-    });
-  }, [canInteract, state]);
+    };
+    if (searchFocus === 'parent') setSearchParent(digitar);
+    else setProfileSearch(digitar);
+  }, [canInteract, searchFocus, state]);
 
   // Enter no teclado envia o formulário (os botões de ação continuam funcionando).
   const handleFormSubmit = useCallback((event: FormEvent) => {
@@ -454,6 +557,9 @@ export default function ReceptionKioskOtimizado() {
     setNewStep('avatar');
     setSelectedProfile(null);
     setProfileSearch('');
+    setSearchBirth('');
+    setSearchParent('');
+    setSearchFocus('text');
     setProfileResults([]);
   }, []);
 
@@ -483,7 +589,8 @@ export default function ReceptionKioskOtimizado() {
   useEffect(() => {
     if (mode !== 'existing' || !selectedEventId) return;
     const term = debouncedProfileSearch.trim();
-    if (term.length < 2) {
+    const parent = debouncedSearchParent.trim();
+    if (term.length < 2 || parent.length < 2 || !searchBirthValid || !searchBirthIso) {
       setProfileResults([]);
       setProfileLoading(false);
       setProfileError(null);
@@ -492,7 +599,7 @@ export default function ReceptionKioskOtimizado() {
     let active = true;
     setProfileLoading(true);
     setProfileError(null);
-    api.searchKioskProfiles(selectedEventId, term)
+    api.searchKioskProfiles(selectedEventId, term, searchBirthIso, parent)
       .then(result => { if (active) setProfileResults(Array.isArray(result) ? result : []); })
       .catch((err: unknown) => {
         if (!active) return;
@@ -502,7 +609,7 @@ export default function ReceptionKioskOtimizado() {
       })
       .finally(() => { if (active) setProfileLoading(false); });
     return () => { active = false; };
-  }, [debouncedProfileSearch, mode, selectedEventId]);
+  }, [debouncedProfileSearch, debouncedSearchParent, mode, selectedEventId, searchBirthValid, searchBirthIso]);
 
   // LOADING STATE
   if (loading) {
@@ -541,6 +648,14 @@ export default function ReceptionKioskOtimizado() {
               <h1 className="truncate font-display text-xl font-bold text-white sm:text-2xl">
                 Monte seu personagem
               </h1>
+              {numCheckDaTela && (
+                <p className="truncate text-xs font-semibold text-cyan-200">
+                  Autoatendimento {Number(numeroDaTela)} · leitor {numCheckDaTela}
+                  {telaDoBalcao && <span className="ml-2 text-warning">o R1 é do balcão: use /reception/kiosk/2, /3...</span>}
+                  {!telaDoBalcao && leitorDaTela === null && <span className="ml-2 text-warning">nenhum leitor {numCheckDaTela} cadastrado</span>}
+                  {leitorDaTela && !leitorDaTela.online && <span className="ml-2 text-warning">leitor desligado</span>}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -722,7 +837,7 @@ export default function ReceptionKioskOtimizado() {
 
             {/* CADASTRO - APENAS QUANDO VISÍVEL */}
             {registrationVisible && (
-              <div className="animate-in motion-reduce:animate-none relative z-10 grid gap-3 rounded-[2rem] border border-fuchsia-300/20 bg-[#0c1328] p-2 shadow-xl sm:p-5 lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:grid-cols-[minmax(260px,0.72fr)_minmax(420px,1.28fr)] lg:p-3">
+              <div className="animate-in motion-reduce:animate-none relative z-10 grid grid-cols-1 gap-3 rounded-[2rem] border border-fuchsia-300/20 bg-[#0c1328] p-2 shadow-xl sm:p-5 lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:grid-cols-[minmax(260px,0.72fr)_minmax(420px,1.28fr)] lg:p-3">
                 {mode === 'choose' && (
                   <section className="flex flex-col items-center justify-center gap-6 rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-6 text-center shadow-lg sm:p-10 lg:col-span-2">
                     <div>
@@ -769,7 +884,7 @@ export default function ReceptionKioskOtimizado() {
                   <>
                     {newStep === 'avatar' ? (
                       /* ETAPA 1: AVATAR */
-                      <section className="flex flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-4 shadow-lg backdrop-blur sm:p-5 lg:col-span-2">
+                      <section className="flex min-w-0 flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-4 shadow-lg backdrop-blur sm:p-5 lg:col-span-2">
                         <div className="mb-4 flex items-center justify-between gap-3 border-b border-cyan-300/10 pb-3">
                           <div>
                             <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">
@@ -787,7 +902,9 @@ export default function ReceptionKioskOtimizado() {
                           value={form.avatar}
                           onChange={handleAvatarChange}
                           disabled={!canInteract}
+                          duasLinhas
                         />
+                        {avatarRepetido && <p role="alert" className="mt-2 rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-200">{MENSAGEM_AVATAR_REPETIDO}</p>}
                       </section>
                     ) : (
                       /* ETAPA 2: NOME COMPLETO, APELIDO E IDADE */
@@ -848,20 +965,25 @@ export default function ReceptionKioskOtimizado() {
                             />
                           </label>
                           <label className="block min-w-0">
-                            <span className={KIOSK_LABEL_CLASS}>Idade</span>
+                            <span className={KIOSK_LABEL_CLASS}>Data de nascimento</span>
                             <input
                               type="text"
                               inputMode={screenKeyboard ? 'none' : 'numeric'}
-                              pattern="[0-9]*"
-                              value={form.age}
-                              onChange={event => handleAgeChange(event.target.value)}
+                              pattern="[0-9/]*"
+                              value={mascaraData(form.nascimento)}
+                              onChange={event => handleNascimentoChange(event.target.value)}
                               onFocus={() => setFocusField('age')}
-                              placeholder="Anos"
+                              placeholder="dd/mm/aaaa"
                               autoComplete="off"
                               enterKeyHint="done"
                               disabled={!canInteract || state === 'saving'}
                               className={kioskInputClass(focusField === 'age')}
                             />
+                            {erroDoNascimento ? (
+                              <span className="mt-1 block text-xs text-danger">{erroDoNascimento}</span>
+                            ) : idadeCalculada !== null ? (
+                              <span className="mt-1 block text-xs text-gray-400">{idadeCalculada} {idadeCalculada === 1 ? 'ano' : 'anos'}</span>
+                            ) : null}
                           </label>
                         </form>
 
@@ -880,7 +1002,7 @@ export default function ReceptionKioskOtimizado() {
                       </section>
                     )}
 
-                    <section className="rounded-[1.75rem] border border-white/[0.1] bg-dark-card/90 p-4 shadow-lg backdrop-blur sm:p-5 lg:col-span-2">
+                    <section className="sticky bottom-0 z-20 rounded-[1.75rem] border border-white/[0.1] bg-[#0f1a33] p-4 shadow-lg sm:p-5 lg:col-span-2">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex gap-2">
                           <button
@@ -911,7 +1033,7 @@ export default function ReceptionKioskOtimizado() {
                           <button
                             type="submit"
                             form="kiosk-new-form"
-                            disabled={!canInteract || state === 'saving' || !newFormValid}
+                            disabled={!canInteract || state === 'saving' || !newFormValid || avatarRepetido}
                             className="rounded-xl border border-success/40 bg-success/10 px-5 py-2.5 text-sm font-semibold text-success transition hover:bg-success/20 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {state === 'saving' ? 'Criando...' : 'Criar personagem'}
@@ -920,7 +1042,7 @@ export default function ReceptionKioskOtimizado() {
                       </div>
                       {newStep === 'identity' && !newFormValid && form.name.trim() && (
                         <p className="mt-2 text-right text-xs text-gray-500">
-                          Falta {!form.age ? 'a idade' : 'completar o nome'} para criar o personagem.
+                          Falta {!nascimentoIso || erroDoNascimento ? 'a data de nascimento' : 'completar o nome'} para criar o personagem.
                         </p>
                       )}
                     </section>
@@ -930,13 +1052,13 @@ export default function ReceptionKioskOtimizado() {
                 {mode === 'existing' && (
                   <>
                     {/* BUSCA */}
-                    <section className="flex flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-4 shadow-lg backdrop-blur sm:p-5 lg:p-3">
+                    <section className="flex min-w-0 flex-col rounded-[1.75rem] border border-cyan-300/20 bg-[#081327] p-4 shadow-lg backdrop-blur sm:p-5 lg:p-3">
                       <div className="mb-3 border-b border-cyan-300/10 pb-3">
                         <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">
                           Já tenho cadastro
                         </p>
                         <h3 className="mt-1 font-display text-2xl font-bold text-white">
-                          Digite seu apelido ou nome
+                          Digite seu apelido ou nome, a data de nascimento e o nome do seu pai ou responsável
                         </h3>
                       </div>
                       <input
@@ -944,6 +1066,7 @@ export default function ReceptionKioskOtimizado() {
                         value={profileSearch}
                         onChange={event => handleSearchChange(event.target.value)}
                         maxLength={24}
+                        onFocus={() => setSearchFocus('text')}
                         placeholder="Toque e digite para procurar"
                         aria-label="Apelido ou nome"
                         autoComplete="off"
@@ -953,13 +1076,51 @@ export default function ReceptionKioskOtimizado() {
                         disabled={!canInteract || state === 'saving'}
                         className="mb-3 block min-h-[58px] w-full min-w-0 rounded-2xl border-2 border-cyan-300/50 bg-[#050d1c] px-4 text-center font-display text-xl text-white placeholder:text-sm placeholder:font-normal placeholder:text-gray-500 focus:border-cyan-200 focus:outline-none focus:ring-4 focus:ring-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-50"
                       />
+                      <label className="mb-3 block min-w-0">
+                        <span className={KIOSK_LABEL_CLASS}>Nome do pai ou responsável</span>
+                        <input
+                          type="text"
+                          value={searchParent}
+                          onChange={event => { setSelectedProfile(null); setSearchParent(event.target.value.slice(0, 40)); }}
+                          onFocus={() => setSearchFocus('parent')}
+                          maxLength={40}
+                          placeholder="Ex.: Carlos Almeida"
+                          autoComplete="off"
+                          autoCapitalize="words"
+                          inputMode={screenKeyboard ? 'none' : 'text'}
+                          aria-label="Nome do pai ou responsável"
+                          disabled={!canInteract || state === 'saving'}
+                          className={kioskInputClass(searchFocus === 'parent')}
+                        />
+                      </label>
+                      <label className="mb-3 block min-w-0">
+                        <span className={KIOSK_LABEL_CLASS}>Data de nascimento</span>
+                        <input
+                          type="text"
+                          inputMode={screenKeyboard ? 'none' : 'numeric'}
+                          pattern="[0-9/]*"
+                          value={mascaraData(searchBirth)}
+                          onChange={event => handleSearchBirthChange(event.target.value)}
+                          onFocus={() => setSearchFocus('birth')}
+                          placeholder="dd/mm/aaaa"
+                          autoComplete="off"
+                          aria-label="Data de nascimento"
+                          disabled={!canInteract || state === 'saving'}
+                          className={kioskInputClass(searchFocus === 'birth')}
+                        />
+                        {searchBirthError && <span className="mt-1 block text-xs text-danger">{searchBirthError}</span>}
+                      </label>
                       <div className="mb-2 flex justify-end">{screenKeyboardToggle}</div>
                       {screenKeyboard && (
-                        <VirtualKeyboardOtimizado
-                          onKeyPress={handleSearchKey}
-                          disabled={!canInteract || state === 'saving'}
-                          compact={true}
-                        />
+                        searchFocus === 'birth' ? (
+                          <KioskNumberPad onKeyPress={handleSearchNumberKey} disabled={!canInteract || state === 'saving'} />
+                        ) : (
+                          <VirtualKeyboardOtimizado
+                            onKeyPress={handleSearchKey}
+                            disabled={!canInteract || state === 'saving'}
+                            compact={true}
+                          />
+                        )
                       )}
                     </section>
 
@@ -985,10 +1146,12 @@ export default function ReceptionKioskOtimizado() {
                               Quer mudar o personagem?
                             </p>
                             <AvatarBuilder
-                          value={form.avatar}
+                              value={form.avatar}
                           onChange={handleAvatarChange}
                           disabled={!canInteract || state === 'saving'}
+                          duasLinhas
                         />
+                            {avatarRepetido && <p role="alert" className="mt-2 rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-200">{MENSAGEM_AVATAR_REPETIDO}</p>}
                           </div>
                           <button
                             type="button"
@@ -1012,6 +1175,7 @@ export default function ReceptionKioskOtimizado() {
                                     type="button"
                                     onClick={() => {
                                       setSelectedProfile(profile);
+                                      // A criança começa com o avatar do cadastro dela e pode montar outro logo abaixo.
                                       setForm(prev => ({ ...prev, avatar: profileAvatar(profile.avatar) }));
                                     }}
                                     disabled={!canInteract}
@@ -1027,6 +1191,9 @@ export default function ReceptionKioskOtimizado() {
                                       <p className="truncate text-sm text-gray-400">
                                         {profile.nomeExibicao}{profile.idade ? ` • ${profile.idade} anos` : ''}
                                       </p>
+                                      {profile.jaNoEvento && (
+                                        <p className="truncate text-xs font-semibold text-fuchsia-300">Cadastrado na recepção · falta a pulseira</p>
+                                      )}
                                     </div>
                                     <span className="text-xl text-fuchsia-300" aria-hidden="true">›</span>
                                   </button>
@@ -1037,11 +1204,15 @@ export default function ReceptionKioskOtimizado() {
                             <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-gray-400">
                               {profileSearch.trim().length < 2
                                 ? 'Digite pelo menos 2 letras do seu apelido ou nome.'
+                                : !searchBirthValid
+                                ? 'Digite também a data de nascimento (dia, mês e ano).'
+                                : searchParent.trim().length < 2
+                                ? 'Digite também o nome do seu pai ou responsável.'
                                 : profileLoading
                                 ? 'Procurando...'
                                 : profileError
                                 ? <span className="text-rose-300">Não foi possível buscar agora ({profileError}). Confira a conexão e digite de novo.</span>
-                                : 'Não encontramos esse cadastro. Confira as letras ou volte e escolha "Sou novo!".'}
+                                : 'Não encontramos esse cadastro. Confira o nome, a data de nascimento e o nome do pai ou responsável, ou volte e escolha "Sou novo!".'}
                             </div>
                           )}
                         </>
@@ -1069,7 +1240,7 @@ export default function ReceptionKioskOtimizado() {
                         <button
                           type="button"
                           onClick={handleSubmit}
-                          disabled={!canInteract || state === 'saving' || !selectedProfile}
+                          disabled={!canInteract || state === 'saving' || !selectedProfile || avatarRepetido}
                           className="rounded-xl border border-success/40 bg-success/10 px-5 py-2.5 text-sm font-semibold text-success transition hover:bg-success/20 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {state === 'saving' ? 'Entrando...' : 'Entrar no evento'}

@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { useNFCReader } from '../../hooks/useNFCReader';
 import ReceptionSidebar from '../../components/layout/ReceptionSidebar';
 import ReceptionTopBar from '../../components/layout/ReceptionTopBar';
@@ -11,6 +12,7 @@ import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
 import StatusDot from '../../components/ui/StatusDot';
+import { avisar } from '../../components/ui/dialogo';
 
 type BraceletStatus = 'disponivel' | 'em uso' | 'perdida' | 'bloqueada';
 
@@ -84,9 +86,9 @@ export default function ReceptionBracelets() {
   }, [isConnected]);
 
   // Carregar pulseiras da API (CORRIGIDO: usa getPulseiras)
-  const loadBracelets = useCallback(async () => {
+  const loadBracelets = useCallback(async (silencioso = false) => {
     try {
-      setLoading(true);
+      if (!silencioso) setLoading(true);
       const data = await loadPulseiras();// Mapear para o formato esperado
       const mapped = Array.isArray(data) ? data.map(p => ({
         code: p.codigo,
@@ -97,7 +99,7 @@ export default function ReceptionBracelets() {
       })) : [];setBracelets(mapped);
     } catch (error) {
       console.error('❌ Erro ao carregar pulseiras:', error);
-      setBracelets([]);
+      if (!silencioso) setBracelets([]);
     } finally {
       setLoading(false);
     }
@@ -108,6 +110,9 @@ export default function ReceptionBracelets() {
     loadBracelets();
     loadChildren();
   }, [loadBracelets, loadChildren]);
+
+  // Pulseiras (em uso, disponíveis...) se atualizam sozinhas, menos com a confirmação aberta
+  useAutoRefresh(() => { void loadBracelets(true); return loadChildren(); }, { topicos: ['pulseiras', 'criancas'], intervaloMs: 8_000, pausado: modalOpen });
 
   // Counts
   const statusCounts = useMemo(() => {
@@ -152,7 +157,7 @@ export default function ReceptionBracelets() {
       
     } catch (error: any) {
       console.error('❌ Erro ao executar ação:', error);
-      alert(`Erro ao executar ação: ${error.message || 'Tente novamente.'}`);
+      avisar(`Erro ao executar ação: ${error.message || 'Tente novamente.'}`);
     }
 
     setModalOpen(false);
@@ -186,7 +191,7 @@ export default function ReceptionBracelets() {
       
       setNovaPulseiraCode('');
       setCadastrarModalOpen(false);
-      alert(`✅ Pulseira ${code} cadastrada com sucesso!`);} catch (error: any) {
+      avisar(`✅ Pulseira ${code} cadastrada com sucesso!`);} catch (error: any) {
       console.error('❌ Erro ao cadastrar:', error);
       setErrorMessage(error.message || 'Erro ao cadastrar pulseira');
     } finally {
@@ -225,7 +230,7 @@ export default function ReceptionBracelets() {
     
     setNovaPulseiraCode('');
     setCadastrarModalOpen(false);
-    alert(`Cadastradas: ${novos} pulseira(s)\nErros: ${erros}`);
+    avisar(`Cadastradas: ${novos} pulseira(s)\nErros: ${erros}`);
     setSaving(false);
   }, [novaPulseiraCode, loadBracelets]);
 

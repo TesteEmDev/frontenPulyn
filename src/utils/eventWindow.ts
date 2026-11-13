@@ -28,12 +28,12 @@ export interface TimeBucket {
 
 const MINUTE_MS = 60000;
 const MAX_BUCKETS = 72;
-// O gráfico tem de 5 a 10 pontos (para eventos com pelo menos 5 minutos).
-const MIN_POINTS = 5;
-const MAX_POINTS = 10;
+// O gráfico tem de 2 a 8 pontos (para períodos de pelo menos 2 minutos).
+const MIN_POINTS = 2;
+const MAX_POINTS = 8;
 const TARGET_POINTS = 8;
-// Intervalos possíveis, em minutos. Só valores fáceis de ler no eixo.
-const NICE_BUCKET_MINUTES = [1, 2, 3, 5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 480, 720, 1440];
+// Intervalos possíveis, em minutos. Só valores fáceis de ler no eixo (até 1 mês, para evento que ficou aberto por dias).
+const NICE_BUCKET_MINUTES = [1, 2, 3, 5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 480, 720, 1440, 2880, 10080, 43200];
 
 type Lifecycle = 'scheduled' | 'active' | 'finished';
 
@@ -94,11 +94,11 @@ export function getEventActiveWindow(
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-// Escolhe o intervalo para o gráfico ficar com 5 a 10 pontos: entre os
-// intervalos "redondos" que dão de 5 a 10 pontos, o que chega mais perto de 8
+// Escolhe o intervalo para o gráfico ficar com 2 a 8 pontos: entre os
+// intervalos "redondos" que dão de 2 a 8 pontos, o que chega mais perto de 8
 // (em empate, o maior, que é mais fácil de ler). Como um tamanho da lista é no
-// máximo o dobro do anterior, sempre existe um assim para eventos de 5 min ou
-// mais; abaixo disso o menor intervalo (1 min) dá menos de 5 pontos.
+// máximo 2,5 vezes o anterior, sempre existe um assim para períodos de 2 min ou
+// mais; abaixo disso o menor intervalo (1 min) dá menos de 2 pontos.
 export function pickBucketMinutes(basisMinutes: number): number {
   const basis = Math.max(1, Number.isFinite(basisMinutes) ? basisMinutes : 1);
   let best: number | null = null;
@@ -113,16 +113,18 @@ export function pickBucketMinutes(basisMinutes: number): number {
     }
   }
   if (best !== null) return best;
-  return basis < MIN_POINTS ? NICE_BUCKET_MINUTES[0] : NICE_BUCKET_MINUTES[NICE_BUCKET_MINUTES.length - 1];
+  return basis <= NICE_BUCKET_MINUTES[0] ? NICE_BUCKET_MINUTES[0] : NICE_BUCKET_MINUTES[NICE_BUCKET_MINUTES.length - 1];
 }
 
 // Base do cálculo: evento em andamento usa a duração configurada (assim o
-// intervalo não muda no meio do evento); evento encerrado usa o tempo em que
-// realmente esteve ativo (um evento encerrado antes da hora continua com 5 a 10 pontos).
+// intervalo não muda no meio do evento), a não ser que ele já tenha passado dela
+// (evento que ficou aberto além do previsto: vale o tempo decorrido, senão o eixo
+// ganharia dezenas de pontos); evento encerrado usa o tempo em que realmente
+// esteve ativo (um evento encerrado antes da hora continua com 2 a 8 pontos).
 export function getBucketMinutes(eventDurationMinutes: number | null | undefined, window: EventWindow): number {
   const spanMinutes = (window.end.getTime() - window.start.getTime()) / MINUTE_MS;
   const configured = Number(eventDurationMinutes);
-  const basis = window.ongoing && configured > 0 ? configured : spanMinutes;
+  const basis = window.ongoing && configured > 0 ? Math.max(configured, spanMinutes) : spanMinutes;
   return pickBucketMinutes(basis);
 }
 
@@ -173,6 +175,21 @@ export function buildTimeBuckets(
   return buckets;
 }
 
+// Intervalo do gráfico em texto: 30 min, 2 h, 1 dia...
+export function formatInterval(minutes: number): string {
+  if (minutes >= 1440 && minutes % 1440 === 0) {
+    const days = minutes / 1440;
+    return `${days} ${days === 1 ? 'dia' : 'dias'}`;
+  }
+  if (minutes >= 60 && minutes % 60 === 0) return `${minutes / 60} h`;
+  return `${minutes} min`;
+}
+
 export function formatClock(date: Date): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// Horário com o dia na frente quando não é hoje (evento que ficou aberto por dias).
+export function formatClockDay(date: Date, now: Date = new Date()): string {
+  return date.toDateString() === now.toDateString() ? formatClock(date) : `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${formatClock(date)}`;
 }

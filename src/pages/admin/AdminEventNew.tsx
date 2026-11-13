@@ -13,6 +13,7 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import TimeInput from '../../components/ui/TimeInput';
+import { avisar } from '../../components/ui/dialogo';
 
 // Nome do tipo de jogo na lista (antes tudo que não era equipe/individual aparecia como "Cooperativo").
 const TIPO_DO_JOGO: Record<string, string> = {
@@ -78,7 +79,7 @@ export default function AdminEventNew() {
         if (editingId) {
           const evento = await api.getEvento(editingId);
           if (!evento || evento.error || !evento.eventoId) {
-            alert('Evento não encontrado.');
+            avisar('Evento não encontrado.');
             navigate('/admin/events');
             return;
           }
@@ -157,7 +158,7 @@ export default function AdminEventNew() {
       navigate('/admin/events');
     } catch (error) {
       console.error('Erro ao salvar evento:', error);
-      alert(error instanceof Error && error.message ? error.message : 'Erro ao salvar evento. Tente novamente.');
+      avisar(error instanceof Error && error.message ? error.message : 'Erro ao salvar evento. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -235,7 +236,7 @@ export default function AdminEventNew() {
                     <p className="text-xs text-gray-400 mb-1">Buffet</p>
                     <p className="text-sm font-semibold text-white">{auth.user?.name || 'Seu Buffet'}</p>
                   </div>
-                  
+
                   <Input
                     label="Nome do Evento"
                     placeholder="Ex: Festa do João"
@@ -339,7 +340,7 @@ export default function AdminEventNew() {
                       <p className="text-sm text-gray-300">
                         {soPulynBall ? 'Você ainda não tem jogos do PulynBall cadastrados.' : 'Você ainda não tem jogos cadastrados.'}
                       </p>
-                      <Button variant="accent" size="sm" className="mt-3" onClick={() => navigate('/admin/games/new')}>Criar jogo</Button>
+                      <p className="mt-1 text-xs text-gray-500">Os jogos vêm cadastrados pelo seu plano. Se não aparecerem, fale com o suporte.</p>
                     </div>
                   )}
                   {!gamesLoaded && (

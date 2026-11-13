@@ -21,18 +21,18 @@ const getNDEFReader = (): NDEFReaderConstructor | null =>
     ? (window as unknown as { NDEFReader: NDEFReaderConstructor }).NDEFReader
     : null;
 
-const readPreference = () => {
+const readPreference = (key: string) => {
   try {
-    return localStorage.getItem(STORAGE_KEY) === '1';
+    return localStorage.getItem(key) === '1';
   } catch {
     return false;
   }
 };
 
-const writePreference = (enabled: boolean) => {
+const writePreference = (key: string, enabled: boolean) => {
   try {
-    if (enabled) localStorage.setItem(STORAGE_KEY, '1');
-    else localStorage.removeItem(STORAGE_KEY);
+    if (enabled) localStorage.setItem(key, '1');
+    else localStorage.removeItem(key);
   } catch {
     // Sem storage o totem só precisa de um toque para reativar.
   }
@@ -40,7 +40,8 @@ const writePreference = (enabled: boolean) => {
 
 // `enabled` pausa as leituras (ex.: enquanto o formulário de cadastro está aberto)
 // sem desligar o NFC, para não precisar de um novo toque na tela.
-export function useDeviceNFC(onBraceletDetected: (code: string) => void, enabled = true) {
+// `storageKey`: onde lembrar que esta tela lê pelo NFC do aparelho (cada tela usa a sua).
+export function useDeviceNFC(onBraceletDetected: (code: string) => void, enabled = true, storageKey = STORAGE_KEY) {
   const supported = Boolean(getNDEFReader());
   const [status, setStatus] = useState<DeviceNfcStatus>(supported ? 'idle' : 'unsupported');
   const [error, setError] = useState('');
@@ -82,7 +83,7 @@ export function useDeviceNFC(onBraceletDetected: (code: string) => void, enabled
       };
       await reader.scan({ signal: controller.signal });
       if (controller.signal.aborted) return;
-      writePreference(true);
+      writePreference(storageKey, true);
       setStatus('scanning');
     } catch (err) {
       if (controllerRef.current === controller) controllerRef.current = null;
@@ -99,20 +100,20 @@ export function useDeviceNFC(onBraceletDetected: (code: string) => void, enabled
         setError('Não foi possível iniciar o NFC deste aparelho.');
       }
     }
-  }, []);
+  }, [storageKey]);
 
   const stop = useCallback(() => {
     controllerRef.current?.abort();
     controllerRef.current = null;
-    writePreference(false);
+    writePreference(storageKey, false);
     setError('');
     setStatus(supported ? 'idle' : 'unsupported');
-  }, [supported]);
+  }, [supported, storageKey]);
 
   // Reativa sozinho ao recarregar a página quando a permissão já foi concedida.
   // Sem permissão, o navegador exige um toque na tela para iniciar a leitura.
   useEffect(() => {
-    if (!supported || !readPreference()) return;
+    if (!supported || !readPreference(storageKey)) return;
     let cancelled = false;
     navigator.permissions
       ?.query({ name: 'nfc' as PermissionName })

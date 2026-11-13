@@ -48,6 +48,16 @@
     background: #2A4A66;
   }
 
+  /* Ícone do calendário/relógio dos campos de data e hora: o navegador o desenha preto; no tema escuro fica branco */
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  input[type="month"]::-webkit-calendar-picker-indicator,
+  input[type="week"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+  }
+
   body {
     min-height: 100vh;
     color: var(--text-primary);
@@ -122,7 +132,7 @@
   }
 
   .input-dark {
-    @apply bg-dark-card border border-white/[0.10] rounded-xl px-4 py-3 text-white placeholder-dark-hover/70 focus:outline-none focus:border-primary-500 transition-all;
+    @apply bg-dark-card border border-white/[0.10] rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-primary-500 transition-all;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
   }
 
@@ -258,4 +268,33 @@ select:disabled {
 select option {
   background-color: #132338;
   color: #FFFFFF;
+}
+
+/* Mapa do painel master: realce ao passar o mouse sem re-renderizar o React */
+.estado-mapa:hover { fill: rgba(30, 155, 215, 0.30); }
+.estado-mapa[aria-pressed='true']:hover { fill: rgba(30, 155, 215, 0.38); }
+
+/* Seção longa abaixo da dobra: o navegador pula o desenho dela até ela se aproximar da tela */
+.secao-diferida { content-visibility: auto; contain-intrinsic-size: auto 320px; }
+
+/* Seletor de cor do Pulyn (SeletorDeCor.tsx): bolinha da faixa de tonalidade */
+.seletor-cor-matiz::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 3px solid #d946ef;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+}
+.seletor-cor-matiz::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 3px solid #d946ef;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  cursor: grab;
 }

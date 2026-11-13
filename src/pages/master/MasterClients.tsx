@@ -1,25 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard,
   Users,
-  CreditCard,
-  Activity,
-  ScrollText,
-  LifeBuoy,
-  BarChart3,
   Search,
   Plus,
   ShieldBan,
   ShieldCheck,
-  MoreHorizontal,
   Building2,
   MapPin,
   Loader2,
   AlertCircle,
   CheckCircle,
   XCircle,
-  Cpu,
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -31,20 +23,14 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import Modal from '../../components/ui/Modal';
+import RowActionsMenu from '../../components/ui/RowActionsMenu';
 import ClientDetailsModal from './ClientDetailsModal';
+import NovoClienteModal from './NovoClienteModal';
 
-import { api } from '../../services/api';
+import { api, type ResumoExclusaoCliente } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
+import { masterNavItems } from './masterNav';
 
-const masterNavItems = [
-  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/master' },
-  { icon: <Users size={20} />, label: 'Clientes', path: '/master/clients' },
-  { icon: <CreditCard size={20} />, label: 'Planos', path: '/master/plans' },
-  { icon: <Cpu size={20} />, label: 'Checkpoints', path: '/master/checkpoints' },
-  { icon: <Activity size={20} />, label: 'Monitoramento', path: '/master/monitoring' },
-  { icon: <ScrollText size={20} />, label: 'Logs', path: '/master/logs' },
-  { icon: <LifeBuoy size={20} />, label: 'Suporte', path: '/master/support' },
-  { icon: <BarChart3 size={20} />, label: 'Analytics', path: '/master/analytics' },
-];
 
 interface Client {
   id: string;
@@ -82,46 +68,42 @@ export default function MasterClients() {
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   // Cliente com o modal de detalhes aberto (o objeto vem da lista, então o status acompanha as alterações)
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  
+
   // Loading and error states
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  
+
   // New client form state
-  const [newName, setNewName] = useState('');
-  const [newCity, setNewCity] = useState('');
-  const [newState, setNewState] = useState('');
-  const [newEmail, setNewEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [newPhone, setNewPhone] = useState('');
-  const [newPlan, setNewPlan] = useState('starter');
-  const [submitting, setSubmitting] = useState(false);
 
   // Fetch clients from API
-  const fetchClients = async () => {
-    setLoading(true);
-    setError(null);
+  // `silencioso`: atualização automática, sem o carregando e sem avisos de erro
+  const fetchClients = async (silencioso = false) => {
+    if (!silencioso) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const data = await api.getClientes();
-      
+
       if (Array.isArray(data)) {
         setClients(data);
-      } else {
+      } else if (!silencioso) {
         setError('Erro ao carregar clientes');
       }
     } catch (err) {
       console.error('Erro ao buscar clientes:', err);
-      setError('Não foi possível conectar ao servidor. Verifique se a API está rodando.');
+      if (!silencioso) setError('Não foi possível conectar ao servidor. Verifique se a API está rodando.');
     } finally {
-      setLoading(false);
+      if (!silencioso) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchClients();
   }, []);
+
+  useAutoRefresh(() => fetchClients(true), { topicos: ['clientes'] });
 
   // Auto-dismiss success message
   useEffect(() => {
@@ -134,8 +116,8 @@ export default function MasterClients() {
   const selectedClient = clients.find(c => c.id === selectedClientId) || null;
 
   const filteredClients = clients.filter(client => {
-    const matchSearch = client.name.toLowerCase().includes(search.toLowerCase()) ||
-      client.city.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = String(client.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      String(client.city ?? '').toLowerCase().includes(search.toLowerCase());
     const matchPlan = filterPlan === 'all' || client.plan === filterPlan;
     const matchStatus = filterStatus === 'all' || client.status === filterStatus;
     return matchSearch && matchPlan && matchStatus;
@@ -144,12 +126,12 @@ export default function MasterClients() {
   const handleToggleStatus = async (clientId: string) => {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
-    
+
     const newStatus = client.status === 'blocked' ? 'active' : 'blocked';
-    
+
     try {
       const data = await api.updateCliente(clientId, { status: newStatus });
-      
+
       if (data) {
         setClients(prev => prev.map(c => 
           c.id === clientId ? { ...c, status: newStatus as any } : c
@@ -162,67 +144,22 @@ export default function MasterClients() {
       console.error('Erro ao alterar status:', err);
       setError('Erro de conexão ao alterar status');
     }
-    setOpenMenuId(null);
   };
 
   const handleViewDetails = (client: Client) => {
     setSelectedClientId(client.id);
-    setOpenMenuId(null);
   };
 
-  const handleNewClient = async () => {
-    if (!newName || !newCity || !newEmail || !newPassword) {
-      setError('Preencha todos os campos obrigatórios (nome, cidade, e-mail e senha)');
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      setError('A senha deve ter pelo menos 6 caracteres');
-      return;
-    }
-    
-    setSubmitting(true);
-    setError(null);
-    
-    try {
-      const data = await api.createCliente({
-        nome: newName,
-        cidade: newCity,
-        estado: newState,
-        plan: newPlan,
-        email: newEmail,
-        senha: newPassword,
-        telefone: newPhone
-      });
-      
-      if (data) {
-        setClients(prev => [data, ...prev]);
-        setShowNewClientModal(false);
-        setSuccessMessage(`Cliente ${newName} criado com sucesso! Acesso: ${newEmail}`);
-        
-        // Reset form
-        setNewName('');
-        setNewCity('');
-        setNewState('');
-        setNewEmail('');
-        setNewPassword('');
-        setNewPhone('');
-        setNewPlan('starter');
-      } else {
-        setError('Erro ao criar cliente');
-      }
-    } catch (err) {
-      console.error('Erro ao criar cliente:', err);
-      setError('Erro de conexão ao criar cliente');
-    } finally {
-      setSubmitting(false);
-    }
+  // Cliente criado pela janela de cadastro: relê a lista (a resposta da criação não tem o formato das linhas)
+  const handleClientCreated = (cliente: { nome?: string }) => {
+    setSuccessMessage(`Cliente ${cliente?.nome ?? ''} criado com sucesso!`);
+    void fetchClients(true);
   };
 
   const handleUpdatePlan = async (clientId: string, newPlan: string) => {
     try {
       const data = await api.updateCliente(clientId, { plan: newPlan });
-      
+
       if (data) {
         setClients(prev => prev.map(c => 
           c.id === clientId ? { ...c, plan: newPlan as any } : c
@@ -235,28 +172,46 @@ export default function MasterClients() {
     }
   };
 
+  // Exclusão em duas confirmações: 1) o que será apagado; 2) digitar o nome do cliente.
+  const [excluindo, setExcluindo] = useState<{ client: Client; resumo: ResumoExclusaoCliente | null; etapa: 1 | 2; digitado: string; enviando: boolean } | null>(null);
+
   const handleDeleteClient = async (clientId: string) => {
-    if (!window.confirm('Tem certeza que deseja excluir este cliente?')) return;
-    
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return;
+    setExcluindo({ client, resumo: null, etapa: 1, digitado: '', enviando: false });
     try {
-      await api.deleteCliente(clientId);
-      
+      const resumo = await api.getResumoExclusaoCliente(clientId);
+      setExcluindo(atual => (atual && atual.client.id === clientId ? { ...atual, resumo } : atual));
+    } catch (err) {
+      setExcluindo(null);
+      setError(err instanceof Error ? err.message : 'Não foi possível consultar o que será apagado');
+    }
+  };
+
+  const confirmarExclusao = async () => {
+    if (!excluindo) return;
+    const clientId = excluindo.client.id;
+    setExcluindo({ ...excluindo, enviando: true });
+    try {
+      const resposta = await api.deleteCliente(clientId);
+      setExcluindo(null);
+
       setClients(prev => prev.filter(c => c.id !== clientId));
-      setSuccessMessage('Cliente excluído com sucesso!');
+      setSuccessMessage(resposta.message || 'Cliente excluído com sucesso!');
       if (selectedClientId === clientId) {
         setSelectedClientId(null);
       }
     } catch (err) {
       console.error('Erro ao excluir cliente:', err);
-      setError('Erro de conexão ao excluir cliente');
+      setError(err instanceof Error ? err.message : 'Erro de conexão ao excluir cliente');
+      setExcluindo(atual => (atual ? { ...atual, enviando: false } : atual));
     }
-    setOpenMenuId(null);
   };
 
   // Mensagem de sucesso/erro
   const renderToast = () => {
     if (!successMessage && !error) return null;
-    
+
     return (
       <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-right-5 duration-300">
         {successMessage && (
@@ -403,19 +358,13 @@ export default function MasterClients() {
                           <td className="py-3 px-4 text-right font-mono text-gray-300">{client.eventsDone}</td>
                           <td className="py-3 px-4 text-gray-400 text-xs">{client.lastAccess}</td>
                           <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                            <div className="relative inline-block">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setOpenMenuId(openMenuId === client.id ? null : client.id)}
-                              >
-                                <MoreHorizontal size={16} />
-                              </Button>
-                              {openMenuId === client.id && (
-                                <div className="absolute right-0 top-8 z-10 w-48 rounded-lg border border-border bg-card shadow-xl py-1">
+                            <RowActionsMenu label={`Ações de ${client.name}`}>
+                              {(fechar) => (
+                                <>
                                   <button
+                                    role="menuitem"
                                     className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-300 hover:bg-surface hover:text-white transition-colors"
-                                    onClick={() => handleToggleStatus(client.id)}
+                                    onClick={() => { fechar(); handleToggleStatus(client.id); }}
                                   >
                                     {client.status === 'blocked' ? (
                                       <><ShieldCheck size={14} className="text-success" /> Ativar</>
@@ -424,15 +373,16 @@ export default function MasterClients() {
                                     )}
                                   </button>
                                   <button
+                                    role="menuitem"
                                     className="flex items-center gap-2 w-full px-4 py-2 text-sm text-danger hover:bg-surface hover:text-danger transition-colors"
-                                    onClick={() => handleDeleteClient(client.id)}
+                                    onClick={() => { fechar(); handleDeleteClient(client.id); }}
                                   >
                                     <AlertCircle size={14} />
                                     Excluir
                                   </button>
-                                </div>
+                                </>
                               )}
-                            </div>
+                            </RowActionsMenu>
                           </td>
                         </tr>
                       ))}
@@ -456,68 +406,91 @@ export default function MasterClients() {
             )}
           </Card>
 
-          {/* New Client Modal */}
-          <Modal isOpen={showNewClientModal} onClose={() => setShowNewClientModal(false)} title="Novo Cliente">
-            <div className="space-y-4">
-              <Input 
-                label="Nome do buffet *" 
-                value={newName} 
-                onChange={e => setNewName(e.target.value)} 
-                placeholder="Ex: Buffet Feliz" 
-                required
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <Input 
-                  label="Cidade *" 
-                  value={newCity} 
-                  onChange={e => setNewCity(e.target.value)} 
-                  placeholder="São Paulo" 
-                  required
-                />
-                <Input 
-                  label="Estado" 
-                  value={newState} 
-                  onChange={e => setNewState(e.target.value)} 
-                  placeholder="SP" 
-                />
-              </div>
-              <Input 
-                label="E-mail (Login) *" 
-                type="email" 
-                value={newEmail} 
-                onChange={e => setNewEmail(e.target.value)} 
-                placeholder="contato@buffet.com.br" 
-                required
-              />
-              <Input 
-                label="Senha Inicial *" 
-                type="password" 
-                value={newPassword} 
-                onChange={e => setNewPassword(e.target.value)} 
-                placeholder="Digite uma senha segura" 
-                required
-              />
-              <Input 
-                label="Telefone" 
-                value={newPhone} 
-                onChange={e => setNewPhone(e.target.value)} 
-                placeholder="(11) 98765-4321" 
-              />
-              <Select
-                label="Plano"
-                options={PLANOS_SELECIONAVEIS}
-                value={newPlan}
-                onChange={e => setNewPlan(e.target.value)}
-              />
-              <div className="flex gap-3 pt-2">
-                <Button variant="ghost" onClick={() => setShowNewClientModal(false)} className="flex-1">Cancelar</Button>
-                <Button variant="primary" onClick={handleNewClient} disabled={submitting} className="flex-1">
-                  {submitting ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
-                  Criar Cliente
-                </Button>
-              </div>
-            </div>
+          {/* Excluir cliente: duas confirmações, o que será apagado e o nome do cliente */}
+          <Modal
+            isOpen={Boolean(excluindo)}
+            onClose={() => { if (!excluindo?.enviando) setExcluindo(null); }}
+            title={excluindo?.etapa === 2 ? 'Última confirmação' : 'Excluir cliente'}
+            size="lg"
+          >
+            {excluindo && (() => {
+              const { client, resumo, etapa, digitado, enviando } = excluindo;
+              const linhas: [number, string][] = resumo ? ([
+                [resumo.eventos, resumo.eventosEmAndamento ? `evento(s), sendo ${resumo.eventosEmAndamento} em andamento (será encerrado antes)` : 'evento(s)'],
+                [resumo.participantes, 'participante(s) e o que eles fizeram (pontos, leituras, conquistas)'],
+                [resumo.times, 'time(s)'],
+                [resumo.pulseiras, 'pulseira(s) cadastrada(s)'],
+                [resumo.brincadeiras, 'brincadeira(s) cadastrada(s)'],
+                [resumo.leituras + resumo.pontuacoes, 'registro(s) de leituras e pontos'],
+                [resumo.checkpointsApagados, 'checkpoint(s) antigo(s), sem MAC'],
+                [resumo.usuarios, 'usuário(s) de acesso (logins)'],
+              ] as [number, string][]).filter(([n]) => n > 0) : [];
+              const nomeConfere = digitado.trim().toLowerCase() === client.name.trim().toLowerCase();
+              return (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3 rounded-xl border border-danger/40 bg-danger/10 p-4">
+                    <AlertCircle size={22} className="mt-0.5 shrink-0 text-danger" />
+                    <p className="text-base text-white">
+                      Você vai excluir <strong>{client.name}</strong> definitivamente. <strong>Não tem volta</strong>: nem o cliente nem os dados dele podem ser recuperados.
+                    </p>
+                  </div>
+
+                  {etapa === 1 && (
+                    <>
+                      {!resumo ? (
+                        <p className="text-gray-400">Verificando o que será apagado...</p>
+                      ) : (
+                        <>
+                          <div>
+                            <p className="mb-2 font-semibold text-white">Será apagado:</p>
+                            <ul className="list-disc space-y-1 pl-6 text-gray-200">
+                              <li>O cadastro do cliente e a conta dele</li>
+                              {linhas.map(([n, texto]) => <li key={texto}><strong>{n}</strong> {texto}</li>)}
+                            </ul>
+                          </div>
+                          {resumo.checkpointsParaEstoque > 0 && (
+                            <p className="rounded-xl border border-success/40 bg-success/10 p-3 text-gray-200">
+                              <strong>{resumo.checkpointsParaEstoque}</strong> checkpoint(s) <strong>não</strong> são apagados: voltam para o estoque do master, sem buffet, evento e número (as leituras e pontos deles neste cliente são apagados).
+                            </p>
+                          )}
+                        </>
+                      )}
+                      <div className="flex justify-end gap-3 pt-2">
+                        <Button variant="ghost" onClick={() => setExcluindo(null)}>Cancelar</Button>
+                        <Button variant="danger" disabled={!resumo} onClick={() => setExcluindo({ ...excluindo, etapa: 2 })}>Entendi, continuar</Button>
+                      </div>
+                    </>
+                  )}
+
+                  {etapa === 2 && (
+                    <>
+                      <p className="text-gray-300">Para confirmar, digite o nome do cliente exatamente como aparece abaixo:</p>
+                      <p className="rounded-lg bg-white/5 px-3 py-2 font-mono text-white">{client.name}</p>
+                      <Input
+                        value={digitado}
+                        onChange={e => setExcluindo({ ...excluindo, digitado: e.target.value })}
+                        placeholder="Nome do cliente"
+                        autoFocus
+                      />
+                      <div className="flex justify-end gap-3 pt-2">
+                        <Button variant="ghost" disabled={enviando} onClick={() => setExcluindo({ ...excluindo, etapa: 1, digitado: '' })}>Voltar</Button>
+                        <Button variant="danger" disabled={!nomeConfere || enviando} onClick={() => void confirmarExclusao()}>
+                          {enviando ? 'Excluindo...' : 'Excluir definitivamente'}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </Modal>
+
+          {/* New Client Modal */}
+          <NovoClienteModal
+            isOpen={showNewClientModal}
+            onClose={() => setShowNewClientModal(false)}
+            onCreated={handleClientCreated}
+          />
 
           {/* Client Details Modal */}
           <ClientDetailsModal
@@ -527,7 +500,7 @@ export default function MasterClients() {
           />
         </div>
       </main>
-      
+
       {renderToast()}
     </div>
   );

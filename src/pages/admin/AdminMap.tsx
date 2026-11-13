@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MapPin, Map, RefreshCw, Upload, Pencil, Trash2, Plus, Save, Loader2 } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
-import { numeroDoCheckpoint } from '../../utils/checkpoints';
+import { numeroDoCheckpoint, nomeNoMapa } from '../../utils/checkpoints';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
+import MapaAbas from '../../components/layout/MapaAbas';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
@@ -664,7 +665,16 @@ export default function AdminMap() {
   const handleFloorPlanChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (!file) return;
+    if (file) await enviarPlanta(file);
+  };
+
+  // Planta vinda do seletor de arquivos, de arrastar e soltar ou de colar (Ctrl+V)
+  const enviarPlanta = async (file: File) => {
+    if (uploadingFloorPlan) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Envie uma imagem (PNG, JPG ou SVG) para a planta.');
+      return;
+    }
 
     setUploadingFloorPlan(true);
     setError('');
@@ -685,6 +695,34 @@ export default function AdminMap() {
     }
   };
 
+  const [arrastandoPlanta, setArrastandoPlanta] = useState(false);
+
+  const soltarPlanta = (event: React.DragEvent) => {
+    event.preventDefault();
+    setArrastandoPlanta(false);
+    const arquivo = Array.from(event.dataTransfer.files).find((item) => item.type.startsWith('image/'));
+    if (arquivo) void enviarPlanta(arquivo);
+    else setError('Solte um arquivo de imagem (PNG, JPG ou SVG).');
+  };
+
+  // Ctrl+V com uma imagem na área de transferência (print, cópia do navegador ou de um arquivo) envia a planta.
+  // Colar texto em campos da tela continua normal.
+  const enviarPlantaRef = useRef(enviarPlanta);
+  enviarPlantaRef.current = enviarPlanta;
+  useEffect(() => {
+    const aoColar = (event: ClipboardEvent) => {
+      const alvo = event.target as HTMLElement | null;
+      if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.isContentEditable)) return;
+      const imagem = Array.from(event.clipboardData?.items ?? []).find((item) => item.kind === 'file' && item.type.startsWith('image/'))?.getAsFile();
+      if (!imagem) return;
+      event.preventDefault();
+      const extensao = imagem.type.split('/')[1]?.replace('svg+xml', 'svg') || 'png';
+      void enviarPlantaRef.current(new File([imagem], imagem.name && imagem.name !== 'image.png' ? imagem.name : `planta-colada.${extensao}`, { type: imagem.type }));
+    };
+    window.addEventListener('paste', aoColar);
+    return () => window.removeEventListener('paste', aoColar);
+  }, []);
+
   const handleRemoveFloorPlan = async (event: React.MouseEvent) => {
     event.stopPropagation();
     if (uploadingFloorPlan) return;
@@ -703,6 +741,12 @@ export default function AdminMap() {
   };
 
   const selectedEvent = events.find((event) => event.eventoId === selectedEventId);
+  // No SVG quem é desenhado depois fica por cima e recebe o clique. Ordem de desenho: zonas maiores embaixo (as menores
+  // continuam clicáveis) e a zona em edição por último, para o canto de redimensionar nunca ficar coberto por outra zona.
+  const zonasParaDesenhar = [...zones].sort((a, b) => {
+    if ((a.id === editingZoneId) !== (b.id === editingZoneId)) return a.id === editingZoneId ? 1 : -1;
+    return b.width * b.height - a.width * a.height;
+  });
   const selectedCheckpoint = checkpoints.find((checkpoint) => checkpoint.checkpointId === selectedCheckpointId);
   const checkpointsWithoutPosition = checkpoints.filter((checkpoint) => {
     const x = Number(checkpoint.mapaX ?? checkpoint.mapX);
@@ -722,6 +766,8 @@ export default function AdminMap() {
             description="A planta e as zonas são do buffet e valem para todos os eventos. Selecione um evento para posicionar os checkpoints dele na planta."
             icon={<Map size={28} />}
           />
+
+          <MapaAbas />
 
           {error && (
             <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-red-300" role="alert">
@@ -757,8 +803,13 @@ export default function AdminMap() {
             )}
           </Card>
 
+          <div
+            onDragOver={(event) => { event.preventDefault(); setArrastandoPlanta(true); }}
+            onDragLeave={() => setArrastandoPlanta(false)}
+            onDrop={soltarPlanta}
+          >
           <Card
-            className="cursor-pointer border-dashed border-2 hover:border-primary/50 transition-colors"
+            className={`cursor-pointer border-dashed border-2 transition-colors ${arrastandoPlanta ? 'border-primary bg-primary/10' : 'hover:border-primary/50'}`}
             onClick={() => !uploadingFloorPlan && fileInputRef.current?.click()}
           >
             <div className="flex items-center gap-4 p-4">
@@ -768,7 +819,7 @@ export default function AdminMap() {
                   {floorPlanUrl ? 'Planta do buffet carregada' : 'Enviar planta do buffet'}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  {floorPlanName || 'PNG, JPG ou SVG. Vale para todos os eventos deste buffet.'}
+                  {floorPlanName || 'Clique, arraste a imagem para cá ou cole com Ctrl+V. Vale para todos os eventos do buffet.'}
                 </p>
               </div>
               {uploadingFloorPlan ? (
@@ -786,6 +837,7 @@ export default function AdminMap() {
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFloorPlanChange} />
             </div>
           </Card>
+          </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <Card className="lg:col-span-2">
@@ -837,7 +889,7 @@ export default function AdminMap() {
                 >
                   {/* Grid removido - agora igual ao DisplayMap */}
 
-                  {zones.map((zone) => (
+                  {zonasParaDesenhar.map((zone) => (
                     <g key={zone.id} onClick={() => startEditingZone(zone.id)} className="cursor-pointer">
                       <rect
                         x={zone.x}
@@ -871,7 +923,7 @@ export default function AdminMap() {
                       {editingZoneId === zone.id && (
                         <>
                           {/* Handles nos cantos */}
-                          <circle cx={zone.x + zone.width} cy={zone.y + zone.height} r={5} fill="#FFFFFF" stroke={zone.color} strokeWidth={2} className="cursor-nwse-resize" onPointerDown={(e) => startResizingZone(e, zone.id)} />
+                          <circle cx={zone.x + zone.width} cy={zone.y + zone.height} r={7} fill="#FFFFFF" stroke={zone.color} strokeWidth={2} className="cursor-nwse-resize" onPointerDown={(e) => startResizingZone(e, zone.id)} />
                         </>
                       )}
                     </g>
@@ -942,7 +994,7 @@ export default function AdminMap() {
                       : storedPosition;
                     const isSelected = selectedCheckpointId === checkpoint.checkpointId;
                     const color = checkpoint.status === 'online' ? '#22C55E' : '#EF4444';
-                    const circleRadius = isSelected ? 17 : 14;
+                    const circleRadius = isSelected ? 13 : 11;
                     return (
                       <g
                         key={checkpoint.checkpointId}
@@ -954,7 +1006,7 @@ export default function AdminMap() {
                         <circle r={circleRadius} fill={color} fillOpacity={0.18} stroke={isSelected ? '#FFFFFF' : color} strokeWidth={isSelected ? 3 : 2} />
                         <circle r="5" fill={color} />
                         <text y="-22" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="600">{numeroDoCheckpoint(checkpoint)}</text>
-                        <text y="30" textAnchor="middle" fill="#D1D5DB" fontSize="9">{checkpoint.nome}</text>
+                        <text y="28" textAnchor="middle" fill="#D1D5DB" fontSize="6">{nomeNoMapa(checkpoint.nome)}</text>
                       </g>
                     );
                   })}

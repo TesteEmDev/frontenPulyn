@@ -6,6 +6,7 @@ import { useUhfMapa, type FiltrosUhfMapa } from '../../hooks/useUhfMapa';
 import AdminSidebar from '../../components/layout/AdminSidebar';
 import BuffetTopBar from '../../components/layout/BuffetTopBar';
 import PageHeader from '../../components/layout/PageHeader';
+import MapaAbas from '../../components/layout/MapaAbas';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
@@ -62,6 +63,8 @@ export default function AdminMapaCalor() {
             description="Onde as crianças estão (Agora) ou por onde passaram e quanto tempo ficaram (últimos 5 ou 30 min, evento todo; o mais antigo fica mais fraco), pelas leituras dos leitores UHF. O mapa é recalculado a cada 5 segundos."
             icon={<Flame size={28} />}
           />
+
+          <MapaAbas />
 
           {erro && <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-red-300">{erro}</p>}
           {mapa?.escalaPadrao && (
@@ -130,13 +133,13 @@ export default function AdminMapaCalor() {
             <Card className="xl:col-span-3">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-gray-500">
-                  {mapa ? `Janela das ${new Date(mapa.balde).toLocaleTimeString('pt-BR')} · ${mapa.totais.pulseirasVistas} pulseira(s) vista(s)` : 'Carregando...'}
+                  {mapa ? `Janela das ${new Date(mapa.balde).toLocaleTimeString('pt-BR')} · ${mapa.totais?.pulseirasVistas ?? 0} pulseira(s) vista(s)` : 'Carregando...'}
                 </p>
                 <LegendaCalor valorMax={mapa?.valorMax || 0} acumulado={mapa?.acumulado} />
               </div>
               <MapaPlanta plantaUrl={plantaUrl} altura={520}>
                 {mapa && <CamadaCalor celulas={mapa.celulas} celulaUnidades={mapa.celulaUnidades} valorMax={mapa.valorMax} acumulado={mapa.acumulado} />}
-                {mostrarAntenas && mapa?.antenas.filter((a) => a.mapaX !== null).map((a) => (
+                {mostrarAntenas && mapa?.antenas?.filter((a) => a.mapaX !== null).map((a) => (
                   <MarcadorAntena
                     key={a.antenaId}
                     x={a.mapaX as number} y={a.mapaY as number} porta={a.porta} rotulo={a.moduleId}
@@ -156,7 +159,7 @@ export default function AdminMapaCalor() {
             <Card>
               <h3 className="mb-3 font-display text-lg text-white">Resumo</h3>
               <dl className="space-y-2 text-sm">
-                <div className="flex justify-between"><dt className="text-gray-400">Pulseiras vistas</dt><dd className="text-white">{mapa?.totais.pulseirasVistas ?? '—'}</dd></div>
+                <div className="flex justify-between"><dt className="text-gray-400">Pulseiras vistas</dt><dd className="text-white">{mapa?.totais?.pulseirasVistas ?? '—'}</dd></div>
                 {Object.entries(mapa?.totais.porMetodo || {}).map(([metodo, total]) => (
                   <div key={metodo} className="flex justify-between"><dt className="text-gray-400">· {NOME_METODO[metodo] || metodo}</dt><dd className="text-white">{total}</dd></div>
                 ))}

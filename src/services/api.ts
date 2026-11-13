@@ -1,4 +1,5 @@
 // src/services/api.ts
+import { lerToken } from '../utils/sessao';
 import { useAuth } from '../hooks/useAuth';
 
 const LOCAL_API_URL = `${window.location.protocol === 'https:' ? 'https' : 'http'}://${window.location.hostname}:3001/api`;
@@ -45,7 +46,11 @@ function normalizeApiUrl(value: string | undefined | null) {
   }
 
   try {
-    const parsed = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(rawValue) ? rawValue : `https://${rawValue}`);
+    // "/api" (API no mesmo endereco do site, como no IIS): resolve contra o endereco da pagina. Sem isso o "https:///api"
+    // viraria o servidor "api".
+    const parsed = rawValue.startsWith('/') && !rawValue.startsWith('//')
+      ? new URL(rawValue, window.location.origin)
+      : new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(rawValue) ? rawValue : `https://${rawValue}`);
     if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname || hasRepeatedHost(parsed.hostname)) {
       return null;
     }
@@ -77,7 +82,7 @@ export const API_URL = (configuredForProduction || fallbackApiUrl).replace(/\/+$
 // Helper para obter headers com autenticação
 function getAuthHeaders() {
   try {
-    const token = localStorage.getItem('authToken') || useAuth.getState().token;
+    const token = lerToken() || useAuth.getState().token;
     if (!token) {
       throw new Error('Sessão expirada. Faça login novamente.');
     }
@@ -93,6 +98,13 @@ function getAuthHeaders() {
 }
 
 // Checkpoint que o super admin transferiu para este buffet (rotas de recebimento).
+// Pontos ganhos numa partida (soma das leituras dela), por equipe e por participante
+export interface PontosDaPartida {
+  sessionId: string | null;
+  equipes: { id: string; nome: string; cor: string | null; pontos: number }[];
+  participantes: { id: string; nome: string; cor: string | null; avatar: string | null; pontos: number }[];
+}
+
 export interface CheckpointRecebido {
   checkpointId: string;
   nome: string;
@@ -103,6 +115,8 @@ export interface CheckpointRecebido {
   statusTransferencia?: 'estoque' | 'aceito';
   eventoId?: string | null;
   eventoNome?: string | null;
+  // Último evento em que esteve (livre agora, entra no próximo evento que começar se estiver ligado)
+  ultimoEventoNome?: string | null;
   transferidoEm?: string | null;
   zona?: string | null;
   pontos?: number | null;
@@ -127,6 +141,12 @@ export interface CheckpointMaster {
   eventoId: string | null;
   transferidoEm: string | null;
   criadoEm: string | null;
+  // Aviso de devolução: preenchido quando o buffet devolve/recusa e some quando o master transfere de novo
+  devolvidoEm: string | null;
+  devolvidoMotivo: 'devolvido' | 'recusado' | 'cliente_excluido' | null;
+  devolvidoPorNome: string | null;
+  // Só o master recebe este dado (as rotas dos buffets não o devolvem)
+  epc: string | null;
 }
 
 export interface BuffetOpcao {
@@ -143,6 +163,65 @@ async function pedirMasterCheckpoints<T>(caminho: string, init: RequestInit = {}
   if (!res.ok) throw new Error((data as { error?: string }).error || `Erro ${res.status}`);
   return data as T;
 }
+
+// Pulseiras: estoque do master e envio aos buffets (/master/pulseiras), aceite e devolução pelo admin (/pulseiras/recebimento)
+export interface PulseiraDoEstoque {
+  codigo: string;
+  statusTransferencia: 'estoque' | 'pendente';
+  empresaDestinoId: string | null;
+  empresaDestinoNome: string | null;
+  enviadoEm: string | null;
+  criadoEm: string;
+}
+export interface ResumoDePulseiras {
+  estoque: number;
+  pendentes: number;
+  buffets: { empresaId: string; nome: string; enviadas: number; aceitas: number; recusadas: number; devolvidas: number; pendentes: number; emPosse: number }[];
+}
+export interface PulseiraDoBuffet {
+  codigo: string;
+  status: 'disponivel' | 'em_uso' | 'perdida' | 'bloqueada' | string;
+  empresaId: string;
+  buffetNome: string;
+  criancaNome: string | null;
+  criadoEm: string | null;
+  // true = veio do envio da Pulyn; false = o próprio buffet cadastrou
+  doMaster: boolean;
+}
+export interface PulseirasPorBuffet {
+  empresaId: string;
+  nome: string;
+  total: number;
+  disponiveis: number;
+  emUso: number;
+  perdidas: number;
+  bloqueadas: number;
+  daPulyn: number;
+}
+export interface MovimentoDePulseira {
+  codigo: string;
+  tipo: 'enviada' | 'aceita' | 'recusada' | 'devolvida';
+  criadoEm: string;
+  porNome: string | null;
+  buffetNome: string | null;
+}
+export interface PulseiraRecebida {
+  codigo: string;
+  status: string;
+  recebidoDoMasterEm: string;
+  emUso: boolean;
+}
+
+async function pedirJson<T>(url: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(url, { ...init, headers: getAuthHeaders() });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error || `Erro ${res.status}`);
+  return data as T;
+}
+const enviarCodigos = (codigos: string[], extra: Record<string, unknown> = {}): RequestInit => ({
+  method: 'POST',
+  body: JSON.stringify({ codigos, ...extra }),
+});
 
 // Chamada às rotas de recebimento: devolve o JSON ou lança o erro com a mensagem que a API mandou.
 async function pedirRecebimento<T>(caminho: string, init: RequestInit = {}): Promise<T> {
@@ -331,10 +410,11 @@ export interface PerfilCrianca {
   eventos: { criancaId: string; eventoId: string; eventoNome: string; eventoData: string; pontos: number }[];
 }
 
-// Uma zona do evento com o que os checkpoints dela realmente registraram.
-export interface ZoneEngagement {
-  zona: string;
-  checkpoints: number;
+// Um checkpoint do evento com o que ele realmente registrou.
+export interface CheckpointEngagement {
+  checkpointId: string;
+  nome: string;
+  zona: string | null;
   leituras: number;
   participantes: number;
   pontos: number;
@@ -380,6 +460,12 @@ export interface EmpresaProfile {
   emailDomain: string | null;
 }
 
+export interface ResumoExclusaoCliente {
+  eventos: number; eventosEmAndamento: number; participantes: number; times: number; pulseiras: number;
+  brincadeiras: number; leituras: number; pontuacoes: number; checkpointsParaEstoque: number; checkpointsApagados: number;
+  usuarios: number;
+}
+
 export const api = {
   // ==================== AUTENTICAÇÃO ====================
   async login(email: string, password: string) {
@@ -389,6 +475,18 @@ export const api = {
       body: JSON.stringify({ email, senha: password }),
     });
     return res.json();
+  },
+
+  // Troca a senha da conta logada (também a troca obrigatória do primeiro acesso). Devolve o token novo da sessão.
+  async alterarSenha(senhaAtual: string, novaSenha: string): Promise<{ success: boolean; token: string }> {
+    const res = await fetch(`${API_URL}/auth/alterar-senha`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ senhaAtual, novaSenha }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao trocar a senha (${res.status})`);
+    return data;
   },
 
   // Troca de área: a mesma conta pede um token para outro papel que ela já tem (ver routes/auth.js).
@@ -401,6 +499,46 @@ export const api = {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Erro ao trocar de área (${res.status})`);
     return data;
+  },
+
+  // Telão sem login: troca o código do link (/telao/<código>) por uma sessão do perfil display (ver routes/auth.js).
+  async entrarTelao(codigo: string): Promise<any> {
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}/auth/telao`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo }),
+      });
+    } catch {
+      throw Object.assign(new Error('Sem conexão com o servidor'), { semConexao: true });
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao abrir o telão (${res.status})`);
+    return data;
+  },
+
+  // Telão aberto pela equipe logada: pede a sessão de telão do próprio buffet (ver routes/auth.js).
+  async abrirTelaoDaEquipe(): Promise<any> {
+    const res = await fetch(`${API_URL}/auth/telao-da-equipe`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao abrir o telão (${res.status})`);
+    return data;
+  },
+
+  // Código do link do telão deste buffet (o admin vê e pode trocar; ver routes/telao.js).
+  async getCodigoTelao(): Promise<string> {
+    const res = await fetch(`${API_URL}/telao/codigo`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao buscar o link do telão (${res.status})`);
+    return data.codigo;
+  },
+
+  async renovarCodigoTelao(): Promise<string> {
+    const res = await fetch(`${API_URL}/telao/codigo/renovar`, { method: 'POST', headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao gerar um novo link do telão (${res.status})`);
+    return data.codigo;
   },
 
   // Define as áreas extras de uma conta da equipe (ver routes/logins.js, montado em /acessos).
@@ -603,6 +741,13 @@ export const api = {
     }
   },
 
+  // O que será apagado junto com o cliente (aviso antes de confirmar a exclusão)
+  async getResumoExclusaoCliente(id: string) {
+    const res = await fetch(`${API_URL}/clientes/${encodeURIComponent(id)}/resumo-exclusao`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(`Não foi possível consultar o que será apagado (erro ${res.status})`);
+    return res.json() as Promise<ResumoExclusaoCliente>;
+  },
+
   async deleteCliente(id: string) {
     try {
       const res = await fetch(`${API_URL}/clientes/${id}`, { 
@@ -613,10 +758,12 @@ export const api = {
       if (!res.ok) {
         const errorText = await res.text();
         console.error('Resposta do servidor:', errorText);
-        throw new Error(`Erro ${res.status}: ${errorText}`);
+        let mensagem = `Erro ${res.status}: ${errorText}`;
+        try { mensagem = JSON.parse(errorText).error || mensagem; } catch { /* resposta que não é JSON */ }
+        throw new Error(mensagem);
       }
       
-      return res.json();
+      return res.json() as Promise<{ deleted: boolean; message?: string; checkpointsDevolvidos?: number }>;
     } catch (error) {
       console.error('Erro ao deletar cliente:', error);
       throw error;
@@ -732,8 +879,10 @@ export const api = {
     return res.json();
   },
 
-  async getScoreHistory(eventoId: string, limit = 100, sessionId?: string) {
+  // todosOsJogos: inclui também as leituras dos jogos novos (Tesouro, Monstro, Conquista...), não só a pontuação do jogo de zona antigo.
+  async getScoreHistory(eventoId: string, limit = 100, sessionId?: string, todosOsJogos = false) {
     let url = `${API_URL}/leituras/evento/${encodeURIComponent(eventoId)}/historico?limit=${limit}`;
+    if (todosOsJogos) url += '&allGames=1';
 
     // 🆕 Adicionar sessionId como query param se fornecido — o backend filtra
     // leituras.sessaoId por esse valor (routes/leituras.js), não por
@@ -748,6 +897,19 @@ export const api = {
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error || `Erro ao carregar histórico do evento (${res.status})`);
+    }
+    return res.json();
+  },
+
+  // Pontos ganhos só na partida (não o total do evento). sessionId omitido = a em andamento, ou a última que terminou.
+  async getPontosDaPartida(eventoId: string, sessionId = 'atual'): Promise<PontosDaPartida> {
+    const res = await fetch(
+      `${API_URL}/leituras/evento/${encodeURIComponent(eventoId)}/pontos-da-partida?sessionId=${encodeURIComponent(sessionId)}`,
+      { headers: getAuthHeaders() },
+    );
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `Erro ao carregar os pontos da partida (${res.status})`);
     }
     return res.json();
   },
@@ -801,6 +963,34 @@ export const api = {
       }),
     });
     if (!res.ok) throw new Error(`Erro ao criar ticket (${res.status})`);
+    return ticketParaTela(await res.json());
+  },
+
+  // Admin do buffet pede checkpoints ao master (aparece na central de suporte dele)
+  async solicitarCheckpoints(itens: Array<{ tipo: string; finalidade: string; quantidade: number }>, observacao: string) {
+    const res = await fetch(`${API_URL}/support/solicitar-checkpoints`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itens, observacao }),
+    });
+    if (!res.ok) {
+      const corpo = await res.json().catch(() => null);
+      throw new Error(corpo?.error || `Erro ao enviar a solicitação (${res.status})`);
+    }
+    return ticketParaTela(await res.json());
+  },
+
+  // Admin do buffet pede pulseiras ao master (chamado do tipo 'pulseira' na central de suporte dele)
+  async solicitarPulseiras(quantidade: number, observacao: string) {
+    const res = await fetch(`${API_URL}/support/solicitar-pulseiras`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quantidade, observacao }),
+    });
+    if (!res.ok) {
+      const corpo = await res.json().catch(() => null);
+      throw new Error(corpo?.error || `Erro ao enviar a solicitação (${res.status})`);
+    }
     return ticketParaTela(await res.json());
   },
 
@@ -1106,14 +1296,45 @@ export const api = {
     return body as PerfilCrianca;
   },
 
+  // Leitores de pontuação cadastrados (P1, P2...): um para cada tela de pontuação (/score-kiosk/<número>).
+  async getLeitoresDePontuacao(): Promise<{ numero: number; numCheck: string; nome: string; online: boolean }[]> {
+    const res = await fetch(`${API_URL}/score-kiosk/readers`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => []);
+    if (!res.ok) throw new Error((data as any).error || `Erro ao listar os leitores de pontuação (${res.status})`);
+    return data;
+  },
+
+  // Leitores de recepção cadastrados (R1, R2...): um para cada tela de autoatendimento (/reception/kiosk/<número>).
+  async getLeitoresDeRecepcao(): Promise<{ numero: number; numCheck: string; nome: string; online: boolean }[]> {
+    const res = await fetch(`${API_URL}/kiosk/receptions`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => []);
+    if (!res.ok) throw new Error((data as any).error || `Erro ao listar os leitores de recepção (${res.status})`);
+    return data;
+  },
+
   // Procura cadastros de crianças que já participaram de outros eventos da empresa.
-  async searchKioskProfiles(eventId: string, busca: string) {
-    const res = await fetch(`${API_URL}/kiosk/profiles?eventId=${encodeURIComponent(eventId)}&busca=${encodeURIComponent(busca)}`, {
+  async searchKioskProfiles(eventId: string, busca: string, dataNascimento: string, nomeResponsavel: string) {
+    const res = await fetch(`${API_URL}/kiosk/profiles?eventId=${encodeURIComponent(eventId)}&busca=${encodeURIComponent(busca)}&dataNascimento=${encodeURIComponent(dataNascimento)}&nomeResponsavel=${encodeURIComponent(nomeResponsavel)}`, {
       headers: getAuthHeaders(),
     });
     const response = await res.json().catch(() => ([]));
     if (!res.ok) throw new Error((response as any)?.error || `Erro ao buscar cadastro (${res.status})`);
     return response;
+  },
+
+  // Avatares que os participantes do evento já usam (o kiosk e a recepção os mostram indisponíveis)
+  async getKioskAvatarsInUse(eventId: string): Promise<{ avatares: string[]; cores: string[] }> {
+    const res = await fetch(`${API_URL}/kiosk/events/${encodeURIComponent(eventId)}/avatars-in-use`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar os avatares (${res.status})`);
+    return { avatares: Array.isArray(data.avatares) ? data.avatares : [], cores: Array.isArray(data.cores) ? data.cores : [] };
+  },
+
+  async getAvataresEmUso(eventoId: string): Promise<{ avatares: string[]; cores: string[] }> {
+    const res = await fetch(`${API_URL}/criancas/evento/${encodeURIComponent(eventoId)}/avatares-em-uso`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao carregar os avatares (${res.status})`);
+    return { avatares: Array.isArray(data.avatares) ? data.avatares : [], cores: Array.isArray(data.cores) ? data.cores : [] };
   },
 
   async createKioskParticipant(eventId: string, data: any) {
@@ -1125,6 +1346,14 @@ export const api = {
     const response = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(response.error || `Erro ao cadastrar participante (${res.status})`);
     return response;
+  },
+
+  // Checkpoints que o evento usa agora e os que já passaram por ele (saem do evento quando ele termina)
+  async getCheckpointsUsadosDoEvento(eventoId: string): Promise<{ checkpointId: string; numero: string | number | null; nome: string; zona: string | null; noEvento: boolean }[]> {
+    const res = await fetch(`${API_URL}/eventos/${encodeURIComponent(eventoId)}/checkpoints-usados`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ([]));
+    if (!res.ok) throw new Error((data as any).error || `Erro ao carregar os checkpoints do evento (${res.status})`);
+    return data;
   },
 
   async getEvento(id: string) {
@@ -1398,18 +1627,43 @@ export const api = {
     return data;
   },
 
+  // "Sem jogos": tira a escolha do jogo e deixa o mapa livre no telão (ver routes/gameSelection.js).
+  async clearGameSelection(eventoId: string) {
+    const res = await fetch(`${API_URL}/debug/clear-game-selection`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ eventoId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro ao tirar a seleção do jogo');
+    return data;
+  },
+
   // O modo equipe/individual do Zone Conquest não é mais enviado pelo
   // cliente: o backend deriva isso de brincadeiras.type (escolhido no
   // AdminGameForm ao criar o jogo), que é a fonte de verdade persistida.
-  async startGame(gameId: string, gameName: string, eventoId: string) {
+  // quantidadeCheckpoints: só o Caça ao Tesouro usa (quantos checkpoints entram na partida; vazio = todos)
+  async startGame(gameId: string, gameName: string, eventoId: string, quantidadeCheckpoints?: number | null, checkpointFinalId?: string | null) {
     const res = await fetch(`${API_URL}/debug/start-game`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ gameId, gameName, eventoId }),
+      body: JSON.stringify({ gameId, gameName, eventoId, ...(quantidadeCheckpoints ? { quantidadeCheckpoints } : {}), ...(checkpointFinalId ? { checkpointFinalId } : {}) }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao iniciar jogo');
     return data;
+  },
+
+  // Quantos checkpoints o Caça ao Tesouro pode usar neste evento (os do jogo que estão online): o máximo da escolha
+  async getTreasureAvailableCheckpoints(eventoId: string, brincadeiraId: string): Promise<{ total: number; minimo: number; checkpoints: Array<{ id: string; nome: string }> }> {
+    const res = await fetch(`${API_URL}/treasure/evento/${encodeURIComponent(eventoId)}/checkpoints-disponiveis?brincadeiraId=${encodeURIComponent(brincadeiraId)}`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro ao contar os checkpoints do jogo');
+    return {
+      total: Number(data.total) || 0,
+      minimo: Number(data.minimo) || 2,
+      checkpoints: Array.isArray(data.checkpoints) ? data.checkpoints : [],
+    };
   },
 
   async stopGame(eventoId: string) {
@@ -1540,7 +1794,10 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    // Antes um erro do servidor passava como se tivesse salvo
+    if (!res.ok) throw new Error(body.error || `Erro ao atualizar o time (${res.status})`);
+    return body;
   },
 
   async deleteTime(id: string) {
@@ -1594,6 +1851,44 @@ export const api = {
       console.error('❌ Erro ao criar criança:', err);
       throw err;
     }
+  },
+
+  // Cadastros permanentes das crianças do buffet, com o último evento de cada uma (participacoes = 0: sem evento)
+  async getCadastrosCriancas() {
+    const res = await fetch(`${API_URL}/criancas/cadastros`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  // Edita / exclui um cadastro que ainda não entrou em nenhum evento
+  async updatePerfilCrianca(perfilCriancaId: string, data: any) {
+    const res = await fetch(`${API_URL}/criancas/perfil/${encodeURIComponent(perfilCriancaId)}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  async deletePerfilCrianca(perfilCriancaId: string) {
+    const res = await fetch(`${API_URL}/criancas/perfil/${encodeURIComponent(perfilCriancaId)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  // Check-in sem evento aberto: só o cadastro permanente da criança (vincula ao evento depois, pelo autoatendimento)
+  async createPerfilCrianca(data: any) {
+    const res = await fetch(`${API_URL}/criancas/perfil`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
   },
 
   async getCriancaByBracelet(code: string) {
@@ -1690,7 +1985,10 @@ export const api = {
     
     if (!res.ok) {
       const error = await res.text();
-      throw new Error(error);
+      // O servidor responde {"error": "..."}: mostra só a mensagem (ex.: pulseira não fornecida pelo master)
+      let mensagem = error;
+      try { mensagem = JSON.parse(error)?.error || error; } catch { /* texto puro */ }
+      throw new Error(mensagem);
     }
     
     return res.json();
@@ -1718,6 +2016,14 @@ export const api = {
 
   // ==================== CHECKPOINTS ====================
   // Contagem de checkpoints por evento (cadastrados e online) de todos os eventos do buffet
+  // Endereço do servidor na rede local (para o QR code de instalação do checkpoint)
+  async getEnderecoInstalacao(): Promise<{ servidor: string | null; ips: string[] }> {
+    const res = await fetch(`${API_URL}/pontoVerificacao/instalacao`, { headers: getAuthHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ao obter o endereço do servidor (${res.status})`);
+    return { servidor: data.servidor ?? null, ips: Array.isArray(data.ips) ? data.ips : [] };
+  },
+
   async getCheckpointsSummary() {
     const res = await fetch(`${API_URL}/pontoVerificacao/resumo`, { headers: getAuthHeaders() });
     const data = await res.json().catch(() => ({}));
@@ -1725,15 +2031,16 @@ export const api = {
     return Array.isArray(data) ? data : [];
   },
 
-  async getCheckpoints(eventoId: string) {
+  // Por padrão só os checkpoints de jogo (as telas de jogo e de mapa não querem os de recepção); `todos` traz também os de recepção.
+  async getCheckpoints(eventoId: string, { todos = false }: { todos?: boolean } = {}) {
     try {
-      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}`, {
+      const res = await fetch(`${API_URL}/pontoVerificacao/evento/${eventoId}${todos ? '?proposito=todos' : ''}`, {
         headers: getAuthHeaders()
       });
       if (!res.ok) return [];
       const data = await res.json();
       return Array.isArray(data)
-        ? data.filter(checkpoint => String(checkpoint?.proposito || 'game').toLowerCase() !== 'reception')
+        ? (todos ? data : data.filter(checkpoint => String(checkpoint?.proposito || 'game').toLowerCase() === 'game'))
         : [];
     } catch (err) {
       console.error('Erro ao carregar checkpoints:', err);
@@ -1782,11 +2089,11 @@ export const api = {
     return pedirMasterCheckpoints<BuffetOpcao[]>('/buffets');
   },
 
-  masterCriarCheckpoint(dados: { macAddress: string; nome?: string; tipo?: string; proposito?: string }) {
+  masterCriarCheckpoint(dados: { macAddress: string; nome?: string; tipo?: string; proposito?: string; epc?: string }) {
     return pedirMasterCheckpoints<CheckpointMaster>('', { method: 'POST', body: JSON.stringify(dados) });
   },
 
-  masterEditarCheckpoint(id: number, dados: { macAddress?: string; nome?: string; tipo?: string; proposito?: string }) {
+  masterEditarCheckpoint(id: number, dados: { macAddress?: string; nome?: string; tipo?: string; proposito?: string; epc?: string }) {
     return pedirMasterCheckpoints<CheckpointMaster>(`/${id}`, { method: 'PATCH', body: JSON.stringify(dados) });
   },
 
@@ -1794,17 +2101,76 @@ export const api = {
     return pedirMasterCheckpoints<CheckpointMaster>(`/${id}/transferir`, { method: 'POST', body: JSON.stringify({ empresaId }) });
   },
 
+  masterTransferirCheckpointsLote(ids: number[], empresaId: string) {
+    return pedirMasterCheckpoints<{ transferidos: number[]; ignorados: number[]; empresaNome: string }>(
+      '/transferir-lote', { method: 'POST', body: JSON.stringify({ ids, empresaId }) });
+  },
+
+  // ---- Pulseiras do master ----
+  masterGetPulseiras() {
+    return pedirJson<PulseiraDoEstoque[]>(`${API_URL}/master/pulseiras`);
+  },
+  masterAdicionarPulseiras(codigos: string[]) {
+    return pedirJson<{ adicionadas: string[]; jaNoEstoque: string[]; invalidos: string[]; jaComBuffet: string[] }>(
+      `${API_URL}/master/pulseiras`, enviarCodigos(codigos));
+  },
+  masterEnviarPulseiras(codigos: string[], empresaId: string) {
+    return pedirJson<{ enviadas: string[]; ignoradas: string[]; empresaNome: string }>(
+      `${API_URL}/master/pulseiras/enviar`, enviarCodigos(codigos, { empresaId }));
+  },
+  masterCancelarEnvioDePulseiras(codigos: string[]) {
+    return pedirJson<{ canceladas: string[] }>(`${API_URL}/master/pulseiras/cancelar-envio`, enviarCodigos(codigos));
+  },
+  masterRemoverPulseiras(codigos: string[]) {
+    return pedirJson<{ removidas: string[] }>(`${API_URL}/master/pulseiras/remover`, enviarCodigos(codigos));
+  },
+  masterPulseirasNosBuffets(filtros: { empresaId?: string; status?: string; q?: string; limit?: number; offset?: number } = {}) {
+    const parametros = new URLSearchParams();
+    for (const [chave, valor] of Object.entries(filtros)) if (valor !== undefined && valor !== '') parametros.set(chave, String(valor));
+    return pedirJson<{ total: number; itens: PulseiraDoBuffet[] }>(`${API_URL}/master/pulseiras/nos-buffets?${parametros.toString()}`);
+  },
+  masterPulseirasPorBuffet() {
+    return pedirJson<PulseirasPorBuffet[]>(`${API_URL}/master/pulseiras/por-buffet`);
+  },
+  masterResumoDePulseiras() {
+    return pedirJson<ResumoDePulseiras>(`${API_URL}/master/pulseiras/resumo`);
+  },
+  masterHistoricoDePulseiras() {
+    return pedirJson<MovimentoDePulseira[]>(`${API_URL}/master/pulseiras/historico?limit=100`);
+  },
+
+  // ---- Pulseiras recebidas do master (admin do buffet) ----
+  pulseirasPendentes() {
+    return pedirJson<{ codigo: string; enviadoEm: string }[]>(`${API_URL}/pulseiras/recebimento/pendentes`);
+  },
+  pulseirasRecebidasDoMaster() {
+    return pedirJson<PulseiraRecebida[]>(`${API_URL}/pulseiras/recebimento/recebidas`);
+  },
+  aceitarPulseiras(codigos: string[]) {
+    return pedirJson<{ aceitas: string[]; ignoradas: string[] }>(`${API_URL}/pulseiras/recebimento/aceitar`, enviarCodigos(codigos));
+  },
+  recusarPulseiras(codigos: string[]) {
+    return pedirJson<{ recusadas: string[] }>(`${API_URL}/pulseiras/recebimento/recusar`, enviarCodigos(codigos));
+  },
+  devolverPulseiras(codigos: string[]) {
+    return pedirJson<{ devolvidas: string[]; ignoradas: string[] }>(`${API_URL}/pulseiras/recebimento/devolver`, enviarCodigos(codigos));
+  },
+
   masterExcluirCheckpoint(id: number) {
     return pedirMasterCheckpoints<{ success: boolean }>(`/${id}`, { method: 'DELETE' });
   },
 
-  // ---- Checkpoints recebidos do super admin: o buffet define o número e o evento, sem aceite ----
+  // ---- Checkpoints transferidos pelo super admin: chegam direto ao buffet, que define o número e o evento ----
   getCheckpointsSemNumero() {
     return pedirRecebimento<CheckpointRecebido[]>('/sem-numero');
   },
 
   getCheckpointsSemEvento() {
     return pedirRecebimento<CheckpointRecebido[]>('/sem-evento');
+  },
+
+  devolverCheckpoint(checkpointId: string) {
+    return pedirRecebimento<{ success: boolean }>(`/${encodeURIComponent(checkpointId)}/devolver`, { method: 'POST' });
   },
 
   alterarNumeroCheckpoint(checkpointId: string, numCheck: string) {
@@ -1912,11 +2278,11 @@ export const api = {
     return body as GeneralReportData;
   },
 
-  // Engajamento por zona de um evento, calculado das leituras reais dos checkpoints.
-  async getZoneEngagement(eventoId: string): Promise<ZoneEngagement[]> {
-    const res = await fetch(`${API_URL}/reports/evento/${encodeURIComponent(eventoId)}/zonas`, { headers: getAuthHeaders() });
+  // Engajamento por checkpoint de um evento, calculado das leituras reais.
+  async getCheckpointEngagement(eventoId: string): Promise<CheckpointEngagement[]> {
+    const res = await fetch(`${API_URL}/reports/evento/${encodeURIComponent(eventoId)}/checkpoints`, { headers: getAuthHeaders() });
     const body = await res.json().catch(() => ([]));
-    if (!res.ok) throw new Error((body as any)?.error || `Erro ao carregar o engajamento por zona (${res.status})`);
+    if (!res.ok) throw new Error((body as any)?.error || `Erro ao carregar o engajamento por checkpoint (${res.status})`);
     return Array.isArray(body) ? body : [];
   },
 

@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Gamepad2, Users, MessageSquare, MapPin, Radio, Plus, Edit2, Trash2, Save } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import Sidebar from '../../components/layout/Sidebar';
 import { PARALLEL_NAV_ITEM, GAMES_NAV_ITEM } from '../../components/layout/gameMasterNav';
 import TopBar from '../../components/layout/TopBar';
@@ -12,6 +13,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
+import { avisar, confirmar } from '../../components/ui/dialogo';
 
 const sidebarItems = [
   { icon: <Gamepad2 size={20} />, label: 'Painel', path: '/game-master' },
@@ -83,6 +85,11 @@ export default function GameMasterCheckpoints() {
     loadEvents();
   }, [setEventoAtual]);
 
+  // Atualização automática: o contador faz o efeito abaixo recarregar a lista sem o "carregando" (sem piscar)
+  const [tickAuto, setTickAuto] = useState(0);
+  const cargaDoEvento = useRef<string | null>(null);
+  useAutoRefresh(() => setTickAuto((n) => n + 1), { topicos: ['checkpoints'], intervaloMs: 10_000, pausado: showNewCheckpointModal });
+
   // Carregar checkpoints quando evento mudar
   useEffect(() => {
     if (!selectedEventId) {
@@ -90,21 +97,25 @@ export default function GameMasterCheckpoints() {
       return;
     }
 
+    // Mesmo evento de antes (só atualizando): sem carregando e sem apagar a lista se falhar
+    const silencioso = cargaDoEvento.current === selectedEventId;
+    cargaDoEvento.current = selectedEventId;
+
     const loadCheckpoints = async () => {
       try {
-        setLoading(true);
+        if (!silencioso) setLoading(true);
         const data = await api.getCheckpoints(selectedEventId);
         setCheckpoints(data || []);
       } catch (err) {
         console.error('❌ Erro ao carregar checkpoints:', err);
-        setCheckpoints([]);
+        if (!silencioso) setCheckpoints([]);
       } finally {
         setLoading(false);
       }
     };
 
     loadCheckpoints();
-  }, [selectedEventId]);
+  }, [selectedEventId, tickAuto]);
 
   // Abrir modal para criar novo checkpoint
   const handleNewCheckpoint = () => {
@@ -130,7 +141,7 @@ export default function GameMasterCheckpoints() {
   // Salvar checkpoint (criar ou editar)
   const handleSaveCheckpoint = async () => {
     if (!formData.name.trim() || !selectedEventId) {
-      alert('Preencha todos os campos obrigatórios');
+      avisar('Preencha todos os campos obrigatórios');
       return;
     }
 
@@ -139,11 +150,11 @@ export default function GameMasterCheckpoints() {
         // Criar novo checkpoint
         // Por enquanto, vamos apenas recarregar
         // Você precisará implementar a rota POST no backend
-        alert('✅ Checkpoint criado! (Implementação em progresso)');
+        avisar('✅ Checkpoint criado! (Implementação em progresso)');
       } else if (modalMode === 'edit' && editingCheckpointId) {
         // Editar checkpoint existente
         await api.saveCheckpointConfig(editingCheckpointId, { nome: formData.name, location: formData.location, points: formData.points, status: formData.status }, selectedEventId);
-        alert('✅ Checkpoint atualizado com sucesso!');
+        avisar('✅ Checkpoint atualizado com sucesso!');
       }
 
       // Recarregar checkpoints
@@ -152,16 +163,16 @@ export default function GameMasterCheckpoints() {
       setShowNewCheckpointModal(false);
     } catch (err) {
       console.error('❌ Erro ao salvar checkpoint:', err);
-      alert('❌ Erro ao salvar checkpoint');
+      avisar('❌ Erro ao salvar checkpoint');
     }
   };
 
   // Deletar checkpoint
   const handleDeleteCheckpoint = async (checkpointId: string) => {
-    if (confirm('Tem certeza que deseja excluir este checkpoint?')) {
+    if (await confirmar('Tem certeza que deseja excluir este checkpoint?', { titulo: 'Excluir o checkpoint', confirmar: 'Excluir' })) {
       try {
         // Implementar rota DELETE quando estiver disponível
-        alert('✅ Checkpoint deletado! (Implementação em progresso)');
+        avisar('✅ Checkpoint deletado! (Implementação em progresso)');
         setCheckpoints(checkpoints.filter(cp => cp.checkpointId !== checkpointId));
       } catch (err) {
         console.error('❌ Erro ao deletar:', err);

@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Gamepad2, MapPin, Map,
-  FileText, RefreshCw, Settings, Crosshair, Radio, Flame
+  FileText, RefreshCw, Settings, Crosshair, Watch
 } from 'lucide-react';
 import Sidebar from './Sidebar';
+import { ROTAS_DO_MAPA } from './MapaAbas';
 import { useAuth } from '../../hooks/useAuth';
 
 // Menu do painel administrativo do buffet. Era duplicado literalmente em
@@ -16,9 +17,8 @@ export const ADMIN_NAV_ITEMS = [
   { icon: <Users size={20} />, label: 'Crianças', path: '/admin/children' },
   { icon: <Gamepad2 size={20} />, label: 'Jogos', path: '/admin/games' },
   { icon: <MapPin size={20} />, label: 'Checkpoints', path: '/admin/checkpoints' },
+  { icon: <Watch size={20} />, label: 'Pulseiras', path: '/admin/pulseiras' },
   { icon: <Map size={20} />, label: 'Mapa', path: '/admin/map' },
-  { icon: <Flame size={20} />, label: 'Mapa de calor', path: '/admin/mapa-calor' },
-  { icon: <Radio size={20} />, label: 'Leitores UHF', path: '/admin/uhf' },
   { icon: <Users size={20} />, label: 'Usuários', path: '/admin/users' },
   { icon: <Users size={20} />, label: 'Times', path: '/admin/teams' },
   { icon: <FileText size={20} />, label: 'Relatórios', path: '/admin/reports' },
@@ -28,6 +28,11 @@ export const ADMIN_NAV_ITEMS = [
 
 // Clientes do plano PulynBall têm uma tela própria para as regras dos jogos de paintball.
 const PULYNBALL_NAV_ITEM = { icon: <Crosshair size={20} />, label: 'PulynBall', path: '/admin/pulynball' };
+
+// Itens do menu do admin conforme o plano (usado aqui e pelo menu de contas com mais de uma área).
+export const itensDoAdmin = (plan?: string) => (plan === 'pulynball'
+  ? [ADMIN_NAV_ITEMS[0], PULYNBALL_NAV_ITEM, ...ADMIN_NAV_ITEMS.slice(1)]
+  : ADMIN_NAV_ITEMS);
 
 interface AdminSidebarProps {
   // Só precisa ser passado quando a rota da página não bate com o pathname
@@ -40,14 +45,12 @@ export default function AdminSidebar({ activePath }: AdminSidebarProps) {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const { user } = useAuth();
-  const items = user?.plan === 'pulynball'
-    ? [ADMIN_NAV_ITEMS[0], PULYNBALL_NAV_ITEM, ...ADMIN_NAV_ITEMS.slice(1)]
-    : ADMIN_NAV_ITEMS;
+  const items = itensDoAdmin(user?.plan);
 
   return (
     <Sidebar
       items={items}
-      activePath={activePath ?? location.pathname}
+      activePath={activePath ?? (ROTAS_DO_MAPA.includes(location.pathname) ? '/admin/map' : location.pathname)}
       collapsed={collapsed}
       onToggleCollapse={() => setCollapsed((prev) => !prev)}
       title="Pulyn Admin"

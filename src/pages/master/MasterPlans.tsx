@@ -2,13 +2,7 @@ import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import React from 'react';
 import {
-  LayoutDashboard,
-  Users,
   CreditCard,
-  Activity,
-  ScrollText,
-  LifeBuoy,
-  BarChart3,
   Check,
   Crosshair,
   Zap,
@@ -16,26 +10,17 @@ import {
   Crown,
   Rocket,
   MapPin,
-  Cpu,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import { planoBadge, planoRotulo } from '../../utils/planos';
 import Button from '../../components/ui/Button';
+import { masterNavItems } from './masterNav';
 
-const masterNavItems = [
-  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/master' },
-  { icon: <Users size={20} />, label: 'Clientes', path: '/master/clients' },
-  { icon: <CreditCard size={20} />, label: 'Planos', path: '/master/plans' },
-  { icon: <Cpu size={20} />, label: 'Checkpoints', path: '/master/checkpoints' },
-  { icon: <Activity size={20} />, label: 'Monitoramento', path: '/master/monitoring' },
-  { icon: <ScrollText size={20} />, label: 'Logs', path: '/master/logs' },
-  { icon: <LifeBuoy size={20} />, label: 'Suporte', path: '/master/support' },
-  { icon: <BarChart3 size={20} />, label: 'Analytics', path: '/master/analytics' },
-];
 
 export default function MasterPlans() {
   const location = useLocation();
@@ -44,21 +29,24 @@ export default function MasterPlans() {
   const [plans, setPlans] = useState<any[]>([]);
   const [planClients, setPlanClients] = useState<any[]>([]);
 
-  React.useEffect(() => {
-    const loadData = async () => {
-      try {
-        const plansData = await api.getPlanos();
-        setPlans(Array.isArray(plansData) ? plansData : []);
-        const clientsByPlan = await Promise.all(
-          (Array.isArray(plansData) ? plansData : []).map((plan) => api.getClientesByPlano(plan.id))
-        );
-        setPlanClients(clientsByPlan.flat().filter(Boolean));
-      } catch (error) {
-        console.error('Erro ao buscar dados de planos:', error);
-      }
-    };
-    loadData();
+  const loadData = React.useCallback(async () => {
+    try {
+      const plansData = await api.getPlanos();
+      setPlans(Array.isArray(plansData) ? plansData : []);
+      const clientsByPlan = await Promise.all(
+        (Array.isArray(plansData) ? plansData : []).map((plan) => api.getClientesByPlano(plan.id))
+      );
+      setPlanClients(clientsByPlan.flat().filter(Boolean));
+    } catch (error) {
+      console.error('Erro ao buscar dados de planos:', error);
+    }
   }, []);
+
+  React.useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useAutoRefresh(loadData, { topicos: ['planos', 'clientes'], intervaloMs: 30_000 });
 
   return (
     <div className="flex h-screen bg-dark text-white overflow-hidden">

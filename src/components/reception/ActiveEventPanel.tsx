@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Monitor, Check, X, Loader2, AlertCircle } from 'lucide-react';
+import { Monitor, Check, X, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 import { api } from '../../services/api';
 import { usePulynStore } from '../../store/mockData';
 import Card from '../ui/Card';
@@ -27,7 +27,7 @@ const formatDay = (value?: string) => {
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 };
 
-// Onde a recepção escolhe QUAL evento aparece no telão (/display) e nos terminais do Game Master.
+// Onde a recepção escolhe QUAL evento aparece no telão (/display) e nos terminais do recreacionista.
 // A escolha é gravada no servidor (é isso que o telão consulta); só mudar a tela da recepção não basta.
 export default function ActiveEventPanel({ onChange }: { onChange?: (eventId: string | null) => void }) {
   const { eventoAtualId, setEventoAtual } = usePulynStore();
@@ -114,15 +114,22 @@ export default function ActiveEventPanel({ onChange }: { onChange?: (eventId: st
           <div>
             <h2 className="font-display text-lg text-white">Evento no telão</h2>
             <p className="text-xs text-gray-400">
-              O evento escolhido aqui é o que aparece no telão (/display) e nos terminais do Game Master.
+              O evento escolhido aqui é o que aparece no telão (/display) e nos terminais do recreacionista.
             </p>
           </div>
         </div>
-        {!loading && (
-          current
-            ? <Badge variant="success">No ar</Badge>
-            : <Badge variant="warning">Telão aguardando</Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {!loading && (
+            current
+              ? <Badge variant="success">No ar</Badge>
+              : <Badge variant="warning">Telão aguardando</Badge>
+          )}
+          {/* Nova aba já logada como telão deste buffet (a sessão da recepção continua nesta aba) */}
+          <Button variant="ghost" className="border border-border" onClick={() => window.open('/telao', '_blank')} title="Abre o telão numa nova aba, sem pedir login">
+            <ExternalLink size={16} className="mr-1.5" />
+            Abrir telão
+          </Button>
+        </div>
       </div>
 
       {loading ? (

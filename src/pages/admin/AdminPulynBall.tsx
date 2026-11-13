@@ -1,8 +1,7 @@
 // Tela exclusiva do plano PulynBall: informações e regras de cada jogo de paintball do evento.
 // As alterações valem para as próximas partidas (o recreacionista ainda pode ajustar antes do primeiro round).
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Crosshair, Plus, RotateCcw, Save } from 'lucide-react';
+import { Crosshair, RotateCcw, Save } from 'lucide-react';
 import { usePulynStore } from '../../store/mockData';
 import { useEvento } from '../../contexts/EventoContext';
 import { useAuth } from '../../hooks/useAuth';
@@ -15,6 +14,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
+import { confirmar } from '../../components/ui/dialogo';
 
 type Config = Record<string, number>;
 type Limites = Record<string, [number, number]>;
@@ -203,7 +203,6 @@ function JogoCard({ jogo, grupo, onSalvo, onAlteradoChange }: {
 }
 
 export default function AdminPulynBall() {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const { events, loadEventos } = usePulynStore();
   const { eventoAtualId, setEventoAtualId } = useEvento();
@@ -254,17 +253,17 @@ export default function AdminPulynBall() {
   const todosOsJogos = grupos.flatMap(grupo => grupo.jogos.map(jogo => ({ jogo, grupo })));
   const escolhido = todosOsJogos.find(item => item.jogo.brincadeiraId === jogoEscolhidoId) ?? null;
 
-  const confirmarPerdaDeAlteracoes = () =>
-    !editandoAlterado || window.confirm('Você tem alterações não salvas neste jogo. Deseja descartá-las?');
+  const confirmarPerdaDeAlteracoes = async () =>
+    !editandoAlterado || confirmar('Você tem alterações não salvas neste jogo. Deseja descartá-las?', { titulo: 'Alterações não salvas', confirmar: 'Descartar' });
 
-  const escolherJogo = (id: string) => {
-    if (id === jogoEscolhidoId || !confirmarPerdaDeAlteracoes()) return;
+  const escolherJogo = async (id: string) => {
+    if (id === jogoEscolhidoId || !(await confirmarPerdaDeAlteracoes())) return;
     setEditandoAlterado(false);
     setJogoEscolhidoId(id);
   };
 
-  const trocarEvento = (id: string) => {
-    if (id === eventoAtualId || !confirmarPerdaDeAlteracoes()) return;
+  const trocarEvento = async (id: string) => {
+    if (id === eventoAtualId || !(await confirmarPerdaDeAlteracoes())) return;
     setEventoAtualId(id);
   };
 
@@ -278,11 +277,6 @@ export default function AdminPulynBall() {
             title="PulynBall"
             description="Informações e regras dos jogos de paintball do seu evento"
             icon={<Crosshair size={28} />}
-            action={temPlano ? (
-              <Button variant="accent" onClick={() => navigate('/admin/games/new')}>
-                <Plus size={16} className="mr-1.5 inline" />Novo jogo
-              </Button>
-            ) : undefined}
           />
 
           {!temPlano ? (
@@ -305,7 +299,7 @@ export default function AdminPulynBall() {
                 <Card>
                   <div className="space-y-3 text-center">
                     <p className="text-gray-300">Este evento ainda não tem jogos do PulynBall.</p>
-                    <Button variant="accent" onClick={() => navigate('/admin/games/new')}>Criar o primeiro jogo</Button>
+                    <p className="text-xs text-gray-500">Os jogos do PulynBall vêm cadastrados pelo seu plano. Se não aparecerem, fale com o suporte.</p>
                   </div>
                 </Card>
               )}

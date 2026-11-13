@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { mensagemParaTela } from '../../services/api';
-import { Trophy, Medal, Star, Zap, Clock, MapPin, Users, ArrowLeft } from 'lucide-react';
-import { useGameWebSocket } from '../../hooks/useGameWebSocket';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { api as apiDoSistema, mensagemParaTela, type PontosDaPartida } from '../../services/api';
+import { Trophy, Medal, Star, Zap, Clock, MapPin, Users, Maximize, Minimize } from 'lucide-react';
+import { useGameWebSocket, type GameEvent } from '../../hooks/useGameWebSocket';
 import { useZoneConquestGame, type ZoneConquestStatus } from '../../hooks/useZoneConquestGame';
 import { ZoneConquestIndividualRanking } from '../../components/display/ZoneConquestIndividualRanking';
 import { usePulynStore } from '../../store/mockData';
@@ -12,17 +12,29 @@ import DominioMapa from '../../components/display/DominioMapa';
 import { useDominioEstado } from '../../hooks/useDominioEstado';
 import Badge from '../../components/ui/Badge';
 import Monster3D from '../../components/display/Monster3D';
+import BotaoSomDosMonstros from '../../components/display/monstros/BotaoSomDosMonstros';
+import { monstroDaEquipe, urlDoModelo } from '../../components/display/monstros/catalogo';
+import { preCarregarModelos } from '../../components/display/monstros/modelos';
 import DisplayMap from './DisplayMap';
 import GameGuide, { type GuideGame } from '../../components/display/GameGuide';
 import FitToBox from '../../components/display/FitToBox';
 import { useTypewriterCycle } from '../../hooks/useTypewriterCycle';
 import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from '../../components/display/TreasureArena';
-import RouletteOverlay, { type RouletteData } from '../../components/game-master/RouletteOverlay';
+import RouletteOverlay, { RouletteResultBanner, type RouletteData } from '../../components/game-master/RouletteOverlay';
+import PreJogoMapa, { type LeituraPreJogo } from '../../components/display/PreJogoMapa';
+import SorteioEquipes, { type SorteioDasEquipes } from '../../components/display/SorteioEquipes';
+import UltimasLeituras, { type LeituraDoJogo } from '../../components/display/UltimasLeituras';
+import PontuacaoFinal, { type FimDeJogo } from '../../components/display/PontuacaoFinal';
+import RankingDaPartida from '../../components/display/RankingDaPartida';
+import { numeroDoCheckpoint } from '../../utils/checkpoints';
 
 interface MonsterDisplayMonster {
   teamId: string;
   teamName: string;
   teamColor: string;
+  // Monstro sorteado para a equipe neste jogo (o servidor garante que não se repete)
+  monsterType?: string | null;
+  monsterColor?: string | null;
   monsterHp: number;
   monsterMaxHp: number;
   monsterDefeated?: boolean;
@@ -50,9 +62,23 @@ const sameEventId = (left: unknown, right: unknown) => (
   String(left || '').trim().toLowerCase() === String(right || '').trim().toLowerCase()
 );
 
+// Modo de teste do Caça ao Monstro (abra o telão com ?teste=1): botões que simulam a leitura de um checkpoint normal, de um
+// especial e o ataque especial, só aqui na tela, para ver as animações sem checkpoints. Nada é enviado nem gravado no servidor.
+const DANO_DE_TESTE = { normal: 10, especial: 30, ataque: 50 } as const;
+// Quanto o telão espera, ao fim do Caça ao Monstro, para o último monstro terminar de cair antes da pontuação aparecer
+const FIM_DO_MONSTRO_ADIADO_MS = 4500;
+
+// Quanto tempo uma mensagem do recreacionista fica no telão
+const MENSAGEM_VISIVEL_MS = 8000;
+// Durante o jogo a coluna da direita alterna entre as últimas leituras e o ranking da partida; cada tela fica este tempo
+const COLUNA_DO_JOGO_MS = 10000;
+// Releitura dos pontos da partida (além da feita a cada leitura nova)
+const PONTOS_DA_PARTIDA_MS = 15000;
+
 export default function DisplayMain() {
 
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
   const [notificationData, setNotificationData] = useState<{
     name: string;
@@ -66,8 +92,20 @@ export default function DisplayMain() {
   const [messageArrivedAt, setMessageArrivedAt] = useState(0);
   // Roleta da brincadeira paralela ("Ache o objeto"): gira no telão quando o recreacionista inicia.
   const [parallelRoulette, setParallelRoulette] = useState<RouletteData | null>(null);
+  // Depois da roleta, o objeto sorteado fica um tempo no cabeçalho (lugar sem informação, não cobre o mapa)
+  const [parallelObject, setParallelObject] = useState<RouletteData | null>(null);
+  // Último checkpoint lido (qualquer pulseira): o pré-jogo mostra um aviso com ele
+  const [ultimaLeituraPreJogo, setUltimaLeituraPreJogo] = useState<LeituraPreJogo | null>(null);
+  // Sorteio das equipes em andamento no telão (some sozinho depois de mostrar tudo)
+  const [sorteioEquipes, setSorteioEquipes] = useState<SorteioDasEquipes | null>(null);
+  const encerrarSorteio = useCallback(() => setSorteioEquipes(null), []);
+  // Fim de um jogo: pontuação final com o Pulyn comemorando (some sozinha)
+  const [fimDeJogo, setFimDeJogo] = useState<FimDeJogo | null>(null);
+  const encerrarFimDeJogo = useCallback(() => setFimDeJogo(null), []);
   const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
   const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
+  // Jogo escolhido pelo recreacionista e ainda não iniciado: o telão mostra as regras dele
+  const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [treasureStatus, setTreasureStatus] = useState<TreasureArenaStatus | null>(null);
   const [lastTreasureEvent, setLastTreasureEvent] = useState<TreasureArenaEvent | null>(null);
   const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
@@ -79,6 +117,9 @@ export default function DisplayMain() {
   const [gameStateLoaded, setGameStateLoaded] = useState(false);
   // Jogos ativos do evento, para o guia que passa enquanto não há jogo rodando
   const [guideGames, setGuideGames] = useState<GuideGame[]>([]);
+  // Dano simulado pelo modo de teste, por equipe (some quando chega um evento real do jogo)
+  const modoDeTeste = useMemo(() => new URLSearchParams(window.location.search).has('teste'), []);
+  const [danoDeTeste, setDanoDeTeste] = useState<Record<string, number>>({});
 
   const {
     eventoAtualId,
@@ -101,6 +142,14 @@ export default function DisplayMain() {
   const dominioEstado = useDominioEstado(selectedEventId || null, jogoDeZona && !isIndividualMode);
   const dominioAtivo = Boolean(dominioEstado?.ativo) && jogoDeZona && !isIndividualMode;
 
+  // O jogo escolhido, com descrição e regras cadastradas (acha pelo id; sem ele, pelo nome). Sem cadastro completo, mostra só o nome.
+  const jogoSelecionado: GuideGame = useMemo(() => {
+    const achado = guideGames.find((g) => selectedGameId && g.id.toLowerCase() === selectedGameId.toLowerCase())
+      ?? guideGames.find((g) => g.name.trim().toLowerCase() === String(selectedGameName || '').trim().toLowerCase());
+    const base: GuideGame = achado ?? { id: selectedGameId || String(selectedGameName || 'jogo'), name: String(selectedGameName || 'Jogo') };
+    return base.description || base.rules ? base : { ...base, description: 'O recreacionista vai explicar como jogar.' };
+  }, [guideGames, selectedGameId, selectedGameName]);
+
   const topParticipants = useMemo(() => [...children]
     .filter(child => child.status === 'active')
     .sort((a, b) => Number(b.scores || 0) - Number(a.scores || 0))
@@ -119,6 +168,16 @@ export default function DisplayMain() {
       || children.some((child) => Number(child.scores || 0) > 0)
       || teams.some((team) => Number(team.points ?? team.score ?? 0) > 0)) },
   );
+  // Os arquivos dos monstros são grandes: baixa assim que se sabe quais são, antes dos golpes começarem
+  const monstrosDoJogo = monsterStatus?.monsters?.length ? monsterStatus.monsters : monsterStatus?.progress;
+  const arquivosDosMonstros = (monstrosDoJogo || []).map((monster, indice) => {
+    const escolhido = monstroDaEquipe(monster.monsterType, monster.monsterColor, indice);
+    return urlDoModelo(escolhido.tipo, escolhido.cor);
+  }).join('|');
+  useEffect(() => {
+    if (arquivosDosMonstros) preCarregarModelos(arquivosDosMonstros.split('|'));
+  }, [arquivosDosMonstros]);
+
   const recentActivities = useMemo(() => scoreLog
     .map((entry: any) => ({
       id: entry.id,
@@ -130,6 +189,79 @@ export default function DisplayMain() {
     }))
     .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
     .slice(0, 10), [scoreLog]);
+
+  // Últimas leituras para a coluna do jogo: checkpoint (número), apelido de quem passou e pontos
+  const ultimasLeituras = useMemo<LeituraDoJogo[]>(() => scoreLog
+    .map((entry: any) => {
+      const checkpoint = checkpoints.find((cp) => String(cp.id).toLowerCase() === String(entry.checkpointId ?? '').toLowerCase());
+      return {
+        id: String(entry.id ?? `${entry.childId}-${entry.timestamp}`),
+        apelido: String(entry.child_apelido || entry.childName || 'Participante'),
+        checkpoint: checkpoint ? numeroDoCheckpoint(checkpoint) : '',
+        checkpointNome: String(checkpoint?.name ?? entry.checkpoint_nome ?? ''),
+        pontos: Number(entry.points || 0),
+        cor: String(entry.teamColor || entry.team_color || '#1E9BD7'),
+        quando: new Date(entry.timestamp || entry.created_at || 0).getTime(),
+      };
+    })
+    .sort((a, b) => b.quando - a.quando)
+    .slice(0, 8)
+    .map(({ id, apelido, checkpoint, checkpointNome, pontos, cor }) => ({ id, apelido, checkpoint, checkpointNome, pontos, cor })), [scoreLog, checkpoints]);
+
+  // Pontos ganhos na partida (não o total do evento), para o ranking da coluna do jogo
+  const [pontosDaPartida, setPontosDaPartida] = useState<PontosDaPartida | null>(null);
+  // 0 = últimas leituras, 1 = equipes, 2 = participantes
+  const [colunaDoJogo, setColunaDoJogo] = useState(0);
+  const ultimaLeituraDaLista = scoreLog[0]?.id;
+
+  useEffect(() => {
+    if (!gameActive || !selectedEventId) { setPontosDaPartida(null); return undefined; }
+    let cancelado = false;
+    const buscar = () => apiDoSistema.getPontosDaPartida(selectedEventId)
+      .then((dados) => {
+        if (cancelado) return;
+        setPontosDaPartida(dados);
+        // Telão aberto com o jogo já rodando: não recebeu o início, então adota a partida em andamento para o histórico
+        const store = usePulynStore.getState();
+        if (dados.sessionId && !store.currentPartidaId) {
+          store.setCurrentPartida(dados.sessionId);
+          store.loadScoreLog().catch(() => undefined);
+        }
+      })
+      .catch((erro) => console.error('Erro ao carregar os pontos da partida no telão:', erro));
+    void buscar();
+    const intervalo = window.setInterval(buscar, PONTOS_DA_PARTIDA_MS);
+    return () => { cancelado = true; window.clearInterval(intervalo); };
+  }, [gameActive, selectedEventId, ultimaLeituraDaLista]);
+
+  // Telas da coluna que têm o que mostrar (as leituras entram sempre; o ranking só com alguém pontuado)
+  const telasDaColuna = useMemo(() => {
+    const telas = [0];
+    if ((pontosDaPartida?.equipes ?? []).some((e) => e.pontos > 0)) telas.push(1);
+    if ((pontosDaPartida?.participantes ?? []).some((p) => p.pontos > 0)) telas.push(2);
+    return telas;
+  }, [pontosDaPartida]);
+  useEffect(() => {
+    if (!gameActive || telasDaColuna.length < 2) { setColunaDoJogo(0); return undefined; }
+    const intervalo = window.setInterval(() => {
+      setColunaDoJogo((atual) => telasDaColuna[(telasDaColuna.indexOf(atual) + 1) % telasDaColuna.length]);
+    }, COLUNA_DO_JOGO_MS);
+    return () => window.clearInterval(intervalo);
+  }, [gameActive, telasDaColuna]);
+  const telaDaColuna = telasDaColuna.includes(colunaDoJogo) ? colunaDoJogo : 0;
+
+  // Uma leitura chegou: relê o histórico logo depois (o servidor leva um instante para gravar), sem repetir a cada leitura em rajada
+  const recargaDasLeituras = useRef<number | null>(null);
+  const agendarRecargaDasLeituras = useCallback(() => {
+    if (recargaDasLeituras.current !== null) return;
+    recargaDasLeituras.current = window.setTimeout(() => {
+      recargaDasLeituras.current = null;
+      usePulynStore.getState().loadScoreLog().catch(() => undefined);
+    }, 800);
+  }, []);
+  useEffect(() => () => {
+    if (recargaDasLeituras.current !== null) window.clearTimeout(recargaDasLeituras.current);
+  }, []);
 
   const refreshTreasureStatus = useCallback(async () => {
     if (!selectedEventId) {
@@ -296,6 +428,8 @@ export default function DisplayMain() {
       setLastTreasureEvent(null);
       setSelectedGameType(null);
       setSelectedGameName(null);
+      setSelectedGameId(null);
+      setFimDeJogo(null);
       setTreasureStatus(null);
       setMonsterStatus(null);
       setGameActive(false);
@@ -316,6 +450,7 @@ export default function DisplayMain() {
           if (!disposed && gameState?.selected) {
             setSelectedGameType(gameState.gameType || null);
             setSelectedGameName(gameState.gameName || null);
+            setSelectedGameId(gameState.gameId ? String(gameState.gameId) : null);
           }
         } catch (stateError) {
           console.error('Erro ao restaurar seleção do jogo no telão:', stateError);
@@ -363,6 +498,14 @@ export default function DisplayMain() {
     return () => window.clearInterval(interval);
   }, [selectedEventId, refreshTreasureStatus, refreshMonsterStatus, refreshGameActive]);
 
+  // Caça ao Tesouro: o mapa só mostra os checkpoints ligados, então relê o estado deles de tempos em tempos
+  // (um que desliga some do mapa e um que liga volta, sem recarregar o telão)
+  useEffect(() => {
+    if (!selectedEventId || !gameActive || selectedGameType !== 'treasure_hunt') return undefined;
+    const intervalo = window.setInterval(() => { loadCheckpoints().catch(() => undefined); }, 15000);
+    return () => window.clearInterval(intervalo);
+  }, [selectedEventId, gameActive, selectedGameType, loadCheckpoints]);
+
   // O guia reflete jogos ativados/desativados e textos editados pelo admin sem precisar recarregar o telão
   useEffect(() => {
     if (!selectedEventId || gameActive) return undefined;
@@ -382,21 +525,50 @@ export default function DisplayMain() {
   }, [zoneConquestGameStatus, isIndividualMode]);
 
   // WebSocket para eventos em tempo real
-  const { connectionStatus, lastMessageAt } = useGameWebSocket(
-    selectedEventId || null,
-    (event) => {
+  const aoReceberEvento = (event: GameEvent): void => {
       // Processar eventos do WebSocket
+      if (['NFC_READING_DETECTED', 'SCORE_UPDATE', 'CHILD_CHECKPOINT_PASSED'].includes(event.type) && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        agendarRecargaDasLeituras();
+      }
       if (event.type === 'GAME_SELECTED' && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
         // NÃO setar selectedGameType aqui - apenas quando GAME_STARTED
         // setSelectedGameType(event.payload?.gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
+        setSelectedGameId(event.payload?.gameId ? String(event.payload.gameId) : null);
+        setFimDeJogo(null);
         // Limpar status quando seleciona novo jogo (mas não mostra mapa ainda)
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
+      } else if (event.type === 'TEAMS_DRAWN' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        const equipes = Array.isArray(event.payload?.teams) ? event.payload.teams : [];
+        if (equipes.length > 0) {
+          setFimDeJogo(null);
+          setSorteioEquipes({ chave: Date.now(), mode: event.payload?.mode, teams: equipes });
+        }
+        // Os times e seus pontos mudaram com o sorteio
+        const { loadTeams: reloadTeams, loadChildren: reloadChildren } = usePulynStore.getState();
+        reloadTeams();
+        reloadChildren();
+      } else if (event.type === 'GAME_SELECTION_CLEARED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        // "Sem jogos": sai a tela de regras e volta o mapa livre
+        setFimDeJogo(null);
+        setSelectedGameName(null);
+        setSelectedGameId(null);
+        setSelectedGameType(null);
+      } else if (event.type === 'NFC_READING_DETECTED' && sameEventId(event.payload?.eventoId, selectedEventId)
+        && event.payload?.source !== 'reception' && event.payload?.checkpointId != null) {
+        setUltimaLeituraPreJogo({
+          checkpointId: String(event.payload.checkpointId),
+          braceletCode: String(event.payload.braceletCode ?? ''),
+          chegouEm: Date.now(),
+        });
+      } else if (event.type === 'PARALLEL_GAME_FINISHED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        setParallelObject(null);
       } else if (event.type === 'PARALLEL_GAME_STARTED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const roulette = event.payload?.roulette;
         if (roulette?.segments?.length) {
+          setParallelObject(null);
           setParallelRoulette({
             segments: roulette.segments,
             winnerIndex: Number(roulette.winnerIndex) || 0,
@@ -409,6 +581,7 @@ export default function DisplayMain() {
         setMessageArrivedAt(Date.now());
       } else if (['MONSTER_PROGRESS', 'MONSTER_SPECIAL_ATTACK', 'MONSTER_TEAM_DEFEATED', 'MONSTER_DEFEATED'].includes(event.type) && sameEventId(event.payload?.eventoId, selectedEventId)) {
         const payload = event.payload || {};
+        setDanoDeTeste({}); // um golpe de verdade: a tela volta a mostrar só o que o servidor diz
         const monsters = Array.isArray(payload.monsters)
           ? payload.monsters
           : Array.isArray(payload.progress) ? payload.progress : payload.teamsProgress;
@@ -431,11 +604,14 @@ export default function DisplayMain() {
         refreshTreasureStatus();
         refreshMonsterStatus();
       } else if (event.type === 'GAME_STARTED' && sameEventId(event.payload?.eventoId, selectedEventId)) {
+        setDanoDeTeste({});
         const treasure = event.payload?.treasure;
 
         const gameType = event.payload?.gameType;
         setGameActive(true);
         setGameStateLoaded(true);
+        setSorteioEquipes(null);
+        setFimDeJogo(null);
         setSelectedGameType(gameType || null);
         setSelectedGameName(event.payload?.gameName || null);
         
@@ -508,11 +684,25 @@ export default function DisplayMain() {
           setMonsterStatus(null);
           setZoneConquestStatus(null);
         }
-      } else if (event.type === 'GAME_STOPPED' && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
+      } else if ((event.type === 'GAME_STOPPED' || event.type === 'GAME_STOPPING') && sameEventId(event.payload?.eventoId ?? event.payload?.eventoId, selectedEventId)) {
+        // GAME_STOPPING vem na hora em que o recreacionista encerra; GAME_STOPPED só quando o servidor termina de encerrar tudo.
+        // O telão já mostra o resultado no primeiro (o segundo é repetido e não muda nada).
+        setDanoDeTeste({});
+        // Havia um jogo rodando: mostra a pontuação final com o Pulyn comemorando
+        if (gameActive) {
+          const tipoDoJogo = guideGames.find((g) => g.name === selectedGameName)?.type;
+          // O aviso de fim pode chegar duas vezes (geral e da sala): a segunda não reinicia a tela
+          setFimDeJogo((atual) => atual ?? {
+            chave: Date.now(),
+            nomeJogo: selectedGameName,
+            individual: String(tipoDoJogo || '').toLowerCase() === 'individual' || isIndividualMode,
+          });
+        }
         setGameActive(false);
         refreshGuideGames();
         setSelectedGameType(null);
         setSelectedGameName(null);
+        setSelectedGameId(null);
         setTreasureStatus(null);
         setLastTreasureEvent(null);
         setMonsterStatus(null);
@@ -635,6 +825,31 @@ export default function DisplayMain() {
         }, 3000);
         
       }
+  };
+
+  // Quando o último monstro cai o servidor encerra o jogo na mesma hora, e o telão trocaria para a pontuação no meio da
+  // queda. O fim do Caça ao Monstro espera a animação de derrota terminar (a queda dura 3,2 s).
+  const iniciosDeJogo = useRef(0);
+  const fimAdiado = useRef<number | null>(null);
+  useEffect(() => () => { if (fimAdiado.current !== null) window.clearTimeout(fimAdiado.current); }, []);
+  const { connectionStatus } = useGameWebSocket(
+    selectedEventId || null,
+    (event) => {
+      if (event.type === 'GAME_STARTED') {
+        iniciosDeJogo.current += 1;
+        if (fimAdiado.current !== null) { window.clearTimeout(fimAdiado.current); fimAdiado.current = null; }
+      }
+      const monstrosEmCena = selectedGameType === 'monster_hunt' && Boolean(monsterStatus?.monsters?.length || monsterStatus?.progress?.length);
+      // Só o fim automático (o último monstro caiu) espera a queda; o encerramento pelo recreacionista mostra o resultado na hora
+      if (event.type === 'GAME_STOPPED' && event.payload?.automatic && monstrosEmCena && fimAdiado.current === null) {
+        const inicio = iniciosDeJogo.current;
+        fimAdiado.current = window.setTimeout(() => {
+          fimAdiado.current = null;
+          if (iniciosDeJogo.current === inicio) aoReceberEvento(event); // se um jogo novo começou nesse meio tempo, o fim antigo não vale
+        }, FIM_DO_MONSTRO_ADIADO_MS);
+        return;
+      }
+      aoReceberEvento(event);
     }
   );
 
@@ -653,6 +868,23 @@ export default function DisplayMain() {
     return () => clearInterval(interval);
   }, []);
 
+  // Tela cheia: o botão do cabeçalho entra/sai; o estado acompanha também a saída pelo ESC do navegador
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch (error) {
+      console.warn('Não foi possível alternar a tela cheia:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    const sincronizar = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', sincronizar);
+    sincronizar();
+    return () => document.removeEventListener('fullscreenchange', sincronizar);
+  }, []);
+
   // ✨ NOVO: ESC key para sair do telão
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -664,20 +896,6 @@ export default function DisplayMain() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-
-  // Formatar hora
-  const formattedTime = currentTime.toLocaleTimeString('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
-
-  const formattedDate = currentTime.toLocaleDateString('pt-BR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
 
   // Total de participantes ativos
   const activeParticipants = children.filter(c => c.status === 'active').length;
@@ -784,16 +1002,21 @@ export default function DisplayMain() {
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-danger">Caça ao Monstro</p>
                   <h2 className="font-display text-4xl font-bold text-white">Um monstro para cada equipe</h2>
                 </div>
-                <div className="rounded-full border border-danger/40 bg-danger/10 px-4 py-2 text-sm font-bold text-red-100">
-                  {monsterCards.filter(monster => monster.monsterDefeated).length}/{monsterCards.length} derrotados
+                <div className="flex items-center gap-3">
+                  <BotaoSomDosMonstros />
+                  <div className="rounded-full border border-danger/40 bg-danger/10 px-4 py-2 text-sm font-bold text-red-100">
+                    {monsterCards.filter(monster => monster.monsterDefeated).length}/{monsterCards.length} derrotados
+                  </div>
                 </div>
               </div>
 
               <div className="grid gap-5 lg:grid-cols-2">
-                {monsterCards.map((monster) => {
-                  const hp = Number(monster.monsterHp || 0);
+                {monsterCards.map((monster, indice) => {
+                  const escolhido = monstroDaEquipe(monster.monsterType, monster.monsterColor, indice);
                   const maxHp = Number(monster.monsterMaxHp || 500);
-                  const defeated = Boolean(monster.monsterDefeated || monster.victory);
+                  // No modo de teste o dano simulado se soma ao que o servidor informa
+                  const hp = Math.max(0, Number(monster.monsterHp || 0) - (danoDeTeste[monster.teamId] || 0));
+                  const defeated = Boolean(monster.monsterDefeated || monster.victory || (modoDeTeste && hp <= 0));
                   const progressPercent = maxHp > 0 ? Math.max(0, Math.min(100, (hp / maxHp) * 100)) : 0;
                   return (
                     <article key={monster.teamId} className="overflow-hidden rounded-2xl border border-white/10 bg-black/25" style={{ borderColor: `${monster.teamColor || '#ef4444'}66` }}>
@@ -815,6 +1038,9 @@ export default function DisplayMain() {
                           teamColor={monster.teamColor}
                           winnerTeamName={defeated ? monster.teamName : null}
                           winnerTeamColor={monster.teamColor}
+                          tipo={escolhido.tipo}
+                          cor={escolhido.cor}
+                          leve={monsterCards.length > 2}
                         />
                         <div className="mt-3 flex items-center justify-between text-sm font-semibold text-gray-200">
                           <span>Energia do monstro</span>
@@ -851,10 +1077,40 @@ export default function DisplayMain() {
             )
   );
 
+  // Simula o golpe numa equipe; um monstro já derrotado não reage
+  const simularGolpe = (teamId: string, dano: number) => setDanoDeTeste((atual) => ({ ...atual, [teamId]: (atual[teamId] || 0) + dano }));
+
   const conquestOverlay = (
     <>
+      {modoDeTeste && monsterCards.length > 0 && (
+        <div className="fixed bottom-3 left-3 z-[60] max-h-[70vh] max-w-md overflow-y-auto rounded-xl border border-warning/40 bg-black/85 p-3 text-xs text-white shadow-xl backdrop-blur" role="region" aria-label="Modo de teste do Caça ao Monstro">
+          <p className="mb-2 font-bold uppercase tracking-wide text-warning">Modo de teste · nada é gravado</p>
+          <div className="space-y-2">
+            {monsterCards.map((monster) => {
+              const caido = Number(monster.monsterHp || 0) - (danoDeTeste[monster.teamId] || 0) <= 0 || Boolean(monster.monsterDefeated);
+              const botao = 'rounded-md border border-white/15 bg-white/[0.07] px-2 py-1 font-semibold transition-colors hover:bg-white/[0.16] disabled:cursor-not-allowed disabled:opacity-40';
+              return (
+                <div key={monster.teamId} className="flex flex-wrap items-center gap-1.5">
+                  <span className="mr-1 w-24 truncate font-bold" style={{ color: monster.teamColor || '#f87171' }}>{monster.teamName}</span>
+                  <button type="button" className={botao} disabled={caido} onClick={() => simularGolpe(monster.teamId, DANO_DE_TESTE.normal)} title="Como a leitura de um checkpoint normal (-10 HP)">Normal</button>
+                  <button type="button" className={botao} disabled={caido} onClick={() => simularGolpe(monster.teamId, DANO_DE_TESTE.especial)} title="Como a leitura do checkpoint especial (-30 HP)">Especial</button>
+                  <button type="button" className={botao} disabled={caido} onClick={() => simularGolpe(monster.teamId, DANO_DE_TESTE.ataque)} title="Como o ataque especial da equipe (-50 HP)">Ataque</button>
+                  <button type="button" className={botao} disabled={caido} onClick={() => simularGolpe(monster.teamId, Number(monster.monsterHp || 0))} title="Derrota o monstro desta equipe">Derrotar</button>
+                </div>
+              );
+            })}
+          </div>
+          <button type="button" className="mt-2 rounded-md border border-warning/40 px-2 py-1 font-semibold text-warning hover:bg-warning/10" onClick={() => setDanoDeTeste({})}>
+            Desfazer o teste (voltar ao jogo)
+          </button>
+        </div>
+      )}
       {parallelRoulette && (
-        <RouletteOverlay data={parallelRoulette} onClose={() => setParallelRoulette(null)} autoCloseSeconds={14} />
+        <RouletteOverlay
+          data={parallelRoulette}
+          onClose={() => setParallelRoulette(null)}
+          onWheelGone={() => { setParallelObject(parallelRoulette); setParallelRoulette(null); }}
+        />
       )}
       {/* Notificação Animada de Conquista */}
       {showNotification && notificationData && (
@@ -1042,12 +1298,14 @@ export default function DisplayMain() {
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-300/70 to-transparent" />
         <div className="flex min-w-0 items-center gap-3">
           <button
-            onClick={() => window.history.back()}
+            type="button"
+            onClick={() => void toggleFullscreen()}
+            aria-pressed={isFullscreen}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-dark-card/80 px-3 py-1.5 text-sm font-semibold text-gray-300 transition-colors duration-200 hover:border-primary-400/40 hover:bg-dark-surface hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60"
-            title="Voltar (ESC)"
+            title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
           >
-            <ArrowLeft size={16} />
-            <span className="hidden sm:inline">Sair</span>
+            {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+            <span className="hidden sm:inline">{isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}</span>
           </button>
           <div className="flex h-[clamp(2rem,4.6vh,3rem)] w-[clamp(2rem,4.6vh,3rem)] shrink-0 items-center justify-center rounded-xl border border-primary-300/20 bg-primary-500/10 text-xl">⚡</div>
           <h1 className="truncate font-display text-[clamp(1.4rem,4vh,3rem)] font-bold leading-none tracking-tight text-white">Pulyn Arena</h1>
@@ -1068,12 +1326,11 @@ export default function DisplayMain() {
                     ? 'Conectando'
                     : 'Desconectado'}
             </span>
-            {lastMessageAt && connectionStatus === 'connected' && (
-              <span className="hidden text-[11px] text-gray-500 xl:inline">
-                · {lastMessageAt.toLocaleTimeString('pt-BR')}
-              </span>
-            )}
           </div>
+        </div>
+        {/* Durante um jogo não há rodapé: o objeto da brincadeira paralela fica no meio (livre) do cabeçalho */}
+        <div className="flex min-w-0 flex-1 justify-center">
+          {gameOnlyView && parallelObject && <RouletteResultBanner data={parallelObject} />}
         </div>
         <div className="flex min-w-0 items-center gap-2.5">
           <p className="truncate text-[clamp(0.9rem,2.3vh,1.5rem)] font-semibold text-gray-200">
@@ -1086,21 +1343,34 @@ export default function DisplayMain() {
       </header>
   );
 
+  // Mensagem do recreacionista: fica na tela só por um tempo e some sozinha (o relógio de 1 s reavalia)
+  const latestMessage = displayMessages[0];
+  const showMessage = Boolean(latestMessage) && messageArrivedAt > 0 && currentTime.getTime() - messageArrivedAt < MENSAGEM_VISIVEL_MS;
+
   if (gameOnlyView) {
-    // Mensagem do recreacionista: aparece por cima do jogo só por um tempo e some sozinha
-    const latestMessage = displayMessages[0];
-    const showMessageOverGame = Boolean(latestMessage) && messageArrivedAt > 0 && currentTime.getTime() - messageArrivedAt < 20000;
     return (
       <div className="relative flex h-screen flex-col overflow-hidden bg-[#08111f] p-2 text-white">
         {conquestOverlay}
         {headerBar}
-        {showMessageOverGame && (
+        {showMessage && (
           <div className="absolute inset-x-6 top-[max(5.5rem,11vh)] z-30 flex items-center gap-3 rounded-2xl border border-accent/50 bg-black/70 px-5 py-3 shadow-2xl backdrop-blur animate-in fade-in slide-in-from-top-2" role="status" aria-label="Mensagem do recreacionista">
             <Zap size={26} className="shrink-0 text-accent" />
             <p className="line-clamp-2 font-display text-[clamp(1.2rem,3.4vh,2.4rem)] font-bold leading-tight text-white">{latestMessage.text}</p>
           </div>
         )}
-        <div className="mt-2 min-h-0 flex-1">{stageContent}</div>
+        <div className="mt-2 flex min-h-0 flex-1 gap-2">
+          <div className="min-h-0 min-w-0 flex-1">{stageContent}</div>
+          {/* Últimas leituras: coluna ao lado do jogo (só em telas largas) */}
+          <div className="hidden w-[clamp(13rem,19vw,21rem)] shrink-0 lg:block">
+            {telaDaColuna === 1 ? (
+              <RankingDaPartida modo="equipes" linhas={pontosDaPartida?.equipes ?? []} />
+            ) : telaDaColuna === 2 ? (
+              <RankingDaPartida modo="participantes" linhas={pontosDaPartida?.participantes ?? []} />
+            ) : (
+              <UltimasLeituras leituras={ultimasLeituras} />
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -1116,14 +1386,14 @@ export default function DisplayMain() {
 
       <main className="relative z-10 mt-3 flex min-h-0 flex-1 flex-col gap-3">
         {/* Mensagem do recreacionista */}
-        {displayMessages.length > 0 && (
+        {showMessage && (
           <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-2" role="status" aria-label="Mensagem do recreacionista">
             <Zap size={22} className="shrink-0 text-accent" />
             <div className="min-w-0 flex-1">
               <p className="text-[clamp(0.6rem,1.3vh,0.8rem)] font-bold uppercase tracking-[0.25em] text-accent">Mensagem do recreacionista</p>
-              <p className="line-clamp-2 font-display text-[clamp(1.1rem,3vh,2.2rem)] font-bold leading-tight text-white">{displayMessages[0].text}</p>
+              <p className="line-clamp-2 font-display text-[clamp(1.1rem,3vh,2.2rem)] font-bold leading-tight text-white">{latestMessage.text}</p>
             </div>
-            <p className="shrink-0 text-xs text-gray-400">{displayMessages[0].timestamp ? new Date(displayMessages[0].timestamp).toLocaleTimeString('pt-BR') : ''}</p>
+            <p className="shrink-0 text-xs text-gray-400">{latestMessage.timestamp ? new Date(latestMessage.timestamp).toLocaleTimeString('pt-BR') : ''}</p>
           </div>
         )}
 
@@ -1132,6 +1402,42 @@ export default function DisplayMain() {
             - com leituras: metade guia, metade placar. */}
         {!gameStateLoaded ? (
           <div className="flex-1" />
+        ) : !gameActive && fimDeJogo ? (
+          // Fim de jogo: pontuação final com o Pulyn comemorando
+          <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
+            <PontuacaoFinal key={fimDeJogo.chave} fim={fimDeJogo} onTerminar={encerrarFimDeJogo} />
+          </section>
+        ) : !gameActive && sorteioEquipes ? (
+          // Sorteio das equipes: a formação aparece no telão enquanto o recreacionista sorteia
+          <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
+            <SorteioEquipes key={sorteioEquipes.chave} sorteio={sorteioEquipes} onTerminar={encerrarSorteio} />
+          </section>
+        ) : !gameActive && selectedGameName ? (
+          // Jogo escolhido e ainda não iniciado: as regras dele ocupam a tela até o recreacionista iniciar
+          <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
+            <GameGuide
+              games={[jogoSelecionado]}
+              highlightName={jogoSelecionado.name}
+              heading="Regras do próximo jogo"
+              subheading="Leia com atenção: o jogo começa em instantes"
+            />
+          </section>
+        ) : !gameActive ? (
+          // Pré-jogo: o mapa com os checkpoints e o aviso de checkpoint lido. Depois de uma partida, o placar fica ao lado.
+          hasReadings ? (
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[3fr_2fr]">
+              <section className="min-h-[360px] min-w-0 lg:min-h-0">
+                <PreJogoMapa leitura={ultimaLeituraPreJogo} />
+              </section>
+              <div className="min-h-[360px] min-w-0 lg:min-h-0">
+                {rankingPanel}
+              </div>
+            </div>
+          ) : (
+            <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
+              <PreJogoMapa leitura={ultimaLeituraPreJogo} />
+            </section>
+          )
         ) : guideGames.length > 0 ? (
           hasReadings ? (
             <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
@@ -1218,16 +1524,16 @@ export default function DisplayMain() {
         )}
       </main>
 
-      {/* Rodapé: relógio e participantes (mini display) */}
-      <footer className="relative z-10 mt-3 flex shrink-0 items-center justify-between gap-4 lg:h-[6vh] lg:min-h-[44px]">
-        <div className="flex items-center gap-3">
-          <Clock size={18} className="text-primary-300" />
-          <p className="font-mono text-[clamp(1.1rem,3vh,2rem)] font-bold tracking-wide text-primary-300">{formattedTime}</p>
-          <span className="hidden h-4 w-px bg-white/10 sm:block" />
-          <p className="hidden text-[clamp(0.7rem,1.6vh,1rem)] capitalize text-gray-500 sm:block">{formattedDate}</p>
-        </div>
+      {/* Rodapé: participantes (mini display) */}
+      <footer className="relative z-10 mt-3 flex shrink-0 items-center justify-end gap-4 lg:min-h-[6vh]">
+        {/* Objeto da brincadeira paralela: à esquerda do número de participantes */}
+        {parallelObject && (
+          <div className="flex min-w-0 flex-1 justify-end">
+            <RouletteResultBanner data={parallelObject} />
+          </div>
+        )}
         <div
-          className="flex items-center gap-3 rounded-2xl border border-white/10 bg-dark-card/85 px-4 py-1.5 shadow-lg shadow-black/20 backdrop-blur-xl"
+          className="flex shrink-0 items-center gap-3 rounded-2xl border border-white/10 bg-dark-card/85 px-4 py-1.5 shadow-lg shadow-black/20 backdrop-blur-xl"
           role="status"
           aria-label={`${activeParticipants} de ${totalParticipants} participantes ativos`}
         >

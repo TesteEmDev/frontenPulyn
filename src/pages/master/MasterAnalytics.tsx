@@ -1,12 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard,
   Users,
   CreditCard,
-  Activity,
-  ScrollText,
-  LifeBuoy,
   BarChart3,
   TrendingUp,
   DollarSign,
@@ -16,7 +12,6 @@ import {
   Baby,
   RefreshCw,
   AlertCircle,
-  Cpu,
 } from 'lucide-react';
 import {
   ComposedChart,
@@ -38,17 +33,9 @@ import Badge from '../../components/ui/Badge';
 import { COR_BARRA_POR_PLANO } from '../../utils/planos';
 import Button from '../../components/ui/Button';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
+import { masterNavItems } from './masterNav';
 
-const masterNavItems = [
-  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/master' },
-  { icon: <Users size={20} />, label: 'Clientes', path: '/master/clients' },
-  { icon: <CreditCard size={20} />, label: 'Planos', path: '/master/plans' },
-  { icon: <Cpu size={20} />, label: 'Checkpoints', path: '/master/checkpoints' },
-  { icon: <Activity size={20} />, label: 'Monitoramento', path: '/master/monitoring' },
-  { icon: <ScrollText size={20} />, label: 'Logs', path: '/master/logs' },
-  { icon: <LifeBuoy size={20} />, label: 'Suporte', path: '/master/support' },
-  { icon: <BarChart3 size={20} />, label: 'Analytics', path: '/master/analytics' },
-];
 
 const tooltipStyle = {
   backgroundColor: '#1E1B2E',
@@ -125,8 +112,8 @@ export default function MasterAnalytics() {
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
-  const loadAnalyticsData = useCallback(async () => {
-    setLoading(true);
+  const loadAnalyticsData = useCallback(async (silencioso = false) => {
+    if (!silencioso) setLoading(true);
     const requests: [SectionKey, Promise<any>][] = [
       ['metrics', api.getMetricsAnalytics()],
       ['growth', api.getClientGrowth()],
@@ -159,6 +146,8 @@ export default function MasterAnalytics() {
   useEffect(() => {
     loadAnalyticsData();
   }, [loadAnalyticsData]);
+
+  useAutoRefresh(() => loadAnalyticsData(true), { topicos: ['clientes', 'eventos', 'checkpoints'], intervaloMs: 60_000 });
 
   if (loading && !metrics) {
     return (
@@ -258,7 +247,7 @@ export default function MasterAnalytics() {
                   <p className="text-xs text-gray-500">Monthly Recurring Revenue</p>
                   <p className="font-display text-2xl text-primary font-bold">{errors.metrics || !m ? '—' : money(m.mrr)}</p>
                 </div>
-                <Button variant="ghost" size="sm" onClick={loadAnalyticsData} disabled={loading} title="Buscar os dados de novo">
+                <Button variant="ghost" size="sm" onClick={() => loadAnalyticsData()} disabled={loading} title="Buscar os dados de novo">
                   <RefreshCw size={14} className={`mr-1.5 ${loading ? 'animate-spin' : ''}`} />
                   Atualizar
                 </Button>
@@ -271,7 +260,7 @@ export default function MasterAnalytics() {
               <span className="flex items-center gap-2">
                 <AlertCircle size={16} /> Não foi possível carregar: {failed.join(', ')}.
               </span>
-              <Button variant="ghost" size="sm" onClick={loadAnalyticsData}>Tentar novamente</Button>
+              <Button variant="ghost" size="sm" onClick={() => loadAnalyticsData()}>Tentar novamente</Button>
             </div>
           )}
 

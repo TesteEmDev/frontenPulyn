@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Compass, Gem, TimerReset, Trophy } from 'lucide-react';
 import type { Checkpoint, Team } from '../../store/mockData';
-import { numeroDoCheckpoint } from '../../utils/checkpoints';
+import { numeroDoCheckpoint, nomeNoMapa } from '../../utils/checkpoints';
 
 // Estilos CSS para animação de onda
 const treasureWaveStyles = `
@@ -118,6 +118,9 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
     (status.checkpointOwnership || []).map((item) => [String(item.checkpointId), item.teamId || null]),
   ), [status.checkpointOwnership]);
   const completedIds = useMemo(() => new Set((status.completedCheckpointIds || []).map(String)), [status.completedCheckpointIds]);
+  // Só os checkpoints da partida (os cadastrados no jogo, e só os que o recreacionista escolheu usar) e que estão ligados
+  // aparecem no mapa. Sem a lista da partida ainda, não mostra nenhum em vez de mostrar todos os do evento.
+  const emJogo = new Set((status.checkpointOwnership ?? []).map((c) => String(c.checkpointId)));
   const targetCheckpoint = checkpoints.find((checkpoint) => String(checkpoint.id) === String(status.targetCheckpointId));
   const currentTeam = status.turnTeamId
     ? teamById.get(String(status.turnTeamId).toLowerCase())
@@ -177,7 +180,7 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
             preserveAspectRatio="xMidYMid meet"
           >
             {/* Checkpoints em coordenadas de pixels */}
-            {checkpoints.map((checkpoint) => {
+            {checkpoints.filter((checkpoint) => emJogo.has(String(checkpoint.id)) && checkpoint.status === 'online').map((checkpoint) => {
               const storedX = Number(checkpoint.mapaX ?? checkpoint.mapX);
               const storedY = Number(checkpoint.mapaY ?? checkpoint.mapY);
               const x = Number.isFinite(storedX) && Number.isFinite(storedY) ? storedX : (MAP_WIDTH / 2);
@@ -191,13 +194,13 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
               
               return (
                 <g key={checkpoint.id} transform={`translate(${x} ${y})`}>
-                  <circle r={11} fill={markerColor} fillOpacity={0.18} stroke={markerColor} strokeWidth={2} />
+                  <circle r={9} fill={markerColor} fillOpacity={0.18} stroke={markerColor} strokeWidth={2} />
                   <circle r={5} fill={markerColor} />
                   <text y={-16} textAnchor="middle" fill="#FFFFFF" fontSize={10} fontWeight={600}>
                     {numeroDoCheckpoint(checkpoint)}
                   </text>
-                  <text y={18} textAnchor="middle" fill="#D1D5DB" fontSize={8}>
-                    {isTarget ? 'TESOURO' : checkpoint.name}
+                  <text y={17} textAnchor="middle" fill="#D1D5DB" fontSize={5.5}>
+                    {isTarget ? 'TESOURO' : nomeNoMapa(checkpoint.name)}
                   </text>
                   {isTarget && (
                     <>

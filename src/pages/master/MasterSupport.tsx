@@ -1,21 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  Users,
-  CreditCard,
-  Activity,
-  ScrollText,
   LifeBuoy,
-  BarChart3,
   Plus,
   Search,
   MessageSquare,
   Clock,
   User,
-  Cpu,
+  PackagePlus,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
 import Card from '../../components/ui/Card';
@@ -24,17 +19,8 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import Modal from '../../components/ui/Modal';
+import { masterNavItems } from './masterNav';
 
-const masterNavItems = [
-  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/master' },
-  { icon: <Users size={20} />, label: 'Clientes', path: '/master/clients' },
-  { icon: <CreditCard size={20} />, label: 'Planos', path: '/master/plans' },
-  { icon: <Cpu size={20} />, label: 'Checkpoints', path: '/master/checkpoints' },
-  { icon: <Activity size={20} />, label: 'Monitoramento', path: '/master/monitoring' },
-  { icon: <ScrollText size={20} />, label: 'Logs', path: '/master/logs' },
-  { icon: <LifeBuoy size={20} />, label: 'Suporte', path: '/master/support' },
-  { icon: <BarChart3 size={20} />, label: 'Analytics', path: '/master/analytics' },
-];
 
 type TicketStatus = 'aberto' | 'em_andamento' | 'resolvido';
 type TicketPriority = 'alta' | 'media' | 'baixa';
@@ -48,7 +34,12 @@ interface Ticket {
   date: string;
   assignee: string;
   description: string;
+  tipoChamado?: 'chamado' | 'checkpoint' | 'pulseira';
+  itens?: Array<{ tipo?: string; finalidade?: string; quantidade: number }>;
 }
+
+const tipoCheckpointLabel: Record<string, string> = { NFC: 'NFC/RFID', UHF: 'UHF longa distância' };
+const finalidadeLabel: Record<string, string> = { jogo: 'Jogo', pontuacao: 'Pontuação', recepcao: 'Recepção' };
 
 const statusBadgeVariant: Record<TicketStatus, 'accent' | 'secondary' | 'success'> = {
   aberto: 'accent',
@@ -81,6 +72,7 @@ export default function MasterSupport() {
   const [clients, setClients] = useState<Array<{ name: string }>>([]);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterTipo, setFilterTipo] = useState<'all' | 'checkpoint'>('all');
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -91,32 +83,37 @@ export default function MasterSupport() {
   const [newDescription, setNewDescription] = useState('');
   const [newAssignee, setNewAssignee] = useState('');
 
-  useEffect(() => {
-    const loadTickets = async () => {
-      try {
-        const [ticketsData, clientsData] = await Promise.all([
-          api.getTickets(),
-          api.getMasterClients(),
-        ]);
-        setTickets(Array.isArray(ticketsData) ? ticketsData : []);
-        setClients(Array.isArray(clientsData) ? clientsData : []);
-      } catch (error) {
-        console.error('Erro ao buscar tickets:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadTickets();
+  const loadTickets = useCallback(async () => {
+    try {
+      const [ticketsData, clientsData] = await Promise.all([
+        api.getTickets(),
+        api.getMasterClients(),
+      ]);
+      setTickets(Array.isArray(ticketsData) ? ticketsData : []);
+      setClients(Array.isArray(clientsData) ? clientsData : []);
+    } catch (error) {
+      console.error('Erro ao buscar tickets:', error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    loadTickets();
+  }, [loadTickets]);
+
+  useAutoRefresh(loadTickets, { topicos: ['suporte', 'clientes'], intervaloMs: 15_000 });
+
   const filteredTickets = tickets.filter(ticket => {
-    const matchSearch = ticket.subject.toLowerCase().includes(search.toLowerCase()) ||
-      ticket.client.toLowerCase().includes(search.toLowerCase()) ||
-      ticket.id.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = String(ticket.subject ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      String(ticket.client ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      String(ticket.id ?? '').toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'all' || ticket.status === filterStatus;
-    return matchSearch && matchStatus;
+    const matchTipo = filterTipo === 'all' || ticket.tipoChamado === 'checkpoint' || ticket.tipoChamado === 'pulseira';
+    return matchSearch && matchStatus && matchTipo;
   });
 
+  const pedidosAbertos = tickets.filter(t => (t.tipoChamado === 'checkpoint' || t.tipoChamado === 'pulseira') && t.status !== 'resolvido').length;
   const openCount = tickets.filter(t => t.status === 'aberto').length;
   const inProgressCount = tickets.filter(t => t.status === 'em_andamento').length;
   const resolvedCount = tickets.filter(t => t.status === 'resolvido').length;
@@ -124,14 +121,15 @@ export default function MasterSupport() {
   const handleNewTicket = async () => {
     if (!newClient || !newSubject) return;
     try {
-      const ticket = await api.createTicket({
+      await api.createTicket({
         client: newClient,
         subject: newSubject,
         priority: newPriority,
         description: newDescription,
         assignee: newAssignee || 'Atribuir'
       });
-      setTickets(prev => [ticket, ...prev]);
+      // Relê a lista: a resposta da criação não tem o mesmo formato das linhas da tela
+      await loadTickets();
       setShowNewTicketModal(false);
       setNewClient('');
       setNewSubject('');
@@ -237,6 +235,14 @@ export default function MasterSupport() {
                 >
                   Resolvidos
                 </Button>
+                <Button
+                  variant={filterTipo === 'checkpoint' ? 'primary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setFilterTipo(filterTipo === 'checkpoint' ? 'all' : 'checkpoint')}
+                >
+                  <PackagePlus size={14} className="mr-1" />
+                  Pedidos de checkpoints e pulseiras{pedidosAbertos > 0 ? ` (${pedidosAbertos})` : ''}
+                </Button>
               </div>
             </div>
           </Card>
@@ -269,7 +275,28 @@ export default function MasterSupport() {
                     <tr key={ticket.id} className="border-b border-border/50 hover:bg-surface/30 transition-colors">
                       <td className="py-3 px-4 font-mono text-xs text-primary">{ticket.id}</td>
                       <td className="py-3 px-4 text-gray-300">{ticket.client}</td>
-                      <td className="py-3 px-4 text-white font-semibold">{ticket.subject}</td>
+                      <td className="py-3 px-4 text-white font-semibold">
+                        {ticket.tipoChamado === 'checkpoint' || ticket.tipoChamado === 'pulseira' ? (
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <PackagePlus size={14} className="text-primary" />
+                              <span>{ticket.tipoChamado === 'pulseira' ? 'Pedido de pulseiras' : 'Pedido de checkpoints'}</span>
+                            </div>
+                            <div className="mt-1 flex flex-wrap gap-1.5">
+                              {(ticket.itens || []).map((item) => (
+                                <Badge key={`${item.tipo}-${item.finalidade}-${item.quantidade}`} variant="secondary">
+                                  {ticket.tipoChamado === 'pulseira'
+                                    ? `${item.quantidade} ${item.quantidade === 1 ? 'pulseira' : 'pulseiras'}`
+                                    : <>{item.quantidade} × {(item.tipo && tipoCheckpointLabel[item.tipo]) || item.tipo}{item.finalidade ? ` · ${finalidadeLabel[item.finalidade] || item.finalidade}` : ''}</>}
+                                </Badge>
+                              ))}
+                            </div>
+                            {ticket.description && <p className="mt-1 text-xs font-normal text-gray-400">{ticket.description}</p>}
+                          </div>
+                        ) : (
+                          ticket.subject
+                        )}
+                      </td>
                       <td className="py-3 px-4">
                         <Badge variant={statusBadgeVariant[ticket.status]}>
                           {statusLabel[ticket.status]}

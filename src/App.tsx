@@ -1,5 +1,7 @@
+import { lerToken, sessaoSoDestaAba } from './utils/sessao';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { DialogoGlobal } from './components/ui/dialogo';
 import { useEffect, useCallback } from 'react';
 import { usePulynStore } from './store/mockData';
 import { useAuth } from './hooks/useAuth';
@@ -9,11 +11,18 @@ import { EventoProvider } from './contexts/EventoContext';
 
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/login/LoginPage';
+import TrocarSenhaPage from './pages/login/TrocarSenhaPage';
 import NotFound from './pages/NotFound';
 import DisplayMain from './pages/display/DisplayMain';
 import DisplayRanking from './pages/display/DisplayRanking';
 import DisplayMap from './pages/display/DisplayMap';
 import DisplayStandby from './pages/display/DisplayStandby';
+import TelaoEntrada from './pages/display/TelaoEntrada';
+import DisplayDemoPontuacao from './pages/display/DisplayDemoPontuacao';
+import DisplayDemoMonstros from './pages/display/DisplayDemoMonstros';
+import DisplayDemoRegras from './pages/display/DisplayDemoRegras';
+import DemoCadastroAparencia from './pages/reception/DemoCadastroAparencia';
+import DemoRoleta from './pages/game-master/DemoRoleta';
 import ReceptionDashboard from './pages/reception/ReceptionDashboard';
 import ReceptionCheckin from './pages/reception/ReceptionCheckin';
 import ReceptionKiosk from './pages/reception/ReceptionKiosk';
@@ -47,6 +56,7 @@ import AdminTeams from './pages/admin/AdminTeams';
 import AdminReports from './pages/admin/AdminReports';
 import AdminSync from './pages/admin/AdminSync';
 import AdminSettings from './pages/admin/AdminSettings';
+import AdminBracelets from './pages/admin/AdminBracelets';
 import MasterDashboard from './pages/master/MasterDashboard';
 import MasterClients from './pages/master/MasterClients';
 import MasterPlans from './pages/master/MasterPlans';
@@ -55,6 +65,7 @@ import MasterLogs from './pages/master/MasterLogs';
 import MasterSupport from './pages/master/MasterSupport';
 import MasterAnalytics from './pages/master/MasterAnalytics';
 import MasterCheckpoints from './pages/master/MasterCheckpoints';
+import MasterBracelets from './pages/master/MasterBracelets';
 import FamilyHome from './pages/family/FamilyHome';
 import FamilyLocation from './pages/family/FamilyLocation';
 import FamilyScores from './pages/family/FamilyScores';
@@ -64,6 +75,20 @@ import FamilyProfile from './pages/family/FamilyProfile';
 import FamilyNotifications from './pages/family/FamilyNotifications';
 import FamilyInviteRegister from './pages/family/FamilyInviteRegister';
 import ReceptionFamilyLinks from './pages/reception/ReceptionFamilyLinks';
+
+// Telão aberto por link (/telao/<código>): renova a sessão a cada 6 h para a TV não cair no meio do evento.
+function TelaoSessao() {
+  const papel = useAuth((state) => state.user?.role);
+  const entrarComoTelao = useAuth((state) => state.entrarComoTelao);
+  useEffect(() => {
+    const codigo = localStorage.getItem('telaoCodigo');
+    // Telão aberto pela equipe (sessão só desta aba) não renova por código: ele escreveria na sessão da recepção
+    if (papel !== 'display' || !codigo || sessaoSoDestaAba()) return;
+    const renovar = setInterval(() => { entrarComoTelao(codigo); }, 6 * 60 * 60 * 1000);
+    return () => clearInterval(renovar);
+  }, [papel, entrarComoTelao]);
+  return null;
+}
 
 // Perfis que podem consultar /event-control/active (o da família, por exemplo, não pode).
 const EVENT_CONTROL_ROLES = ['admin', 'reception', 'game_master', 'display', 'master', 'kiosk', 'score_kiosk'];
@@ -118,7 +143,7 @@ function App() {
     loadClientes,
     eventoAtualId
   } = usePulynStore();
-  
+
   const { isAuthenticated, user } = useAuth();
 
   // Log todas as mudanças de rota
@@ -128,7 +153,7 @@ function App() {
 
   // Restaurar sessão ao iniciar a app
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
+    const token = lerToken();
     if (token && !isAuthenticated) {
       // Token existe mas não está no state - pode ser um reload
       // O useAuth já tenta recuperar, então apenas continua
@@ -138,7 +163,7 @@ function App() {
   // Carregar dados gerais quando autenticado (não depende de evento)
   useEffect(() => {
     if (!isAuthenticated || !user) return;
-    
+
     // Clientes são dados administrativos e a API permite acesso somente ao master.
     if (user.role === 'master') {
       loadClientes().catch(err => console.error('❌ Erro ao carregar clientes:', err));
@@ -156,7 +181,7 @@ function App() {
     if (!eventoAtualId || user?.role === 'kiosk' || user?.role === 'score_kiosk') {
       return; // Não sincroniza sem evento ou no visor de autoatendimento
     }
-    
+
     // Sincronizar dados específicos do evento
     const syncEventData = async () => {
       try {
@@ -165,9 +190,9 @@ function App() {
         console.error('❌ Erro ao sincronizar:', error);
       }
     };
-    
+
     syncEventData();
-    
+
     // Polling a cada 10 segundos (apenas se houver evento)
     const interval = setInterval(() => {
       loadTeams();
@@ -176,7 +201,7 @@ function App() {
       loadReadings();
       loadScoreLog();
     }, 10000);
-    
+
     return () => clearInterval(interval);
   }, [eventoAtualId, user?.role]);
 
@@ -188,6 +213,8 @@ function App() {
           pollMs={user && ['kiosk', 'score_kiosk', 'display'].includes(user.role) ? 8000 : 0}
         />
         <DisplayRealtimeBridge enabled={isAuthenticated && user?.role === 'display'} />
+        <TelaoSessao />
+        <DialogoGlobal />
         <Toaster
           position="top-right"
           toastOptions={{
@@ -204,8 +231,17 @@ function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/primeiro-acesso" element={<TrocarSenhaPage />} />
 
           {/* Telão */}
+          <Route path="/telao" element={<TelaoEntrada />} />
+          {/* Prévia da tela de pontuação final com dados de exemplo (não lê nem grava nada do evento) */}
+          <Route path="/demo/pontuacao-final" element={<DisplayDemoPontuacao />} />
+          <Route path="/demo/monstros" element={<DisplayDemoMonstros />} />
+          <Route path="/demo/regras" element={<DisplayDemoRegras />} />
+          <Route path="/demo/cadastro-aparencia" element={<DemoCadastroAparencia />} />
+          <Route path="/demo/roleta" element={<DemoRoleta />} />
+          <Route path="/telao/:codigo" element={<TelaoEntrada />} />
           <Route path="/display" element={<ProtectedRoute allowedRoles={['display']}><DisplayMain /></ProtectedRoute>} />
           <Route path="/display/ranking" element={<ProtectedRoute allowedRoles={['display']}><DisplayRanking /></ProtectedRoute>} />
           <Route path="/display/map" element={<ProtectedRoute allowedRoles={['display']}><DisplayMap /></ProtectedRoute>} />
@@ -215,7 +251,11 @@ function App() {
           <Route path="/reception" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionDashboard /></ProtectedRoute>} />
           <Route path="/reception/checkin" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionCheckin /></ProtectedRoute>} />
           <Route path="/reception/kiosk" element={<ProtectedRoute allowedRoles={['kiosk']}><ReceptionKiosk /></ProtectedRoute>} />
+          {/* Várias telas de autoatendimento: /reception/kiosk/1 ouve o leitor de recepção R1, /2 ouve o R2... */}
+          <Route path="/reception/kiosk/:numero" element={<ProtectedRoute allowedRoles={['kiosk']}><ReceptionKiosk /></ProtectedRoute>} />
           <Route path="/score-kiosk" element={<ProtectedRoute allowedRoles={['kiosk', 'score_kiosk']}><ScoreKiosk /></ProtectedRoute>} />
+          {/* Várias telas de pontuação: /score-kiosk/1 ouve o leitor de pontuação P1, /2 ouve o P2... */}
+          <Route path="/score-kiosk/:numero" element={<ProtectedRoute allowedRoles={['kiosk', 'score_kiosk']}><ScoreKiosk /></ProtectedRoute>} />
           <Route path="/reception/participants" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionParticipants /></ProtectedRoute>} />
           <Route path="/reception/bracelets" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionBracelets /></ProtectedRoute>} />
           <Route path="/reception/families" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionFamilies /></ProtectedRoute>} />
@@ -243,7 +283,7 @@ function App() {
           <Route path="/admin/children/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminChildProfile /></ProtectedRoute>} />
           <Route path="/admin/pulynball" element={<ProtectedRoute allowedRoles={['admin']}><AdminPulynBall /></ProtectedRoute>} />
           <Route path="/admin/games" element={<ProtectedRoute allowedRoles={['admin']}><AdminGames /></ProtectedRoute>} />
-          <Route path="/admin/games/new" element={<ProtectedRoute allowedRoles={['admin']}><AdminGameForm /></ProtectedRoute>} />
+          <Route path="/admin/games/new" element={<Navigate to="/admin/games" replace />} />
           <Route path="/admin/games/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminGameForm /></ProtectedRoute>} />
           <Route path="/admin/checkpoints" element={<ProtectedRoute allowedRoles={['admin']}><AdminCheckpoints /></ProtectedRoute>} />
           <Route path="/admin/checkpoints/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminCheckpointConfig /></ProtectedRoute>} />
@@ -255,6 +295,7 @@ function App() {
           <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={['admin']}><AdminReports /></ProtectedRoute>} />
           <Route path="/admin/sync" element={<ProtectedRoute allowedRoles={['admin']}><AdminSync /></ProtectedRoute>} />
           <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettings /></ProtectedRoute>} />
+          <Route path="/admin/pulseiras" element={<ProtectedRoute allowedRoles={['admin']}><AdminBracelets /></ProtectedRoute>} />
 
           {/* Painel Master Pulyn */}
           <Route path="/master" element={<ProtectedRoute allowedRoles={['master']}><MasterDashboard /></ProtectedRoute>} />
@@ -265,6 +306,7 @@ function App() {
           <Route path="/master/support" element={<ProtectedRoute allowedRoles={['master']}><MasterSupport /></ProtectedRoute>} />
           <Route path="/master/analytics" element={<ProtectedRoute allowedRoles={['master']}><MasterAnalytics /></ProtectedRoute>} />
           <Route path="/master/checkpoints" element={<ProtectedRoute allowedRoles={['master']}><MasterCheckpoints /></ProtectedRoute>} />
+          <Route path="/master/pulseiras" element={<ProtectedRoute allowedRoles={['master']}><MasterBracelets /></ProtectedRoute>} />
 
           {/* App Família */}
           <Route path="/family/invite/:token" element={<FamilyInviteRegister />} />

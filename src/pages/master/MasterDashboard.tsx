@@ -1,13 +1,8 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, memo, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
-  CreditCard,
-  Activity,
-  ScrollText,
-  LifeBuoy,
-  BarChart3,
   MapPin,
   Bell,
   AlertTriangle,
@@ -25,19 +20,11 @@ import { planoBadge, planoRotulo } from '../../utils/planos';
 import type { PlanoId } from '../../utils/planos';
 import StatusDot from '../../components/ui/StatusDot';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { BRAZIL_STATES, type BrazilStateShape } from './brazilMapData';
 import { findCityPosition, type CityData } from './brazilCities';
+import { masterNavItems } from './masterNav';
 
-const masterNavItems = [
-  { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/master' },
-  { icon: <Users size={20} />, label: 'Clientes', path: '/master/clients' },
-  { icon: <CreditCard size={20} />, label: 'Planos', path: '/master/plans' },
-  { icon: <Cpu size={20} />, label: 'Checkpoints', path: '/master/checkpoints' },
-  { icon: <Activity size={20} />, label: 'Monitoramento', path: '/master/monitoring' },
-  { icon: <ScrollText size={20} />, label: 'Logs', path: '/master/logs' },
-  { icon: <LifeBuoy size={20} />, label: 'Suporte', path: '/master/support' },
-  { icon: <BarChart3 size={20} />, label: 'Analytics', path: '/master/analytics' },
-];
 
 interface MasterClient {
   id: string;
@@ -52,9 +39,22 @@ interface MasterAlert {
   id: string;
   type: 'offline' | 'sync_error' | 'warning';
   message: string;
+  detalhe?: string;
   client: string;
   time: string;
 }
+
+// Situação dos checkpoints (aparelhos do master) no painel; "online" é pelo último sinal da placa, não pelo status gravado
+interface ResumoCheckpoints {
+  total: number;
+  online: number;
+  offline: number;
+  emEstoque: number;
+  semNumero: number;
+  comBuffets: number;
+  offlineComBuffets: number;
+}
+const SEM_CHECKPOINTS: ResumoCheckpoints = { total: 0, online: 0, offline: 0, emEstoque: 0, semNumero: 0, comBuffets: 0, offlineComBuffets: 0 };
 
 const normalizeText = (value: string) =>
   value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
@@ -188,7 +188,7 @@ const formatEventWhen = (event: MasterEvent) => {
   return `agendado para ${day}`;
 };
 
-function BrazilMap({
+const BrazilMap = memo(function BrazilMap({
   clients,
   events,
   focus,
@@ -199,7 +199,6 @@ function BrazilMap({
   focus: MapFocus;
   onFocusChange: (focus: MapFocus) => void;
 }) {
-  const [hoveredUf, setHoveredUf] = useState<string | null>(null);
   const [view, setView] = useState(FULL_VIEW);
   const viewRef = useRef(FULL_VIEW);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -262,7 +261,7 @@ function BrazilMap({
       (perState[group.shape.uf] ||= []).push(group);
     });
     Object.values(perState).forEach((list) => {
-      list.sort((a, b) => a.city.localeCompare(b.city, 'pt-BR'));
+      list.sort((a, b) => String(a.city ?? '').localeCompare(String(b.city ?? ''), 'pt-BR'));
       list.forEach((group, index) => {
         if (index === 0) return;
         const angle = index * 2.4;
@@ -421,8 +420,54 @@ function BrazilMap({
       clientId: group.clients.length === 1 ? group.clients[0].id : null,
     });
 
-  const selectState = (uf: string) =>
-    onFocusChange(focus.uf === uf && !focus.cityKey ? NO_FOCUS : { uf, cityKey: null, clientId: null });
+  const focusUf = focus.uf;
+  const focusCityKey = focus.cityKey;
+  const selectState = useCallback(
+    (uf: string) =>
+      onFocusChange(focusUf === uf && !focusCityKey ? NO_FOCUS : { uf, cityKey: null, clientId: null }),
+    [focusUf, focusCityKey, onFocusChange],
+  );
+
+  // Os 27 estados (caminhos SVG grandes) só se redesenham quando muda o foco ou quem tem clientes: durante o zoom
+  // animado (um quadro por vez) e a cada passada do mouse eles ficam como estão. A espessura da borda não escala com
+  // o zoom (non-scaling-stroke: é a mesma que antes, em pixels da tela) e o realce do mouse é feito pelo CSS.
+  const ufsComClientes = Array.from(statesWithClients).sort().join(',');
+  const estadosDoMapa = useMemo(() => {
+    const comClientes = new Set(ufsComClientes ? ufsComClientes.split(',') : []);
+    return BRAZIL_STATES.map((state) => {
+      const hasClients = comClientes.has(state.uf);
+      const isSelected = state.uf === focusUf;
+      return (
+        <path
+          key={state.uf}
+          className="estado-mapa"
+          d={state.path}
+          fill={isSelected ? 'rgba(30,155,215,0.38)' : hasClients ? 'rgba(30,155,215,0.24)' : 'rgba(30,155,215,0.07)'}
+          stroke={isSelected ? 'rgba(30,155,215,1)' : 'rgba(30,155,215,0.55)'}
+          strokeWidth={isSelected ? 2 : 1}
+          vectorEffect="non-scaling-stroke"
+          strokeLinejoin="round"
+          style={{ cursor: 'pointer', transition: 'fill 150ms' }}
+          tabIndex={0}
+          role="button"
+          aria-label={`${state.name}${hasClients ? ' (com clientes)' : ''}`}
+          aria-pressed={isSelected}
+          onClick={(e) => {
+            e.stopPropagation();
+            selectState(state.uf);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              selectState(state.uf);
+            }
+          }}
+        >
+          <title>{state.name}</title>
+        </path>
+      );
+    });
+  }, [ufsComClientes, focusUf, selectState]);
 
   const listGroups = focusGroup ? [focusGroup] : scopeGroups;
   const listClients = listGroups.flatMap((g) => g.clients.map((client) => ({ client, group: g })));
@@ -497,47 +542,7 @@ function BrazilMap({
         onPointerCancel={onPanEnd}
         onMouseDown={(event) => { if (event.button === 1) event.preventDefault(); }}
       >
-        {BRAZIL_STATES.map((state) => {
-          const hasClients = statesWithClients.has(state.uf);
-          const isSelected = state.uf === focus.uf;
-          const isHovered = state.uf === hoveredUf;
-          const fill = isSelected
-            ? 'rgba(30,155,215,0.38)'
-            : isHovered
-              ? 'rgba(30,155,215,0.30)'
-              : hasClients
-                ? 'rgba(30,155,215,0.24)'
-                : 'rgba(30,155,215,0.07)';
-          return (
-            <path
-              key={state.uf}
-              d={state.path}
-              fill={fill}
-              stroke={isSelected ? 'rgba(30,155,215,1)' : 'rgba(30,155,215,0.55)'}
-              strokeWidth={(isSelected ? 2 : 1) * k}
-              strokeLinejoin="round"
-              style={{ cursor: 'pointer', transition: 'fill 150ms' }}
-              tabIndex={0}
-              role="button"
-              aria-label={`${state.name}${hasClients ? ' (com clientes)' : ''}`}
-              aria-pressed={isSelected}
-              onMouseEnter={() => setHoveredUf(state.uf)}
-              onMouseLeave={() => setHoveredUf(null)}
-              onClick={(e) => {
-                e.stopPropagation();
-                selectState(state.uf);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  selectState(state.uf);
-                }
-              }}
-            >
-              <title>{state.name}</title>
-            </path>
-          );
-        })}
+        {estadosDoMapa}
 
         {groups.map((group) => {
           const isFocusedCity = focusGroup?.key === group.key;
@@ -748,6 +753,16 @@ function BrazilMap({
       )}
     </div>
   );
+});
+
+// O relógio tem o próprio estado: se ficasse na página, ela (e o mapa) se redesenharia a cada segundo.
+function RelogioPainel() {
+  const [agora, setAgora] = useState(() => new Date());
+  useEffect(() => {
+    const intervalo = setInterval(() => setAgora(new Date()), 1000);
+    return () => clearInterval(intervalo);
+  }, []);
+  return <span className="text-sm text-gray-400 font-mono">{agora.toLocaleTimeString('pt-BR')}</span>;
 }
 
 export default function MasterDashboard() {
@@ -760,6 +775,7 @@ export default function MasterDashboard() {
     activeChildren: 0,
     offlineCheckpoints: 0,
     totalClients: 0,
+    checkpoints: SEM_CHECKPOINTS,
   });
   const [clients, setClients] = useState<MasterClient[]>([]);
   const [activeEvents, setActiveEvents] = useState<MasterEvent[]>([]);
@@ -775,16 +791,14 @@ export default function MasterDashboard() {
     mapCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   const [alerts, setAlerts] = useState<MasterAlert[]>([]);
-  const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
     loadDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(interval);
-  }, []);
+  // Números, alertas e eventos se atualizam sozinhos
+  useAutoRefresh(() => loadDashboardData(), { topicos: ['clientes', 'eventos', 'checkpoints', 'criancas', 'suporte'], intervaloMs: 30_000 });
 
   const loadDashboardData = async () => {
     try {
@@ -795,7 +809,7 @@ export default function MasterDashboard() {
         api.getMasterAlerts(),
       ]);
 
-      setDashboardData(dashboard);
+      setDashboardData({ ...dashboard, checkpoints: dashboard?.checkpoints ?? SEM_CHECKPOINTS });
       setClients(clientsData || []);
       setActiveEvents(eventsData || []);
       setAlerts(alertsData || []);
@@ -806,15 +820,21 @@ export default function MasterDashboard() {
 
   const activeClients = dashboardData.activeClients;
   const activeEventsCount = dashboardData.activeEvents;
-  const onlineCheckpoints = dashboardData.onlineCheckpoints;
   const activeChildrenToday = dashboardData.activeChildren;
-  const offlineCheckpointsCount = dashboardData.offlineCheckpoints;
   const totalClientsCount = dashboardData.totalClients;
+  const cps = dashboardData.checkpoints;
 
-  const kpis = [
-    { label: 'Clientes ativos', value: activeClients, icon: <Users size={20} />, color: 'text-primary' },
+  const kpis: { label: string; value: number; detail?: string; icon: ReactNode; color: string }[] = [
+    { label: 'Clientes ativos', value: activeClients, detail: `de ${totalClientsCount} cadastrados`, icon: <Users size={20} />, color: 'text-primary' },
     { label: 'Eventos em andamento', value: activeEventsCount, icon: <Zap size={20} />, color: 'text-secondary' },
-    { label: 'Checkpoints online', value: onlineCheckpoints, icon: <Wifi size={20} />, color: 'text-success' },
+    { label: 'Checkpoints online', value: cps.online, detail: `de ${cps.total} cadastrados`, icon: <Wifi size={20} />, color: 'text-success' },
+    {
+      label: 'Checkpoints offline',
+      value: cps.offline,
+      detail: cps.offline > 0 ? `${cps.offlineComBuffets} em buffets · ${cps.offline - cps.offlineComBuffets} em estoque/aceite` : 'todos conectados',
+      icon: <WifiOff size={20} />,
+      color: cps.offline > 0 ? 'text-danger' : 'text-gray-400',
+    },
     { label: 'Crianças ativas hoje', value: activeChildrenToday, icon: <Clock size={20} />, color: 'text-accent' },
   ];
 
@@ -836,93 +856,92 @@ export default function MasterDashboard() {
             icon={<LayoutDashboard size={28} />}
             action={
               <div className="flex items-center gap-3">
-                <Badge variant="success">Todos os sistemas operacionais</Badge>
-                <span className="text-sm text-gray-400 font-mono">
-                  {currentTime.toLocaleTimeString('pt-BR')}
-                </span>
+                {cps.offlineComBuffets > 0
+                  ? <Badge variant="warning">{cps.offlineComBuffets} {cps.offlineComBuffets === 1 ? 'checkpoint offline' : 'checkpoints offline'} em buffets</Badge>
+                  : <Badge variant="success">Todos os sistemas operacionais</Badge>}
+                <RelogioPainel />
               </div>
             }
           />
 
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {Array.isArray(kpis) && kpis.map(kpi => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            {kpis.map(kpi => (
               <Card key={kpi.label} variant="glow" className="text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <span className={kpi.color}>{kpi.icon}</span>
                   <p className="text-sm font-body text-gray-400">{kpi.label}</p>
                 </div>
                 <p className={`font-display text-3xl font-bold ${kpi.color}`}>{kpi.value}</p>
+                {kpi.detail && <p className="mt-1 text-xs text-gray-500">{kpi.detail}</p>}
               </Card>
             ))}
           </div>
 
-          {/* Main Content Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Brazil Map */}
-            <Card variant="glow" className="lg:col-span-2">
-              <div ref={mapCardRef} className="flex items-center gap-2 mb-4">
-                <MapPin size={20} className="text-primary" />
-                <h3 className="font-display text-lg text-white">Clientes no Brasil</h3>
-                <Badge variant="primary">{clients.length} unidades</Badge>
-              </div>
-              <div className="flex items-center justify-center py-4">
-                <div className="w-full max-w-md">
-                  <BrazilMap clients={clients} events={activeEvents} focus={mapFocus} onFocusChange={setMapFocus} />
-                  <div className="flex items-center justify-center gap-6 mt-4">
-                    <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full bg-success" />
-                      <span className="text-xs text-gray-400">Ativo</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full bg-accent" />
-                      <span className="text-xs text-gray-400">Trial</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full bg-danger" />
-                      <span className="text-xs text-gray-400">Bloqueado</span>
-                    </div>
+          {/* Mapa: largura total */}
+          <Card variant="glow">
+            <div ref={mapCardRef} className="flex items-center gap-2 mb-4">
+              <MapPin size={20} className="text-primary" />
+              <h3 className="font-display text-lg text-white">Clientes no Brasil</h3>
+              <Badge variant="primary">{clients.length} unidades</Badge>
+            </div>
+            <div className="flex items-center justify-center py-4">
+              <div className="w-full max-w-2xl">
+                <BrazilMap clients={clients} events={activeEvents} focus={mapFocus} onFocusChange={setMapFocus} />
+                <div className="flex items-center justify-center gap-6 mt-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-success" />
+                    <span className="text-xs text-gray-400">Ativo</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-accent" />
+                    <span className="text-xs text-gray-400">Trial</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-danger" />
+                    <span className="text-xs text-gray-400">Bloqueado</span>
                   </div>
                 </div>
               </div>
-            </Card>
+            </div>
+          </Card>
 
-            {/* System Alerts */}
-            <Card>
-              <div className="flex items-center gap-2 mb-4">
-                <AlertTriangle size={20} className="text-danger" />
-                <h3 className="font-display text-lg text-white">Alertas do Sistema</h3>
-                <Badge variant="danger">{alerts.length}</Badge>
-              </div>
-              <div className="space-y-3">
-                {Array.isArray(alerts) && alerts.length > 0 ? (
-                  alerts.map(alert => (
-                    <div
-                      key={alert.id}
-                      className="flex items-start gap-3 p-3 rounded-lg bg-surface/50 border border-danger/20"
-                    >
-                      <StatusDot
-                        status={alert.type === 'offline' ? 'offline' : 'warning'}
-                        size="sm"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white">{alert.message}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{alert.client}</p>
-                      </div>
-                      <span className="text-xs text-gray-500 shrink-0">{alert.time}</span>
+          {/* Alertas do sistema: abaixo do mapa, em largura total */}
+          <Card className="mt-6 secao-diferida">
+            <div className="flex items-center gap-2 mb-4">
+              <AlertTriangle size={20} className="text-danger" />
+              <h3 className="font-display text-lg text-white">Alertas do Sistema</h3>
+              <Badge variant="danger">{alerts.length}</Badge>
+            </div>
+            {Array.isArray(alerts) && alerts.length > 0 ? (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {alerts.map(alert => (
+                  <div
+                    key={alert.id}
+                    className="flex items-start gap-3 p-3 rounded-lg bg-surface/50 border border-danger/20"
+                  >
+                    <StatusDot
+                      status={alert.type === 'offline' ? 'offline' : 'warning'}
+                      size="sm"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-white">{alert.message}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{alert.client}</p>
+                      {alert.detalhe && <p className="text-xs text-danger mt-0.5">{alert.detalhe}</p>}
                     </div>
-                  ))
-                ) : (
-                  <div className="text-center py-4 text-gray-400 text-sm">
-                    Nenhum alerta no momento
+                    <span className="text-xs text-gray-500 shrink-0">{alert.time}</span>
                   </div>
-                )}
+                ))}
               </div>
-            </Card>
-          </div>
+            ) : (
+              <div className="text-center py-4 text-gray-400 text-sm">
+                Nenhum alerta no momento
+              </div>
+            )}
+          </Card>
 
           {/* Active Events */}
-          <Card variant="secondary" className="mt-6">
+          <Card variant="secondary" className="mt-6 secao-diferida">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Zap size={20} className="text-secondary" />
@@ -982,22 +1001,27 @@ export default function MasterDashboard() {
             </div>
           </Card>
 
-          {/* Quick Stats Row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          {/* Resumo dos checkpoints e do painel */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6 secao-diferida">
             <Card className="text-center">
-              <WifiOff size={24} className="text-danger mx-auto mb-2" />
-              <p className="font-display text-2xl text-danger font-bold">{offlineCheckpointsCount}</p>
-              <p className="text-sm text-gray-400">Checkpoints offline</p>
+              <Cpu size={24} className="text-primary mx-auto mb-2" />
+              <p className="font-display text-2xl text-primary font-bold">{cps.comBuffets}</p>
+              <p className="text-sm text-gray-400">Checkpoints em buffets</p>
+            </Card>
+            <Card className="text-center">
+              <Cpu size={24} className="text-gray-400 mx-auto mb-2" />
+              <p className="font-display text-2xl text-white font-bold">{cps.emEstoque}</p>
+              <p className="text-sm text-gray-400">Checkpoints em estoque</p>
+            </Card>
+            <Card className="text-center">
+              <Clock size={24} className="text-warning mx-auto mb-2" />
+              <p className="font-display text-2xl text-warning font-bold">{cps.semNumero}</p>
+              <p className="text-sm text-gray-400">Nos buffets, sem número</p>
             </Card>
             <Card className="text-center">
               <Bell size={24} className="text-accent mx-auto mb-2" />
               <p className="font-display text-2xl text-accent font-bold">{alerts.length}</p>
               <p className="text-sm text-gray-400">Alertas pendentes</p>
-            </Card>
-            <Card className="text-center">
-              <Users size={24} className="text-primary mx-auto mb-2" />
-              <p className="font-display text-2xl text-primary font-bold">{totalClientsCount}</p>
-              <p className="text-sm text-gray-400">Total de clientes</p>
             </Card>
           </div>
         </div>

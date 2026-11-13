@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import ReceptionSidebar from '../../components/layout/ReceptionSidebar';
 import ReceptionTopBar from '../../components/layout/ReceptionTopBar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -19,8 +20,16 @@ export default function ReceptionDashboard() {
   const [bracelets, setBracelets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Atualização automática: o contador faz o efeito abaixo recarregar os números sem o "carregando" (sem piscar)
+  const [tickAuto, setTickAuto] = useState(0);
+  const cargaDoEvento = useRef<string | null>(null);
+  useAutoRefresh(() => setTickAuto((n) => n + 1), { topicos: ['criancas', 'pulseiras', 'times', 'leituras'], intervaloMs: 10_000 });
+
   // Carregar dados quando evento muda
   useEffect(() => {
+    // Mesmo evento de antes (só atualizando): sem carregando e sem zerar a tela se a atualização falhar
+    const silencioso = cargaDoEvento.current === selectedEventId;
+    cargaDoEvento.current = selectedEventId;
     const loadData = async () => {
       if (!selectedEventId) {
         setChildren([]);
@@ -29,7 +38,7 @@ export default function ReceptionDashboard() {
         return;
       }
 
-      setLoading(true);
+      if (!silencioso) setLoading(true);
       try {
         const [criancasData, timesData, pulseirasData] = await Promise.all([
           api.getCriancas(selectedEventId),
@@ -42,16 +51,18 @@ export default function ReceptionDashboard() {
         setBracelets(pulseirasData || []);
       } catch (err) {
         console.error('❌ Erro ao carregar dados:', err);
-        setChildren([]);
-        setTeams([]);
-        setBracelets([]);
+        if (!silencioso) {
+          setChildren([]);
+          setTeams([]);
+          setBracelets([]);
+        }
       } finally {
         setLoading(false);
       }
     };
 
     loadData();
-  }, [selectedEventId]);
+  }, [selectedEventId, tickAuto]);
 
   // Calcular estatísticas
   const totalChildren = children.length;

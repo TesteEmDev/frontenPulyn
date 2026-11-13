@@ -7,6 +7,7 @@ import Button from '../ui/Button';
 import { api } from '../../services/api';
 import type { BombaJogador, BombaTime } from '../../services/api';
 import { formatarTempo, useBombaEstado } from '../../hooks/useBombaEstado';
+import { confirmar } from '../ui/dialogo';
 
 const MOTIVOS: Record<string, string> = {
   explodiu: 'a bomba explodiu',
@@ -199,11 +200,11 @@ export default function BombaPainel({ eventoId }: { eventoId: string }) {
             )}
             {(emAndamento || plantada) && (
               <>
-                <Button variant="danger" size="sm" disabled={ocupado} onClick={() => {
-                  if (window.confirm('Encerrar o round dando a vitória aos Rebeldes?')) executar(() => api.encerrarRoundBomba(eventoId, 'tr'));
+                <Button variant="danger" size="sm" disabled={ocupado} onClick={async () => {
+                  if (await confirmar('Encerrar o round dando a vitória aos Rebeldes?', { titulo: 'Encerrar o round', confirmar: 'Sim, encerrar' })) executar(() => api.encerrarRoundBomba(eventoId, 'tr'));
                 }}>Rebeldes venceram</Button>
-                <Button variant="primary" size="sm" disabled={ocupado} onClick={() => {
-                  if (window.confirm('Encerrar o round dando a vitória aos Agentes?')) executar(() => api.encerrarRoundBomba(eventoId, 'ct'));
+                <Button variant="primary" size="sm" disabled={ocupado} onClick={async () => {
+                  if (await confirmar('Encerrar o round dando a vitória aos Agentes?', { titulo: 'Encerrar o round', confirmar: 'Sim, encerrar' })) executar(() => api.encerrarRoundBomba(eventoId, 'ct'));
                 }}>Agentes venceram</Button>
                 <span className="text-xs text-gray-500">Use quando uma equipe inteira for eliminada.</span>
               </>
