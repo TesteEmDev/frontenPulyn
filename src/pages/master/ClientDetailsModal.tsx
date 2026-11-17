@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Building2,
   Calendar,
+  Check,
+  Copy,
   Loader2,
   ShieldBan,
   ShieldCheck,
@@ -57,6 +59,8 @@ interface ClientUserRow {
 
 interface ClientDetails {
   id: string;
+  // Id da empresa do buffet (o que vai no SYNC_EMPRESA_ID e no instalador). Null no cadastro legado, que não tem empresa.
+  empresaId?: string | null;
   origin: 'empresa' | 'cliente';
   cnpj: string | null;
   lastAccess: string | null;
@@ -178,7 +182,18 @@ export default function ClientDetailsModal({
   const [details, setDetails] = useState<ClientDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState(false);
   const clientId = client?.id ?? null;
+
+  const copiarEmpresaId = async (valor: string) => {
+    try {
+      await navigator.clipboard.writeText(valor);
+      setCopiado(true);
+      window.setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      // Sem permissão da área de transferência: o id continua visível e selecionável na tela.
+    }
+  };
 
   // Só a resposta da última chamada vale (ao trocar de cliente rápido, a antiga é descartada).
   const requestRef = useRef(0);
@@ -267,6 +282,29 @@ export default function ClientDetailsModal({
               </Field>
               <Field label="Último acesso">{client.lastAccess}</Field>
               {details?.updatedAt && <Field label="Cadastro atualizado em">{formatDay(details.updatedAt) || <Empty />}</Field>}
+              <div className="col-span-2 sm:col-span-3">
+                <Field label="ID da empresa (sincronização e instalador)">
+                  {details ? (
+                    details.empresaId ? (
+                      <span className="inline-flex flex-wrap items-center gap-2">
+                        <code className="rounded bg-white/5 px-2 py-1 text-xs text-gray-200 select-all break-all">{details.empresaId}</code>
+                        <button
+                          type="button"
+                          onClick={() => copiarEmpresaId(details.empresaId as string)}
+                          className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-gray-300 hover:bg-white/5"
+                          aria-label="Copiar ID da empresa"
+                        >
+                          {copiado ? <><Check size={12} className="text-success" /> Copiado</> : <><Copy size={12} /> Copiar</>}
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="text-gray-500">Cadastro legado: sem empresa</span>
+                    )
+                  ) : (
+                    <span className="text-gray-500">{loading ? 'carregando…' : '—'}</span>
+                  )}
+                </Field>
+              </div>
             </div>
           </section>
 
