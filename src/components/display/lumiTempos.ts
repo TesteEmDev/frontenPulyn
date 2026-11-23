@@ -1,9 +1,21 @@
 // Linha do tempo do Lumi explicando as regras (LumiExplicaRegras) e da entrada das regras ao lado (GameGuide).
-export const LUMI_CHEGADA_MS = 3000;
-export const LUMI_INTERVALO_REGRA_MS = 1800;
-// Quantas regras entram no ritmo do Lumi; as demais entram juntas com a última (regras longas não seguram o joinha)
-const MAX_REGRAS_NO_RITMO = 6;
+// Cada regra fica sozinha na tela o tempo de lê-la (mais para as longas), antes de a próxima entrar.
+export const LUMI_CHEGADA_MS = 3500;
+const LEITURA_BASE_MS = 2000;
+const LEITURA_POR_LETRA_MS = 45;
+const LEITURA_MIN_MS = 3000;
+const LEITURA_MAX_MS = 7000;
 
-// Tempo em que a regra `posicao` (0, 1, ...) entra na tela
-export const atrasoDaRegra = (posicao: number) =>
-  LUMI_CHEGADA_MS + Math.min(posicao, MAX_REGRAS_NO_RITMO - 1) * LUMI_INTERVALO_REGRA_MS;
+const tempoDeLeitura = (regra: string) =>
+  Math.min(Math.max(LEITURA_BASE_MS + regra.length * LEITURA_POR_LETRA_MS, LEITURA_MIN_MS), LEITURA_MAX_MS);
+
+// Quando cada regra entra na tela (ms desde o começo) e quando a explicação termina (o Lumi faz o joinha)
+export function linhaDoTempo(regras: string[]): { entradas: number[]; fim: number } {
+  let t = LUMI_CHEGADA_MS;
+  const entradas = regras.map((regra) => {
+    const entrada = t;
+    t += tempoDeLeitura(regra);
+    return entrada;
+  });
+  return { entradas, fim: regras.length > 0 ? t : LUMI_CHEGADA_MS + 1500 };
+}

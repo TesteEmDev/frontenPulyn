@@ -2,7 +2,7 @@
 // no GameGuide) e termina com um joinha. As imagens são as poses animadas do pacote do mascote (mascote/Lumi2D/animados),
 // copiadas para public/mascote/lumi. Todas ficam carregadas desde o começo e só a da fase atual aparece (sem piscar ao trocar).
 import { useEffect, useState } from 'react';
-import { LUMI_CHEGADA_MS, atrasoDaRegra } from './lumiTempos';
+import { LUMI_CHEGADA_MS } from './lumiTempos';
 
 // Depois do joinha "falando", fica só piscando
 const JOINHA_FALANDO_MS = 3500;
@@ -16,23 +16,23 @@ const POSES: Record<Fase, string> = {
   parado: '/mascote/lumi/joinha_piscar.webp',
 };
 
-export default function LumiExplicaRegras({ nomeJogo, totalRegras }: { nomeJogo: string; totalRegras: number }) {
+// `fimMs`: quando a última regra já teve tempo de ser lida (linhaDoTempo em lumiTempos.ts); aí vem o joinha.
+export default function LumiExplicaRegras({ nomeJogo, temRegras, fimMs }: { nomeJogo: string; temRegras: boolean; fimMs: number }) {
   const [fase, setFase] = useState<Fase>('chegando');
 
   useEffect(() => {
-    const fimDasRegras = totalRegras > 0 ? atrasoDaRegra(totalRegras - 1) + 1500 : LUMI_CHEGADA_MS + 1500;
     const timers = [
       window.setTimeout(() => setFase('lendo'), LUMI_CHEGADA_MS),
-      window.setTimeout(() => setFase('joinha'), fimDasRegras),
-      window.setTimeout(() => setFase('parado'), fimDasRegras + JOINHA_FALANDO_MS),
+      window.setTimeout(() => setFase('joinha'), fimMs),
+      window.setTimeout(() => setFase('parado'), fimMs + JOINHA_FALANDO_MS),
     ];
     return () => timers.forEach((t) => window.clearTimeout(t));
-  }, [totalRegras]);
+  }, [fimMs]);
 
   const fala = fase === 'chegando'
     ? <>Oi, pessoal! Vou explicar o próximo jogo: <strong className="text-primary-200">{nomeJogo}</strong></>
     : fase === 'lendo'
-      ? (totalRegras > 0 ? 'Prestem atenção nas regras!' : 'Olhem só como funciona!')
+      ? (temRegras ? 'Prestem atenção nas regras!' : 'Olhem só como funciona!')
       : 'Entenderam? Boa diversão!';
 
   return (
