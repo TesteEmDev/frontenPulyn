@@ -17,6 +17,7 @@ import { monstroDaEquipe, urlDoModelo } from '../../components/display/monstros/
 import { preCarregarModelos } from '../../components/display/monstros/modelos';
 import DisplayMap from './DisplayMap';
 import GameGuide, { type GuideGame } from '../../components/display/GameGuide';
+import RegrasDoProximoJogo from '../../components/display/RegrasDoProximoJogo';
 import FitToBox from '../../components/display/FitToBox';
 import { useTypewriterCycle } from '../../hooks/useTypewriterCycle';
 import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from '../../components/display/TreasureArena';
@@ -1413,14 +1414,9 @@ export default function DisplayMain() {
             <SorteioEquipes key={sorteioEquipes.chave} sorteio={sorteioEquipes} onTerminar={encerrarSorteio} />
           </section>
         ) : !gameActive && selectedGameName ? (
-          // Jogo escolhido e ainda não iniciado: as regras dele ocupam a tela até o recreacionista iniciar
+          // Jogo escolhido e ainda não iniciado: o Lumi explica as regras dele, que ficam na tela até o recreacionista iniciar
           <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
-            <GameGuide
-              games={[jogoSelecionado]}
-              highlightName={jogoSelecionado.name}
-              heading="Regras do próximo jogo"
-              subheading="Leia com atenção: o jogo começa em instantes"
-            />
+            <RegrasDoProximoJogo key={jogoSelecionado.id} jogo={jogoSelecionado} />
           </section>
         ) : !gameActive ? (
           // Pré-jogo: o mapa com os checkpoints e o aviso de checkpoint lido. Depois de uma partida, o placar fica ao lado.

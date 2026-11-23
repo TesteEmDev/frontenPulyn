@@ -168,6 +168,11 @@ export default {
         // Pulyn comemorando (movimento da animação "feliz" do mascote) e confete caindo
         'pulyn-feliz': 'pulynFeliz 1.6s ease-in-out infinite',
         'confeti-cai': 'confetiCai 4s linear infinite',
+        // Lumi explicando as regras: chega pela esquerda, flutua enquanto fala; as regras entram uma a uma
+        'lumi-chega': 'lumiChega 0.8s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'lumi-flutua': 'lumiFlutua 2.4s ease-in-out infinite',
+        'regra-entra': 'regraEntra 0.5s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'balao-entra': 'balaoEntra 0.35s ease-out both',
       },
       keyframes: {
         // Trilhas de mascote/Lumi2D/animacoes.json ("feliz"): pula, achata e estica, balança. Pivô na base do corpo.
@@ -179,6 +184,26 @@ export default {
           '56.25%': { transform: 'translateY(0.8%) scale(1.05, 0.95) rotate(1.1deg)' },
           '70%': { transform: 'translateY(-6%) scale(0.99, 1.02) rotate(3deg)' },
           '87.5%': { transform: 'translateY(0) scale(1.03, 0.97) rotate(1.25deg)' },
+        },
+        lumiChega: {
+          '0%': { opacity: '0', transform: 'translateX(-45%) rotate(-8deg)' },
+          '70%': { opacity: '1', transform: 'translateX(4%) rotate(2deg)' },
+          '100%': { opacity: '1', transform: 'translateX(0) rotate(0deg)' },
+        },
+        // Trilhas de mascote/Lumi2D/animacoes.json ("falando"): sobe e desce de leve e balança. Pivô na base do corpo.
+        lumiFlutua: {
+          '0%, 100%': { transform: 'translateY(0) scale(1, 1) rotate(-1.6deg)' },
+          '25%': { transform: 'translateY(-1%) scale(0.996, 1.008) rotate(0deg)' },
+          '50%': { transform: 'translateY(0) scale(1, 1) rotate(1.6deg)' },
+          '75%': { transform: 'translateY(-1.2%) scale(0.996, 1.008) rotate(0deg)' },
+        },
+        regraEntra: {
+          '0%': { opacity: '0', transform: 'translateX(-24px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+        balaoEntra: {
+          '0%': { opacity: '0', transform: 'scale(0.9) translateY(6px)' },
+          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
         },
         confetiCai: {
           '0%': { transform: 'translateY(-10vh) rotate(0deg)', opacity: '0' },

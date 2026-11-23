@@ -45,15 +45,20 @@ const splitRulesInTwo = (rules: string[]): [string[], string[]] => {
 const RULE_TEXT = 'text-[clamp(0.8rem,1.6vh,1.15rem)]';
 const RULES_LABEL = 'text-[clamp(0.6rem,1.15vh,0.8rem)] font-bold uppercase tracking-[0.25em] text-primary-300';
 
-// Lista numerada das regras; `offset` continua a numeração na segunda parte.
-function RuleList({ rules, offset = 0, spacing }: { rules: string[]; offset?: number; spacing: string }) {
+// Lista numerada das regras; `offset` continua a numeração na segunda parte. `revealDelay` (ms por posição) faz as
+// regras entrarem uma a uma, no ritmo do Lumi explicando.
+function RuleList({ rules, offset = 0, spacing, revealDelay }: { rules: string[]; offset?: number; spacing: string; revealDelay?: (position: number) => number }) {
+  const reveal = (position: number) => (revealDelay
+    ? { className: ' animate-regra-entra motion-reduce:animate-none', style: { animationDelay: `${revealDelay(position)}ms` } }
+    : { className: '', style: undefined });
   if (rules.length === 1 && offset === 0) {
-    return <p className={`leading-snug text-white ${RULE_TEXT}`}>{rules[0]}</p>;
+    const r = reveal(0);
+    return <p className={`leading-snug text-white ${RULE_TEXT}${r.className}`} style={r.style}>{rules[0]}</p>;
   }
   return (
     <ol className={spacing}>
       {rules.map((rule, position) => (
-        <li key={`${offset + position}-${rule}`} className={`flex gap-3 leading-snug text-white ${RULE_TEXT}`}>
+        <li key={`${offset + position}-${rule}`} className={`flex gap-3 leading-snug text-white ${RULE_TEXT}${reveal(position).className}`} style={reveal(position).style}>
           <span className="mt-0.5 flex h-[1.6em] w-[1.6em] shrink-0 items-center justify-center rounded-full bg-primary-500/20 text-[0.8em] font-bold text-primary-300">
             {offset + position + 1}
           </span>
@@ -99,6 +104,7 @@ export default function GameGuide({
   compact = false,
   heading,
   subheading,
+  revealRules,
 }: {
   games: GuideGame[];
   // Jogo já escolhido pelo recreacionista e ainda não iniciado: abre nele e recebe a etiqueta "Próximo jogo"
@@ -108,6 +114,8 @@ export default function GameGuide({
   // Troca o título do painel (ex.: regras de um jogo só, antes dele começar) e esconde o "Jogo 1 de N"
   heading?: string;
   subheading?: string;
+  // Atraso (ms) de entrada de cada regra, pela posição: as regras aparecem uma a uma (Lumi explicando as regras)
+  revealRules?: (position: number) => number;
 }) {
   const [index, setIndex] = useState(() => {
     const found = highlightName ? games.findIndex((g) => g.name === highlightName) : -1;
@@ -174,6 +182,8 @@ export default function GameGuide({
   const visibleOffset = isPaged && page === 1 ? firstHalf.length : 0;
   const pageLabel = isPaged ? ` · parte ${page + 1} de 2` : '';
   const overflowWatcher = isPaged ? undefined : handleOverflow;
+  // Na segunda parte das regras o Lumi já terminou de explicar: entram em sequência rápida
+  const revealDelay = revealRules ? (isPaged && page === 1 ? (position: number) => position * 300 : revealRules) : undefined;
 
   return (
     <section aria-label="Guia dos jogos" className="h-full min-h-0">
@@ -216,7 +226,7 @@ export default function GameGuide({
                 {visibleRules.length > 0 && (
                   <div className="mt-3">
                     <p className={`mb-2 ${RULES_LABEL}`}>Regras{pageLabel}</p>
-                    <RuleList rules={visibleRules} offset={visibleOffset} spacing="space-y-1.5" />
+                    <RuleList rules={visibleRules} offset={visibleOffset} spacing="space-y-1.5" revealDelay={revealDelay} />
                   </div>
                 )}
               </div>
@@ -243,7 +253,7 @@ export default function GameGuide({
                   <FitToBox key={`${current.id}-${page}`} align="center" scrollOverflow minScale={0.55} maxScale={1} onOverflowChange={overflowWatcher}>
                     <div className="animate-in fade-in duration-500">
                       <p className={`mb-2 ${RULES_LABEL}`}>Regras{pageLabel}</p>
-                      <RuleList rules={visibleRules} offset={visibleOffset} spacing="space-y-2" />
+                      <RuleList rules={visibleRules} offset={visibleOffset} spacing="space-y-2" revealDelay={revealDelay} />
                     </div>
                   </FitToBox>
                 </div>
