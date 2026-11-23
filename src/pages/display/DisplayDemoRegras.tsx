@@ -36,6 +36,8 @@ const LONGO: GuideGame = {
 export default function DisplayDemoRegras() {
   const [longo, setLongo] = useState(false);
   const [chave, setChave] = useState(1);
+  // Voz do Lumi (síntese do navegador). O clique no botão também libera o som no Chrome.
+  const [voz, setVoz] = useState(false);
   const jogo = longo ? LONGO : CURTO;
   const botao = 'rounded-lg border border-white/15 bg-white/[0.06] px-3 py-1 text-sm font-semibold text-white hover:bg-white/[0.12]';
   return (
@@ -45,9 +47,12 @@ export default function DisplayDemoRegras() {
         <button className={botao} onClick={() => { setLongo(false); setChave((c) => c + 1); }}>Regras curtas</button>
         <button className={botao} onClick={() => { setLongo(true); setChave((c) => c + 1); }}>Regras longas</button>
         <button className={botao} onClick={() => setChave((c) => c + 1)}>Repetir animação</button>
+        <button className={botao} onClick={() => { setVoz((v) => !v); setChave((c) => c + 1); }}>
+          {voz ? '🔇 Desligar a voz' : '🔊 Ligar a voz'}
+        </button>
       </div>
       <div className="min-h-0 flex-1">
-        <RegrasDoProximoJogo key={`${jogo.id}-${chave}`} jogo={jogo} />
+        <RegrasDoProximoJogo key={`${jogo.id}-${chave}`} jogo={jogo} voz={voz} />
       </div>
     </div>
   );

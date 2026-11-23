@@ -2,7 +2,8 @@
 // no GameGuide) e termina com um joinha. As imagens são as poses animadas do pacote do mascote (mascote/Lumi2D/animados),
 // copiadas para public/mascote/lumi. Todas ficam carregadas desde o começo e só a da fase atual aparece (sem piscar ao trocar).
 import { useEffect, useState } from 'react';
-import { LUMI_CHEGADA_MS } from './lumiTempos';
+import { FALA_FINAL, FALA_LENDO, FALA_SEM_REGRAS, falaDeAbertura, type LinhaDoTempo } from './lumiTempos';
+import { calar, falar } from './vozDoLumi';
 
 // Depois do joinha "falando", fica só piscando
 const JOINHA_FALANDO_MS = 3500;
@@ -16,24 +17,46 @@ const POSES: Record<Fase, string> = {
   parado: '/mascote/lumi/joinha_piscar.webp',
 };
 
-// `fimMs`: quando a última regra já teve tempo de ser lida (linhaDoTempo em lumiTempos.ts); aí vem o joinha.
-export default function LumiExplicaRegras({ nomeJogo, temRegras, fimMs }: { nomeJogo: string; temRegras: boolean; fimMs: number }) {
+// `tempo`: a linha do tempo (linhaDoTempo em lumiTempos.ts). `voz`: o Lumi fala a abertura, cada regra quando ela entra
+// e o "Boa diversão!" (síntese de voz do navegador, vozDoLumi.ts).
+export default function LumiExplicaRegras({ nomeJogo, regras, tempo, voz = false }: {
+  nomeJogo: string;
+  regras: string[];
+  tempo: LinhaDoTempo;
+  voz?: boolean;
+}) {
   const [fase, setFase] = useState<Fase>('chegando');
+  const temRegras = regras.length > 0;
 
   useEffect(() => {
     const timers = [
-      window.setTimeout(() => setFase('lendo'), LUMI_CHEGADA_MS),
-      window.setTimeout(() => setFase('joinha'), fimMs),
-      window.setTimeout(() => setFase('parado'), fimMs + JOINHA_FALANDO_MS),
+      window.setTimeout(() => setFase('lendo'), tempo.chegada),
+      window.setTimeout(() => setFase('joinha'), tempo.fim),
+      window.setTimeout(() => setFase('parado'), tempo.fim + JOINHA_FALANDO_MS),
     ];
-    return () => timers.forEach((t) => window.clearTimeout(t));
-  }, [fimMs]);
+    if (voz) {
+      calar();
+      falar(falaDeAbertura(nomeJogo));
+      const falas: [number, string][] = [
+        [tempo.chegada, temRegras ? FALA_LENDO : FALA_SEM_REGRAS],
+        ...regras.map((regra, i): [number, string] => [tempo.entradas[i], regra]),
+        [tempo.fim, FALA_FINAL],
+      ];
+      falas.forEach(([em, texto]) => timers.push(window.setTimeout(() => falar(texto), em)));
+    }
+    return () => {
+      timers.forEach((t) => window.clearTimeout(t));
+      if (voz) calar();
+    };
+    // as regras e o nome vêm junto com a linha do tempo (o pai recria o componente ao trocar de jogo)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tempo, voz]);
 
   const fala = fase === 'chegando'
     ? <>Oi, pessoal! Vou explicar o próximo jogo: <strong className="text-primary-200">{nomeJogo}</strong></>
     : fase === 'lendo'
-      ? (temRegras ? 'Prestem atenção nas regras!' : 'Olhem só como funciona!')
-      : 'Entenderam? Boa diversão!';
+      ? (temRegras ? FALA_LENDO : FALA_SEM_REGRAS)
+      : FALA_FINAL;
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-col items-center justify-end" aria-hidden="true">
