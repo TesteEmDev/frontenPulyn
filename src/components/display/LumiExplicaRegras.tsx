@@ -18,7 +18,7 @@ const POSES: Record<Fase, string> = {
 };
 
 // `tempo`: a linha do tempo (linhaDoTempo em lumiTempos.ts). `voz`: o Lumi fala a abertura, cada regra quando ela entra
-// e o "Boa diversão!" (síntese de voz do navegador, vozDoLumi.ts).
+// e o "Boa diversão!" (áudios gravados com a voz do Lumi, vozDoLumi.ts).
 export default function LumiExplicaRegras({ nomeJogo, regras, tempo, voz = false }: {
   nomeJogo: string;
   regras: string[];

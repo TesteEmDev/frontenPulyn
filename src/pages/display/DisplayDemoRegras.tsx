@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { type GuideGame } from '../../components/display/GameGuide';
 import RegrasDoProximoJogo from '../../components/display/RegrasDoProximoJogo';
+import { carregarVoz } from '../../components/display/vozDoLumi';
 
 // Página de demonstração: a tela de regras do próximo jogo com um jogo de exemplo (nada do evento é lido nem gravado).
 const CURTO: GuideGame = {
@@ -36,8 +37,14 @@ const LONGO: GuideGame = {
 export default function DisplayDemoRegras() {
   const [longo, setLongo] = useState(false);
   const [chave, setChave] = useState(1);
-  // Voz do Lumi (síntese do navegador). O clique no botão também libera o som no Chrome.
+  // Voz do Lumi (áudios gravados). O clique no botão também libera o som no Chrome.
   const [voz, setVoz] = useState(false);
+  const [carregandoVoz, setCarregandoVoz] = useState(false);
+  const alternarVoz = () => {
+    if (voz) { setVoz(false); setChave((c) => c + 1); return; }
+    setCarregandoVoz(true);
+    void carregarVoz().then(() => { setCarregandoVoz(false); setVoz(true); setChave((c) => c + 1); });
+  };
   const jogo = longo ? LONGO : CURTO;
   const botao = 'rounded-lg border border-white/15 bg-white/[0.06] px-3 py-1 text-sm font-semibold text-white hover:bg-white/[0.12]';
   return (
@@ -47,8 +54,8 @@ export default function DisplayDemoRegras() {
         <button className={botao} onClick={() => { setLongo(false); setChave((c) => c + 1); }}>Regras curtas</button>
         <button className={botao} onClick={() => { setLongo(true); setChave((c) => c + 1); }}>Regras longas</button>
         <button className={botao} onClick={() => setChave((c) => c + 1)}>Repetir animação</button>
-        <button className={botao} onClick={() => { setVoz((v) => !v); setChave((c) => c + 1); }}>
-          {voz ? '🔇 Desligar a voz' : '🔊 Ligar a voz'}
+        <button className={botao} onClick={alternarVoz} disabled={carregandoVoz}>
+          {carregandoVoz ? 'Carregando a voz…' : voz ? '🔇 Desligar a voz' : '🔊 Ligar a voz'}
         </button>
       </div>
       <div className="min-h-0 flex-1">

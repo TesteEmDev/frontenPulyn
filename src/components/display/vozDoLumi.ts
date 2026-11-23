@@ -1,43 +1,61 @@
-// Voz do Lumi com a síntese de voz do próprio navegador (Web Speech API): lê qualquer texto, sem internet quando o
-// Windows tem uma voz em português instalada (ex.: "Microsoft Maria"). Tom mais agudo para soar como personagem.
-// O Chrome só deixa falar depois de alguém interagir com a página (um clique); antes disso a fala é ignorada.
-const TOM = 1.5;
-const VELOCIDADE = 1.05;
+// Voz do Lumi: falas gravadas com a voz "Pulyn-Lumi" (ElevenLabs) em public/mascote/voz, uma por arquivo mp3.
+// public/mascote/voz/indice.json liga cada texto ao arquivo e à duração (ms), que a linha do tempo usa para esperar
+// o Lumi terminar de falar. Texto sem áudio no índice fica em silêncio. Os áudios tocam em fila, um depois do outro.
+// O Chrome só deixa tocar som depois de alguém interagir com a página (um clique).
+type Indice = Record<string, { arquivo: string; ms: number }>;
 
-const temVoz = () => typeof window !== 'undefined' && 'speechSynthesis' in window;
+const PASTA = '/mascote/voz/';
+let indice: Indice | null = null;
+let carregando: Promise<Indice> | null = null;
 
-// Voz em português do Brasil, preferindo as femininas/infantis que combinam com o Lumi
-function escolherVoz(): SpeechSynthesisVoice | null {
-  if (!temVoz()) return null;
-  const vozes = window.speechSynthesis.getVoices();
-  const pt = vozes.filter((v) => v.lang.toLowerCase().replace('_', '-').startsWith('pt'));
-  const br = pt.filter((v) => v.lang.toLowerCase().replace('_', '-') === 'pt-br');
-  const candidatas = br.length ? br : pt;
-  return candidatas.find((v) => /francisca|thalita|maria|luciana|vit[oó]ria/i.test(v.name))
-    ?? candidatas.find((v) => /google/i.test(v.name))
-    ?? candidatas[0]
-    ?? null;
+// Carrega o índice das falas (uma vez só)
+export function carregarVoz(): Promise<Indice> {
+  if (indice) return Promise.resolve(indice);
+  if (!carregando) {
+    carregando = fetch(`${PASTA}indice.json`, { cache: 'no-cache' })
+      .then((r) => (r.ok ? r.json() : {}))
+      .catch(() => ({}))
+      .then((dados: Indice) => {
+        indice = dados;
+        // Já deixa os áudios baixando, para não haver atraso na hora de falar
+        Object.values(dados).forEach(({ arquivo }) => { const a = new Audio(PASTA + arquivo); a.preload = 'auto'; });
+        return dados;
+      });
+  }
+  return carregando;
 }
 
-// A lista de vozes chega depois de a página abrir: pede logo, para já estar pronta na primeira fala
-if (temVoz()) {
-  window.speechSynthesis.getVoices();
-  window.speechSynthesis.addEventListener?.('voiceschanged', () => window.speechSynthesis.getVoices());
+// Duração (ms) da fala gravada para o texto, ou undefined se não houver
+export const duracaoDaFala = (texto: string): number | undefined => indice?.[texto]?.ms;
+
+let fila: string[] = [];
+let tocando: HTMLAudioElement | null = null;
+
+function tocarProxima() {
+  const texto = fila.shift();
+  if (texto === undefined) { tocando = null; return; }
+  const item = indice?.[texto];
+  if (!item) { tocarProxima(); return; }
+  const audio = new Audio(PASTA + item.arquivo);
+  tocando = audio;
+  audio.onended = () => { if (tocando === audio) tocarProxima(); };
+  audio.onerror = () => { if (tocando === audio) tocarProxima(); };
+  audio.play().catch(() => { if (tocando === audio) tocarProxima(); });
 }
 
 // Fala o texto (entra na fila se o Lumi ainda estiver falando a frase anterior)
 export function falar(texto: string) {
-  if (!temVoz() || !texto.trim()) return;
-  const fala = new SpeechSynthesisUtterance(texto);
-  fala.lang = 'pt-BR';
-  const voz = escolherVoz();
-  if (voz) fala.voice = voz;
-  fala.pitch = TOM;
-  fala.rate = VELOCIDADE;
-  window.speechSynthesis.speak(fala);
+  if (!indice?.[texto]) return;
+  fila.push(texto);
+  if (!tocando) tocarProxima();
 }
 
 // Para de falar e esvazia a fila (ao trocar de jogo ou sair da tela)
 export function calar() {
-  if (temVoz()) window.speechSynthesis.cancel();
+  fila = [];
+  if (tocando) {
+    const audio = tocando;
+    tocando = null;
+    audio.pause();
+  }
 }
