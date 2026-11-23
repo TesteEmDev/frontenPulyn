@@ -18,7 +18,7 @@ const PARTICIPANTES: Linha[] = [
 
 export default function DisplayDemoPontuacao() {
   const [individual, setIndividual] = useState(false);
-  // Prévia da animação nova (Lumi); o telão de verdade continua com o Pulyn
+  // Lumi (a do telão) ou a animação anterior, para comparar
   const [mascote, setMascote] = useState<'lumi' | 'pulyn'>('lumi');
   const [chave, setChave] = useState(1);
   const repetir = useCallback(() => setChave((c) => c + 1), []);
@@ -33,7 +33,7 @@ export default function DisplayDemoPontuacao() {
         <button className={botao} onClick={() => { setIndividual(true); repetir(); }}>Jogo individual</button>
         <button className={botao} onClick={repetir}>Repetir animação</button>
         <button className={botao} onClick={() => { setMascote((m) => (m === 'lumi' ? 'pulyn' : 'lumi')); repetir(); }}>
-          {mascote === 'lumi' ? 'Ver a animação atual' : 'Ver o Lumi (nova)'}
+          {mascote === 'lumi' ? 'Ver a animação anterior' : 'Ver o Lumi'}
         </button>
       </div>
       <div className="min-h-0 flex-1">

@@ -1,6 +1,6 @@
-// O Lumi comemorando: vídeo com fundo transparente (public/mascote/lumi-comemorando.webm, VP9 com canal alfa), em loop.
-// Por enquanto só aparece na prévia /demo/pontuacao-final. Se o navegador não tocar o vídeo (ex.: Safari no iPhone/iPad,
-// que não lê WebM com transparência), mostra o Pulyn comemorando no lugar.
+// O Lumi comemorando: vídeo com fundo transparente (public/mascote/lumi-comemorando.webm, VP9 com canal alfa), em loop,
+// na pontuação final do telão. Se o navegador não tocar o vídeo (ex.: Safari no iPhone/iPad, que não lê WebM com
+// transparência), mostra a animação anterior (PulynComemorando) no lugar.
 import { useState } from 'react';
 import PulynComemorando from './PulynComemorando';
 

@@ -65,8 +65,8 @@ function ListaDeRanking({ titulo, linhas, destacarPrimeiro = true }: { titulo: s
 }
 
 // `exemplo` troca os dados do evento por dados de teste (página de demonstração /demo/pontuacao-final).
-// `mascote` escolhe a animação: 'pulyn' (padrão, a do telão) ou 'lumi' (vídeo novo, por enquanto só na prévia).
-export default function PontuacaoFinal({ fim, onTerminar, exemplo, mascote = 'pulyn' }: {
+// `mascote` escolhe a animação: 'lumi' (padrão, vídeo do Lumi comemorando) ou 'pulyn' (a animação anterior).
+export default function PontuacaoFinal({ fim, onTerminar, exemplo, mascote = 'lumi' }: {
   fim: FimDeJogo;
   onTerminar: () => void;
   exemplo?: { equipes: Linha[]; participantes: Linha[] };
