@@ -168,9 +168,8 @@ export default {
         // Pulyn comemorando (movimento da animação "feliz" do mascote) e confete caindo
         'pulyn-feliz': 'pulynFeliz 1.6s ease-in-out infinite',
         'confeti-cai': 'confetiCai 4s linear infinite',
-        // Lumi explicando as regras: chega pela esquerda, flutua enquanto fala; as regras entram uma a uma
+        // Lumi explicando as regras: chega pela esquerda e fica parado; as regras entram uma a uma
         'lumi-chega': 'lumiChega 0.8s cubic-bezier(0.22, 1, 0.36, 1) both',
-        'lumi-flutua': 'lumiFlutua 2.4s ease-in-out infinite',
         'regra-entra': 'regraEntra 0.5s cubic-bezier(0.22, 1, 0.36, 1) both',
         'balao-entra': 'balaoEntra 0.35s ease-out both',
       },
@@ -189,13 +188,6 @@ export default {
           '0%': { opacity: '0', transform: 'translateX(-45%) rotate(-8deg)' },
           '70%': { opacity: '1', transform: 'translateX(4%) rotate(2deg)' },
           '100%': { opacity: '1', transform: 'translateX(0) rotate(0deg)' },
-        },
-        // Trilhas de mascote/Lumi2D/animacoes.json ("falando"): sobe e desce de leve e balança. Pivô na base do corpo.
-        lumiFlutua: {
-          '0%, 100%': { transform: 'translateY(0) scale(1, 1) rotate(-1.6deg)' },
-          '25%': { transform: 'translateY(-1%) scale(0.996, 1.008) rotate(0deg)' },
-          '50%': { transform: 'translateY(0) scale(1, 1) rotate(1.6deg)' },
-          '75%': { transform: 'translateY(-1.2%) scale(0.996, 1.008) rotate(0deg)' },
         },
         regraEntra: {
           '0%': { opacity: '0', transform: 'translateX(-24px)' },

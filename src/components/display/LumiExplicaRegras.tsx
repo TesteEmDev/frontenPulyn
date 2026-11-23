@@ -48,9 +48,9 @@ export default function LumiExplicaRegras({ nomeJogo, totalRegras }: { nomeJogo:
         <span className="absolute -bottom-2 left-1/2 h-4 w-4 -translate-x-1/2 rotate-45 border-b border-r border-primary-300/30 bg-[#1a2536]" />
       </div>
 
-      {/* O Lumi: entra uma vez e depois flutua; as poses ficam empilhadas */}
+      {/* O Lumi: entra uma vez e fica parado (só a boca e os olhos das imagens se mexem); as poses ficam empilhadas */}
       <div className="relative min-h-0 w-full flex-1 animate-lumi-chega motion-reduce:animate-none">
-        <div className="relative h-full w-full animate-lumi-flutua motion-reduce:animate-none" style={{ transformOrigin: '50% 90%' }}>
+        <div className="relative h-full w-full">
           {(Object.keys(POSES) as Fase[]).map((chave) => (
             <img
               key={chave}
