@@ -7,6 +7,7 @@ import { numeroDoCheckpoint, nomeNoMapa } from '../../utils/checkpoints';
 import { api } from '../../services/api';
 import { CheckpointProtectionIndicator } from '../../components/display/CheckpointProtectionIndicator';
 import type { ZoneState, CheckpointState } from '../../hooks/useZoneConquestGame';
+import { useRecarregarComVersaoNova } from '../../hooks/useRecarregarComVersaoNova';
 
 interface Zone {
   id: string;
@@ -95,6 +96,8 @@ export default function DisplayMap({
   zoneConquestCheckpoints,
 }: DisplayMapProps) {
   const { children, checkpoints, scoreLog, teams } = usePulynStore();
+  // Só a página /display/map confere a versão nova; embutido no DisplayMain, quem confere é ele
+  useRecarregarComVersaoNova(true, !embedded);
   const eventoAtual = usePulynStore((state: any) => state.eventoAtualId);
   const currentPartidaId = usePulynStore((state: any) => state.currentPartidaId);
   const activeGame = usePulynStore((state: any) => state.activeGame);

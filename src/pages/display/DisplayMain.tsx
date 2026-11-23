@@ -18,6 +18,7 @@ import { preCarregarModelos } from '../../components/display/monstros/modelos';
 import DisplayMap from './DisplayMap';
 import GameGuide, { type GuideGame } from '../../components/display/GameGuide';
 import RegrasDoProximoJogo from '../../components/display/RegrasDoProximoJogo';
+import { useRecarregarComVersaoNova } from '../../hooks/useRecarregarComVersaoNova';
 import FitToBox from '../../components/display/FitToBox';
 import { useTypewriterCycle } from '../../hooks/useTypewriterCycle';
 import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from '../../components/display/TreasureArena';
@@ -102,6 +103,8 @@ export default function DisplayMain() {
   const encerrarSorteio = useCallback(() => setSorteioEquipes(null), []);
   // Fim de um jogo: pontuação final com o Pulyn comemorando (some sozinha)
   const [fimDeJogo, setFimDeJogo] = useState<FimDeJogo | null>(null);
+  // Versão nova do site publicada: recarrega sozinho (esperando a pontuação final e o sorteio terminarem)
+  useRecarregarComVersaoNova(!fimDeJogo && !sorteioEquipes);
   const encerrarFimDeJogo = useCallback(() => setFimDeJogo(null), []);
   const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
   const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
