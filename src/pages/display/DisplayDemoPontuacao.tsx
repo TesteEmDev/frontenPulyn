@@ -18,6 +18,8 @@ const PARTICIPANTES: Linha[] = [
 
 export default function DisplayDemoPontuacao() {
   const [individual, setIndividual] = useState(false);
+  // Prévia da animação nova (Lumi); o telão de verdade continua com o Pulyn
+  const [mascote, setMascote] = useState<'lumi' | 'pulyn'>('lumi');
   const [chave, setChave] = useState(1);
   const repetir = useCallback(() => setChave((c) => c + 1), []);
   const fim: FimDeJogo = { chave, nomeJogo: individual ? 'Conquista Individual (exemplo)' : 'Caça ao Tesouro (exemplo)', individual };
@@ -30,9 +32,12 @@ export default function DisplayDemoPontuacao() {
         <button className={botao} onClick={() => { setIndividual(false); repetir(); }}>Jogo em equipe</button>
         <button className={botao} onClick={() => { setIndividual(true); repetir(); }}>Jogo individual</button>
         <button className={botao} onClick={repetir}>Repetir animação</button>
+        <button className={botao} onClick={() => { setMascote((m) => (m === 'lumi' ? 'pulyn' : 'lumi')); repetir(); }}>
+          {mascote === 'lumi' ? 'Ver a animação atual' : 'Ver o Lumi (nova)'}
+        </button>
       </div>
       <div className="min-h-0 flex-1">
-        <PontuacaoFinal key={chave} fim={fim} onTerminar={repetir} exemplo={{ equipes: EQUIPES, participantes: PARTICIPANTES }} />
+        <PontuacaoFinal key={chave} fim={fim} onTerminar={repetir} mascote={mascote} exemplo={{ equipes: EQUIPES, participantes: PARTICIPANTES }} />
       </div>
     </div>
   );

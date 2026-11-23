@@ -9,6 +9,7 @@ import { api, type PontosDaPartida } from '../../services/api';
 import { usePulynStore } from '../../store/mockData';
 import FitToBox from './FitToBox';
 import PulynComemorando from './PulynComemorando';
+import LumiComemorando from './LumiComemorando';
 
 export interface FimDeJogo {
   // Muda a cada fim de jogo
@@ -64,7 +65,13 @@ function ListaDeRanking({ titulo, linhas, destacarPrimeiro = true }: { titulo: s
 }
 
 // `exemplo` troca os dados do evento por dados de teste (página de demonstração /demo/pontuacao-final).
-export default function PontuacaoFinal({ fim, onTerminar, exemplo }: { fim: FimDeJogo; onTerminar: () => void; exemplo?: { equipes: Linha[]; participantes: Linha[] } }) {
+// `mascote` escolhe a animação: 'pulyn' (padrão, a do telão) ou 'lumi' (vídeo novo, por enquanto só na prévia).
+export default function PontuacaoFinal({ fim, onTerminar, exemplo, mascote = 'pulyn' }: {
+  fim: FimDeJogo;
+  onTerminar: () => void;
+  exemplo?: { equipes: Linha[]; participantes: Linha[] };
+  mascote?: 'pulyn' | 'lumi';
+}) {
   const eventoId = usePulynStore((state) => state.eventoAtualId);
   const [pontosDaPartida, setPontosDaPartida] = useState<PontosDaPartida | null>(null);
 
@@ -106,7 +113,7 @@ export default function PontuacaoFinal({ fim, onTerminar, exemplo }: { fim: FimD
           {fim.nomeJogo && <p className="text-[clamp(0.8rem,1.9vh,1.3rem)] text-gray-300">{fim.nomeJogo}</p>}
         </div>
         <div className="h-[78%] w-full pt-6">
-          <PulynComemorando />
+          {mascote === 'lumi' ? <LumiComemorando /> : <PulynComemorando />}
         </div>
       </div>
 
