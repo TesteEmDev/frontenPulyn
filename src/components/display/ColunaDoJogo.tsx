@@ -11,19 +11,21 @@ const TROCA_DE_RANKING_MS = 10000;
 
 type Ranking = 'principal' | 'top';
 
-export default function ColunaDoJogo({ leituras, equipes, participantes, individual, intervaloMs = TROCA_DE_RANKING_MS }: {
+export default function ColunaDoJogo({ leituras, equipes, participantes, individual, semTop = false, intervaloMs = TROCA_DE_RANKING_MS }: {
   leituras: LeituraDoJogo[];
   // Pontos ganhos na partida (não o total do evento)
   equipes: LinhaDaPartida[];
   participantes: LinhaDaPartida[];
   individual: boolean;
+  // Só o ranking principal (ex.: Caça ao Monstro, em que as crianças não pontuam durante o jogo)
+  semTop?: boolean;
   // Tempo de cada ranking (a demo local usa menos para não esperar)
   intervaloMs?: number;
 }) {
   const principal = individual ? participantes : equipes;
   const top = individual ? equipes : participantes;
   const temPrincipal = principal.length > 0;
-  const temTop = top.length > 0;
+  const temTop = !semTop && top.length > 0;
   const rankings = useMemo<Ranking[]>(() => {
     const lista: Ranking[] = [];
     if (temPrincipal) lista.push('principal');

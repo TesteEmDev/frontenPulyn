@@ -18,6 +18,8 @@ export interface FimDeJogo {
   nomeJogo: string | null;
   // Jogo individual: o destaque são os participantes, não as equipes
   individual: boolean;
+  // Caça ao Monstro: a vida que sobrou no monstro de cada equipe quando o jogo acabou (a classificação é por ela)
+  monstros?: { id: string; nome: string; cor: string; vida: number; vidaMaxima: number }[];
 }
 
 const EXIBICAO_MS = 45000;
@@ -31,6 +33,8 @@ export interface Linha {
   pontos: number;
   cor: string;
   avatar?: string | null;
+  // Texto no lugar de "N pts"
+  rotulo?: string;
 }
 
 // Empatados nos pontos ficam na mesma colocação (coroa para todos os 1º, medalhas para os 2º e 3º)
@@ -56,7 +60,7 @@ function ListaDeRanking({ titulo, linhas, destacarPrimeiro = true }: { titulo: s
               <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: linha.cor }} />
               <span className={`min-w-0 flex-1 truncate font-display font-bold text-white ${primeiro ? 'text-[clamp(1.3rem,3.4vh,2.4rem)]' : 'text-[clamp(1rem,2.4vh,1.7rem)]'}`}>{linha.nome}</span>
               <span className={`shrink-0 font-display font-bold ${primeiro ? 'text-[clamp(1.4rem,3.6vh,2.6rem)] text-yellow-300' : 'text-[clamp(1.1rem,2.6vh,1.9rem)] text-white'}`}>
-                {linha.pontos} <span className="text-[0.55em] font-semibold text-gray-400">pts</span>
+                {linha.rotulo ?? <>{linha.pontos} <span className="text-[0.55em] font-semibold text-gray-400">pts</span></>}
               </span>
             </li>
           );
@@ -104,7 +108,15 @@ export default function PontuacaoFinal({ fim, onTerminar, exemplo, mascote = 'lu
   const equipes = ateAColocacao((exemplo ? exemplo.equipes : equipesDaPartida).filter(pontuou), 5);
   const participantes = ateAColocacao((exemplo ? exemplo.participantes : participantesDaPartida).filter(pontuou), fim.individual ? 5 : 3);
 
-  const temPontos = [...equipes, ...participantes].some((linha) => linha.pontos > 0);
+  // Caça ao Monstro: classificação pela vida que sobrou no monstro (menos vida = melhor; quem derrotou fica em 1º)
+  const classificacaoMonstros = fim.monstros?.length
+    ? ateAColocacao(fim.monstros.map((m) => ({
+      id: m.id, nome: m.nome, cor: m.cor, pontos: Math.max(0, m.vidaMaxima - m.vida),
+      rotulo: m.vida <= 0 ? 'Derrotou o monstro!' : `${m.vida} HP restantes`,
+    })), 5)
+    : null;
+
+  const temPontos = Boolean(classificacaoMonstros) || [...equipes, ...participantes].some((linha) => linha.pontos > 0);
 
   return (
     <section aria-label="Pontuação final" className="relative grid h-full min-h-0 grid-cols-1 gap-3 overflow-hidden rounded-2xl border border-yellow-300/20 bg-dark-card/60 p-3 sm:p-4 lg:grid-cols-[2fr_3fr]">
@@ -127,7 +139,9 @@ export default function PontuacaoFinal({ fim, onTerminar, exemplo, mascote = 'lu
           {temPontos ? (
             <FitToBox align="center" scrollOverflow minScale={0.4} maxScale={1.3}>
               <div className="space-y-4">
-                {fim.individual ? (
+                {classificacaoMonstros ? (
+                  <ListaDeRanking titulo="Classificação · vida restante do monstro" linhas={classificacaoMonstros} />
+                ) : fim.individual ? (
                   <ListaDeRanking titulo="Participantes" linhas={participantes} />
                 ) : (
                   <>

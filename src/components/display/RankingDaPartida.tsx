@@ -11,6 +11,8 @@ export interface LinhaDaPartida {
   nome: string;
   pontos: number;
   cor: string | null;
+  // Texto no lugar de "N pts" (ex.: "120 HP" no Caça ao Monstro, onde `pontos` é o dano e serve só para ordenar)
+  rotulo?: string;
 }
 
 export default function RankingDaPartida({ modo, linhas, top = false }: { modo: 'equipes' | 'participantes'; linhas: LinhaDaPartida[]; top?: boolean }) {
@@ -46,7 +48,7 @@ export default function RankingDaPartida({ modo, linhas, top = false }: { modo: 
                   <span className="w-6 shrink-0 text-center text-[clamp(0.85rem,2vh,1.3rem)] font-bold text-gray-300">{linha.colocacao ? `${linha.colocacao}º` : '–'}</span>
                   <p className="min-w-0 flex-1 truncate text-[clamp(0.85rem,2vh,1.3rem)] font-semibold leading-tight text-white">{linha.nome}</p>
                   <span className={`shrink-0 text-[clamp(0.9rem,2.1vh,1.4rem)] font-bold ${linha.colocacao === 1 ? 'text-yellow-300' : 'text-white'}`}>
-                    {linha.pontos} <span className="text-[0.6em] font-semibold text-gray-400">pts</span>
+                    {linha.rotulo ?? <>{linha.pontos} <span className="text-[0.6em] font-semibold text-gray-400">pts</span></>}
                   </span>
                 </li>
               ))}

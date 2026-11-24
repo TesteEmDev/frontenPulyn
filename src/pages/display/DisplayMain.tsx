@@ -95,6 +95,8 @@ export default function DisplayMain() {
   const [treasureStatus, setTreasureStatus] = useState<TreasureArenaStatus | null>(null);
   const [lastTreasureEvent, setLastTreasureEvent] = useState<TreasureArenaEvent | null>(null);
   const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
+  // Monstros como estavam na última tela (o fim de jogo guarda a vida de cada um para a classificação)
+  const monstrosAtuaisRef = useRef<MonsterDisplayMonster[]>([]);
   const [zoneConquestStatus, setZoneConquestStatus] = useState<ZoneConquestStatus | null>(null);
   const [floorPlan, setFloorPlan] = useState<string | null>(null);
   // Há jogo rodando agora? (vem do estado persistido do evento e dos eventos GAME_STARTED/GAME_STOPPED)
@@ -664,10 +666,14 @@ export default function DisplayMain() {
         if (gameActive) {
           const tipoDoJogo = guideGames.find((g) => g.name === selectedGameName)?.type;
           // O aviso de fim pode chegar duas vezes (geral e da sala): a segunda não reinicia a tela
+          const monstros = selectedGameType === 'monster_hunt' ? monstrosAtuaisRef.current : [];
           setFimDeJogo((atual) => atual ?? {
             chave: Date.now(),
             nomeJogo: selectedGameName,
             individual: String(tipoDoJogo || '').toLowerCase() === 'individual' || isIndividualMode,
+            monstros: monstros.length > 0
+              ? monstros.map((m) => ({ id: m.teamId, nome: m.teamName, cor: m.teamColor, vida: Math.max(0, Number(m.monsterHp || 0)), vidaMaxima: Number(m.monsterMaxHp || 500) }))
+              : undefined,
           });
         }
         setGameActive(false);
@@ -886,6 +892,7 @@ export default function DisplayMain() {
   const monsterCards = monsterStatus?.monsters?.length
     ? monsterStatus.monsters
     : monsterStatus?.progress || [];
+  monstrosAtuaisRef.current = monsterCards;
 
   // Se não houver evento selecionado, aguardar o comando da recepção.
   if (!selectedEventId) {
@@ -1276,9 +1283,17 @@ export default function DisplayMain() {
           <div className="hidden w-[clamp(13rem,19vw,21rem)] shrink-0 lg:block">
             <ColunaDoJogo
               leituras={ultimasLeituras}
-              equipes={pontosDaPartida?.equipes ?? []}
+              // Caça ao Monstro: as equipes pela vida que sobrou no monstro (as crianças não pontuam durante o jogo)
+              equipes={monsterStageVisible
+                ? monsterCards.map((m) => ({
+                  id: m.teamId, nome: m.teamName, cor: m.teamColor,
+                  pontos: Math.max(0, Number(m.monsterMaxHp || 500) - Number(m.monsterHp || 0)),
+                  rotulo: `${Math.max(0, Number(m.monsterHp || 0))} HP`,
+                }))
+                : pontosDaPartida?.equipes ?? []}
               participantes={pontosDaPartida?.participantes ?? []}
               individual={jogoIndividual}
+              semTop={monsterStageVisible}
             />
           </div>
         </div>
