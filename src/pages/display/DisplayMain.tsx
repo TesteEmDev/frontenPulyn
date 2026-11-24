@@ -964,12 +964,14 @@ export default function DisplayMain() {
               zoneConquestCheckpoints={zoneConquestStatus?.checkpoints || null}
             />
           </div>
+            ) : monsterStageVisible ? (
+          // Caça ao Monstro: a arena ocupa o palco inteiro e escolhe a grade pelo espaço (sem o encolhimento do FitToBox)
+          <div className="h-full">
+            <ArenaDosMonstros monstros={monsterCards} danoDeTeste={danoDeTeste} modoDeTeste={modoDeTeste} />
+          </div>
             ) : (
             <FitToBox align="center" minScale={0.3} maxScale={gameOnlyView ? 1.6 : 1}>
               <>
-          {selectedGameType === 'monster_hunt' && monsterStatus?.gameType === 'monster_hunt' && (
-            <ArenaDosMonstros monstros={monsterCards} danoDeTeste={danoDeTeste} modoDeTeste={modoDeTeste} />
-          )}
           {selectedGameType === 'treasure_hunt' && treasureStatus?.gameType === 'treasure_hunt' &&
             (treasureStatus.active || treasureStatus.completed) && (
             <div className="mx-auto max-w-6xl">
