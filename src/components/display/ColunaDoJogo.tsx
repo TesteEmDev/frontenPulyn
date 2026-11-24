@@ -10,12 +10,14 @@ const TROCA_DE_TELA_MS = 10000;
 
 type Tela = 'leituras' | 'principal' | 'top';
 
-export default function ColunaDoJogo({ leituras, equipes, participantes, individual }: {
+export default function ColunaDoJogo({ leituras, equipes, participantes, individual, intervaloMs = TROCA_DE_TELA_MS }: {
   leituras: LeituraDoJogo[];
   // Pontos ganhos na partida (não o total do evento)
   equipes: LinhaDaPartida[];
   participantes: LinhaDaPartida[];
   individual: boolean;
+  // Tempo de cada tela (a demo local usa menos para não esperar)
+  intervaloMs?: number;
 }) {
   const principal = individual ? participantes : equipes;
   const top = individual ? equipes : participantes;
@@ -33,9 +35,9 @@ export default function ColunaDoJogo({ leituras, equipes, participantes, individ
     if (telas.length < 2) { setTela('leituras'); return undefined; }
     const intervalo = window.setInterval(() => {
       setTela((atual) => telas[(Math.max(telas.indexOf(atual), 0) + 1) % telas.length]);
-    }, TROCA_DE_TELA_MS);
+    }, intervaloMs);
     return () => window.clearInterval(intervalo);
-  }, [telas]);
+  }, [telas, intervaloMs]);
 
   const atual = telas.includes(tela) ? tela : 'leituras';
   if (atual === 'principal') return <RankingDaPartida modo={individual ? 'participantes' : 'equipes'} linhas={principal} />;

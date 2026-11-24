@@ -21,3 +21,7 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Demos e voz do Lumi: só no PC de quem desenvolve (não vão para o Git nem para os buffets)
+src/demos/
+public/mascote/voz/
