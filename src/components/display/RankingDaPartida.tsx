@@ -1,5 +1,6 @@
 // Coluna do telão durante o jogo: quem está na frente NA PARTIDA (pontos ganhos desde que ela começou, não o total do evento).
-// `modo` escolhe entre as equipes e os participantes.
+// `modo` escolhe entre as equipes e os participantes. `top`: só os 3 primeiros, com o título "Top ..." (o ranking que vem
+// depois do principal: os participantes num jogo em equipe, as equipes num individual).
 import { Medal, Trophy } from 'lucide-react';
 import FitToBox from './FitToBox';
 
@@ -10,10 +11,12 @@ export interface LinhaDaPartida {
   cor: string | null;
 }
 
-export default function RankingDaPartida({ modo, linhas }: { modo: 'equipes' | 'participantes'; linhas: LinhaDaPartida[] }) {
-  const titulo = modo === 'equipes' ? 'Equipes no jogo' : 'Participantes no jogo';
+export default function RankingDaPartida({ modo, linhas, top = false }: { modo: 'equipes' | 'participantes'; linhas: LinhaDaPartida[]; top?: boolean }) {
+  const titulo = top
+    ? (modo === 'equipes' ? 'Top equipes' : 'Top participantes')
+    : (modo === 'equipes' ? 'Equipes no jogo' : 'Participantes no jogo');
   const Icone = modo === 'equipes' ? Trophy : Medal;
-  const lista = linhas.slice(0, 5);
+  const lista = linhas.slice(0, top ? 3 : 5);
 
   return (
     <aside
