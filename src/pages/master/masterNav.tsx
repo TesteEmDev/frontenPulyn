@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Users, CreditCard, Activity, ScrollText, LifeBuoy, BarChart3, Cpu, Watch,
+  LayoutDashboard, Users, CreditCard, Activity, ScrollText, LifeBuoy, BarChart3, Cpu, Watch, Settings,
 } from 'lucide-react';
 
 // Menu lateral do master, igual em todas as telas dele
@@ -13,4 +13,5 @@ export const masterNavItems = [
   { icon: <ScrollText size={20} />, label: 'Logs', path: '/master/logs' },
   { icon: <LifeBuoy size={20} />, label: 'Suporte', path: '/master/support' },
   { icon: <BarChart3 size={20} />, label: 'Analytics', path: '/master/analytics' },
+  { icon: <Settings size={20} />, label: 'Configurações', path: '/master/settings' },
 ];
