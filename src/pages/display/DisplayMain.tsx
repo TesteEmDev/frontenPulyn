@@ -214,8 +214,10 @@ export default function DisplayMain() {
 
   // Pontos ganhos na partida (não o total do evento), para o ranking da coluna do jogo
   const [pontosDaPartida, setPontosDaPartida] = useState<PontosDaPartida | null>(null);
-  // 0 = últimas leituras, 1 = equipes, 2 = participantes
+  // 0 = últimas leituras, 1 = equipes (jogo em equipe), 2 = participantes (jogo individual)
   const [colunaDoJogo, setColunaDoJogo] = useState(0);
+  // Jogo individual: o ranking é dos participantes; em equipe, das equipes (mesma regra da pontuação final)
+  const jogoIndividual = String(jogoSelecionado.type || '').toLowerCase() === 'individual' || isIndividualMode;
   const ultimaLeituraDaLista = scoreLog[0]?.id;
 
   useEffect(() => {
@@ -238,13 +240,17 @@ export default function DisplayMain() {
     return () => { cancelado = true; window.clearInterval(intervalo); };
   }, [gameActive, selectedEventId, ultimaLeituraDaLista]);
 
-  // Telas da coluna que têm o que mostrar (as leituras entram sempre; o ranking só com alguém pontuado)
+  // Telas da coluna que têm o que mostrar: as leituras entram sempre; o ranking (equipes ou participantes, conforme o
+  // jogo) só com alguém pontuado
   const telasDaColuna = useMemo(() => {
     const telas = [0];
-    if ((pontosDaPartida?.equipes ?? []).some((e) => e.pontos > 0)) telas.push(1);
-    if ((pontosDaPartida?.participantes ?? []).some((p) => p.pontos > 0)) telas.push(2);
+    if (jogoIndividual) {
+      if ((pontosDaPartida?.participantes ?? []).some((p) => p.pontos > 0)) telas.push(2);
+    } else if ((pontosDaPartida?.equipes ?? []).some((e) => e.pontos > 0)) {
+      telas.push(1);
+    }
     return telas;
-  }, [pontosDaPartida]);
+  }, [pontosDaPartida, jogoIndividual]);
   useEffect(() => {
     if (!gameActive || telasDaColuna.length < 2) { setColunaDoJogo(0); return undefined; }
     const intervalo = window.setInterval(() => {
