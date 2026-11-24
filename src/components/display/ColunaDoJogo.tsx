@@ -44,11 +44,12 @@ export default function ColunaDoJogo({ leituras, equipes, participantes, individ
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2">
-      <div className={`min-h-0 ${visivel ? 'flex-[3]' : 'flex-1'}`}>
+      {/* As 6 últimas leituras em ~45% da altura; o ranking fica com o resto */}
+      <div className={`min-h-0 ${visivel ? 'flex-[9]' : 'flex-1'}`}>
         <UltimasLeituras leituras={leituras} />
       </div>
       {visivel && (
-        <div className="min-h-0 flex-[2]">
+        <div className="min-h-0 flex-[11]">
           {visivel === 'principal'
             ? <RankingDaPartida modo={individual ? 'participantes' : 'equipes'} linhas={principal} />
             : <RankingDaPartida modo={individual ? 'equipes' : 'participantes'} linhas={top} top />}

@@ -207,7 +207,7 @@ export default function DisplayMain() {
       };
     })
     .sort((a, b) => b.quando - a.quando)
-    .slice(0, 8)
+    .slice(0, 6)
     .map(({ id, apelido, checkpoint, checkpointNome, pontos, cor }) => ({ id, apelido, checkpoint, checkpointNome, pontos, cor })), [scoreLog, checkpoints]);
 
   // Pontos ganhos na partida (não o total do evento), para o ranking da coluna do jogo

@@ -1,8 +1,10 @@
 // Coluna do telão durante o jogo: quem está na frente NA PARTIDA (pontos ganhos desde que ela começou, não o total do evento).
 // `modo` escolhe entre as equipes e os participantes. `top`: só os 3 primeiros, com o título "Top ..." (o ranking que vem
 // depois do principal: os participantes num jogo em equipe, as equipes num individual).
+// Empatados nos pontos ficam na mesma colocação (utils/colocacao.ts).
 import { Medal, Trophy } from 'lucide-react';
 import FitToBox from './FitToBox';
+import { ateAColocacao } from '../../utils/colocacao';
 
 export interface LinhaDaPartida {
   id: string;
@@ -16,7 +18,8 @@ export default function RankingDaPartida({ modo, linhas, top = false }: { modo: 
     ? (modo === 'equipes' ? 'Top equipes' : 'Top participantes')
     : (modo === 'equipes' ? 'Equipes no jogo' : 'Participantes no jogo');
   const Icone = modo === 'equipes' ? Trophy : Medal;
-  const lista = linhas.slice(0, top ? 3 : 5);
+  // Até o 5º lugar (Top: até o 3º); empatados na última colocação mostrada entram todos
+  const lista = ateAColocacao(linhas, top ? 3 : 5);
 
   return (
     <aside
@@ -34,15 +37,15 @@ export default function RankingDaPartida({ modo, linhas, top = false }: { modo: 
         ) : (
           <FitToBox minScale={0.5} maxScale={1}>
             <ol className="space-y-1.5">
-              {lista.map((linha, posicao) => (
+              {lista.map((linha) => (
                 <li
                   key={linha.id}
-                  className={`flex items-center gap-2 rounded-lg border-l-4 px-2 py-1.5 ${posicao === 0 ? 'bg-yellow-300/10' : 'bg-white/[0.03]'}`}
+                  className={`flex items-center gap-2 rounded-lg border-l-4 px-2 py-1.5 ${linha.colocacao === 1 ? 'bg-yellow-300/10' : 'bg-white/[0.03]'}`}
                   style={{ borderLeftColor: linha.cor || '#1E9BD7' }}
                 >
-                  <span className="w-6 shrink-0 text-center text-[clamp(0.85rem,2vh,1.3rem)] font-bold text-gray-300">{posicao + 1}º</span>
+                  <span className="w-6 shrink-0 text-center text-[clamp(0.85rem,2vh,1.3rem)] font-bold text-gray-300">{linha.colocacao}º</span>
                   <p className="min-w-0 flex-1 truncate text-[clamp(0.85rem,2vh,1.3rem)] font-semibold leading-tight text-white">{linha.nome}</p>
-                  <span className={`shrink-0 text-[clamp(0.9rem,2.1vh,1.4rem)] font-bold ${posicao === 0 ? 'text-yellow-300' : 'text-white'}`}>
+                  <span className={`shrink-0 text-[clamp(0.9rem,2.1vh,1.4rem)] font-bold ${linha.colocacao === 1 ? 'text-yellow-300' : 'text-white'}`}>
                     {linha.pontos} <span className="text-[0.6em] font-semibold text-gray-400">pts</span>
                   </span>
                 </li>

@@ -10,6 +10,7 @@ import { usePulynStore } from '../../store/mockData';
 import FitToBox from './FitToBox';
 import PulynComemorando from './PulynComemorando';
 import LumiComemorando from './LumiComemorando';
+import { ateAColocacao } from '../../utils/colocacao';
 
 export interface FimDeJogo {
   // Muda a cada fim de jogo
@@ -32,13 +33,14 @@ export interface Linha {
   avatar?: string | null;
 }
 
-function ListaDeRanking({ titulo, linhas, destacarPrimeiro = true }: { titulo: string; linhas: Linha[]; destacarPrimeiro?: boolean }) {
+// Empatados nos pontos ficam na mesma colocação (coroa para todos os 1º, medalhas para os 2º e 3º)
+function ListaDeRanking({ titulo, linhas, destacarPrimeiro = true }: { titulo: string; linhas: (Linha & { colocacao: number })[]; destacarPrimeiro?: boolean }) {
   return (
     <div>
       <p className="mb-2 text-[clamp(0.65rem,1.4vh,0.9rem)] font-bold uppercase tracking-[0.25em] text-primary-300">{titulo}</p>
       <ol className="space-y-2">
         {linhas.map((linha, posicao) => {
-          const primeiro = destacarPrimeiro && posicao === 0;
+          const primeiro = destacarPrimeiro && linha.colocacao === 1;
           return (
             <li
               key={linha.id}
@@ -46,9 +48,9 @@ function ListaDeRanking({ titulo, linhas, destacarPrimeiro = true }: { titulo: s
               style={{ animationDelay: `${posicao * 160}ms`, animationFillMode: 'both' }}
             >
               <span className="flex w-9 shrink-0 justify-center">
-                {posicao === 0 ? <Crown size={primeiro ? 30 : 22} color={MEDALHAS[0]} /> : posicao < 3
-                  ? <Medal size={22} color={MEDALHAS[posicao]} />
-                  : <span className="text-lg font-bold text-gray-400">{posicao + 1}º</span>}
+                {linha.colocacao === 1 ? <Crown size={primeiro ? 30 : 22} color={MEDALHAS[0]} /> : linha.colocacao <= 3
+                  ? <Medal size={22} color={MEDALHAS[linha.colocacao - 1]} />
+                  : <span className="text-lg font-bold text-gray-400">{linha.colocacao}º</span>}
               </span>
               {linha.avatar !== undefined && <Avatar emoji={linha.avatar || DEFAULT_AVATAR_ID} size="sm" decorative />}
               <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: linha.cor }} />
@@ -92,14 +94,13 @@ export default function PontuacaoFinal({ fim, onTerminar, exemplo, mascote = 'lu
   }, [eventoId, fim.chave, exemplo]);
 
   const equipesDaPartida: Linha[] = (pontosDaPartida?.equipes ?? [])
-    .map((equipe) => ({ id: equipe.id, nome: equipe.nome || 'Equipe', pontos: equipe.pontos, cor: equipe.cor || '#1E9BD7' }))
-    .slice(0, 5);
+    .map((equipe) => ({ id: equipe.id, nome: equipe.nome || 'Equipe', pontos: equipe.pontos, cor: equipe.cor || '#1E9BD7' }));
   const participantesDaPartida: Linha[] = (pontosDaPartida?.participantes ?? [])
-    .map((participante) => ({ id: participante.id, nome: participante.nome || 'Participante', pontos: participante.pontos, cor: participante.cor || '#1E9BD7', avatar: participante.avatar }))
-    .slice(0, fim.individual ? 5 : 3);
+    .map((participante) => ({ id: participante.id, nome: participante.nome || 'Participante', pontos: participante.pontos, cor: participante.cor || '#1E9BD7', avatar: participante.avatar }));
 
-  const equipes = exemplo ? exemplo.equipes : equipesDaPartida;
-  const participantes = exemplo ? exemplo.participantes.slice(0, fim.individual ? 5 : 3) : participantesDaPartida;
+  // Até o 5º lugar (participantes num jogo em equipe: até o 3º); empatados na última colocação mostrada entram todos
+  const equipes = ateAColocacao(exemplo ? exemplo.equipes : equipesDaPartida, 5);
+  const participantes = ateAColocacao(exemplo ? exemplo.participantes : participantesDaPartida, fim.individual ? 5 : 3);
 
   const temPontos = [...equipes, ...participantes].some((linha) => linha.pontos > 0);
 
