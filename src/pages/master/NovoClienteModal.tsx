@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Building2, MapPin, KeyRound, Layers, Eye, EyeOff, Wand2, Copy, Check, Loader2, CheckCircle2 } from 'lucide-react';
 import { api } from '../../services/api';
 import { maskCnpj, isValidCnpj } from '../../utils/cnpj';
@@ -7,8 +7,8 @@ import { PLANOS_SELECIONAVEIS } from '../../utils/planos';
 import type { PlanoId } from '../../utils/planos';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
-import Autocomplete, { semAcento } from '../../components/ui/Autocomplete';
-import { ESTADOS_BRASIL } from '../../utils/estadosBrasil';
+import { cidadeOficial, formatarEndereco, ufDoTexto, useCidadesDoEstado } from '../../utils/endereco';
+import EnderecoFields from './EnderecoFields';
 import Button from '../../components/ui/Button';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -35,48 +35,10 @@ function mensagemDoErro(erro: unknown): string {
   return texto && !/^Erro \d+:/.test(texto) ? texto : 'Não foi possível criar o cliente. Confira os dados e tente de novo.';
 }
 
-type Campo = 'nome' | 'cnpj' | 'telefone' | 'rua' | 'numero' | 'bairro' | 'cidade' | 'estado' | 'email' | 'senha';
+type Campo = 'nome' | 'cnpj' | 'telefone' | 'cep' | 'rua' | 'numero' | 'bairro' | 'cidade' | 'estado' | 'email' | 'senha';
 type Erros = Partial<Record<Campo, string>>;
 
-const FORM_VAZIO = { nome: '', cnpj: '', telefone: '', rua: '', numero: '', bairro: '', cidade: '', estado: '', email: '', senha: '' };
-
-// "sp", "SP" ou "São Paulo" -> "SP"; texto que não é um estado -> null
-function ufDoTexto(texto: string): string | null {
-  const busca = semAcento(texto);
-  if (!busca) return null;
-  const achado = ESTADOS_BRASIL.find((e) => semAcento(e.uf) === busca || semAcento(e.nome) === busca);
-  return achado?.uf ?? null;
-}
-
-// Grafia oficial da cidade digitada (sem diferença de acento ou maiúscula); null se não existe no estado
-function cidadeOficial(texto: string, cidades: string[]): string | null {
-  const busca = semAcento(texto);
-  return busca ? cidades.find((c) => semAcento(c) === busca) ?? null : null;
-}
-
-interface RuaEncontrada { logradouro: string; bairro: string }
-
-// Ruas da cidade que combinam com o texto digitado (ViaCEP, serviço público dos Correios). Precisa de internet; sem ela
-// a lista fica vazia e a rua continua podendo ser digitada à mão.
-async function buscarRuas(uf: string, cidade: string, texto: string, sinal: AbortSignal): Promise<RuaEncontrada[]> {
-  const url = `https://viacep.com.br/ws/${uf}/${encodeURIComponent(cidade)}/${encodeURIComponent(texto)}/json/`;
-  const resposta = await fetch(url, { signal: sinal });
-  if (!resposta.ok) return [];
-  const dados = await resposta.json();
-  if (!Array.isArray(dados)) return [];
-  const vistos = new Set<string>();
-  const ruas: RuaEncontrada[] = [];
-  for (const item of dados) {
-    const logradouro = String(item?.logradouro ?? '').trim();
-    if (!logradouro) continue;
-    const bairro = String(item?.bairro ?? '').trim();
-    const chave = `${logradouro}|${bairro}`.toLowerCase();
-    if (vistos.has(chave)) continue;
-    vistos.add(chave);
-    ruas.push({ logradouro, bairro });
-  }
-  return ruas;
-}
+const FORM_VAZIO = { nome: '', cnpj: '', telefone: '', cep: '', rua: '', numero: '', bairro: '', cidade: '', estado: '', email: '', senha: '' };
 
 function validar(form: typeof FORM_VAZIO, cidades: string[] | null): Erros {
   const erros: Erros = {};
@@ -122,48 +84,7 @@ interface Props {
 
 export default function NovoClienteModal({ isOpen, onClose, onCreated }: Props) {
   const [form, setForm] = useState(FORM_VAZIO);
-  // Cidades do estado escolhido (carregadas sob demanda: a lista de municípios é grande); null = ainda sem estado válido
-  const [cidades, setCidades] = useState<string[] | null>(null);
-  const ufEscolhida = ufDoTexto(form.estado);
-  useEffect(() => {
-    if (!ufEscolhida) { setCidades(null); return undefined; }
-    let vivo = true;
-    import('../../utils/municipiosBrasil')
-      .then((m) => { if (vivo) setCidades(m.MUNICIPIOS_POR_UF[ufEscolhida] ?? []); })
-      .catch(() => { if (vivo) setCidades(null); });
-    return () => { vivo = false; };
-  }, [ufEscolhida]);
-  // Sugestões de rua da cidade já escolhida, buscadas enquanto se digita (com pausa para não consultar a cada letra)
-  const [ruas, setRuas] = useState<RuaEncontrada[]>([]);
-  const [buscandoRuas, setBuscandoRuas] = useState(false);
-  const cidadeEscolhida = cidades ? cidadeOficial(form.cidade, cidades) : null;
-  useEffect(() => {
-    const texto = form.rua.trim();
-    if (!ufEscolhida || !cidadeEscolhida || texto.length < 3) { setRuas([]); setBuscandoRuas(false); return undefined; }
-    const controle = new AbortController();
-    setBuscandoRuas(true);
-    const espera = window.setTimeout(() => {
-      buscarRuas(ufEscolhida, cidadeEscolhida, texto, controle.signal)
-        .then((lista) => { if (!controle.signal.aborted) setRuas(lista); })
-        .catch(() => { if (!controle.signal.aborted) setRuas([]); })
-        .finally(() => { if (!controle.signal.aborted) setBuscandoRuas(false); });
-    }, 400);
-    return () => { window.clearTimeout(espera); controle.abort(); };
-  }, [form.rua, ufEscolhida, cidadeEscolhida]);
-  // Mudou de cidade: a rua, o número e o bairro de antes não valem mais
-  const cidadeAnterior = useRef<string | null>(null);
-  useEffect(() => {
-    if (cidadeAnterior.current && cidadeAnterior.current !== cidadeEscolhida) {
-      setForm((atual) => ({ ...atual, rua: '', numero: '', bairro: '' }));
-    }
-    cidadeAnterior.current = cidadeEscolhida;
-  }, [cidadeEscolhida]);
-  const opcoesRua = useMemo(
-    () => ruas.map((r) => ({ valor: r.logradouro, rotulo: r.bairro ? `${r.logradouro} - ${r.bairro}` : r.logradouro, bairro: r.bairro })),
-    [ruas],
-  );
-  const opcoesUf = useMemo(() => ESTADOS_BRASIL.map((e) => ({ valor: e.uf, rotulo: `${e.uf} - ${e.nome}` })), []);
-  const opcoesCidade = useMemo(() => (cidades ?? []).map((c) => ({ valor: c })), [cidades]);
+  const cidades = useCidadesDoEstado(ufDoTexto(form.estado));
   const [plano, setPlano] = useState<PlanoId>('starter');
   const [erros, setErros] = useState<Erros>({});
   const [erroGeral, setErroGeral] = useState('');
@@ -176,6 +97,13 @@ export default function NovoClienteModal({ isOpen, onClose, onCreated }: Props) 
   const mudar = (campo: Campo, valor: string) => {
     setForm((atual) => ({ ...atual, [campo]: valor }));
     setErros((atual) => ({ ...atual, [campo]: undefined }));
+    setErroGeral('');
+  };
+
+  // Os campos de endereço mudam vários de uma vez (o CEP preenche estado, cidade, rua e bairro)
+  const mudarEndereco = (parcial: Partial<typeof FORM_VAZIO>) => {
+    setForm((atual) => ({ ...atual, ...parcial }));
+    setErros((atual) => ({ ...atual, ...Object.fromEntries(Object.keys(parcial).map((c) => [c, undefined])) }));
     setErroGeral('');
   };
 
@@ -206,7 +134,7 @@ export default function NovoClienteModal({ isOpen, onClose, onCreated }: Props) 
       const cliente = await api.createCliente({
         nome: form.nome.trim(),
         cnpj: form.cnpj,
-        endereco: `${form.rua.trim()}, ${form.numero.trim()} - ${form.bairro.trim()}`,
+        endereco: formatarEndereco(form),
         cidade: (cidades && cidadeOficial(form.cidade, cidades)) || form.cidade.trim(),
         estado: ufDoTexto(form.estado) ?? form.estado.trim().toUpperCase(),
         telefone: form.telefone.trim(),
@@ -287,55 +215,7 @@ export default function NovoClienteModal({ isOpen, onClose, onCreated }: Props) 
           </Secao>
 
           <Secao icone={<MapPin size={14} />} titulo="Endereço">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[11rem_1fr]">
-              <Autocomplete
-                label="Estado (UF)"
-                value={form.estado}
-                onChange={(texto) => {
-                  mudar('estado', texto);
-                  // Trocou de estado: a cidade de antes não vale mais
-                  if (ufDoTexto(texto) !== ufEscolhida) mudar('cidade', '');
-                }}
-                opcoes={opcoesUf}
-                placeholder="SP"
-                limite={10}
-                error={erros.estado}
-                semResultado="Estado não encontrado"
-              />
-              <Autocomplete
-                label="Cidade"
-                value={form.cidade}
-                onChange={(texto) => mudar('cidade', texto)}
-                opcoes={opcoesCidade}
-                placeholder={ufEscolhida ? 'Comece a digitar a cidade' : 'Escolha o estado primeiro'}
-                disabled={!ufEscolhida}
-                error={erros.cidade}
-                semResultado="Cidade não encontrada neste estado"
-              />
-            </div>
-            <Autocomplete
-              label="Rua"
-              value={form.rua}
-              onChange={(texto) => mudar('rua', texto)}
-              onSelect={(opcao) => {
-                // Escolheu uma rua da lista: o bairro vem junto
-                const escolhida = opcoesRua.find((o) => o.valor === opcao.valor);
-                if (escolhida?.bairro) mudar('bairro', escolhida.bairro);
-              }}
-              opcoes={opcoesRua}
-              filtrar={false}
-              carregando={buscandoRuas}
-              limite={10}
-              disabled={!cidadeEscolhida}
-              placeholder={cidadeEscolhida ? 'Comece a digitar a rua (3 letras ou mais)' : 'Escolha a cidade primeiro'}
-              maxLength={150}
-              error={erros.rua}
-              semResultado={form.rua.trim().length < 3 ? 'Digite pelo menos 3 letras' : 'Rua não encontrada: pode digitar à mão'}
-            />
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[8rem_1fr]">
-              <Input label="Número" value={form.numero} onChange={(e) => mudar('numero', e.target.value)} placeholder="120" maxLength={20} disabled={!cidadeEscolhida} error={erros.numero} />
-              <Input label="Bairro" value={form.bairro} onChange={(e) => mudar('bairro', e.target.value)} placeholder="Centro" maxLength={80} disabled={!cidadeEscolhida} error={erros.bairro} />
-            </div>
+            <EnderecoFields value={form} onChange={mudarEndereco} cidades={cidades} erros={erros} />
           </Secao>
           </div>
 

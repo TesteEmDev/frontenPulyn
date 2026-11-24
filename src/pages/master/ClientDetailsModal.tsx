@@ -12,6 +12,7 @@ import {
   Baby,
   CalendarDays,
   LifeBuoy,
+  Pencil,
 } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import Badge from '../../components/ui/Badge';
@@ -63,6 +64,8 @@ interface ClientDetails {
   empresaId?: string | null;
   origin: 'empresa' | 'cliente';
   cnpj: string | null;
+  // Endereço do cadastro: "Rua, número - bairro" (e o CEP, quando informado)
+  address?: string;
   lastAccess: string | null;
   createdAt: string | null;
   updatedAt: string | null;
@@ -174,10 +177,12 @@ export default function ClientDetailsModal({
   client,
   onClose,
   onToggleStatus,
+  onEdit,
 }: {
   client: ClientSummary | null;
   onClose: () => void;
   onToggleStatus: (clientId: string) => void;
+  onEdit: (clientId: string) => void;
 }) {
   const [details, setDetails] = useState<ClientDetails | null>(null);
   const [loading, setLoading] = useState(false);
@@ -250,6 +255,9 @@ export default function ClientDetailsModal({
               </div>
             </div>
             <div className="flex gap-2 shrink-0">
+              <Button variant="primary" size="sm" onClick={() => onEdit(client.id)}>
+                <Pencil size={14} className="mr-1" /> Editar
+              </Button>
               <Button
                 variant={client.status === 'blocked' ? 'primary' : 'danger'}
                 size="sm"
@@ -271,6 +279,11 @@ export default function ClientDetailsModal({
               <Field label="Cidade">{client.city ? `${client.city}${client.state ? ` - ${client.state.toUpperCase()}` : ''}` : <Empty />}</Field>
               <Field label="E-mail (login)">{client.email || <Empty />}</Field>
               <Field label="Telefone">{client.phone || <Empty />}</Field>
+              <div className="col-span-2 sm:col-span-3">
+                <Field label="Endereço">
+                  {details ? (details.address || <Empty />) : <span className="text-gray-500">{loading ? 'carregando…' : '—'}</span>}
+                </Field>
+              </div>
               <Field label="CNPJ">
                 {details ? (details.cnpj ? maskCnpj(details.cnpj) : <Empty />) : <span className="text-gray-500">{loading ? 'carregando…' : '—'}</span>}
               </Field>

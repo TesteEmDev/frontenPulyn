@@ -12,6 +12,7 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
+  Pencil,
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import PageHeader from '../../components/layout/PageHeader';
@@ -26,6 +27,7 @@ import Modal from '../../components/ui/Modal';
 import RowActionsMenu from '../../components/ui/RowActionsMenu';
 import ClientDetailsModal from './ClientDetailsModal';
 import NovoClienteModal from './NovoClienteModal';
+import EditarClienteModal from './EditarClienteModal';
 
 import { api, type ResumoExclusaoCliente } from '../../services/api';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
@@ -68,6 +70,8 @@ export default function MasterClients() {
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   // Cliente com o modal de detalhes aberto (o objeto vem da lista, então o status acompanha as alterações)
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  // Cliente com a janela de edição aberta
+  const [editandoId, setEditandoId] = useState<string | null>(null);
 
   // Loading and error states
   const [loading, setLoading] = useState(true);
@@ -153,6 +157,12 @@ export default function MasterClients() {
   // Cliente criado pela janela de cadastro: relê a lista (a resposta da criação não tem o formato das linhas)
   const handleClientCreated = (cliente: { nome?: string }) => {
     setSuccessMessage(`Cliente ${cliente?.nome ?? ''} criado com sucesso!`);
+    void fetchClients(true);
+  };
+
+  // Dados do cliente salvos pela janela de edição: relê a lista
+  const handleClientEdited = (nome: string) => {
+    setSuccessMessage(`Cliente ${nome} atualizado com sucesso!`);
     void fetchClients(true);
   };
 
@@ -358,6 +368,16 @@ export default function MasterClients() {
                           <td className="py-3 px-4 text-right font-mono text-gray-300">{client.eventsDone}</td>
                           <td className="py-3 px-4 text-gray-400 text-xs">{client.lastAccess}</td>
                           <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setEditandoId(client.id)}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-gray-300 transition-colors hover:bg-surface hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60"
+                              aria-label={`Editar ${client.name}`}
+                            >
+                              <Pencil size={14} />
+                              Editar
+                            </button>
                             <RowActionsMenu label={`Ações de ${client.name}`}>
                               {(fechar) => (
                                 <>
@@ -383,6 +403,7 @@ export default function MasterClients() {
                                 </>
                               )}
                             </RowActionsMenu>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -497,6 +518,14 @@ export default function MasterClients() {
             client={selectedClient}
             onClose={() => setSelectedClientId(null)}
             onToggleStatus={handleToggleStatus}
+            onEdit={(clientId) => { setSelectedClientId(null); setEditandoId(clientId); }}
+          />
+
+          {/* Edit Client Modal */}
+          <EditarClienteModal
+            client={clients.find(c => c.id === editandoId) || null}
+            onClose={() => setEditandoId(null)}
+            onSaved={handleClientEdited}
           />
         </div>
       </main>
