@@ -97,6 +97,8 @@ export default function DisplayMain() {
   const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
   // Monstros como estavam na última tela (o fim de jogo guarda a vida de cada um para a classificação)
   const monstrosAtuaisRef = useRef<MonsterDisplayMonster[]>([]);
+  // Tempos da corrida do tesouro como estavam na última tela (o fim de jogo guarda para a classificação)
+  const temposDoTesouroRef = useRef<NonNullable<TreasureArenaStatus['teamRaceTimes']>>([]);
   const [zoneConquestStatus, setZoneConquestStatus] = useState<ZoneConquestStatus | null>(null);
   const [floorPlan, setFloorPlan] = useState<string | null>(null);
   // Há jogo rodando agora? (vem do estado persistido do evento e dos eventos GAME_STARTED/GAME_STOPPED)
@@ -667,12 +669,16 @@ export default function DisplayMain() {
           const tipoDoJogo = guideGames.find((g) => g.name === selectedGameName)?.type;
           // O aviso de fim pode chegar duas vezes (geral e da sala): a segunda não reinicia a tela
           const monstros = selectedGameType === 'monster_hunt' ? monstrosAtuaisRef.current : [];
+          const tempos = selectedGameType === 'treasure_hunt' ? temposDoTesouroRef.current : [];
           setFimDeJogo((atual) => atual ?? {
             chave: Date.now(),
             nomeJogo: selectedGameName,
             individual: String(tipoDoJogo || '').toLowerCase() === 'individual' || isIndividualMode,
             monstros: monstros.length > 0
               ? monstros.map((m) => ({ id: m.teamId, nome: m.teamName, cor: m.teamColor, vida: Math.max(0, Number(m.monsterHp || 0)), vidaMaxima: Number(m.monsterMaxHp || 500) }))
+              : undefined,
+            tempos: tempos.length > 0
+              ? tempos.map((t) => ({ id: t.teamId, nome: t.teamName, cor: t.teamColor, segundos: t.completed && t.elapsedSeconds != null ? Number(t.elapsedSeconds) : null }))
               : undefined,
           });
         }
@@ -818,8 +824,10 @@ export default function DisplayMain() {
         if (fimAdiado.current !== null) { window.clearTimeout(fimAdiado.current); fimAdiado.current = null; }
       }
       const monstrosEmCena = selectedGameType === 'monster_hunt' && Boolean(monsterStatus?.monsters?.length || monsterStatus?.progress?.length);
-      // Só o fim automático (o último monstro caiu) espera a queda; o encerramento pelo recreacionista mostra o resultado na hora
-      if (event.type === 'GAME_STOPPED' && event.payload?.automatic && monstrosEmCena && fimAdiado.current === null) {
+      const tesouroEmCena = selectedGameType === 'treasure_hunt' && Boolean(treasureStatus);
+      // Só o fim automático (o monstro caiu, ou todas as equipes acharam o tesouro) espera a queda / a vitória na tela;
+      // o encerramento pelo recreacionista mostra o resultado na hora
+      if (event.type === 'GAME_STOPPED' && event.payload?.automatic && (monstrosEmCena || tesouroEmCena) && fimAdiado.current === null) {
         const inicio = iniciosDeJogo.current;
         fimAdiado.current = window.setTimeout(() => {
           fimAdiado.current = null;
@@ -893,6 +901,7 @@ export default function DisplayMain() {
     ? monsterStatus.monsters
     : monsterStatus?.progress || [];
   monstrosAtuaisRef.current = monsterCards;
+  temposDoTesouroRef.current = treasureStatus?.teamRaceTimes ?? [];
 
   // Se não houver evento selecionado, aguardar o comando da recepção.
   if (!selectedEventId) {

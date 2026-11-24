@@ -254,9 +254,6 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
                  {winnerTeam?.name || status.winningTeamName || 'Equipe vencedora'}
                </h3>
                <p className="mt-4 text-2xl text-amber-100">venceu a expedição!</p>
-               <div className="mt-8 rounded-2xl border border-amber-300/30 bg-amber-300/10 p-6">
-                 <p className="text-sm text-amber-200">A próxima rodada começará em breve...</p>
-               </div>
              </div>
            </div>
          </div>

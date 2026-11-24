@@ -10,7 +10,7 @@ import { usePulynStore } from '../../store/mockData';
 import FitToBox from './FitToBox';
 import PulynComemorando from './PulynComemorando';
 import LumiComemorando from './LumiComemorando';
-import { ateAColocacao } from '../../utils/colocacao';
+import { ateAColocacao, rankingComZerados } from '../../utils/colocacao';
 
 export interface FimDeJogo {
   // Muda a cada fim de jogo
@@ -20,6 +20,8 @@ export interface FimDeJogo {
   individual: boolean;
   // Caça ao Monstro: a vida que sobrou no monstro de cada equipe quando o jogo acabou (a classificação é por ela)
   monstros?: { id: string; nome: string; cor: string; vida: number; vidaMaxima: number }[];
+  // Caça ao Tesouro: o tempo de cada equipe na corrida (null = não terminou); a classificação é por ele
+  tempos?: { id: string; nome: string; cor: string; segundos: number | null }[];
 }
 
 const EXIBICAO_MS = 45000;
@@ -38,7 +40,7 @@ export interface Linha {
 }
 
 // Empatados nos pontos ficam na mesma colocação (coroa para todos os 1º, medalhas para os 2º e 3º)
-function ListaDeRanking({ titulo, linhas, destacarPrimeiro = true }: { titulo: string; linhas: (Linha & { colocacao: number })[]; destacarPrimeiro?: boolean }) {
+function ListaDeRanking({ titulo, linhas, destacarPrimeiro = true }: { titulo: string; linhas: (Linha & { colocacao: number | null })[]; destacarPrimeiro?: boolean }) {
   return (
     <div>
       <p className="mb-2 text-[clamp(0.65rem,1.4vh,0.9rem)] font-bold uppercase tracking-[0.25em] text-primary-300">{titulo}</p>
@@ -52,9 +54,10 @@ function ListaDeRanking({ titulo, linhas, destacarPrimeiro = true }: { titulo: s
               style={{ animationDelay: `${posicao * 160}ms`, animationFillMode: 'both' }}
             >
               <span className="flex w-9 shrink-0 justify-center">
-                {linha.colocacao === 1 ? <Crown size={primeiro ? 30 : 22} color={MEDALHAS[0]} /> : linha.colocacao <= 3
-                  ? <Medal size={22} color={MEDALHAS[linha.colocacao - 1]} />
-                  : <span className="text-lg font-bold text-gray-400">{linha.colocacao}º</span>}
+                {linha.colocacao === null ? <span className="text-lg font-bold text-gray-500">–</span>
+                  : linha.colocacao === 1 ? <Crown size={primeiro ? 30 : 22} color={MEDALHAS[0]} /> : linha.colocacao <= 3
+                    ? <Medal size={22} color={MEDALHAS[linha.colocacao - 1]} />
+                    : <span className="text-lg font-bold text-gray-400">{linha.colocacao}º</span>}
               </span>
               {linha.avatar !== undefined && <Avatar emoji={linha.avatar || DEFAULT_AVATAR_ID} size="sm" decorative />}
               <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: linha.cor }} />
@@ -116,7 +119,17 @@ export default function PontuacaoFinal({ fim, onTerminar, exemplo, mascote = 'lu
     })), 5)
     : null;
 
-  const temPontos = Boolean(classificacaoMonstros) || [...equipes, ...participantes].some((linha) => linha.pontos > 0);
+  // Caça ao Tesouro: classificação pelo tempo da corrida (a mais rápida em 1º; quem não terminou vem depois, sem colocação)
+  const formatarTempo = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}min ${String(s % 60).padStart(2, '0')}s` : `${s}s`);
+  const classificacaoTesouro = fim.tempos?.length
+    ? rankingComZerados(fim.tempos.map((t) => ({
+      id: t.id, nome: t.nome, cor: t.cor,
+      pontos: t.segundos === null ? 0 : 1_000_000 - t.segundos,
+      rotulo: t.segundos === null ? 'Não terminou' : formatarTempo(t.segundos),
+    })), 5)
+    : null;
+
+  const temPontos = Boolean(classificacaoMonstros || classificacaoTesouro) || [...equipes, ...participantes].some((linha) => linha.pontos > 0);
 
   return (
     <section aria-label="Pontuação final" className="relative grid h-full min-h-0 grid-cols-1 gap-3 overflow-hidden rounded-2xl border border-yellow-300/20 bg-dark-card/60 p-3 sm:p-4 lg:grid-cols-[2fr_3fr]">
@@ -141,6 +154,8 @@ export default function PontuacaoFinal({ fim, onTerminar, exemplo, mascote = 'lu
               <div className="space-y-4">
                 {classificacaoMonstros ? (
                   <ListaDeRanking titulo="Classificação · vida restante do monstro" linhas={classificacaoMonstros} />
+                ) : classificacaoTesouro ? (
+                  <ListaDeRanking titulo="Classificação · tempo da expedição" linhas={classificacaoTesouro} />
                 ) : fim.individual ? (
                   <ListaDeRanking titulo="Participantes" linhas={participantes} />
                 ) : (
