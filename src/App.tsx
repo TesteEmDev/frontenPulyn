@@ -21,6 +21,7 @@ import TelaoEntrada from './pages/display/TelaoEntrada';
 import DisplayDemoPontuacao from './pages/display/DisplayDemoPontuacao';
 import DisplayDemoMonstros from './pages/display/DisplayDemoMonstros';
 import DisplayDemoRegras from './pages/display/DisplayDemoRegras';
+import DisplayDemoJogo from './pages/display/DisplayDemoJogo';
 import DemoCadastroAparencia from './pages/reception/DemoCadastroAparencia';
 import DemoRoleta from './pages/game-master/DemoRoleta';
 import ReceptionDashboard from './pages/reception/ReceptionDashboard';
@@ -239,6 +240,7 @@ function App() {
           <Route path="/demo/pontuacao-final" element={<DisplayDemoPontuacao />} />
           <Route path="/demo/monstros" element={<DisplayDemoMonstros />} />
           <Route path="/demo/regras" element={<DisplayDemoRegras />} />
+          <Route path="/demo/jogo-em-andamento" element={<DisplayDemoJogo />} />
           <Route path="/demo/cadastro-aparencia" element={<DemoCadastroAparencia />} />
           <Route path="/demo/roleta" element={<DemoRoleta />} />
           <Route path="/telao/:codigo" element={<TelaoEntrada />} />

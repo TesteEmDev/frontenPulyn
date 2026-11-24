@@ -25,9 +25,9 @@ import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from
 import RouletteOverlay, { RouletteResultBanner, type RouletteData } from '../../components/game-master/RouletteOverlay';
 import PreJogoMapa, { type LeituraPreJogo } from '../../components/display/PreJogoMapa';
 import SorteioEquipes, { type SorteioDasEquipes } from '../../components/display/SorteioEquipes';
-import UltimasLeituras, { type LeituraDoJogo } from '../../components/display/UltimasLeituras';
+import { type LeituraDoJogo } from '../../components/display/UltimasLeituras';
 import PontuacaoFinal, { type FimDeJogo } from '../../components/display/PontuacaoFinal';
-import RankingDaPartida from '../../components/display/RankingDaPartida';
+import ColunaDoJogo from '../../components/display/ColunaDoJogo';
 import { numeroDoCheckpoint } from '../../utils/checkpoints';
 
 interface MonsterDisplayMonster {
@@ -72,8 +72,6 @@ const FIM_DO_MONSTRO_ADIADO_MS = 4500;
 
 // Quanto tempo uma mensagem do recreacionista fica no telão
 const MENSAGEM_VISIVEL_MS = 8000;
-// Durante o jogo a coluna da direita alterna entre as últimas leituras e o ranking da partida; cada tela fica este tempo
-const COLUNA_DO_JOGO_MS = 10000;
 // Releitura dos pontos da partida (além da feita a cada leitura nova)
 const PONTOS_DA_PARTIDA_MS = 15000;
 
@@ -214,8 +212,6 @@ export default function DisplayMain() {
 
   // Pontos ganhos na partida (não o total do evento), para o ranking da coluna do jogo
   const [pontosDaPartida, setPontosDaPartida] = useState<PontosDaPartida | null>(null);
-  // 0 = últimas leituras, 1 = equipes (jogo em equipe), 2 = participantes (jogo individual)
-  const [colunaDoJogo, setColunaDoJogo] = useState(0);
   // Jogo individual: o ranking é dos participantes; em equipe, das equipes (mesma regra da pontuação final)
   const jogoIndividual = String(jogoSelecionado.type || '').toLowerCase() === 'individual' || isIndividualMode;
   const ultimaLeituraDaLista = scoreLog[0]?.id;
@@ -240,25 +236,6 @@ export default function DisplayMain() {
     return () => { cancelado = true; window.clearInterval(intervalo); };
   }, [gameActive, selectedEventId, ultimaLeituraDaLista]);
 
-  // Telas da coluna que têm o que mostrar: as leituras entram sempre; o ranking (equipes ou participantes, conforme o
-  // jogo) só com alguém pontuado
-  const telasDaColuna = useMemo(() => {
-    const telas = [0];
-    if (jogoIndividual) {
-      if ((pontosDaPartida?.participantes ?? []).some((p) => p.pontos > 0)) telas.push(2);
-    } else if ((pontosDaPartida?.equipes ?? []).some((e) => e.pontos > 0)) {
-      telas.push(1);
-    }
-    return telas;
-  }, [pontosDaPartida, jogoIndividual]);
-  useEffect(() => {
-    if (!gameActive || telasDaColuna.length < 2) { setColunaDoJogo(0); return undefined; }
-    const intervalo = window.setInterval(() => {
-      setColunaDoJogo((atual) => telasDaColuna[(telasDaColuna.indexOf(atual) + 1) % telasDaColuna.length]);
-    }, COLUNA_DO_JOGO_MS);
-    return () => window.clearInterval(intervalo);
-  }, [gameActive, telasDaColuna]);
-  const telaDaColuna = telasDaColuna.includes(colunaDoJogo) ? colunaDoJogo : 0;
 
   // Uma leitura chegou: relê o histórico logo depois (o servidor leva um instante para gravar), sem repetir a cada leitura em rajada
   const recargaDasLeituras = useRef<number | null>(null);
@@ -1371,15 +1348,14 @@ export default function DisplayMain() {
         )}
         <div className="mt-2 flex min-h-0 flex-1 gap-2">
           <div className="min-h-0 min-w-0 flex-1">{stageContent}</div>
-          {/* Últimas leituras: coluna ao lado do jogo (só em telas largas) */}
+          {/* Coluna ao lado do jogo (só em telas largas): últimas leituras e o ranking da partida */}
           <div className="hidden w-[clamp(13rem,19vw,21rem)] shrink-0 lg:block">
-            {telaDaColuna === 1 ? (
-              <RankingDaPartida modo="equipes" linhas={pontosDaPartida?.equipes ?? []} />
-            ) : telaDaColuna === 2 ? (
-              <RankingDaPartida modo="participantes" linhas={pontosDaPartida?.participantes ?? []} />
-            ) : (
-              <UltimasLeituras leituras={ultimasLeituras} />
-            )}
+            <ColunaDoJogo
+              leituras={ultimasLeituras}
+              equipes={pontosDaPartida?.equipes ?? []}
+              participantes={pontosDaPartida?.participantes ?? []}
+              individual={jogoIndividual}
+            />
           </div>
         </div>
       </div>
