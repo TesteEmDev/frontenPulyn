@@ -373,7 +373,8 @@ export default function DisplayMain() {
             id: String(game.id),
             name: String(game.name || 'Jogo'),
             description: game.description || null,
-            rules: game.rules || null,
+            // Jogos de buffet: a versão curta para crianças (a mesma que o Lumi fala); PulynBall: as regras completas
+            rules: game.regrasTelao || game.rules || null,
             type: game.type || null,
             duration: game.duration ? Number(game.duration) : null,
           }))

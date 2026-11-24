@@ -34,7 +34,8 @@ const LONGO: GuideGame = {
   ].join('\n'),
 };
 
-// Jogos padrão do sistema (iguais para todos os buffets), gravados pelo scripts/gerar-voz-lumi.py junto com os áudios
+// Jogos de buffet do sistema (iguais para todos os buffets) com as regras curtas do telão, gravados pelo
+// scripts/gerar-voz-lumi.py junto com os áudios
 interface JogoPadrao { tipo: string; nome: string; duracao?: number; descricao?: string; regras?: string }
 const paraGuia = (j: JogoPadrao): GuideGame => ({
   id: `padrao-${j.tipo}`,
@@ -101,7 +102,7 @@ export default function DisplayDemoRegras() {
             <option value={LONGO.id}>Exemplo: regras longas</option>
           </optgroup>
           {jogosPadrao.length > 0 && (
-            <optgroup label="Jogos do sistema">
+            <optgroup label="Jogos do buffet">
               {jogosPadrao.map((j) => <option key={j.id} value={j.id}>{j.name}</option>)}
             </optgroup>
           )}
