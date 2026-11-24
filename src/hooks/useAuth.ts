@@ -30,6 +30,8 @@ interface AuthStore {
   abrirTelaoDaEquipe: () => Promise<{ success: boolean; error?: string }>;
   // Depois da troca obrigatória da senha: guarda o token novo e libera o resto do sistema
   concluirTrocaDeSenha: (token: string) => void;
+  // Depois de editar o nome ou o e-mail da própria conta: guarda o token novo e atualiza o que o painel mostra
+  atualizarPerfil: (token: string, dados: { name: string; email: string }) => void;
   logout: () => void;
 }
 
@@ -175,6 +177,11 @@ export const useAuth = create<AuthStore>((set, get) => {
     concluirTrocaDeSenha: (token: string) => {
       localStorage.setItem('authToken', token);
       set((estado) => ({ token, user: estado.user ? { ...estado.user, trocarSenha: false } : estado.user }));
+    },
+
+    atualizarPerfil: (token: string, dados: { name: string; email: string }) => {
+      localStorage.setItem('authToken', token);
+      set((estado) => ({ token, user: estado.user ? { ...estado.user, name: dados.name, email: dados.email } : estado.user }));
     },
 
     logout: () => {

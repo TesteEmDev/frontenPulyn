@@ -489,6 +489,18 @@ export const api = {
     return data;
   },
 
+  // Master edita o próprio nome e e-mail de login. Trocar o e-mail exige a senha atual. Devolve o token novo da sessão.
+  async atualizarPerfil(dados: { nome?: string; email?: string; senhaAtual?: string }): Promise<{ success: boolean; token: string; user: { nome: string; name: string; email: string } }> {
+    const res = await fetch(`${API_URL}/auth/perfil`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(dados),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ao salvar o perfil (${res.status})`);
+    return body;
+  },
+
   // Troca de área: a mesma conta pede um token para outro papel que ela já tem (ver routes/auth.js).
   async trocarPapel(role: string): Promise<any> {
     const res = await fetch(`${API_URL}/auth/papel`, {
