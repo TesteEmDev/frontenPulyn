@@ -51,10 +51,13 @@ export const ehTipoDeMonstro = (valor: unknown): valor is TipoDeMonstro =>
   typeof valor === 'string' && (TIPOS_DE_MONSTRO as readonly string[]).includes(valor);
 
 // Tipo e cor válidos a partir do que o servidor mandou. Partidas antigas (sem sorteio) ou valores estranhos recebem um
-// monstro estável pela posição da equipe: assim cada equipe continua com um diferente e nada quebra.
+// monstro estável pela posição da equipe, sem repetir a combinação tipo+cor: as 6 primeiras equipes pegam os 6 tipos na
+// 1ª cor, as 6 seguintes os mesmos tipos na 2ª cor, e assim por diante (18 combinações, como o sorteio do servidor).
 export function monstroDaEquipe(tipo: unknown, cor: unknown, posicao = 0): { tipo: TipoDeMonstro; cor: string } {
-  const tipoValido = ehTipoDeMonstro(tipo) ? tipo : TIPOS_DE_MONSTRO[Math.abs(posicao) % TIPOS_DE_MONSTRO.length];
+  const indice = Math.abs(posicao);
+  const tipoValido = ehTipoDeMonstro(tipo) ? tipo : TIPOS_DE_MONSTRO[indice % TIPOS_DE_MONSTRO.length];
   const cores = MONSTROS[tipoValido].cores;
-  const corValida = typeof cor === 'string' && cores.includes(cor) ? cor : cores[Math.abs(posicao) % cores.length];
+  const rodada = Math.floor(indice / TIPOS_DE_MONSTRO.length);
+  const corValida = typeof cor === 'string' && cores.includes(cor) ? cor : cores[rodada % cores.length];
   return { tipo: tipoValido, cor: corValida };
 }
