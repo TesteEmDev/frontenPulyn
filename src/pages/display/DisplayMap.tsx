@@ -84,6 +84,9 @@ interface DisplayMapProps {
   isIndividualMode?: boolean;
   zoneConquestZones?: ZoneState[] | null;
   zoneConquestCheckpoints?: CheckpointState[] | null;
+  // Prévia (demo local): checkpoints e equipes de exemplo no lugar dos do evento, com as zonas padrão do mapa (não lê
+  // o armazenamento do app nem busca as zonas do buffet)
+  previa?: { checkpoints: Checkpoint[]; teams: Team[] } | null;
 }
 
 export default function DisplayMap({
@@ -94,8 +97,13 @@ export default function DisplayMap({
   floorPlan,
   isIndividualMode = false,
   zoneConquestCheckpoints,
+  previa = null,
 }: DisplayMapProps) {
-  const { children, checkpoints, scoreLog, teams } = usePulynStore();
+  const armazenado = usePulynStore();
+  const { children, scoreLog } = armazenado;
+  const checkpoints = previa?.checkpoints ?? armazenado.checkpoints;
+  const teams = previa?.teams ?? armazenado.teams;
+  const temPrevia = Boolean(previa);
   // Só a página /display/map confere a versão nova; embutido no DisplayMain, quem confere é ele
   useRecarregarComVersaoNova(true, !embedded);
   const eventoAtual = usePulynStore((state: any) => state.eventoAtualId);
@@ -151,8 +159,9 @@ export default function DisplayMap({
     return () => clearInterval(interval);
   }, [currentPartidaId, eventoAtual]);
 
-  // 🆕 Carregar zonas do buffet (não mudam por evento, só carregam uma vez)
+  // 🆕 Carregar zonas do buffet (não mudam por evento, só carregam uma vez). Na prévia ficam as zonas padrão.
   useEffect(() => {
+    if (temPrevia) return;
     const LOCAL_KEY = 'zones_company';
     const loadZones = async () => {
       try {
@@ -182,7 +191,7 @@ export default function DisplayMap({
     };
 
     loadZones();
-  }, []);
+  }, [temPrevia]);
 
   const teamById = useMemo(() => {
     const map = new Map<string, Team>();
