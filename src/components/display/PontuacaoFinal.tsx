@@ -99,8 +99,10 @@ export default function PontuacaoFinal({ fim, onTerminar, exemplo, mascote = 'lu
     .map((participante) => ({ id: participante.id, nome: participante.nome || 'Participante', pontos: participante.pontos, cor: participante.cor || '#1E9BD7', avatar: participante.avatar }));
 
   // Até o 5º lugar (participantes num jogo em equipe: até o 3º); empatados na última colocação mostrada entram todos
-  const equipes = ateAColocacao(exemplo ? exemplo.equipes : equipesDaPartida, 5);
-  const participantes = ateAColocacao(exemplo ? exemplo.participantes : participantesDaPartida, fim.individual ? 5 : 3);
+  // (o servidor manda também quem ficou zerado; a pontuação final mostra só quem pontuou)
+  const pontuou = (linha: Linha) => linha.pontos > 0;
+  const equipes = ateAColocacao((exemplo ? exemplo.equipes : equipesDaPartida).filter(pontuou), 5);
+  const participantes = ateAColocacao((exemplo ? exemplo.participantes : participantesDaPartida).filter(pontuou), fim.individual ? 5 : 3);
 
   const temPontos = [...equipes, ...participantes].some((linha) => linha.pontos > 0);
 

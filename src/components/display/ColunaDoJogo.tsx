@@ -1,7 +1,7 @@
 // Coluna ao lado do jogo no telão: as últimas leituras ficam sempre em cima (nenhuma leitura passa sem ser vista) e,
 // embaixo, o ranking da partida, que alterna com o "Top" do outro lado. Jogo em equipe: equipes no jogo ↔ top
-// participantes. Individual: participantes no jogo ↔ top equipes. Cada ranking só aparece depois que alguém pontua;
-// enquanto ninguém pontuou, as leituras ocupam a coluna inteira.
+// participantes. Individual: participantes no jogo ↔ top equipes. Os rankings aparecem desde o início (todo mundo
+// zerado); só um evento sem equipes (ou sem crianças) deixa aquele ranking de fora.
 import { useEffect, useMemo, useState } from 'react';
 import UltimasLeituras, { type LeituraDoJogo } from './UltimasLeituras';
 import RankingDaPartida, { type LinhaDaPartida } from './RankingDaPartida';
@@ -22,8 +22,8 @@ export default function ColunaDoJogo({ leituras, equipes, participantes, individ
 }) {
   const principal = individual ? participantes : equipes;
   const top = individual ? equipes : participantes;
-  const temPrincipal = principal.some((linha) => linha.pontos > 0);
-  const temTop = top.some((linha) => linha.pontos > 0);
+  const temPrincipal = principal.length > 0;
+  const temTop = top.length > 0;
   const rankings = useMemo<Ranking[]>(() => {
     const lista: Ranking[] = [];
     if (temPrincipal) lista.push('principal');
