@@ -824,10 +824,9 @@ export default function DisplayMain() {
         if (fimAdiado.current !== null) { window.clearTimeout(fimAdiado.current); fimAdiado.current = null; }
       }
       const monstrosEmCena = selectedGameType === 'monster_hunt' && Boolean(monsterStatus?.monsters?.length || monsterStatus?.progress?.length);
-      const tesouroEmCena = selectedGameType === 'treasure_hunt' && Boolean(treasureStatus);
-      // Só o fim automático (o monstro caiu, ou todas as equipes acharam o tesouro) espera a queda / a vitória na tela;
-      // o encerramento pelo recreacionista mostra o resultado na hora
-      if (event.type === 'GAME_STOPPED' && event.payload?.automatic && (monstrosEmCena || tesouroEmCena) && fimAdiado.current === null) {
+      // Só o fim automático do monstro (o monstro caiu) espera a queda na tela; os outros fins (o tesouro, o recreacionista
+      // encerrando) mostram o resultado na hora
+      if (event.type === 'GAME_STOPPED' && event.payload?.automatic && monstrosEmCena && fimAdiado.current === null) {
         const inicio = iniciosDeJogo.current;
         fimAdiado.current = window.setTimeout(() => {
           fimAdiado.current = null;

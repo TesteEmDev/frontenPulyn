@@ -125,9 +125,6 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
   const currentTeam = status.turnTeamId
     ? teamById.get(String(status.turnTeamId).toLowerCase())
     : teams.find((team) => team.name === status.turnTeamName);
-  const winnerTeam = status.winningTeamId
-    ? teamById.get(String(status.winningTeamId).toLowerCase())
-    : teams.find((team) => team.name === status.winningTeamName);
   const currentTeamColor = currentTeam?.color || '#F5A623';
   const countdown = status.turnAvailableAt
     ? Math.max(0, Math.ceil((Date.parse(status.turnAvailableAt) - now) / 1000))
@@ -242,22 +239,6 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
 
       {lastEvent?.payload.message && <div className="relative mt-3 flex shrink-0 items-center gap-3 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-3"><span className="text-2xl">✨</span><div><p className="text-sm font-semibold text-white">{lastEvent.payload.message}</p>{lastEvent.payload.criancaName && <p className="text-xs text-amber-100/70">{lastEvent.payload.criancaName} participou da expedição</p>}</div></div>}
 
-       {status.completed && (
-         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-6 backdrop-blur-md">
-           <div className="w-full max-w-2xl animate-in fade-in zoom-in duration-500">
-             <div className="rounded-3xl border-2 border-amber-300/70 bg-gradient-to-br from-amber-950/95 via-[#21172c] to-[#101a2b] p-8 text-center shadow-[0_0_100px_rgba(245,166,35,0.35)]">
-               <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-amber-300/15 text-amber-200 shadow-[0_0_50px_rgba(245,166,35,0.3)]">
-                 <Trophy size={48} />
-               </div>
-               <p className="text-xs font-bold uppercase tracking-[0.35em] text-amber-300">🎉 Tesouro encontrado 🎉</p>
-               <h3 className="mt-4 font-display text-5xl font-bold text-white">
-                 {winnerTeam?.name || status.winningTeamName || 'Equipe vencedora'}
-               </h3>
-               <p className="mt-4 text-2xl text-amber-100">venceu a expedição!</p>
-             </div>
-           </div>
-         </div>
-       )}
     </section>
   );
 }
