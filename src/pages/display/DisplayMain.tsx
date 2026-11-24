@@ -976,24 +976,18 @@ export default function DisplayMain() {
           <div className="h-full">
             <ArenaDosMonstros monstros={monsterCards} danoDeTeste={danoDeTeste} modoDeTeste={modoDeTeste} />
           </div>
-            ) : (
-            <FitToBox align="center" minScale={0.3} maxScale={gameOnlyView ? 1.6 : 1}>
-              <>
-          {selectedGameType === 'treasure_hunt' && treasureStatus?.gameType === 'treasure_hunt' &&
-            (treasureStatus.active || treasureStatus.completed) && (
-            <div className="mx-auto max-w-6xl">
-              <TreasureArena
-                status={treasureStatus}
-                checkpoints={checkpoints}
-                teams={teams}
-                lastEvent={lastTreasureEvent}
-                floorPlan={floorPlan}
-              />
-            </div>
-          )}
-              </>
-            </FitToBox>
-            )
+            ) : treasureStageVisible && treasureStatus ? (
+          // Caça ao Tesouro: a arena ocupa o palco inteiro (mapa grande e o painel da vez ao lado)
+          <div className="h-full">
+            <TreasureArena
+              status={treasureStatus}
+              checkpoints={checkpoints}
+              teams={teams}
+              lastEvent={lastTreasureEvent}
+              floorPlan={floorPlan}
+            />
+          </div>
+            ) : null
   );
 
   // Simula o golpe numa equipe; um monstro já derrotado não reage

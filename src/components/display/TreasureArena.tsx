@@ -144,9 +144,10 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
       }));
 
   return (
-    <section className="relative overflow-hidden rounded-3xl border-2 border-amber-300/30 bg-[radial-gradient(circle_at_top,#4b3215_0%,#1b1520_42%,#0b1220_100%)] p-4 shadow-[0_24px_80px_rgba(245,166,35,0.13)] sm:p-6" aria-live="polite">
+    // Ocupa todo o palco do telão: o mapa fica com a altura toda e o espaço que sobra ao lado do painel
+    <section className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border-2 border-amber-300/30 bg-[radial-gradient(circle_at_top,#4b3215_0%,#1b1520_42%,#0b1220_100%)] p-3 shadow-[0_24px_80px_rgba(245,166,35,0.13)] sm:p-4" aria-live="polite">
       <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-amber-400/10 blur-3xl" />
-      <div className="relative mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-amber-200/15 pb-4">
+      <div className="relative mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-amber-200/15 pb-3">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-300/30 bg-amber-300/10 text-amber-200 shadow-[0_0_30px_rgba(245,166,35,0.2)]">
             <Compass size={26} />
@@ -161,8 +162,8 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
         </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="relative min-h-[430px] overflow-hidden rounded-2xl border border-amber-200/20 bg-[#17131d] p-3">
+      <div className="relative flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
+        <div className="relative min-h-[260px] min-w-0 flex-1 overflow-hidden rounded-2xl border border-amber-200/20 bg-[#17131d] p-3 lg:min-h-0">
           {/* Planta baixa como background se disponível, senão grid pattern */}
           {floorPlan ? (
             <img 
@@ -214,17 +215,17 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
           </svg>
         </div>
 
-        <div className="space-y-4">
-          <div className="rounded-2xl border-2 p-5 text-center" style={{ borderColor: `${currentTeamColor}99`, backgroundColor: `${currentTeamColor}18`, boxShadow: `0 0 35px ${currentTeamColor}18` }}>
+        <div className="flex min-h-0 w-full shrink-0 flex-col gap-4 lg:w-[clamp(16rem,24vw,24rem)]">
+          <div className="shrink-0 rounded-2xl border-2 p-5 text-center" style={{ borderColor: `${currentTeamColor}99`, backgroundColor: `${currentTeamColor}18`, boxShadow: `0 0 35px ${currentTeamColor}18` }}>
             <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-slate-300">{status.initialWait ? 'Equipe sorteada' : 'Equipe da vez'}</p>
             <p className="mt-2 truncate font-display text-3xl font-bold" style={{ color: currentTeamColor }}>{status.completed ? status.winningTeamName : status.turnTeamName || status.startingTeamName || 'Preparando...'}</p>
             <div className="mx-auto mt-4 flex items-center justify-center gap-2 text-amber-100"><TimerReset size={18} /><span className="text-sm">{status.initialWait ? 'Começa em' : 'Próxima ação em'}</span></div>
             <p className="mt-1 font-mono text-6xl font-bold leading-none text-white">{countdown > 0 ? `${countdown}s` : 'AGORA'}</p>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-            <div className="mb-3 flex items-center justify-between gap-3"><div className="flex items-center gap-2"><p className="text-xs font-bold uppercase tracking-wider text-slate-300">Progresso das equipes</p><span className="rounded-full bg-amber-300/10 px-2 py-1 text-[10px] font-bold text-amber-200">{progress.length}</span></div><Trophy size={17} className="text-amber-300" /></div>
-            <div className="max-h-[290px] space-y-4 overflow-y-auto pr-1">
+          <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-white/10 bg-black/20 p-4">
+            <div className="mb-3 flex shrink-0 items-center justify-between gap-3"><div className="flex items-center gap-2"><p className="text-xs font-bold uppercase tracking-wider text-slate-300">Progresso das equipes</p><span className="rounded-full bg-amber-300/10 px-2 py-1 text-[10px] font-bold text-amber-200">{progress.length}</span></div><Trophy size={17} className="text-amber-300" /></div>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
               {progress.map((team) => {
                 const percentage = team.total > 0 ? Math.min(100, (team.scanned / team.total) * 100) : 0;
                 return <div key={team.teamId}>
@@ -235,11 +236,11 @@ export function TreasureArena({ status, checkpoints, teams, lastEvent, floorPlan
             </div>
           </div>
 
-          {targetCheckpoint && <div className="rounded-2xl border border-amber-300/25 bg-amber-300/10 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-300">Objetivo atual</p><p className="mt-1 flex items-center gap-2 font-display text-xl font-bold text-white"><Gem size={18} className="text-amber-300" />{targetCheckpoint.name}</p></div>}
+          {targetCheckpoint && <div className="shrink-0 rounded-2xl border border-amber-300/25 bg-amber-300/10 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-300">Objetivo atual</p><p className="mt-1 flex items-center gap-2 font-display text-xl font-bold text-white"><Gem size={18} className="text-amber-300" />{targetCheckpoint.name}</p></div>}
         </div>
       </div>
 
-      {lastEvent?.payload.message && <div className="mt-5 flex items-center gap-3 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-3"><span className="text-2xl">✨</span><div><p className="text-sm font-semibold text-white">{lastEvent.payload.message}</p>{lastEvent.payload.criancaName && <p className="text-xs text-amber-100/70">{lastEvent.payload.criancaName} participou da expedição</p>}</div></div>}
+      {lastEvent?.payload.message && <div className="relative mt-3 flex shrink-0 items-center gap-3 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-3"><span className="text-2xl">✨</span><div><p className="text-sm font-semibold text-white">{lastEvent.payload.message}</p>{lastEvent.payload.criancaName && <p className="text-xs text-amber-100/70">{lastEvent.payload.criancaName} participou da expedição</p>}</div></div>}
 
        {status.completed && (
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-6 backdrop-blur-md">
