@@ -8,7 +8,6 @@ import { DEFAULT_AVATAR_ID } from '../../avatar/adventurerAvatars';
 import { api, type PontosDaPartida } from '../../services/api';
 import { usePulynStore } from '../../store/mockData';
 import FitToBox from './FitToBox';
-import PulynComemorando from './PulynComemorando';
 import LumiComemorando from './LumiComemorando';
 
 export interface FimDeJogo {
@@ -64,13 +63,9 @@ function ListaDeRanking({ titulo, linhas, destacarPrimeiro = true }: { titulo: s
   );
 }
 
-// `exemplo` troca os dados do evento por dados de teste (página de demonstração /demo/pontuacao-final).
-// `mascote` escolhe a animação: 'lumi' (padrão, vídeo do Lumi comemorando) ou 'pulyn' (a animação anterior).
-export default function PontuacaoFinal({ fim, onTerminar, exemplo, mascote = 'lumi' }: {
+export default function PontuacaoFinal({ fim, onTerminar }: {
   fim: FimDeJogo;
   onTerminar: () => void;
-  exemplo?: { equipes: Linha[]; participantes: Linha[] };
-  mascote?: 'pulyn' | 'lumi';
 }) {
   const eventoId = usePulynStore((state) => state.eventoAtualId);
   const [pontosDaPartida, setPontosDaPartida] = useState<PontosDaPartida | null>(null);
@@ -81,7 +76,7 @@ export default function PontuacaoFinal({ fim, onTerminar, exemplo, mascote = 'lu
   }, [fim.chave, onTerminar]);
 
   useEffect(() => {
-    if (exemplo || !eventoId) return undefined;
+    if (!eventoId) return undefined;
     let cancelado = false;
     const buscar = () => api.getPontosDaPartida(eventoId)
       .then((dados) => { if (!cancelado) setPontosDaPartida(dados); })
@@ -89,7 +84,7 @@ export default function PontuacaoFinal({ fim, onTerminar, exemplo, mascote = 'lu
     void buscar();
     const releitura = window.setTimeout(buscar, RELEITURA_MS);
     return () => { cancelado = true; window.clearTimeout(releitura); };
-  }, [eventoId, fim.chave, exemplo]);
+  }, [eventoId, fim.chave]);
 
   const equipesDaPartida: Linha[] = (pontosDaPartida?.equipes ?? [])
     .map((equipe) => ({ id: equipe.id, nome: equipe.nome || 'Equipe', pontos: equipe.pontos, cor: equipe.cor || '#1E9BD7' }))
@@ -98,8 +93,8 @@ export default function PontuacaoFinal({ fim, onTerminar, exemplo, mascote = 'lu
     .map((participante) => ({ id: participante.id, nome: participante.nome || 'Participante', pontos: participante.pontos, cor: participante.cor || '#1E9BD7', avatar: participante.avatar }))
     .slice(0, fim.individual ? 5 : 3);
 
-  const equipes = exemplo ? exemplo.equipes : equipesDaPartida;
-  const participantes = exemplo ? exemplo.participantes.slice(0, fim.individual ? 5 : 3) : participantesDaPartida;
+  const equipes = equipesDaPartida;
+  const participantes = participantesDaPartida;
 
   const temPontos = [...equipes, ...participantes].some((linha) => linha.pontos > 0);
 
@@ -113,7 +108,7 @@ export default function PontuacaoFinal({ fim, onTerminar, exemplo, mascote = 'lu
           {fim.nomeJogo && <p className="text-[clamp(0.8rem,1.9vh,1.3rem)] text-gray-300">{fim.nomeJogo}</p>}
         </div>
         <div className="h-[78%] w-full pt-6">
-          {mascote === 'lumi' ? <LumiComemorando /> : <PulynComemorando />}
+          <LumiComemorando />
         </div>
       </div>
 

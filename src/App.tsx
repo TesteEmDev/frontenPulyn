@@ -18,12 +18,6 @@ import DisplayRanking from './pages/display/DisplayRanking';
 import DisplayMap from './pages/display/DisplayMap';
 import DisplayStandby from './pages/display/DisplayStandby';
 import TelaoEntrada from './pages/display/TelaoEntrada';
-import DisplayDemoPontuacao from './pages/display/DisplayDemoPontuacao';
-import DisplayDemoMonstros from './pages/display/DisplayDemoMonstros';
-import DisplayDemoRegras from './pages/display/DisplayDemoRegras';
-import DisplayDemoJogo from './pages/display/DisplayDemoJogo';
-import DemoCadastroAparencia from './pages/reception/DemoCadastroAparencia';
-import DemoRoleta from './pages/game-master/DemoRoleta';
 import ReceptionDashboard from './pages/reception/ReceptionDashboard';
 import ReceptionCheckin from './pages/reception/ReceptionCheckin';
 import ReceptionKiosk from './pages/reception/ReceptionKiosk';
@@ -237,12 +231,6 @@ function App() {
           {/* Telão */}
           <Route path="/telao" element={<TelaoEntrada />} />
           {/* Prévia da tela de pontuação final com dados de exemplo (não lê nem grava nada do evento) */}
-          <Route path="/demo/pontuacao-final" element={<DisplayDemoPontuacao />} />
-          <Route path="/demo/monstros" element={<DisplayDemoMonstros />} />
-          <Route path="/demo/regras" element={<DisplayDemoRegras />} />
-          <Route path="/demo/jogo-em-andamento" element={<DisplayDemoJogo />} />
-          <Route path="/demo/cadastro-aparencia" element={<DemoCadastroAparencia />} />
-          <Route path="/demo/roleta" element={<DemoRoleta />} />
           <Route path="/telao/:codigo" element={<TelaoEntrada />} />
           <Route path="/display" element={<ProtectedRoute allowedRoles={['display']}><DisplayMain /></ProtectedRoute>} />
           <Route path="/display/ranking" element={<ProtectedRoute allowedRoles={['display']}><DisplayRanking /></ProtectedRoute>} />
