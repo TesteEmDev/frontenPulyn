@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Monster3D from './Monster3D';
 import BotaoSomDosMonstros from './monstros/BotaoSomDosMonstros';
-import { monstroDaEquipe } from './monstros/catalogo';
+import { MONSTROS, monstroDaEquipe } from './monstros/catalogo';
 
 export interface MonstroNaArena {
   teamId: string;
@@ -131,11 +131,12 @@ export default function ArenaDosMonstros({ monstros, danoDeTeste = {}, modoDeTes
                       cor={escolhido.cor}
                       leve={monstros.length > 2}
                       preencher
+                      semLegenda
                     />
                   </div>
                   <div className="shrink-0">
                     <div className={`flex items-center justify-between font-semibold text-gray-200 ${compacto ? 'mt-2 text-xs' : 'mt-3 text-sm'}`}>
-                      <span>Energia do monstro</span>
+                      <span className="truncate">{MONSTROS[escolhido.tipo].nome}</span>
                       <span>{hp}/{maxHp} HP</span>
                     </div>
                     <div className={`mt-1.5 overflow-hidden rounded-full border border-white/10 bg-black/50 p-0.5 ${compacto ? 'h-3' : 'h-4'}`}>
