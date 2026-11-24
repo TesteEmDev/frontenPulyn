@@ -2,7 +2,7 @@ import { lerToken, sessaoSoDestaAba } from './utils/sessao';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { DialogoGlobal } from './components/ui/dialogo';
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, lazy, Suspense, type ComponentType } from 'react';
 import { usePulynStore } from './store/mockData';
 import { useAuth } from './hooks/useAuth';
 import { useEventControl } from './hooks/useEventControl';
@@ -18,11 +18,6 @@ import DisplayRanking from './pages/display/DisplayRanking';
 import DisplayMap from './pages/display/DisplayMap';
 import DisplayStandby from './pages/display/DisplayStandby';
 import TelaoEntrada from './pages/display/TelaoEntrada';
-import DisplayDemoPontuacao from './pages/display/DisplayDemoPontuacao';
-import DisplayDemoMonstros from './pages/display/DisplayDemoMonstros';
-import DisplayDemoRegras from './pages/display/DisplayDemoRegras';
-import DemoCadastroAparencia from './pages/reception/DemoCadastroAparencia';
-import DemoRoleta from './pages/game-master/DemoRoleta';
 import ReceptionDashboard from './pages/reception/ReceptionDashboard';
 import ReceptionCheckin from './pages/reception/ReceptionCheckin';
 import ReceptionKiosk from './pages/reception/ReceptionKiosk';
@@ -131,6 +126,15 @@ function DisplayRealtimeBridge({ enabled }: { enabled: boolean }) {
   return null;
 }
 
+// Demos locais: cada arquivo de src/demos (pasta fora do Git, só no PC de quem desenvolve) vira a rota /demo/<nome>. No
+// GitHub e nos buffets a pasta não existe e não há demos; o gerador do instalador monta o site com VITE_DEMOS=0.
+const DEMOS = import.meta.env.VITE_DEMOS === '0'
+  ? []
+  : Object.entries(import.meta.glob<{ default: ComponentType }>('./demos/*.tsx')).map(([arquivo, carregar]) => ({
+    rota: `/demo/${arquivo.replace(/^\.\/demos\//, '').replace(/\.tsx$/, '')}`,
+    Pagina: lazy(carregar),
+  }));
+
 function App() {
   const { 
     syncAll, 
@@ -236,17 +240,14 @@ function App() {
 
           {/* Telão */}
           <Route path="/telao" element={<TelaoEntrada />} />
-          {/* Prévia da tela de pontuação final com dados de exemplo (não lê nem grava nada do evento) */}
-          <Route path="/demo/pontuacao-final" element={<DisplayDemoPontuacao />} />
-          <Route path="/demo/monstros" element={<DisplayDemoMonstros />} />
-          <Route path="/demo/regras" element={<DisplayDemoRegras />} />
-          <Route path="/demo/cadastro-aparencia" element={<DemoCadastroAparencia />} />
-          <Route path="/demo/roleta" element={<DemoRoleta />} />
           <Route path="/telao/:codigo" element={<TelaoEntrada />} />
           <Route path="/display" element={<ProtectedRoute allowedRoles={['display']}><DisplayMain /></ProtectedRoute>} />
           <Route path="/display/ranking" element={<ProtectedRoute allowedRoles={['display']}><DisplayRanking /></ProtectedRoute>} />
           <Route path="/display/map" element={<ProtectedRoute allowedRoles={['display']}><DisplayMap /></ProtectedRoute>} />
           <Route path="/display/standby" element={<ProtectedRoute allowedRoles={['display']}><DisplayStandby /></ProtectedRoute>} />
+          {DEMOS.map(({ rota, Pagina }) => (
+            <Route key={rota} path={rota} element={<Suspense fallback={null}><Pagina /></Suspense>} />
+          ))}
 
           {/* Recepção */}
           <Route path="/reception" element={<ProtectedRoute allowedRoles={['reception']}><ReceptionDashboard /></ProtectedRoute>} />

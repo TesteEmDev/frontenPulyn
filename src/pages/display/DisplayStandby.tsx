@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { usePulynStore } from '../../store/mockData';
+import { useRecarregarComVersaoNova } from '../../hooks/useRecarregarComVersaoNova';
 
 function FloatingParticles() {
   const particles = useMemo(
@@ -44,6 +45,7 @@ function FloatingParticles() {
 
 export default function DisplayStandby() {
   const { events, eventoAtualId } = usePulynStore();
+  useRecarregarComVersaoNova();
   const [glowIntensity, setGlowIntensity] = useState(0);
 
   // O standby também segue o evento escolhido pela recepção; não escolhe

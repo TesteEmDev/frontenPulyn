@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import Avatar from '../../components/ui/Avatar';
 import { usePulynStore } from '../../store/mockData';
+import { useRecarregarComVersaoNova } from '../../hooks/useRecarregarComVersaoNova';
 
 function Confetti() {
   const pieces = useMemo(
@@ -132,6 +133,7 @@ function PodiumPosition({
 
 export default function DisplayRanking() {
   const { children, teams } = usePulynStore();
+  useRecarregarComVersaoNova();
 
   const rankedChildren = useMemo(
     () =>

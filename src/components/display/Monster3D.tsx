@@ -18,6 +18,11 @@ interface Monster3DProps {
   cor?: string;
   // Cenário mais leve (sem luzes pontuais e com metade dos objetos): para quando há muitas equipes na tela
   leve?: boolean;
+  // Ocupa toda a altura do lugar onde está (a arena dimensiona os cards), sem a altura mínima de 330 px
+  preencher?: boolean;
+  // Sem a legenda fixa ("Monstro de Equipe X" e "% de energia"): só os avisos de golpe (−10 HP, DERROTADO!) aparecem
+  // por cima do monstro. A arena já mostra o nome, a vida e a equipe no card.
+  semLegenda?: boolean;
 }
 
 type MonsterEffect = 'hit' | 'death' | null;
@@ -59,6 +64,8 @@ export default function Monster3D({
   tipo = 'slime',
   cor,
   leve = false,
+  preencher = false,
+  semLegenda = false,
 }: Monster3DProps) {
   const dados = MONSTROS[tipo];
   const corDoMonstro = cor && dados.cores.includes(cor) ? cor : dados.cores[0];
@@ -325,20 +332,28 @@ export default function Monster3D({
   const winnerStyle = { '--winner-color': winnerTeamColor || teamColor || '#86efac' } as CSSProperties;
 
   return (
-    <div className="monster-3d" aria-label={`${teamName ? `Monstro da equipe ${teamName}` : 'Monstro 3D'} (${dados.nome}) com ${safeHp} de ${safeMaxHp} HP`}>
+    <div className="monster-3d" style={preencher ? { minHeight: 0, height: '100%' } : undefined} aria-label={`${teamName ? `Monstro da equipe ${teamName}` : 'Monstro 3D'} (${dados.nome}) com ${safeHp} de ${safeMaxHp} HP`}>
       <style>{monsterStyles}</style>
       <canvas ref={canvasRef} className="monster-3d__canvas" aria-hidden="true" />
       {webglUnavailable && <div className="monster-3d__fallback" aria-hidden="true">👹</div>}
-      <div className="monster-3d__status" style={winnerStyle}>
-        {defeated ? (
-          <span className="monster-3d__winner">🏆 {winnerTeamName || 'Monstro derrotado'}</span>
-        ) : (
-          <span>{teamName ? `${dados.nome} de ${teamName}` : `${dados.nome} em batalha`}</span>
-        )}
-        <span className={effect ? 'monster-3d__damage' : ''} key={effectKey}>
-          {effect === 'death' ? 'DERROTADO!' : effect === 'hit' ? `-${damage} HP` : `${hpPercent}% de energia`}
-        </span>
-      </div>
+      {semLegenda ? (
+        effect && (
+          <div className="monster-3d__status" style={{ ...winnerStyle, justifyContent: 'center' }}>
+            <span className="monster-3d__damage" key={effectKey}>{effect === 'death' ? 'DERROTADO!' : `-${damage} HP`}</span>
+          </div>
+        )
+      ) : (
+        <div className="monster-3d__status" style={winnerStyle}>
+          {defeated ? (
+            <span className="monster-3d__winner">🏆 {winnerTeamName || 'Monstro derrotado'}</span>
+          ) : (
+            <span>{teamName ? `${dados.nome} de ${teamName}` : `${dados.nome} em batalha`}</span>
+          )}
+          <span className={effect ? 'monster-3d__damage' : ''} key={effectKey}>
+            {effect === 'death' ? 'DERROTADO!' : effect === 'hit' ? `-${damage} HP` : `${hpPercent}% de energia`}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

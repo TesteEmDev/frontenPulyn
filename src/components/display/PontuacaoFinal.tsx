@@ -9,6 +9,8 @@ import { api, type PontosDaPartida } from '../../services/api';
 import { usePulynStore } from '../../store/mockData';
 import FitToBox from './FitToBox';
 import PulynComemorando from './PulynComemorando';
+import LumiComemorando from './LumiComemorando';
+import { ateAColocacao, rankingComZerados } from '../../utils/colocacao';
 
 export interface FimDeJogo {
   // Muda a cada fim de jogo
@@ -16,6 +18,10 @@ export interface FimDeJogo {
   nomeJogo: string | null;
   // Jogo individual: o destaque são os participantes, não as equipes
   individual: boolean;
+  // Caça ao Monstro: a vida que sobrou no monstro de cada equipe quando o jogo acabou (a classificação é por ela)
+  monstros?: { id: string; nome: string; cor: string; vida: number; vidaMaxima: number }[];
+  // Caça ao Tesouro: o tempo de cada equipe na corrida (null = não terminou); a classificação é por ele
+  tempos?: { id: string; nome: string; cor: string; segundos: number | null }[];
 }
 
 const EXIBICAO_MS = 45000;
@@ -29,15 +35,18 @@ export interface Linha {
   pontos: number;
   cor: string;
   avatar?: string | null;
+  // Texto no lugar de "N pts"
+  rotulo?: string;
 }
 
-function ListaDeRanking({ titulo, linhas, destacarPrimeiro = true }: { titulo: string; linhas: Linha[]; destacarPrimeiro?: boolean }) {
+// Empatados nos pontos ficam na mesma colocação (coroa para todos os 1º, medalhas para os 2º e 3º)
+function ListaDeRanking({ titulo, linhas, destacarPrimeiro = true }: { titulo: string; linhas: (Linha & { colocacao: number | null })[]; destacarPrimeiro?: boolean }) {
   return (
     <div>
       <p className="mb-2 text-[clamp(0.65rem,1.4vh,0.9rem)] font-bold uppercase tracking-[0.25em] text-primary-300">{titulo}</p>
       <ol className="space-y-2">
         {linhas.map((linha, posicao) => {
-          const primeiro = destacarPrimeiro && posicao === 0;
+          const primeiro = destacarPrimeiro && linha.colocacao === 1;
           return (
             <li
               key={linha.id}
@@ -45,15 +54,16 @@ function ListaDeRanking({ titulo, linhas, destacarPrimeiro = true }: { titulo: s
               style={{ animationDelay: `${posicao * 160}ms`, animationFillMode: 'both' }}
             >
               <span className="flex w-9 shrink-0 justify-center">
-                {posicao === 0 ? <Crown size={primeiro ? 30 : 22} color={MEDALHAS[0]} /> : posicao < 3
-                  ? <Medal size={22} color={MEDALHAS[posicao]} />
-                  : <span className="text-lg font-bold text-gray-400">{posicao + 1}º</span>}
+                {linha.colocacao === null ? <span className="text-lg font-bold text-gray-500">–</span>
+                  : linha.colocacao === 1 ? <Crown size={primeiro ? 30 : 22} color={MEDALHAS[0]} /> : linha.colocacao <= 3
+                    ? <Medal size={22} color={MEDALHAS[linha.colocacao - 1]} />
+                    : <span className="text-lg font-bold text-gray-400">{linha.colocacao}º</span>}
               </span>
               {linha.avatar !== undefined && <Avatar emoji={linha.avatar || DEFAULT_AVATAR_ID} size="sm" decorative />}
               <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: linha.cor }} />
               <span className={`min-w-0 flex-1 truncate font-display font-bold text-white ${primeiro ? 'text-[clamp(1.3rem,3.4vh,2.4rem)]' : 'text-[clamp(1rem,2.4vh,1.7rem)]'}`}>{linha.nome}</span>
               <span className={`shrink-0 font-display font-bold ${primeiro ? 'text-[clamp(1.4rem,3.6vh,2.6rem)] text-yellow-300' : 'text-[clamp(1.1rem,2.6vh,1.9rem)] text-white'}`}>
-                {linha.pontos} <span className="text-[0.55em] font-semibold text-gray-400">pts</span>
+                {linha.rotulo ?? <>{linha.pontos} <span className="text-[0.55em] font-semibold text-gray-400">pts</span></>}
               </span>
             </li>
           );
@@ -63,8 +73,14 @@ function ListaDeRanking({ titulo, linhas, destacarPrimeiro = true }: { titulo: s
   );
 }
 
-// `exemplo` troca os dados do evento por dados de teste (página de demonstração /demo/pontuacao-final).
-export default function PontuacaoFinal({ fim, onTerminar, exemplo }: { fim: FimDeJogo; onTerminar: () => void; exemplo?: { equipes: Linha[]; participantes: Linha[] } }) {
+// `exemplo` troca os dados do evento por dados de teste (demo local /demo/pontuacao-final).
+// `mascote` escolhe a animação: 'lumi' (padrão, vídeo do Lumi comemorando) ou 'pulyn' (a anterior, para comparar na demo).
+export default function PontuacaoFinal({ fim, onTerminar, exemplo, mascote = 'lumi' }: {
+  fim: FimDeJogo;
+  onTerminar: () => void;
+  exemplo?: { equipes: Linha[]; participantes: Linha[] };
+  mascote?: 'pulyn' | 'lumi';
+}) {
   const eventoId = usePulynStore((state) => state.eventoAtualId);
   const [pontosDaPartida, setPontosDaPartida] = useState<PontosDaPartida | null>(null);
 
@@ -85,16 +101,35 @@ export default function PontuacaoFinal({ fim, onTerminar, exemplo }: { fim: FimD
   }, [eventoId, fim.chave, exemplo]);
 
   const equipesDaPartida: Linha[] = (pontosDaPartida?.equipes ?? [])
-    .map((equipe) => ({ id: equipe.id, nome: equipe.nome || 'Equipe', pontos: equipe.pontos, cor: equipe.cor || '#1E9BD7' }))
-    .slice(0, 5);
+    .map((equipe) => ({ id: equipe.id, nome: equipe.nome || 'Equipe', pontos: equipe.pontos, cor: equipe.cor || '#1E9BD7' }));
   const participantesDaPartida: Linha[] = (pontosDaPartida?.participantes ?? [])
-    .map((participante) => ({ id: participante.id, nome: participante.nome || 'Participante', pontos: participante.pontos, cor: participante.cor || '#1E9BD7', avatar: participante.avatar }))
-    .slice(0, fim.individual ? 5 : 3);
+    .map((participante) => ({ id: participante.id, nome: participante.nome || 'Participante', pontos: participante.pontos, cor: participante.cor || '#1E9BD7', avatar: participante.avatar }));
 
-  const equipes = exemplo ? exemplo.equipes : equipesDaPartida;
-  const participantes = exemplo ? exemplo.participantes.slice(0, fim.individual ? 5 : 3) : participantesDaPartida;
+  // Até o 5º lugar (participantes num jogo em equipe: até o 3º); empatados na última colocação mostrada entram todos
+  // (o servidor manda também quem ficou zerado; a pontuação final mostra só quem pontuou)
+  const pontuou = (linha: Linha) => linha.pontos > 0;
+  const equipes = ateAColocacao((exemplo ? exemplo.equipes : equipesDaPartida).filter(pontuou), 5);
+  const participantes = ateAColocacao((exemplo ? exemplo.participantes : participantesDaPartida).filter(pontuou), fim.individual ? 5 : 3);
 
-  const temPontos = [...equipes, ...participantes].some((linha) => linha.pontos > 0);
+  // Caça ao Monstro: classificação pela vida que sobrou no monstro (menos vida = melhor; quem derrotou fica em 1º)
+  const classificacaoMonstros = fim.monstros?.length
+    ? ateAColocacao(fim.monstros.map((m) => ({
+      id: m.id, nome: m.nome, cor: m.cor, pontos: Math.max(0, m.vidaMaxima - m.vida),
+      rotulo: m.vida <= 0 ? 'Derrotou o monstro!' : `${m.vida} HP restantes`,
+    })), 5)
+    : null;
+
+  // Caça ao Tesouro: classificação pelo tempo da corrida (a mais rápida em 1º; quem não terminou vem depois, sem colocação)
+  const formatarTempo = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}min ${String(s % 60).padStart(2, '0')}s` : `${s}s`);
+  const classificacaoTesouro = fim.tempos?.length
+    ? rankingComZerados(fim.tempos.map((t) => ({
+      id: t.id, nome: t.nome, cor: t.cor,
+      pontos: t.segundos === null ? 0 : 1_000_000 - t.segundos,
+      rotulo: t.segundos === null ? 'Não terminou' : formatarTempo(t.segundos),
+    })), 5)
+    : null;
+
+  const temPontos = Boolean(classificacaoMonstros || classificacaoTesouro) || [...equipes, ...participantes].some((linha) => linha.pontos > 0);
 
   return (
     <section aria-label="Pontuação final" className="relative grid h-full min-h-0 grid-cols-1 gap-3 overflow-hidden rounded-2xl border border-yellow-300/20 bg-dark-card/60 p-3 sm:p-4 lg:grid-cols-[2fr_3fr]">
@@ -106,7 +141,7 @@ export default function PontuacaoFinal({ fim, onTerminar, exemplo }: { fim: FimD
           {fim.nomeJogo && <p className="text-[clamp(0.8rem,1.9vh,1.3rem)] text-gray-300">{fim.nomeJogo}</p>}
         </div>
         <div className="h-[78%] w-full pt-6">
-          <PulynComemorando />
+          {mascote === 'lumi' ? <LumiComemorando /> : <PulynComemorando />}
         </div>
       </div>
 
@@ -117,7 +152,11 @@ export default function PontuacaoFinal({ fim, onTerminar, exemplo }: { fim: FimD
           {temPontos ? (
             <FitToBox align="center" scrollOverflow minScale={0.4} maxScale={1.3}>
               <div className="space-y-4">
-                {fim.individual ? (
+                {classificacaoMonstros ? (
+                  <ListaDeRanking titulo="Classificação · vida restante do monstro" linhas={classificacaoMonstros} />
+                ) : classificacaoTesouro ? (
+                  <ListaDeRanking titulo="Classificação · tempo da expedição" linhas={classificacaoTesouro} />
+                ) : fim.individual ? (
                   <ListaDeRanking titulo="Participantes" linhas={participantes} />
                 ) : (
                   <>

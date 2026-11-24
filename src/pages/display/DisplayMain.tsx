@@ -11,39 +11,25 @@ import RefemMapa from '../../components/display/RefemMapa';
 import DominioMapa from '../../components/display/DominioMapa';
 import { useDominioEstado } from '../../hooks/useDominioEstado';
 import Badge from '../../components/ui/Badge';
-import Monster3D from '../../components/display/Monster3D';
-import BotaoSomDosMonstros from '../../components/display/monstros/BotaoSomDosMonstros';
 import { monstroDaEquipe, urlDoModelo } from '../../components/display/monstros/catalogo';
 import { preCarregarModelos } from '../../components/display/monstros/modelos';
 import DisplayMap from './DisplayMap';
 import GameGuide, { type GuideGame } from '../../components/display/GameGuide';
+import RegrasDoProximoJogo from '../../components/display/RegrasDoProximoJogo';
+import { useRecarregarComVersaoNova } from '../../hooks/useRecarregarComVersaoNova';
 import FitToBox from '../../components/display/FitToBox';
 import { useTypewriterCycle } from '../../hooks/useTypewriterCycle';
 import { TreasureArena, type TreasureArenaEvent, type TreasureArenaStatus } from '../../components/display/TreasureArena';
 import RouletteOverlay, { RouletteResultBanner, type RouletteData } from '../../components/game-master/RouletteOverlay';
 import PreJogoMapa, { type LeituraPreJogo } from '../../components/display/PreJogoMapa';
 import SorteioEquipes, { type SorteioDasEquipes } from '../../components/display/SorteioEquipes';
-import UltimasLeituras, { type LeituraDoJogo } from '../../components/display/UltimasLeituras';
+import { type LeituraDoJogo } from '../../components/display/UltimasLeituras';
 import PontuacaoFinal, { type FimDeJogo } from '../../components/display/PontuacaoFinal';
-import RankingDaPartida from '../../components/display/RankingDaPartida';
+import ColunaDoJogo from '../../components/display/ColunaDoJogo';
+import ArenaDosMonstros, { type MonstroNaArena } from '../../components/display/ArenaDosMonstros';
 import { numeroDoCheckpoint } from '../../utils/checkpoints';
 
-interface MonsterDisplayMonster {
-  teamId: string;
-  teamName: string;
-  teamColor: string;
-  // Monstro sorteado para a equipe neste jogo (o servidor garante que não se repete)
-  monsterType?: string | null;
-  monsterColor?: string | null;
-  monsterHp: number;
-  monsterMaxHp: number;
-  monsterDefeated?: boolean;
-  victory?: boolean;
-  scanned: number;
-  total: number;
-  complete: boolean;
-  version?: number;
-}
+type MonsterDisplayMonster = MonstroNaArena;
 
 interface MonsterDisplayStatus {
   active: boolean;
@@ -70,8 +56,6 @@ const FIM_DO_MONSTRO_ADIADO_MS = 4500;
 
 // Quanto tempo uma mensagem do recreacionista fica no telão
 const MENSAGEM_VISIVEL_MS = 8000;
-// Durante o jogo a coluna da direita alterna entre as últimas leituras e o ranking da partida; cada tela fica este tempo
-const COLUNA_DO_JOGO_MS = 10000;
 // Releitura dos pontos da partida (além da feita a cada leitura nova)
 const PONTOS_DA_PARTIDA_MS = 15000;
 
@@ -101,6 +85,8 @@ export default function DisplayMain() {
   const encerrarSorteio = useCallback(() => setSorteioEquipes(null), []);
   // Fim de um jogo: pontuação final com o Pulyn comemorando (some sozinha)
   const [fimDeJogo, setFimDeJogo] = useState<FimDeJogo | null>(null);
+  // Versão nova do site publicada: recarrega sozinho (esperando a pontuação final e o sorteio terminarem)
+  useRecarregarComVersaoNova(!fimDeJogo && !sorteioEquipes);
   const encerrarFimDeJogo = useCallback(() => setFimDeJogo(null), []);
   const [selectedGameType, setSelectedGameType] = useState<string | null>(null);
   const [selectedGameName, setSelectedGameName] = useState<string | null>(null);
@@ -109,6 +95,10 @@ export default function DisplayMain() {
   const [treasureStatus, setTreasureStatus] = useState<TreasureArenaStatus | null>(null);
   const [lastTreasureEvent, setLastTreasureEvent] = useState<TreasureArenaEvent | null>(null);
   const [monsterStatus, setMonsterStatus] = useState<MonsterDisplayStatus | null>(null);
+  // Monstros como estavam na última tela (o fim de jogo guarda a vida de cada um para a classificação)
+  const monstrosAtuaisRef = useRef<MonsterDisplayMonster[]>([]);
+  // Tempos da corrida do tesouro como estavam na última tela (o fim de jogo guarda para a classificação)
+  const temposDoTesouroRef = useRef<NonNullable<TreasureArenaStatus['teamRaceTimes']>>([]);
   const [zoneConquestStatus, setZoneConquestStatus] = useState<ZoneConquestStatus | null>(null);
   const [floorPlan, setFloorPlan] = useState<string | null>(null);
   // Há jogo rodando agora? (vem do estado persistido do evento e dos eventos GAME_STARTED/GAME_STOPPED)
@@ -205,13 +195,13 @@ export default function DisplayMain() {
       };
     })
     .sort((a, b) => b.quando - a.quando)
-    .slice(0, 8)
+    .slice(0, 6)
     .map(({ id, apelido, checkpoint, checkpointNome, pontos, cor }) => ({ id, apelido, checkpoint, checkpointNome, pontos, cor })), [scoreLog, checkpoints]);
 
   // Pontos ganhos na partida (não o total do evento), para o ranking da coluna do jogo
   const [pontosDaPartida, setPontosDaPartida] = useState<PontosDaPartida | null>(null);
-  // 0 = últimas leituras, 1 = equipes, 2 = participantes
-  const [colunaDoJogo, setColunaDoJogo] = useState(0);
+  // Jogo individual: o ranking é dos participantes; em equipe, das equipes (mesma regra da pontuação final)
+  const jogoIndividual = String(jogoSelecionado.type || '').toLowerCase() === 'individual' || isIndividualMode;
   const ultimaLeituraDaLista = scoreLog[0]?.id;
 
   useEffect(() => {
@@ -234,21 +224,6 @@ export default function DisplayMain() {
     return () => { cancelado = true; window.clearInterval(intervalo); };
   }, [gameActive, selectedEventId, ultimaLeituraDaLista]);
 
-  // Telas da coluna que têm o que mostrar (as leituras entram sempre; o ranking só com alguém pontuado)
-  const telasDaColuna = useMemo(() => {
-    const telas = [0];
-    if ((pontosDaPartida?.equipes ?? []).some((e) => e.pontos > 0)) telas.push(1);
-    if ((pontosDaPartida?.participantes ?? []).some((p) => p.pontos > 0)) telas.push(2);
-    return telas;
-  }, [pontosDaPartida]);
-  useEffect(() => {
-    if (!gameActive || telasDaColuna.length < 2) { setColunaDoJogo(0); return undefined; }
-    const intervalo = window.setInterval(() => {
-      setColunaDoJogo((atual) => telasDaColuna[(telasDaColuna.indexOf(atual) + 1) % telasDaColuna.length]);
-    }, COLUNA_DO_JOGO_MS);
-    return () => window.clearInterval(intervalo);
-  }, [gameActive, telasDaColuna]);
-  const telaDaColuna = telasDaColuna.includes(colunaDoJogo) ? colunaDoJogo : 0;
 
   // Uma leitura chegou: relê o histórico logo depois (o servidor leva um instante para gravar), sem repetir a cada leitura em rajada
   const recargaDasLeituras = useRef<number | null>(null);
@@ -369,7 +344,8 @@ export default function DisplayMain() {
             id: String(game.id),
             name: String(game.name || 'Jogo'),
             description: game.description || null,
-            rules: game.rules || null,
+            // Jogos de buffet: a versão curta para crianças (a mesma que o Lumi fala); PulynBall: as regras completas
+            rules: game.regrasTelao || game.rules || null,
             type: game.type || null,
             duration: game.duration ? Number(game.duration) : null,
           }))
@@ -692,10 +668,18 @@ export default function DisplayMain() {
         if (gameActive) {
           const tipoDoJogo = guideGames.find((g) => g.name === selectedGameName)?.type;
           // O aviso de fim pode chegar duas vezes (geral e da sala): a segunda não reinicia a tela
+          const monstros = selectedGameType === 'monster_hunt' ? monstrosAtuaisRef.current : [];
+          const tempos = selectedGameType === 'treasure_hunt' ? temposDoTesouroRef.current : [];
           setFimDeJogo((atual) => atual ?? {
             chave: Date.now(),
             nomeJogo: selectedGameName,
             individual: String(tipoDoJogo || '').toLowerCase() === 'individual' || isIndividualMode,
+            monstros: monstros.length > 0
+              ? monstros.map((m) => ({ id: m.teamId, nome: m.teamName, cor: m.teamColor, vida: Math.max(0, Number(m.monsterHp || 0)), vidaMaxima: Number(m.monsterMaxHp || 500) }))
+              : undefined,
+            tempos: tempos.length > 0
+              ? tempos.map((t) => ({ id: t.teamId, nome: t.teamName, cor: t.teamColor, segundos: t.completed && t.elapsedSeconds != null ? Number(t.elapsedSeconds) : null }))
+              : undefined,
           });
         }
         setGameActive(false);
@@ -840,7 +824,8 @@ export default function DisplayMain() {
         if (fimAdiado.current !== null) { window.clearTimeout(fimAdiado.current); fimAdiado.current = null; }
       }
       const monstrosEmCena = selectedGameType === 'monster_hunt' && Boolean(monsterStatus?.monsters?.length || monsterStatus?.progress?.length);
-      // Só o fim automático (o último monstro caiu) espera a queda; o encerramento pelo recreacionista mostra o resultado na hora
+      // Só o fim automático do monstro (o monstro caiu) espera a queda na tela; os outros fins (o tesouro, o recreacionista
+      // encerrando) mostram o resultado na hora
       if (event.type === 'GAME_STOPPED' && event.payload?.automatic && monstrosEmCena && fimAdiado.current === null) {
         const inicio = iniciosDeJogo.current;
         fimAdiado.current = window.setTimeout(() => {
@@ -914,6 +899,8 @@ export default function DisplayMain() {
   const monsterCards = monsterStatus?.monsters?.length
     ? monsterStatus.monsters
     : monsterStatus?.progress || [];
+  monstrosAtuaisRef.current = monsterCards;
+  temposDoTesouroRef.current = treasureStatus?.teamRaceTimes ?? [];
 
   // Se não houver evento selecionado, aguardar o comando da recepção.
   if (!selectedEventId) {
@@ -992,89 +979,23 @@ export default function DisplayMain() {
               zoneConquestCheckpoints={zoneConquestStatus?.checkpoints || null}
             />
           </div>
-            ) : (
-            <FitToBox align="center" minScale={0.3} maxScale={gameOnlyView ? 1.6 : 1}>
-              <>
-          {selectedGameType === 'monster_hunt' && monsterStatus?.gameType === 'monster_hunt' && (
-            <div className="mx-auto max-w-6xl rounded-3xl border-2 border-danger/70 bg-gradient-to-br from-red-950/80 via-dark-surface/90 to-purple-950/70 p-5 shadow-2xl shadow-danger/20 sm:p-6" aria-live="polite">
-              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-danger">Caça ao Monstro</p>
-                  <h2 className="font-display text-4xl font-bold text-white">Um monstro para cada equipe</h2>
-                </div>
-                <div className="flex items-center gap-3">
-                  <BotaoSomDosMonstros />
-                  <div className="rounded-full border border-danger/40 bg-danger/10 px-4 py-2 text-sm font-bold text-red-100">
-                    {monsterCards.filter(monster => monster.monsterDefeated).length}/{monsterCards.length} derrotados
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-5 lg:grid-cols-2">
-                {monsterCards.map((monster, indice) => {
-                  const escolhido = monstroDaEquipe(monster.monsterType, monster.monsterColor, indice);
-                  const maxHp = Number(monster.monsterMaxHp || 500);
-                  // No modo de teste o dano simulado se soma ao que o servidor informa
-                  const hp = Math.max(0, Number(monster.monsterHp || 0) - (danoDeTeste[monster.teamId] || 0));
-                  const defeated = Boolean(monster.monsterDefeated || monster.victory || (modoDeTeste && hp <= 0));
-                  const progressPercent = maxHp > 0 ? Math.max(0, Math.min(100, (hp / maxHp) * 100)) : 0;
-                  return (
-                    <article key={monster.teamId} className="overflow-hidden rounded-2xl border border-white/10 bg-black/25" style={{ borderColor: `${monster.teamColor || '#ef4444'}66` }}>
-                      <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">Equipe</p>
-                          <h3 className="truncate font-display text-2xl font-bold" style={{ color: monster.teamColor || '#f87171' }}>{monster.teamName}</h3>
-                        </div>
-                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${defeated ? 'bg-success/15 text-success' : 'bg-danger/15 text-red-200'}`}>
-                          {defeated ? 'Monstro derrotado' : 'Em batalha'}
-                        </span>
-                      </div>
-                      <div className="p-3">
-                        <Monster3D
-                          hp={hp}
-                          maxHp={maxHp}
-                          defeated={defeated}
-                          teamName={monster.teamName}
-                          teamColor={monster.teamColor}
-                          winnerTeamName={defeated ? monster.teamName : null}
-                          winnerTeamColor={monster.teamColor}
-                          tipo={escolhido.tipo}
-                          cor={escolhido.cor}
-                          leve={monsterCards.length > 2}
-                        />
-                        <div className="mt-3 flex items-center justify-between text-sm font-semibold text-gray-200">
-                          <span>Energia do monstro</span>
-                          <span>{hp}/{maxHp} HP</span>
-                        </div>
-                        <div className="mt-2 h-4 overflow-hidden rounded-full border border-white/10 bg-black/50 p-0.5">
-                          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progressPercent}%`, backgroundColor: monster.teamColor || '#ef4444' }} />
-                        </div>
-                        <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-                          <span>{monster.scanned}/{monster.total} participantes atacaram</span>
-                          <span>{monster.complete ? 'Ataque especial liberado' : 'Ataques em andamento'}</span>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          {selectedGameType === 'treasure_hunt' && treasureStatus?.gameType === 'treasure_hunt' &&
-            (treasureStatus.active || treasureStatus.completed) && (
-            <div className="mx-auto max-w-6xl">
-              <TreasureArena
-                status={treasureStatus}
-                checkpoints={checkpoints}
-                teams={teams}
-                lastEvent={lastTreasureEvent}
-                floorPlan={floorPlan}
-              />
-            </div>
-          )}
-              </>
-            </FitToBox>
-            )
+            ) : monsterStageVisible ? (
+          // Caça ao Monstro: a arena ocupa o palco inteiro e escolhe a grade pelo espaço (sem o encolhimento do FitToBox)
+          <div className="h-full">
+            <ArenaDosMonstros monstros={monsterCards} danoDeTeste={danoDeTeste} modoDeTeste={modoDeTeste} />
+          </div>
+            ) : treasureStageVisible && treasureStatus ? (
+          // Caça ao Tesouro: a arena ocupa o palco inteiro (mapa grande e o painel da vez ao lado)
+          <div className="h-full">
+            <TreasureArena
+              status={treasureStatus}
+              checkpoints={checkpoints}
+              teams={teams}
+              lastEvent={lastTreasureEvent}
+              floorPlan={floorPlan}
+            />
+          </div>
+            ) : null
   );
 
   // Simula o golpe numa equipe; um monstro já derrotado não reage
@@ -1360,15 +1281,22 @@ export default function DisplayMain() {
         )}
         <div className="mt-2 flex min-h-0 flex-1 gap-2">
           <div className="min-h-0 min-w-0 flex-1">{stageContent}</div>
-          {/* Últimas leituras: coluna ao lado do jogo (só em telas largas) */}
+          {/* Coluna ao lado do jogo (só em telas largas): últimas leituras e o ranking da partida */}
           <div className="hidden w-[clamp(13rem,19vw,21rem)] shrink-0 lg:block">
-            {telaDaColuna === 1 ? (
-              <RankingDaPartida modo="equipes" linhas={pontosDaPartida?.equipes ?? []} />
-            ) : telaDaColuna === 2 ? (
-              <RankingDaPartida modo="participantes" linhas={pontosDaPartida?.participantes ?? []} />
-            ) : (
-              <UltimasLeituras leituras={ultimasLeituras} />
-            )}
+            <ColunaDoJogo
+              leituras={ultimasLeituras}
+              // Caça ao Monstro: as equipes pela vida que sobrou no monstro (as crianças não pontuam durante o jogo)
+              equipes={monsterStageVisible
+                ? monsterCards.map((m) => ({
+                  id: m.teamId, nome: m.teamName, cor: m.teamColor,
+                  pontos: Math.max(0, Number(m.monsterMaxHp || 500) - Number(m.monsterHp || 0)),
+                  rotulo: `${Math.max(0, Number(m.monsterHp || 0))} HP`,
+                }))
+                : pontosDaPartida?.equipes ?? []}
+              participantes={pontosDaPartida?.participantes ?? []}
+              individual={jogoIndividual}
+              semTop={monsterStageVisible}
+            />
           </div>
         </div>
       </div>
@@ -1413,14 +1341,9 @@ export default function DisplayMain() {
             <SorteioEquipes key={sorteioEquipes.chave} sorteio={sorteioEquipes} onTerminar={encerrarSorteio} />
           </section>
         ) : !gameActive && selectedGameName ? (
-          // Jogo escolhido e ainda não iniciado: as regras dele ocupam a tela até o recreacionista iniciar
+          // Jogo escolhido e ainda não iniciado: o Lumi explica as regras dele, que ficam na tela até o recreacionista iniciar
           <section className="min-h-[420px] min-w-0 flex-1 lg:min-h-0">
-            <GameGuide
-              games={[jogoSelecionado]}
-              highlightName={jogoSelecionado.name}
-              heading="Regras do próximo jogo"
-              subheading="Leia com atenção: o jogo começa em instantes"
-            />
+            <RegrasDoProximoJogo key={jogoSelecionado.id} jogo={jogoSelecionado} />
           </section>
         ) : !gameActive ? (
           // Pré-jogo: o mapa com os checkpoints e o aviso de checkpoint lido. Depois de uma partida, o placar fica ao lado.
